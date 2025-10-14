@@ -1,0 +1,392 @@
+﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Xml.Linq;
+
+namespace Threadle.Core.Model
+{
+    /// <summary>
+    /// Describes a Network object, consisting of a Nodeset object and a set of layers.
+    /// Implements IStructure.
+    /// Constructors with or without provided Nodeset.
+    /// </summary>
+    public class Network : IStructure
+    {
+        #region Constructors
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Network"/> class with the specified
+        /// name and Nodeset.
+        /// </summary>
+        /// <param name="name">The internal name of the network.</param>
+        /// <param name="nodeset">The Nodeset object that the network is using.</param>
+        public Network(string name, Nodeset nodeset)
+        {
+            Name = name;
+            Nodeset = nodeset;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Network"/> class
+        /// with the specified name and optionally creating the specified number of nodes.
+        /// </summary>
+        /// <param name="name">The internal name of the network.</param>
+        /// <param name="n">Optional number of nodes to create (defaults to zero).</param>
+        public Network(string name, int n = 100)
+        {
+            Name = name;
+            Nodeset = new Nodeset(name + "_nodeset", n);
+        }
+        #endregion
+
+
+        #region Properties
+        /// <summary>
+        /// Gets or sets the name of the Network.
+        /// </summary>
+        public string Name { get; set; } = "";
+
+        /// <summary>
+        /// Returns content info about this structure as a list of strings
+        /// </summary>
+        public List<string> Content
+        {
+            get
+            {
+                List<string> lines = [$"Network: {Name}", $"Nodeset: {Nodeset.Name}"];
+                foreach ((string layerName, ILayer layer) in Layers)
+                {
+                    if (layer is LayerOneMode layerOneMode)
+                        lines.Add($" {layerOneMode.Name} (1-mode: {layerOneMode.ValueType},{layerOneMode.Directionality},{layerOneMode.Selfties}); Nbr edges:{layerOneMode.NbrEdges}");
+                    else if (layer is LayerTwoMode layerTwoMode)
+                    {
+                        lines.Add($"  {layerTwoMode.Name} (2-mode); Nbr hyperedges: {layerTwoMode.NbrHyperedges}");
+                    }
+                }
+                return lines;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the Filename (if this structure is loaded or saved to file)
+        /// </summary>
+        public string Filepath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the flag whether this structure has been modified or not since last load/initiation
+        /// </summary>
+        public bool IsModified { get; set; }
+
+        /// <summary>
+        /// Gets the Nodeset that this Network uses
+        /// </summary>
+        public Nodeset Nodeset { get; private set; }
+
+        /// <summary>
+        /// A dictionary of relational layers (ILayer), accessible by their unique names.
+        /// </summary>
+        public Dictionary<string, ILayer> Layers { get; set; } = new();
+        #endregion
+
+
+        #region Layer-related methods
+        /// <summary>
+        /// Creates a layer of relations (see <see cref="ILayer"/>) with the specified name.
+        /// </summary>
+        /// <param name="layerName">The name of the layer<./param>
+        /// <param name="layer">The <see cref="ILayer"/> object.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult AddLayer(string layerName, ILayer layer)
+        {
+            layerName = layerName.Trim();
+            if (string.IsNullOrEmpty(layerName))
+                return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");
+            var layerResult = GetLayer(layerName);
+            if (layerResult.Success)
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer with name '{layerName}' already exists.");
+            Layers[layerName] = layer;
+            IsModified = true;
+            return OperationResult.Ok($"Layer '{layerName}' added to network '{Name}'");
+        }
+
+        /// <summary>
+        /// Creates a layer of 1-mode relations (see <see cref="LayerOneMode"/>) with the specified name and relational properties.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="edgeDirectionality">Either directed (<see cref="EdgeDirectionality.Directed"/>) or undirected (<see cref="EdgeDirectionality.Undirected">).</param>
+        /// <param name="edgeValueType">Either binary (<see cref="EdgeType.Binary"/>), valued (<see cref="EdgeType.Valued"/>), or signed (<see cref="EdgeType.Signed"/>).</param>
+        /// <param name="selfties">Allow selfties (true) or not (false)</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult AddLayerOneMode(string layerName, EdgeDirectionality edgeDirectionality, EdgeType edgeValueType, bool selfties)
+        {
+            return AddLayer(layerName, new LayerOneMode(layerName, edgeDirectionality, edgeValueType, selfties));
+        }
+
+        /// <summary>
+        /// Creates a layer of 2-mode hyperdge relations (see <see cref="LayerTwoMode"/>) with the specified name.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult AddLayerTwoMode(string layerName)
+        {
+            return AddLayer(layerName, new LayerTwoMode(layerName));
+        }
+
+        /// <summary>
+        /// Removes a layer with the specific layername. Also clears out all edges in that layer.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult RemoveLayer(string layerName)
+        {
+            var layerResult = GetLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            layerResult.Value!.ClearLayer();
+            Layers.Remove(layerName);
+            IsModified = true;
+            return OperationResult.Ok($"Layer '{layerName}' removed from network '{Name}'.");
+        }
+
+        /// <summary>
+        /// Gets the <see cref="ILayer"/> object for the specified layer, packaged in an OperationResult object.
+        /// Can be either a 1-mode or a 2-mode layer.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="ILayer"/>.</returns>
+        public OperationResult<ILayer> GetLayer(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<ILayer>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            return OperationResult<ILayer>.Ok(layer);
+        }
+
+        /// <summary>
+        /// Gets the <see cref="ILayer"/> object for the specified layer, or null if not found.
+        /// Can be either a 1-mode or a 2-mode layer.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <returns>The <see cref="ILayer"/> object, or null if not found.</returns>
+        internal ILayer? TryGetlayer(string layerName)
+        {
+            Layers.TryGetValue(layerName, out var layer);
+            return layer;
+        }
+
+        /// <summary>
+        /// Gets the <see cref="LayerOneMode"/> object for the specifed layer.
+        /// </summary>
+        /// <param name="layerName">The name of the 1-mode layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="LayerOneMode"/>.</returns>
+        public OperationResult<LayerOneMode> GetOneModeLayer(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (!(layer is LayerOneMode layerOneMode))
+                return OperationResult<LayerOneMode>.Fail("LayerNotOneMode", $"Layer '{layerName}' is not a 1-mode layer.");
+            return OperationResult<LayerOneMode>.Ok(layerOneMode);
+        }
+
+        /// <summary>
+        /// Gets the <see cref="LayerTwoMode"/> object for the specifed layer.
+        /// </summary>
+        /// <param name="layerName">The name of the 2-mode layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="LayerTwoMode"/>.</returns>
+        public OperationResult<LayerTwoMode> GetTwoModeLayer(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<LayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (!(layer is LayerTwoMode layerTwoMode))
+                return OperationResult<LayerTwoMode>.Fail("LayerNotTwoMode", $"Layer '{layerName}' is not a 2-mode layer.");
+            return OperationResult<LayerTwoMode>.Ok(layerTwoMode);
+        }
+        #endregion
+
+
+        #region Edge-related methods
+        /// <summary>
+        /// Adds an edge between <paramref name="node1id"/> and <paramref name="node2id"/>, in the specified (1-mode) layer.
+        /// The edge is either directional or symmetric depending on the properties of the layer.
+        /// The default edge value is 1, but this can be set for valued layers.
+        /// An optional flag allows for creating and adding nodes to the nodeset in case they are missing.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="node1id">Id of the first node.</param>
+        /// <param name="node2id">Id of the second node.</param>
+        /// <param name="value">Value of the edge.</param>
+        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult AddEdge(string layerName, uint node1id, uint node2id, float value = 1, bool addMissingNodes = false)
+        {
+            var layerResult = GetOneModeLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            return AddEdge(layerResult.Value!, node1id, node2id, value, addMissingNodes);
+        }
+
+        /// <summary>
+        /// Adds an edge between node1id and node2id in the specified 1-mode layer.
+        /// </summary>
+        /// <param name="layerOneMode">The <see cref="LayerOneMode"/> layer.</param>
+        /// <param name="node1id">Id of the first node.</param>
+        /// <param name="node2id">Id of the second node.</param>
+        /// <param name="value">Value of the edge.</param>
+        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult AddEdge(LayerOneMode layerOneMode, uint node1id, uint node2id, float value, bool addMissingNodes)
+        {
+            value = Misc.FixConnectionValue(value, layerOneMode.ValueType);
+            if (value == 0)
+                return OperationResult.Ok("Edge value is zero: no edge added.");
+            if (!addMissingNodes)
+            {
+                var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+                if (!nodeCheckResult.Success)
+                    return nodeCheckResult;
+            }
+            OperationResult result = layerOneMode.AddEdge(node1id, node2id, value);
+            if (result.Success)
+            {
+                if (addMissingNodes)
+                {
+                    if (!Nodeset.CheckThatNodeExists(node1id))
+                        Nodeset.AddNode(node1id);
+                    if (!Nodeset.CheckThatNodeExists(node2id))
+                        Nodeset.AddNode(node2id);
+                }
+                IsModified = true;
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Adds an hyperedge in the specified (2-mode) layer. An optional array with node ids indicates the nodes that are connected
+        /// to this hyperedge. An optional flag allows for creating and adding nodes to the nodeset in case they are missing.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="hyperName">The (unique) name of the hyperedge.</param>
+        /// <param name="nodeIds">An array of node ids (uint[]).</param>
+        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult AddHyperedge(string layerName, string hyperName, uint[]? nodeIds = null, bool addMissingNodes = true)
+        {
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            return AddHyperedge(layerResult.Value!, hyperName, nodeIds, addMissingNodes);
+        }
+
+        /// <summary>
+        /// Adds an hyperedge to the specified 2-mode layer.
+        /// </summary>
+        /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> layer.</param>
+        /// <param name="hyperName">The (unique) name of the hyperedge.</param>
+        /// <param name="nodeIds">An array of node ids (uint[]).</param>
+        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult AddHyperedge(LayerTwoMode layerTwoMode, string hyperName, uint[]? nodeIds, bool addMissingNodes)
+        {
+            if (nodeIds != null && nodeIds.Length > 0)
+            {
+                var uniqueNodeIds = new HashSet<uint>();
+                foreach (uint id in nodeIds)
+                {
+                    if (!Nodeset.CheckThatNodeExists(id))
+                    {
+                        if (addMissingNodes)
+                            Nodeset.AddNode(id);
+                        else
+                            continue;
+                    }
+                    uniqueNodeIds.Add(id);
+                }
+                nodeIds = uniqueNodeIds.ToArray();
+            }
+            return layerTwoMode.AddHyperedge(hyperName, nodeIds);
+        }
+
+        /// <summary>
+        /// Check if an edge exists between two nodes in a particular layer. Works for both 1- and 2-mode layers.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="node1id">Id of the first node.</param>
+        /// <param name="node2id">Id of the second node.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="bool"/>.</returns>
+        public OperationResult<bool> CheckEdgeExists(string layerName, uint node1id, uint node2id)
+        {
+            OperationResult nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+            if (!nodeCheckResult.Success)
+                return OperationResult<bool>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
+            var layerResult = GetLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<bool>.Fail(layerResult.Code, layerResult.Message);
+            return OperationResult<bool>.Ok(layerResult.Value!.CheckEdgeExists(node1id, node2id));
+        }
+
+        /// <summary>
+        /// Gets the potential edge value between two nodes in a layer. If the check is valid, a zero
+        /// value is returned if there is no edge between the nodes.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="node1id">Id of the first node.</param>
+        /// <param name="node2id">Id of the second node.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="float"/>.</returns>
+        public OperationResult<float> GetEdge(string layerName, uint node1id, uint node2id)
+        {
+            OperationResult nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+            if (!nodeCheckResult.Success)
+                return OperationResult<float>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
+            var layerResult = GetLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<float>.Fail(layerResult.Code, layerResult.Message);
+            return OperationResult<float>.Ok(layerResult.Value!.GetEdgeValue(node1id, node2id));
+        }
+
+        public OperationResult<uint[]> GetNodeAlters(string layerName, uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+        {
+            if (!Nodeset.CheckThatNodeExists(nodeId))
+                return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+            var layerResult = GetLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
+            uint[] alterIds = layerResult.Value!.GetAlterIds(nodeId, edgeTraversal);
+            Array.Sort(alterIds);
+
+            return OperationResult<uint[]>.Ok(alterIds);
+            
+
+            //throw new NotImplementedException();
+        }
+
+        #endregion
+
+
+        #region Support methods
+        /// <summary>
+        /// Internal method for setting the Nodeset (only to be used by the loader)
+        /// </summary>
+        /// <param name="nodeset">The nodeset to set.</param>
+        internal void SetNodeset(Nodeset nodeset) => Nodeset = nodeset;
+
+        /// <summary>
+        /// Gets a collection of all unique node id values found in all existing relations in all <see cref="Layers"/>.
+        /// </summary>
+        /// <returns>A HashSet with all unique node ids currently existing in the <see cref="Network">.</returns>
+        /// <remarks>
+        /// This is currently used by CompressedTsvSerializer when loading a network without an existing Nodeset. I might change that so that a network MUST have a reference to a saved
+        /// Nodeset. Or that it creates Nodes on the fly.
+        /// </remarks>
+        internal HashSet<uint> GetAllIdsMentioned()
+        {
+            HashSet<uint> ids = [];
+            foreach (ILayer layer in Layers.Values)
+                ids.UnionWith(layer.GetMentionedNodeIds());
+            return ids;
+        }
+
+        #endregion
+    }
+}

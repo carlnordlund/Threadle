@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35728.132
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Threadle.Core", "Threadle.Core\Threadle.Core.csproj", "{83F62DDB-6D0D-4A39-96AA-6AA1F671FFE8}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Threadle.CLIconsole", "Threadle.CLIconsole\Threadle.CLIconsole.csproj", "{31ABAE0B-6DE3-4020-833D-BF5D3A1638CC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{83F62DDB-6D0D-4A39-96AA-6AA1F671FFE8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{83F62DDB-6D0D-4A39-96AA-6AA1F671FFE8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{83F62DDB-6D0D-4A39-96AA-6AA1F671FFE8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{83F62DDB-6D0D-4A39-96AA-6AA1F671FFE8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31ABAE0B-6DE3-4020-833D-BF5D3A1638CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31ABAE0B-6DE3-4020-833D-BF5D3A1638CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31ABAE0B-6DE3-4020-833D-BF5D3A1638CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31ABAE0B-6DE3-4020-833D-BF5D3A1638CC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AAE9D6B3-AE72-4A2C-A056-672BDE5E38D0}
+	EndGlobalSection
+EndGlobal

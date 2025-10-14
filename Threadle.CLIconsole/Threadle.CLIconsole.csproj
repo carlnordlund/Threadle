@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RuntimeIdentifiers>win-x64;win-x86;win-arm64;linux-x64;linux-arm;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Parser\**" />
+    <EmbeddedResource Remove="Parser\**" />
+    <None Remove="Parser\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Command.cs" />
+    <Compile Remove="Commands\DisplayNetworkCommand.cs" />
+    <Compile Remove="Commands\GenerateNetworkCommand.cs" />
+    <Compile Remove="Commands\ImportCommand.cs" />
+    <Compile Remove="Commands\InfoCommand.cs" />
+    <Compile Remove="Commands\MergeNetworksCommand.cs" />
+    <Compile Remove="Commands\RandomWalkerCommand.cs" />
+    <Compile Remove="Commands\SetVerboseCommand.cs" />
+    <Compile Remove="Commands\ShortestPathCommand.cs" />
+    <Compile Remove="VariableRegistry.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Threadle.Core\Threadle.Core.csproj" />
+  </ItemGroup>
+  <Target Name="AlwaysBuildCore" BeforeTargets="Build">
+    <MSBuild Projects="..\Threadle.Core\Threadle.Core.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+  </Target>
+</Project>

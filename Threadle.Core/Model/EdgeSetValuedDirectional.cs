@@ -1,0 +1,108 @@
+﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Threadle.Core.Model
+{
+    public class EdgesetValuedDirectional : IEdgeset
+    {
+        private List<Connection> _outbound = new();
+        private List<Connection> _inbound = new();
+
+        public List<Connection> GetOutboundConnections() => _outbound;
+        public List<Connection> GetInboundConnections() => _inbound;
+
+        public uint NbrOutboundEdges { get => (uint)_outbound.Count; }
+        public uint NbrInboundEdges { get => (uint)_inbound.Count; }
+        public uint NbrEdges { get => (uint)_outbound.Count; }
+
+        public List<uint> GetOutboundNodeIds() => _outbound.Select(s => s.partnerNodeId).ToList();
+        public List<uint> GetInboundNodeIds() => _inbound.Select(s => s.partnerNodeId).ToList();
+        public List<uint> GetAllNodeIds() => GetOutboundNodeIds().Concat(GetInboundNodeIds()).ToList();
+
+
+        public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
+        {
+            if (UserSettings.BlockMultiedges && _inbound.Any(s => s.partnerNodeId == partnerNodeId))
+                return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
+            _inbound.Add(new Connection(partnerNodeId, value));
+            return OperationResult.Ok();
+        }
+
+        public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
+        {
+            if (UserSettings.BlockMultiedges && _outbound.Any(s => s.partnerNodeId == partnerNodeId))
+                return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
+            _outbound.Add(new Connection(partnerNodeId, value));
+            return OperationResult.Ok();
+        }
+
+        public float GetOutboundPartnerEdgeValue(uint partnerNodeId)
+        {
+            foreach (var connection in _outbound)
+                if (connection.partnerNodeId == partnerNodeId)
+                    return connection.value;
+            return 0;
+        }
+
+        public bool CheckOutboundPartnerEdgeExists(uint partnerNodeId)
+        {
+            foreach (var connection in _outbound)
+                if (connection.partnerNodeId == partnerNodeId)
+                    return true;
+            return false;
+        }
+
+        public string GetNodelistAlterString(uint egoNodeId)
+        {
+            string ret = "";
+            foreach (Connection connection in _outbound)
+                ret += $"\t{connection.partnerNodeId};{connection.value}";
+            return ret;
+        }
+
+        public uint[] GetAlterIds(EdgeTraversal edgeTraversal)
+        {
+            switch (edgeTraversal)
+            {
+                case EdgeTraversal.Outbound:
+                    if (_outbound.Count == 0) return Array.Empty<uint>();
+                    var outboundIds = new uint[_outbound.Count];
+                    for (int i = 0; i < _outbound.Count; i++)
+                        outboundIds[i] = _outbound[i].partnerNodeId;
+                    return outboundIds;
+                case EdgeTraversal.Inbound:
+                    if (_inbound.Count == 0) return Array.Empty<uint>();
+                    var inboundIds = new uint[_inbound.Count];
+                    for (int i = 0; i < _inbound.Count; i++)
+                        inboundIds[i] = _inbound[i].partnerNodeId;
+                    return inboundIds;
+                case EdgeTraversal.Both:
+                    if (_outbound.Count == 0) return GetAlterIds(EdgeTraversal.Inbound);
+                    if (_inbound.Count == 0) return GetAlterIds(EdgeTraversal.Outbound);
+
+                    var union = new HashSet<uint>(_outbound.Count + _inbound.Count);
+                    for (int i = 0; i < _outbound.Count; i++)
+                        union.Add(_outbound[i].partnerNodeId);
+                    for (int i=0; i< _inbound.Count; i++)
+                        union.Add(_inbound[i].partnerNodeId);
+                    return union.Count>0 ? union.ToArray() : Array.Empty<uint>();
+
+                default:
+                    return Array.Empty<uint>();
+            }
+        }
+
+        public void ClearEdges()
+        {
+            _outbound.Clear();
+            _inbound.Clear();
+        }
+
+
+    }
+}
