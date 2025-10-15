@@ -99,10 +99,10 @@ namespace Threadle.Core.Model
         /// <param name="layerName">The name of the layer<./param>
         /// <param name="layer">The <see cref="ILayer"/> object.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult AddLayer(string layerNameInput, ILayer layer)
+        public OperationResult AddLayer(string layerName, ILayer layer)
         {
-            if (!Misc.NormalizeNameAndCheckValidity(layerNameInput, out string layerName))
-                return OperationResult.Fail("InvalidLayerName", $"Layer name '{layerNameInput}' is invalid.");
+            //if (!Misc.NormalizeNameAndCheckValidity(layerNameInput, out string layerName))
+            //    return OperationResult.Fail("InvalidLayerName", $"Layer name '{layerNameInput}' is invalid.");
             layerName = layerName.Trim();
             if (string.IsNullOrEmpty(layerName))
                 return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");

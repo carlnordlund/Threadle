@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         {
             command.CheckAssignment(false);
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
-            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
+            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
             uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
             uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
             float value = command.GetArgumentParseFloat("value", 1);

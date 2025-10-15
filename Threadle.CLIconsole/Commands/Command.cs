@@ -115,5 +115,19 @@ namespace Threadle.CLIconsole.Commands
                 throw new Exception("!Error: No variable assigned.");
             return AssignedVariable.Trim().ToLowerInvariant();
         }
+
+        internal bool NormalizeNameAndCheckValidity(string input, out string normalized)
+        {
+            normalized = string.Empty;
+            if (string.IsNullOrWhiteSpace(input))
+                return false;
+            normalized = input.Trim().ToLowerInvariant();
+            if (!char.IsLetter(normalized[0]))
+                return false;
+            foreach (char c in normalized)
+                if (!char.IsLetterOrDigit(c) && c != '_')
+                    return false;
+            return true;
+        }
     }
 }

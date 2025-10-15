@@ -23,6 +23,8 @@ namespace Threadle.CLIconsole.Commands
             command.CheckAssignment(false);
             Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
+            if (!command.NormalizeNameAndCheckValidity(attributeName, out string attributeNameVerified))
+                throw new Exception($"!Error: Attribute name '{attributeName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
             string attributeType = command.GetArgumentThrowExceptionIfMissingOrNull("attrtype", "arg2");
             ConsoleOutput.WriteLine(nodeset.DefineNodeAttribute(attributeName, attributeType).ToString());
         }

@@ -292,19 +292,22 @@ namespace Threadle.Core.Utilities
         /// <param name="input">The input string</param>
         /// <param name="normalized">Return string through out parameter</param>
         /// <returns>Boolean whether the name is okay or not.</returns>
-        public static bool NormalizeNameAndCheckValidity(string? input, out string normalized)
-        {
-            normalized = string.Empty;
-            if (string.IsNullOrWhiteSpace(input))
-                return false;
-            normalized = input.Trim().ToLowerInvariant();
-            if (!char.IsLetter(normalized[0]))
-                return false;
-            foreach (char c in normalized)
-                if (!char.IsLetterOrDigit(c) && c != '_')
-                    return false;
-            return true;
-        }
+        /// 
+
+        /// Decided to remove this! Core should treat input, such as attributeName, as data, not input
+        //public static bool NormalizeNameAndCheckValidity(string? input, out string normalized)
+        //{
+        //    normalized = string.Empty;
+        //    if (string.IsNullOrWhiteSpace(input))
+        //        return false;
+        //    normalized = input.Trim().ToLowerInvariant();
+        //    if (!char.IsLetter(normalized[0]))
+        //        return false;
+        //    foreach (char c in normalized)
+        //        if (!char.IsLetterOrDigit(c) && c != '_')
+        //            return false;
+        //    return true;
+        //}
 
         //internal static List<string> GenerateNodelistChunk(LayerOneMode layerOneMode)
         //{
