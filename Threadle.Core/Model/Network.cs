@@ -63,7 +63,7 @@ namespace Threadle.Core.Model
                         lines.Add($" {layerOneMode.Name} (1-mode: {layerOneMode.ValueType},{layerOneMode.Directionality},{layerOneMode.Selfties}); Nbr edges:{layerOneMode.NbrEdges}");
                     else if (layer is LayerTwoMode layerTwoMode)
                     {
-                        lines.Add($"  {layerTwoMode.Name} (2-mode); Nbr hyperedges: {layerTwoMode.NbrHyperedges}");
+                        lines.Add($" {layerTwoMode.Name} (2-mode); Nbr hyperedges: {layerTwoMode.NbrHyperedges}");
                     }
                 }
                 return lines;
@@ -99,8 +99,10 @@ namespace Threadle.Core.Model
         /// <param name="layerName">The name of the layer<./param>
         /// <param name="layer">The <see cref="ILayer"/> object.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult AddLayer(string layerName, ILayer layer)
+        public OperationResult AddLayer(string layerNameInput, ILayer layer)
         {
+            if (!Misc.NormalizeNameAndCheckValidity(layerNameInput, out string layerName))
+                return OperationResult.Fail("InvalidLayerName", $"Layer name '{layerNameInput}' is invalid.");
             layerName = layerName.Trim();
             if (string.IsNullOrEmpty(layerName))
                 return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");

@@ -24,19 +24,21 @@ namespace Threadle.Core.Model
 
         private byte _nextIndex = 0;
 
-        public OperationResult DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
+        public OperationResult DefineNewNodeAttribute(string attributeNameInput, NodeAttributeType attributeType)
         {
-            if (_nextIndex == byte.MaxValue)
-                return OperationResult.Fail("MaxNbrAttributesReached", $"Max number of attributes (255) reached!");
+            if (!Misc.NormalizeNameAndCheckValidity(attributeNameInput, out string attributeName))
+                return OperationResult.Fail("InvalidAttributeName", $"Attribute name '{attributeName}' is invalid.");
             if (attributeName.Length < 1)
                 return OperationResult.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
+            if (_nextIndex == byte.MaxValue)
+                return OperationResult.Fail("MaxNbrAttributesReached", $"Max number of attributes (255) reached!");
             if (_nameToIndex.ContainsKey(attributeName))
                 return OperationResult.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
 
             byte id = _nextIndex++;
             _nameToIndex[attributeName] = id;
             _indexToType[id] = attributeType;
-            _indexToName[id] = attributeName;
+            _indexToName[id] = attributeNameInput;
             return OperationResult.Ok($"Node attribute '{attributeName}' of type {attributeType} defined.");
         }
 

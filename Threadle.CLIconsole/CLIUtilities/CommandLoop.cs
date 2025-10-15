@@ -56,18 +56,15 @@ namespace Threadle.CLIconsole.CLIUtilities
                 var command = CommandParser.Parse(input);
                 if (command == null)
                 {
-                    ConsoleOutput.WriteLine(" Invalid command syntax.");
+                    ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
                     continue;
                 }
                 try
                 {
                     dispatcher.Dispatch(command, context);
-                    //ConsoleOutput.WriteEndMarker();
-                    //ConsoleOutput.WriteLine("__END__", true);
                 }
                 catch (Exception ex)
                 {
-                    // Maybe call new separate method for writing to Console.Error.Writeline instead?
                     ConsoleOutput.WriteLine($"{ex.Message}");
                 }
                 ConsoleOutput.WriteEndMarker();

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -106,6 +107,13 @@ namespace Threadle.CLIconsole.Commands
             if (float.TryParse(GetArgument(key), out float value))
                 return value;
             return defaultValue;
+        }
+
+        internal string CheckAndGetAssignmentVariableName()
+        {
+            if (AssignedVariable == null)
+                throw new Exception("!Error: No variable assigned.");
+            return AssignedVariable.Trim().ToLowerInvariant();
         }
     }
 }

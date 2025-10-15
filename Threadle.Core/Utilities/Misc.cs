@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace Threadle.Core.Utilities
 {
@@ -282,6 +283,27 @@ namespace Threadle.Core.Utilities
         public static string BooleanAsString(bool check)
         {
             return check ? "true" : "false";
+        }
+
+        /// <summary>
+        /// Normalizes a string (trims it and makes it all lowercase) and sends it back via the out parameter.
+        /// Returns false if the input string is null, empty, whitespace, or contains invalid characters, or doesn't start with a letter.
+        /// </summary>
+        /// <param name="input">The input string</param>
+        /// <param name="normalized">Return string through out parameter</param>
+        /// <returns>Boolean whether the name is okay or not.</returns>
+        public static bool NormalizeNameAndCheckValidity(string? input, out string normalized)
+        {
+            normalized = string.Empty;
+            if (string.IsNullOrWhiteSpace(input))
+                return false;
+            normalized = input.Trim().ToLowerInvariant();
+            if (!char.IsLetter(normalized[0]))
+                return false;
+            foreach (char c in normalized)
+                if (!char.IsLetterOrDigit(c) && c != '_')
+                    return false;
+            return true;
         }
 
         //internal static List<string> GenerateNodelistChunk(LayerOneMode layerOneMode)

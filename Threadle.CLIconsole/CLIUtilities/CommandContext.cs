@@ -14,7 +14,7 @@ namespace Threadle.CLIconsole.CLIUtilities
 
         public void SetVariable(string name, IStructure value, bool renameIfExist = false)
         {
-            Variables[name] = value;
+            Variables[name.ToLowerInvariant()] = value;
         }
 
         public IStructure? GetVariable(string name)

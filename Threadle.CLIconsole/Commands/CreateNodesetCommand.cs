@@ -17,13 +17,17 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(true);
-            string name = command.GetArgument("name") is string namestr ? namestr : command.AssignedVariable!;
+            string variableName = command.CheckAndGetAssignmentVariableName();
+
+            string name = command.GetArgumentParseString("name", variableName);
+
+            //string name = command.GetArgument("name") is string namestr ? namestr : command.AssignedVariable!;
             int createNodes = command.GetArgumentParseInt("createnodes", 0);
             if (createNodes < 0)
                 throw new ArgumentException("Number of created nodes can not be less than zero");
             Nodeset nodeset = new Nodeset(name, createNodes);
-            context.SetVariable(command.AssignedVariable!, nodeset);
-            ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created (with {createNodes} nodes) and stored in variable '{command.AssignedVariable}'");
+            context.SetVariable(variableName, nodeset);
+            ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created (with {createNodes} nodes) and stored in variable '{variableName}'");
         }
     }
 }

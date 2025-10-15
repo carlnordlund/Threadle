@@ -54,6 +54,7 @@ namespace Threadle.Core.Model
             if (createNodes > 0)
                 for (uint i = 0; i < createNodes; i++)
                     AddNode(i);
+            IsModified = false;
         }
 
         /// <summary>
