@@ -429,6 +429,18 @@ namespace Threadle.Core.Model
                 return new Dictionary<uint, NodeAttributeValue>(attrDict);
             return null;
         }
+
+        /// <summary>
+        /// Defines and sets the node attribute values for all nodes in the provided dictionary.
+        /// </summary>
+        /// <param name="attrName"></param>
+        /// <param name="attrDict"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        internal OperationResult DefineAndSetNodeAttributeValues(string attrName, Dictionary<uint, NodeAttributeValue> attrDict)
+        {
+            throw new NotImplementedException();
+        }
+
         #endregion
 
 
@@ -462,6 +474,7 @@ namespace Threadle.Core.Model
             _nodeIdCache = null;
 
         }
+
 
         #endregion
     }

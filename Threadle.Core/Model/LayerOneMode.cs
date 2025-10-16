@@ -39,7 +39,6 @@ namespace Threadle.Core.Model
             }
         }
 
-        //public Dictionary<uint, IConnectionCollection> Connections = [];
 
         public Dictionary<uint, IEdgeset> Edgesets = [];
 
@@ -187,6 +186,20 @@ namespace Threadle.Core.Model
             }
 
             return ids;
+        }
+
+        internal uint GetOutDegree(uint nodeId)
+        {
+            if (!Edgesets.TryGetValue(nodeId, out var edgeset))
+                return 0;
+            return edgeset.NbrOutboundEdges;
+        }
+
+        internal uint GetInDegree(uint nodeId)
+        {
+            if (!Edgesets.TryGetValue(nodeId, out var edgeset))
+                return 0;
+            return edgeset.NbrInboundEdges;
         }
     }
 }

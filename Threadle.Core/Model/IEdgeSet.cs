@@ -37,5 +37,6 @@ namespace Threadle.Core.Model
 
         uint[] GetAlterIds(EdgeTraversal edgeTraversal);
         void ClearEdges();
+
     }
 }

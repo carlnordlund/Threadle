@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Analysis
 {
@@ -19,19 +20,28 @@ namespace Threadle.Core.Analysis
             double density = Functions.Density(network, layerResult.Value!);
 
             return OperationResult<double>.Ok(density);
-
-
-            //bool directed = layerOneMode.IsDirectional;
-            //bool selfties = layerOneMode.Selfties;
-            //ulong n = (ulong)nodeset.Count;
-
-            //ulong nbrPotentialEdges = Misc.GetNbrPotentialEdges(n, directed, selfties);
-            ////ulong nbrOfExistingOutgoingEdges = Misc.GetTotalNbrOutgoingEdges(layerOneMode);
-            //ulong nbrOfExistingOutgoingEdges = layerOneMode.NbrEdges;
-            ////return (double)nbrOfExistingOutgoingEdges / nbrPotentialEdges;
-            //return 
-
         }
+
+        public static OperationResult<string> DegreeCentrality(Network network, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Outbound)
+        {
+            var layerResult = network.GetOneModeLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<string>.Fail(layerResult);
+
+            var degreeMapping = Functions.DegreeCentrality(network, layerResult.Value!, edgeTraversal);
+
+            // Call method for trying to install degreeMapping to network.Nodeset, with given autoname. So first see if name is free: otherwise create version. get attrname back.
+            string attrName = layerName + "_" + (edgeTraversal == EdgeTraversal.Outbound ? "outdegree" : "indegree");
+
+            var attrDict = degreeMapping.ToDictionary(kvp => kvp.Key, kvp => new NodeAttributeValue(kvp.Value));
+
+            OperationResult result = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict);
+
+
+            return OperationResult<string>.Ok("nodeattrname","");
+        }
+
+
 
         //public static MatrixStructure? ShortestPaths(Network network, string layerName)
         //{
