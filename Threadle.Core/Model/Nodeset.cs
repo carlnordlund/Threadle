@@ -1,13 +1,14 @@
-﻿using Threadle.Core.Model.Enums;
-using Threadle.Core.Utilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -110,6 +111,20 @@ namespace Threadle.Core.Model
         /// Gets or sets the flag whether this structure has been modified or not since last load/initiation
         /// </summary>
         public bool IsModified { get; set; }
+
+        //private record InfoSummary(string Type, string Name, string Filepath, int NbrNodes, object NodeAttributes);
+
+        /// <summary>
+        /// Gets info about this structure as a JSON-compatible string
+        /// </summary>
+        public string Info => JsonSerializer.Serialize(new { Type = "Nodeset", Name, Filepath, NbrNodes = Count, NodeAttributes = NodeAttributeDefinitionManager.Info }, new JsonSerializerOptions { WriteIndented = false });
+        //{
+        //    Type = "Nodeset",
+        //    Name = this.Name,
+        //    Filepath = this.Filepath,
+        //    NbrNodes = this.Count,
+        //    NodeAttributes = NodeAttributeDefinitionManager.Info
+        //});
 
         /// <summary>
         /// Reference to the manager for node attribute definitions

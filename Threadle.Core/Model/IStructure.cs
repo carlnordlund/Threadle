@@ -15,5 +15,7 @@ namespace Threadle.Core.Model
         bool IsModified { get; set; }
 
         List<string> Content { get; }
+
+        string Info { get; }
     }
 }

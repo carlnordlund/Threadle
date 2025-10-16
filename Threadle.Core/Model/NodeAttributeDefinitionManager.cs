@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace Threadle.Core.Model
 {
@@ -24,14 +25,15 @@ namespace Threadle.Core.Model
         public IReadOnlyDictionary<uint, string> IndexToName => _indexToName;
         public IReadOnlyDictionary<uint, NodeAttributeType> IndexToType => _indexToType;
 
+        public IEnumerable<object> Info =>
+            _indexToName.Select(kvp => new { Name = kvp.Value, Type = _indexToType[kvp.Key].ToString() });
+
         private byte _nextIndex = 0;
 
         public OperationResult DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
         {
             if (attributeName.Length < 1)
                 return OperationResult.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
-            //if (_nextIndex == byte.MaxValue)
-            //    return OperationResult.Fail("MaxNbrAttributesReached", $"Max number of attributes (255) reached!");
             if (_nameToIndex.ContainsKey(attributeName))
                 return OperationResult.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
 

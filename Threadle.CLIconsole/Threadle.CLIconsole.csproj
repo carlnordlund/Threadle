@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <RuntimeIdentifiers>win-x64;win-x86;win-arm64;linux-x64;linux-arm;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <PublishSingleFile>true</PublishSingleFile>
-    <PublishTrimmed>true</PublishTrimmed>
+    <PublishTrimmed>false</PublishTrimmed>
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
@@ -24,7 +24,6 @@
     <Compile Remove="Commands\DisplayNetworkCommand.cs" />
     <Compile Remove="Commands\GenerateNetworkCommand.cs" />
     <Compile Remove="Commands\ImportCommand.cs" />
-    <Compile Remove="Commands\InfoCommand.cs" />
     <Compile Remove="Commands\MergeNetworksCommand.cs" />
     <Compile Remove="Commands\RandomWalkerCommand.cs" />
     <Compile Remove="Commands\SetVerboseCommand.cs" />

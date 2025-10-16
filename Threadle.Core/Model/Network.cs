@@ -1,11 +1,12 @@
-﻿using Threadle.Core.Model.Enums;
-using Threadle.Core.Utilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -79,6 +80,20 @@ namespace Threadle.Core.Model
         /// Gets or sets the flag whether this structure has been modified or not since last load/initiation
         /// </summary>
         public bool IsModified { get; set; }
+
+        //private record InfoSummary(string Type, string Name, string Filepath, string Nodeset, object LayerMetadata);
+
+        /// <summary>
+        /// Gets info about this network as a JSON-compatible string, including the layer names and modes
+        /// </summary>
+        public string Info => JsonSerializer.Serialize(new { Type = "Network", Name, Filepath, Nodeset = Nodeset.Name, LayerMetadata }, new JsonSerializerOptions { WriteIndented = false });
+
+        /// <summary>
+        /// Gets info about the layers in this network, as an enumerable of anonymous objects
+        /// </summary>
+        public IEnumerable<object> LayerMetadata =>
+            Layers.Select(kvp => new { LayerName = kvp.Key, Mode = (kvp.Value is LayerOneMode) ? 1 : 2 });
+
 
         /// <summary>
         /// Gets the Nodeset that this Network uses
