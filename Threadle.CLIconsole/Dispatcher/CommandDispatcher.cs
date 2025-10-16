@@ -14,6 +14,7 @@ namespace Threadle.CLIconsole.Dispatcher
 
         public CommandDispatcher()
         {
+            _commands["undefineattr"] = new UndefineAttrCommand();
             _commands["getnbrnodes"] = new GetNbrNodesCommand();
             _commands["getnodeidbyindex"] = new GetNodeIdByIndexCommand();
             _commands["getnodealters"] = new GetNodeAltersCommand();

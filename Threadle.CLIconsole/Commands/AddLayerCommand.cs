@@ -24,6 +24,8 @@ namespace Threadle.CLIconsole.Commands
 
             // No, instead create a function that either returns a lowercase version, or throws an exception if it doesn't follow the rules.
 
+            
+
 
             if (!command.NormalizeNameAndCheckValidity(layerName, out string layerNameVerified))
                 throw new Exception($"!Error: Layer name '{layerName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");

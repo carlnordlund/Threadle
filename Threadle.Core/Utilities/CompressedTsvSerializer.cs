@@ -436,24 +436,35 @@ namespace Threadle.Core.Utilities
 
         private static void WriteNodesetToFile(Nodeset nodeset, StreamWriter writer)
         {
+            //IEnumerable<(string, NodeAttributeType)> attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions();
             //var attributeDefs = nodeset.NodeAttributes;
 
-            //var header = nodeset.Name;
+            var attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().ToList();
+            int nbrAttributes = attributeDefs.Count;
 
-            //if (attributeDefs.Length > 0)
-            //    header += "\t" + string.Join("\t", attributeDefs.Select(a => $"{a.Name}:{a.Type}"));
-            //writer.WriteLine(header);
+            var header = nodeset.Name;
 
-            //foreach (var node in nodeset.NodeArray)
-            //{
-            //    var row = new List<string> { node.Id.ToString() };
-            //    foreach (var attrDef in attributeDefs)
-            //    {
-            //        var attr = nodeset.GetNodeAttribute(node.Id, attrDef.Name);
-            //        row.Add(attr.Value.ToString() ?? "");
-            //    }
-            //    writer.WriteLine(string.Join("\t", row));
-            //}
+            if (attributeDefs.Count > 0)
+                header += "\t" + string.Join("\t", attributeDefs.Select(a => $"{a.Name}:{a.Type}"));
+            writer.WriteLine(header);
+
+            foreach (uint node in nodeset.NodeIdArray)
+            {
+                var row = new List<string> { node.ToString() };
+                foreach (var attrDef in attributeDefs)
+                {
+                    var attr = nodeset.GetNodeAttribute(node, attrDef.Name);
+                    row.Add(attr.Success ? attr.Value.ToString() : "");
+                }
+                writer.WriteLine(string.Join("\t", row));
+                //    var row = new List<string> { node.Id.ToString() };
+                //    foreach (var attrDef in attributeDefs)
+                //    {
+                //        var attr = nodeset.GetNodeAttribute(node.Id, attrDef.Name);
+                //        row.Add(attr.Value.ToString() ?? "");
+                //    }
+                //    writer.WriteLine(string.Join("\t", row));
+            }
         }
 
         //private static void WriteMatrixToFile(MatrixStructure matrix, StreamWriter writer)

@@ -14,37 +14,42 @@ namespace Threadle.Core.Model
     /// </summary>
     public class NodeAttributeDefinitionManager
     {
-        private readonly Dictionary<string, byte> _nameToIndex = new();
-        private readonly Dictionary<byte, string> _indexToName = new();
-        private readonly Dictionary<byte, NodeAttributeType> _indexToType = new();
+        private readonly Stack<uint> _recycledIndices = new();
 
-        public IReadOnlyDictionary<string, byte> NameToIndex => _nameToIndex;
-        public IReadOnlyDictionary<byte, string> IndexToName => _indexToName;
-        public IReadOnlyDictionary<byte, NodeAttributeType> IndexToType => _indexToType;
+        private readonly Dictionary<string, uint> _nameToIndex = new();
+        private readonly Dictionary<uint, string> _indexToName = new();
+        private readonly Dictionary<uint, NodeAttributeType> _indexToType = new();
+
+        public IReadOnlyDictionary<string, uint> NameToIndex => _nameToIndex;
+        public IReadOnlyDictionary<uint, string> IndexToName => _indexToName;
+        public IReadOnlyDictionary<uint, NodeAttributeType> IndexToType => _indexToType;
 
         private byte _nextIndex = 0;
 
         public OperationResult DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
         {
-            //if (!Misc.NormalizeNameAndCheckValidity(attributeNameInput, out string attributeName))
-            //    return OperationResult.Fail("InvalidAttributeName", $"Attribute name '{attributeName}' is invalid.");
             if (attributeName.Length < 1)
                 return OperationResult.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
-            if (_nextIndex == byte.MaxValue)
-                return OperationResult.Fail("MaxNbrAttributesReached", $"Max number of attributes (255) reached!");
+            //if (_nextIndex == byte.MaxValue)
+            //    return OperationResult.Fail("MaxNbrAttributesReached", $"Max number of attributes (255) reached!");
             if (_nameToIndex.ContainsKey(attributeName))
                 return OperationResult.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
 
-            byte id = _nextIndex++;
-            _nameToIndex[attributeName] = id;
-            _indexToType[id] = attributeType;
-            _indexToName[id] = attributeName;
+            // Reuse an index if one is available, otherwise use the next one in sequence
+            uint index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
+
+            _nameToIndex[attributeName] = index;
+            _indexToType[index] = attributeType;
+            _indexToName[index] = attributeName;
             return OperationResult.Ok($"Node attribute '{attributeName}' of type {attributeType} defined.");
         }
 
-        public bool TryGetAttributeIndex(string name, out byte index) => _nameToIndex.TryGetValue(name, out index);
-        public bool TryGetAttributeType(byte index, out NodeAttributeType type) => _indexToType.TryGetValue(index, out type);
-        public IEnumerable<(string Name, NodeAttributeType Type)> GetAllDefinitions() => _nameToIndex.Select(kvp => (kvp.Key, _indexToType[kvp.Value]));
+        public bool TryGetAttributeIndex(string name, out uint index) => _nameToIndex.TryGetValue(name, out index);
+        public bool TryGetAttributeType(uint index, out NodeAttributeType type) => _indexToType.TryGetValue(index, out type);
+        public IEnumerable<(string Name, NodeAttributeType Type)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Key, _indexToType[kvp.Value]));
+
+
+        
 
         public NodeAttributeDefinitionManager Clone()
         {
@@ -56,6 +61,19 @@ namespace Threadle.Core.Model
             foreach (var kvp in _indexToType)
                 clone._indexToType[kvp.Key] = kvp.Value;
             return clone;
+        }
+
+        internal OperationResult<uint> UndefineNodeAttribute(string attributeName)
+        {
+            if (!_nameToIndex.TryGetValue(attributeName, out var attributeIndex))
+                return OperationResult<uint>.Fail("AttributeNotFound", $"Node attribute '{attributeName}' not found.");
+
+            _nameToIndex.Remove(attributeName);
+            _indexToName.Remove(attributeIndex);
+            _indexToType.Remove(attributeIndex);
+            _recycledIndices.Push(attributeIndex);
+
+            return OperationResult<uint>.Ok(attributeIndex, $"Node attribute '{attributeName}' is no longer defined.");
         }
     }
 }
