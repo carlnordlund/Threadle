@@ -27,7 +27,7 @@ namespace Threadle.CLIconsole.Commands
 
             OperationResult<uint[]> result = network.GetNodeAlters(layerName, nodeid, edgeTraversal);
             if (result.Success)
-                ConsoleOutput.WriteLine(string.Join(',', result.Value!));
+                ConsoleOutput.WriteLine("[" + string.Join(',', result.Value!) + "]", true);
             else
                 ConsoleOutput.WriteLine(result.ToString());
         }

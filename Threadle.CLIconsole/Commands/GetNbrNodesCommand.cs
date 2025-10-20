@@ -19,12 +19,6 @@ namespace Threadle.CLIconsole.Commands
             command.CheckAssignment(false);
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
             Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
-            //Nodeset? nodeset = context.GetVariableThrowExceptionIfMissing<IStructure>(structureName) switch
-            //{
-            //    Nodeset ns => ns,
-            //    Network net => net.Nodeset,
-            //    _ => throw new ArgumentException($"Structure '{structureName}' neither a Nodeset nor a Network.")
-            //};
             ConsoleOutput.WriteLine(nodeset.Count.ToString(), true);
         }
     }

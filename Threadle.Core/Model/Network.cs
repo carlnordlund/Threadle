@@ -36,7 +36,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="name">The internal name of the network.</param>
         /// <param name="n">Optional number of nodes to create (defaults to zero).</param>
-        public Network(string name, int n = 100)
+        public Network(string name, int n = 0)
         {
             Name = name;
             Nodeset = new Nodeset(name + "_nodeset", n);

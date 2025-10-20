@@ -18,15 +18,9 @@ namespace Threadle.CLIconsole.Commands
             command.CheckAssignment(false);
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
             Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
-            //Nodeset? nodeset = context.GetVariableThrowExceptionIfMissing<IStructure>(structureName) switch
-            //{
-            //    Nodeset ns => ns,
-            //    Network net => net.Nodeset,
-            //    _ => throw new ArgumentException($"Structure '{structureName}' neither a Nodeset nor a Network.")
-            //};
             uint index = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("index", "arg1");
             if (!(nodeset.GetNodeIdByIndex(index) is uint nodeId))
-                throw new Exception($"Node index {index} out of range");
+                throw new Exception($"Node index '{index}' out of range");
             ConsoleOutput.WriteLine(nodeId.ToString(), true);
         }
     }
