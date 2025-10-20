@@ -22,23 +22,17 @@ namespace Threadle.Core.Analysis
             return OperationResult<double>.Ok(density);
         }
 
-        public static OperationResult<string> DegreeCentrality(Network network, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Outbound)
+        public static OperationResult DegreeCentrality(Network network, string layerName, string? attrName=null, EdgeTraversal edgeTraversal = EdgeTraversal.Out)
         {
             var layerResult = network.GetOneModeLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<string>.Fail(layerResult);
-
+            LayerOneMode layerOneMode = layerResult.Value!;
+            string dirString = layerOneMode.IsSymmetric ? "degree" : edgeTraversal == EdgeTraversal.Out ? "outdegree" : edgeTraversal == EdgeTraversal.In ? "indegree" : "grossdegree";
+            attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_" + dirString;
             var degreeMapping = Functions.DegreeCentrality(network, layerResult.Value!, edgeTraversal);
-
-            // Call method for trying to install degreeMapping to network.Nodeset, with given autoname. So first see if name is free: otherwise create version. get attrname back.
-            string attrName = layerName + "_" + (edgeTraversal == EdgeTraversal.Outbound ? "outdegree" : "indegree");
-
-            var attrDict = degreeMapping.ToDictionary(kvp => kvp.Key, kvp => new NodeAttributeValue(kvp.Value));
-
-            OperationResult result = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict);
-
-
-            return OperationResult<string>.Ok("nodeattrname","");
+            var attrDict = degreeMapping.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
         }
 
 

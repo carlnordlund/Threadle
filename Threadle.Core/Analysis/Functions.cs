@@ -14,8 +14,8 @@ namespace Threadle.Core.Analysis
         {
             Dictionary<uint, uint> degreeCentrality = edgeTraversal switch
             {
-                EdgeTraversal.Outbound => OutDegreeCentrality(network, layerOneMode),
-                EdgeTraversal.Inbound => InDegreeCentrality(network, layerOneMode),
+                EdgeTraversal.Out => OutDegreeCentrality(network, layerOneMode),
+                EdgeTraversal.In => InDegreeCentrality(network, layerOneMode),
                 _ => GrossDegreeCentrality(network, layerOneMode)
             };
             return degreeCentrality;

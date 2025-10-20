@@ -63,9 +63,9 @@ namespace Threadle.Core.Model
         {
             switch (edgeTraversal)
             {
-                case EdgeTraversal.Outbound:
+                case EdgeTraversal.Out:
                     return _outbound.Count > 0 ? _outbound.ToArray() : Array.Empty<uint>();
-                case EdgeTraversal.Inbound:
+                case EdgeTraversal.In:
                     return _inbound.Count > 0 ? _inbound.ToArray() : Array.Empty<uint>();
                 case EdgeTraversal.Both:
                     if (_outbound.Count == 0) return _inbound.Count > 0 ? _inbound.ToArray() : Array.Empty<uint>();

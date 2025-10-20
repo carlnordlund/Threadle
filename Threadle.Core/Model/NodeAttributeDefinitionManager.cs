@@ -30,12 +30,12 @@ namespace Threadle.Core.Model
 
         private byte _nextIndex = 0;
 
-        public OperationResult DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
+        public OperationResult<uint> DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
         {
             if (attributeName.Length < 1)
-                return OperationResult.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
+                return OperationResult<uint>.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
             if (_nameToIndex.ContainsKey(attributeName))
-                return OperationResult.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
+                return OperationResult<uint>.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
 
             // Reuse an index if one is available, otherwise use the next one in sequence
             uint index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
@@ -43,7 +43,7 @@ namespace Threadle.Core.Model
             _nameToIndex[attributeName] = index;
             _indexToType[index] = attributeType;
             _indexToName[index] = attributeName;
-            return OperationResult.Ok($"Node attribute '{attributeName}' of type {attributeType} defined.");
+            return OperationResult<uint>.Ok(index, $"Node attribute '{attributeName}' of type {attributeType} defined.");
         }
 
         public bool TryGetAttributeIndex(string name, out uint index) => _nameToIndex.TryGetValue(name, out index);

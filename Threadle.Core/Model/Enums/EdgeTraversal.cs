@@ -8,8 +8,8 @@ namespace Threadle.Core.Model.Enums
 {
     public enum EdgeTraversal
     {
-        Outbound,
-        Inbound,
+        Out,
+        In,
         Both
     }
 }

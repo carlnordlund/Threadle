@@ -69,21 +69,21 @@ namespace Threadle.Core.Model
         {
             switch (edgeTraversal)
             {
-                case EdgeTraversal.Outbound:
+                case EdgeTraversal.Out:
                     if (_outbound.Count == 0) return Array.Empty<uint>();
                     var outboundIds = new uint[_outbound.Count];
                     for (int i = 0; i < _outbound.Count; i++)
                         outboundIds[i] = _outbound[i].partnerNodeId;
                     return outboundIds;
-                case EdgeTraversal.Inbound:
+                case EdgeTraversal.In:
                     if (_inbound.Count == 0) return Array.Empty<uint>();
                     var inboundIds = new uint[_inbound.Count];
                     for (int i = 0; i < _inbound.Count; i++)
                         inboundIds[i] = _inbound[i].partnerNodeId;
                     return inboundIds;
                 case EdgeTraversal.Both:
-                    if (_outbound.Count == 0) return GetAlterIds(EdgeTraversal.Inbound);
-                    if (_inbound.Count == 0) return GetAlterIds(EdgeTraversal.Outbound);
+                    if (_outbound.Count == 0) return GetAlterIds(EdgeTraversal.In);
+                    if (_inbound.Count == 0) return GetAlterIds(EdgeTraversal.Out);
 
                     var union = new HashSet<uint>(_outbound.Count + _inbound.Count);
                     for (int i = 0; i < _outbound.Count; i++)

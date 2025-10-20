@@ -306,9 +306,9 @@ namespace Threadle.Core.Model
         /// <param name="attributeName">The name of the nodal attribute (must be unique in this Nodeset).</param>
         /// <param name="attributeType">The type (using the <see cref="NodeAttributeType"/> enum) of this attribute.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult DefineNodeAttribute(string attributeName, NodeAttributeType attributeType)
+        public OperationResult<uint> DefineNodeAttribute(string attributeName, NodeAttributeType attributeType)
         {
-            OperationResult result = NodeAttributeDefinitionManager.DefineNewNodeAttribute(attributeName, attributeType);
+            OperationResult<uint> result = NodeAttributeDefinitionManager.DefineNewNodeAttribute(attributeName, attributeType);
             if (result.Success)
                 Modified();
             return result;
@@ -436,9 +436,24 @@ namespace Threadle.Core.Model
         /// <param name="attrName"></param>
         /// <param name="attrDict"></param>
         /// <exception cref="NotImplementedException"></exception>
-        internal OperationResult DefineAndSetNodeAttributeValues(string attrName, Dictionary<uint, NodeAttributeValue> attrDict)
+        internal OperationResult DefineAndSetNodeAttributeValues(string attrName, Dictionary<uint, string> attrDict, NodeAttributeType nodeAttributeType)
         {
-            throw new NotImplementedException();
+            // Check if attribute is already defined
+            if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out uint attrIndex))
+            {
+                // Attribute not defined yet: define it based on the provided type
+                OperationResult<uint> defineresult = DefineNodeAttribute(attrName, nodeAttributeType);
+                if (!defineresult.Success)
+                    return defineresult;
+                // By now, the attribute is defined and I have its index
+                attrIndex = defineresult.Value;
+            }
+            foreach ((uint nodeId, string attrValueStr) in attrDict)
+            {
+                SetNodeAttribute(nodeId, attrName, attrValueStr);
+            }
+            Modified();
+            return OperationResult.Ok($"Node attribute '{attrName}' set for {attrDict.Count} nodes in nodeset '{Name}'.");
         }
 
         #endregion
