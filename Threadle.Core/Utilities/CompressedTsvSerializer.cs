@@ -211,7 +211,6 @@ namespace Threadle.Core.Utilities
 
         private static StructureResult ReadNetworkFromFile(string filepath, StreamReader reader)
         {
-            //throw new NotImplementedException();
             var network = new Network("");
             Nodeset? nodeset = null;
             string? nodesetFileReference = null;
@@ -272,7 +271,6 @@ namespace Threadle.Core.Utilities
                             currentLayerOneMode.ValueType = valString switch
                             {
                                 "valued" => EdgeType.Valued,
-                                //"signed" => EdgeValueType.Signed,
                                 _ => EdgeType.Binary
                             };
                             // Given that I got value type, try initializing the factory
@@ -370,9 +368,6 @@ namespace Threadle.Core.Utilities
             var columns = header.Split('\t');
             var nodeset = new Nodeset { Name = columns[0] };
 
-            //var attributeDefs = new List<NodeAttributeDefinition>();
-            //var attributeDefTuples = new List<(string name, string type)>();
-
             int nbrCols = columns.Length;
             string[] attributeNames = new string[nbrCols-1];
 
@@ -380,24 +375,10 @@ namespace Threadle.Core.Utilities
             {
                 var parts = columns[i].Split(':', 2);
                 if (parts.Length != 2) throw new InvalidDataException($"Invalid column header: {columns[i]}");
-                //var name = parts[0];
-                //var type = Enum.Parse<AttributeType>(parts[1], ignoreCase: true);
-
-                //AttributeType type = Misc.GetAttributeType(parts[1]);
-
-                //attributeDefs.Add(new NodeAttributeDefinition(name, type));
-                //attributeDefTuples.Add((parts[0], parts[1]));
-
-                //nodeset.DefineNodeAttribute()
 
                 attributeNames[i - 1] = parts[0];
                 nodeset.DefineNodeAttribute(parts[0], parts[1]);
             }
-
-            
-            //foreach (var attrDef in attributeDefs)
-            //    nodeset.DefineNodeAttribute()
-            //    nodeset.DefineNodeAttribute(attrDef.Name, attrDef.Type);
 
             while (!reader.EndOfStream)
             {
@@ -414,21 +395,8 @@ namespace Threadle.Core.Utilities
                     if (string.IsNullOrEmpty(val)) continue;
 
                     nodeset.SetNodeAttribute(nodeId, attributeNames[i - 1], val);
-
-                    //var def = attributeDefs[i - 1];
-                    //NodeAttribute attr = def.Type switch
-                    //{
-                    //    AttributeType.Int => new NodeAttribute(int.Parse(val)),
-                    //    AttributeType.Float => new NodeAttribute(float.Parse(val, CultureInfo.InvariantCulture)),
-                    //    AttributeType.Char => new NodeAttribute(val[0]),
-                    //    AttributeType.Bool => new NodeAttribute(bool.Parse(val)),
-                    //    _ => throw new NotSupportedException($"Unsupported type: {def.Type}")
-                    //};
-
-                    //nodeset.SetNodeAttribute(nodeId, def.Name, attr);
                 }
             }
-            //nodeset.RebuildNodeIdToIndexDictionary();
             return nodeset;
         }
 
@@ -436,9 +404,6 @@ namespace Threadle.Core.Utilities
 
         private static void WriteNodesetToFile(Nodeset nodeset, StreamWriter writer)
         {
-            //IEnumerable<(string, NodeAttributeType)> attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions();
-            //var attributeDefs = nodeset.NodeAttributes;
-
             var attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().ToList();
             int nbrAttributes = attributeDefs.Count;
 
@@ -457,74 +422,7 @@ namespace Threadle.Core.Utilities
                     row.Add(attr.Success ? attr.Value.ToString() : "");
                 }
                 writer.WriteLine(string.Join("\t", row));
-                //    var row = new List<string> { node.Id.ToString() };
-                //    foreach (var attrDef in attributeDefs)
-                //    {
-                //        var attr = nodeset.GetNodeAttribute(node.Id, attrDef.Name);
-                //        row.Add(attr.Value.ToString() ?? "");
-                //    }
-                //    writer.WriteLine(string.Join("\t", row));
             }
         }
-
-        //private static void WriteMatrixToFile(MatrixStructure matrix, StreamWriter writer)
-        //{
-        //    string content = matrix.Content;
-        //    writer.Write(content);
-        //}
-
-        //public static Nodeset LoadNodesetFromFile(string filepath)
-        //{
-        //    using var fileStream = File.OpenRead(filepath);
-        //    using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Decompress);
-        //    using var reader = new StreamReader(stream);
-
-        //    var header = reader.ReadLine() ?? throw new InvalidDataException("Missing header line.");
-        //    var columns = header.Split('\t');
-
-        //    var attributeDefs = new List<NodeAttributeDefinition>();
-        //    for (int i = 1; i < columns.Length; i++)
-        //    {
-        //        var parts = columns[i].Split(':');
-        //        if (parts.Length != 2) throw new InvalidDataException($"Invalid column header: {columns[i]}");
-        //        var name = parts[0];
-        //        var type = Enum.Parse<AttributeType>(parts[1], ignoreCase: true);
-        //        attributeDefs.Add(new NodeAttributeDefinition(name, type));
-        //    }
-
-        //    var nodeset = new Nodeset { Name = Path.GetFileNameWithoutExtension(filepath) };
-        //    foreach (var attrDef in attributeDefs)
-        //        nodeset.DefineNodeAttribute(attrDef.Name, attrDef.Type);
-
-        //    while (!reader.EndOfStream)
-        //    {
-        //        var line = reader.ReadLine();
-        //        if (string.IsNullOrWhiteSpace(line)) continue;
-
-        //        var parts = line.Split('\t');
-        //        uint nodeId = uint.Parse(parts[0]);
-        //        nodeset.AddNode(nodeId);
-
-        //        for (int i = 1; i < parts.Length && i <= attributeDefs.Count; i++)
-        //        {
-        //            var val = parts[i];
-        //            if (string.IsNullOrEmpty(val)) continue;
-
-        //            var def = attributeDefs[i - 1];
-        //            NodeAttribute attr = def.Type switch
-        //            {
-        //                AttributeType.Int => new NodeAttribute(int.Parse(val)),
-        //                AttributeType.Float => new NodeAttribute(float.Parse(val, CultureInfo.InvariantCulture)),
-        //                AttributeType.Char => new NodeAttribute(val[0]),
-        //                AttributeType.Bool => new NodeAttribute(bool.Parse(val)),
-        //                _ => throw new NotSupportedException($"Unsupported type: {def.Type}")
-        //            };
-
-        //            nodeset.SetNodeAttribute(nodeId, def.Name, attr);
-        //        }
-        //    }
-        //    nodeset.RebuildNodeIdToIndexDictionary();
-        //    return nodeset;
-        //}
     }
 }

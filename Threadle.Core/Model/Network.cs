@@ -86,7 +86,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Gets info about this network as a JSON-compatible string, including the layer names and modes
         /// </summary>
-        public string Info => JsonSerializer.Serialize(new { Type = "Network", Name, Filepath, Nodeset = Nodeset.Name, LayerMetadata }, new JsonSerializerOptions { WriteIndented = false });
+        public string Info => JsonSerializer.Serialize(new { Type = "Network", Name = Name, Filepath = Filepath, Nodeset = Nodeset.Name, Layers = LayerMetadata }, new JsonSerializerOptions { WriteIndented = false });
 
         /// <summary>
         /// Gets info about the layers in this network, as an enumerable of anonymous objects
@@ -166,6 +166,21 @@ namespace Threadle.Core.Model
             Layers.Remove(layerName);
             IsModified = true;
             return OperationResult.Ok($"Layer '{layerName}' removed from network '{Name}'.");
+        }
+
+        /// <summary>
+        /// Clears a layer, i.e. removing all edges from that layer
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult ClearLayer(string layerName)
+        {
+            var layerResult = GetLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            layerResult.Value!.ClearLayer();
+            IsModified = true;
+            return OperationResult.Ok($"All edges removed from layer '{layerName}' in network '{Name}'.");
         }
 
         /// <summary>

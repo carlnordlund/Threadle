@@ -14,7 +14,8 @@ namespace Threadle.CLIconsole.Dispatcher
 
         public CommandDispatcher()
         {
-            _commands["degree"]=new degreeCommand();
+            _commands["clearlayer"] = new ClearLayerCommand();
+            _commands["degree"]=new DegreeCommand();
             _commands["info"] = new InfoCommand();
             _commands["undefineattr"] = new UndefineAttrCommand();
             _commands["getnbrnodes"] = new GetNbrNodesCommand();

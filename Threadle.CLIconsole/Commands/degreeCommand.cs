@@ -11,7 +11,7 @@ using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
-    public class degreeCommand : ICommand
+    public class DegreeCommand : ICommand
     {
         public string Usage => "degree(network = [var:network], layername = [str], *attrname = [str], *direction=('in'(default),'out','both'))";
 
