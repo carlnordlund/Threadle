@@ -10,6 +10,7 @@ namespace Threadle.Core.Analysis
 {
     public static class Functions
     {
+        public static readonly Random Random = new Random();
         internal static Dictionary<uint, uint> DegreeCentrality(Network network, LayerOneMode layerOneMode, EdgeTraversal edgeTraversal)
         {
             Dictionary<uint, uint> degreeCentrality = edgeTraversal switch

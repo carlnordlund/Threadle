@@ -13,8 +13,8 @@ namespace Threadle.CLIconsole.Commands
 {
     public class GetNodeAltersCommand : ICommand
     {
-        public string Usage => "[uint] = getnodealters(network = [var:structure], layername = [str], nodeid = [uint], *direction=['both'(default),'inbound','outbound'])";
-        public string Description => "Get the id of the alters to a specific node in a specific layer, in standard JSON array format";
+        public string Usage => "[array:uint] = getnodealters(network = [var:network], layername = [str], nodeid = [uint], *direction=['both'(default),'in','out'])";
+        public string Description => "Get the id of the alters to a specific node in a specific layer, output in standard JSON array format. By default, both in- and outbound ties are included in the set of alters, but this can be adjusted with the optional direction argument.";
 
         public void Execute(Command command, CommandContext context)
         {

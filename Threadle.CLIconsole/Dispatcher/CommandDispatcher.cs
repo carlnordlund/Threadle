@@ -14,6 +14,7 @@ namespace Threadle.CLIconsole.Dispatcher
 
         public CommandDispatcher()
         {
+            _commands["getrandomalter"] = new GetRandomAlterCommand();
             _commands["clearlayer"] = new ClearLayerCommand();
             _commands["degree"]=new DegreeCommand();
             _commands["info"] = new InfoCommand();

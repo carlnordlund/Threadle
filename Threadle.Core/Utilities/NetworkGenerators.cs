@@ -110,9 +110,9 @@ namespace Threadle.Core.Utilities
                 return selfties ? n - row : n - row - 1;
         }
 
-        private static ulong SampleGeometric(double p)
-        {
-            return (ulong)Math.Floor(Math.Log(Misc.Random.NextDouble()) / Math.Log(1.0 - p));
-        }
+        //private static ulong SampleGeometric(double p)
+        //{
+        //    return (ulong)Math.Floor(Math.Log(Misc.Random.NextDouble()) / Math.Log(1.0 - p));
+        //}
     }
 }

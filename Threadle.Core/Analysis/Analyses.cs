@@ -35,6 +35,38 @@ namespace Threadle.Core.Analysis
             return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
         }
 
+        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeid, string layerName, EdgeTraversal edgeTraversal)
+        {
+            List<uint> alterIds = new List<uint>();
+            if (layerName != null && layerName.Length > 0)
+            {
+                var layerResult = network.GetLayer(layerName);
+                if (!layerResult.Success)
+                    return OperationResult<uint>.Fail(layerResult);
+                var layer = layerResult.Value!;
+                var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
+                if (!altersResult.Success)
+                    return OperationResult<uint>.Fail(altersResult);
+                alterIds.AddRange(altersResult.Value!);
+            }
+            else
+            {
+                foreach (var layer in network.Layers.Values)
+                {
+                    var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
+                    if (!altersResult.Success)
+                        return OperationResult<uint>.Fail(altersResult);
+                    alterIds.AddRange(altersResult.Value!);
+                }
+            }
+            if (alterIds.Count == 0)
+                return OperationResult<uint>.Fail("NoAlters", $"Node {nodeid} has no alters in the specified layer(s) with the given edge traversal.");
+            
+            uint randomAlterId = alterIds[Functions.Random.Next(alterIds.Count)];
+            return OperationResult<uint>.Ok(randomAlterId);
+
+        }
+
 
 
         //public static MatrixStructure? ShortestPaths(Network network, string layerName)

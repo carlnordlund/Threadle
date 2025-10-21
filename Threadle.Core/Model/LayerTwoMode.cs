@@ -155,11 +155,6 @@ namespace Threadle.Core.Model
         {
             if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperEdgeCollection) || hyperEdgeCollection.HyperEdges.Count == 0)
                 return Array.Empty<uint>();
-            //if (hyperEdgeCollection.HyperEdges.Count == 1)
-            //{
-            //    var hyperEdge = hyperEdgeCollection.HyperEdges[0];
-            //}
-
 
             HashSet<uint> alters = new();
             foreach (HyperEdge hyperEdge in hyperEdgeCollection.HyperEdges)

@@ -221,6 +221,13 @@ namespace Threadle.Core.Model
             return layer;
         }
 
+        //public OperationResult<ILayer> GetLayer(string layerName)
+        //{
+        //    if (!Layers.TryGetValue(layerName, out var layer))
+        //        return OperationResult<ILayer>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+        //    return OperationResult<ILayer>.Ok(layer);
+        //}
+
         /// <summary>
         /// Gets the <see cref="LayerOneMode"/> object for the specifed layer.
         /// </summary>

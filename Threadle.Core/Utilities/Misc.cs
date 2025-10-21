@@ -17,7 +17,7 @@ namespace Threadle.Core.Utilities
     /// </summary>
     public static class Misc
     {
-        public static readonly Random Random = new Random();
+        //public static readonly Random Random = new Random();
         
         public static bool EvalutateCondition(NodeAttributeValue nodeValue, string comparisonValue, ConditionType condition)
         {
@@ -108,12 +108,12 @@ namespace Threadle.Core.Utilities
         //    return list[Random.Next(list.Count)];
         //}
 
-        public static T? GetRandom<T>(this T[] array)
-        {
-            if (array == null || array.Length == 0)
-                throw new InvalidOperationException("Cannot select a random item from an empty array.");
-            return array[Random.Next(array.Length)];
-        }
+        //public static T? GetRandom<T>(this T[] array)
+        //{
+        //    if (array == null || array.Length == 0)
+        //        throw new InvalidOperationException("Cannot select a random item from an empty array.");
+        //    return array[Random.Next(array.Length)];
+        //}
 
         /// <summary>
         /// Internal helper function for converting textual representation of a type of node attribute to
