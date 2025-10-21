@@ -1,11 +1,11 @@
-﻿using Threadle.Core.Model.Enums;
-using Threadle.Core.Utilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -32,6 +32,15 @@ namespace Threadle.Core.Model
         // exist in this layer
         // Within a LayerTwoMode, HyperEdge objects must have separate names. Which makes sense
         public Dictionary<string, HyperEdge> AllHyperEdges = [];
+
+
+        public Dictionary<string, object> GetMetadata => new Dictionary<string, object>
+        {
+            ["Name"] = Name,
+            ["Mode"] = 2,
+            ["NbrHyperedges"] = NbrHyperedges
+        };
+
 
         /// <summary>
         /// Constructor used by file loader

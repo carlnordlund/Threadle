@@ -77,5 +77,22 @@ namespace Threadle.Core.Model
 
             return OperationResult<uint>.Ok(attributeIndex, $"Node attribute '{attributeName}' is no longer defined.");
         }
+
+        public List<Dictionary<string, object>> GetMetadataList()
+        {
+            return _nameToIndex.Select(kvp => new Dictionary<string,object>
+            {
+                ["Name"] = kvp.Key,
+                ["Type"] = _indexToType[kvp.Value].ToString()
+            }).ToList();
+        }
+
+
+        //internal IReadOnlyList<NodeAttributeMetadata> GetMetadataList()
+        //{
+        //    return _nameToIndex
+        //        .Select(kvp => new NodeAttributeMetadata(kvp.Key, _indexToType[kvp.Value]))
+        //        .ToList();
+        //}
     }
 }

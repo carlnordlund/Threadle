@@ -86,7 +86,20 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Gets info about this network as a JSON-compatible string, including the layer names and modes
         /// </summary>
-        public string Info => JsonSerializer.Serialize(new { Type = "Network", Name = Name, Filepath = Filepath, Nodeset = Nodeset.Name, Layers = LayerMetadata }, new JsonSerializerOptions { WriteIndented = false });
+        //public string Info => JsonSerializer.Serialize(new { Type = "Network", Name = Name, Filepath = Filepath, Nodeset = Nodeset.Name, Layers = LayerMetadata }, new JsonSerializerOptions { WriteIndented = false });
+
+        //public StructureMetadata Info => new NodesetMetadata(Name, Filepath, Count, NodeAttributeDefinitionManager.GetMetadataList());
+
+        //public StructureMetadata Info => new NetworkMetadata(Name, Filepath, Nodeset.Name, Layers.Select(kvp => kvp.Value.GetMetadata).ToList());
+
+        public Dictionary<string, object> Info =>             new Dictionary<string, object>
+            {
+                ["Type"] = "Network",
+                ["Name"] = Name,
+                ["Filepath"] = Filepath,
+                ["Nodeset"] = Nodeset.Name,
+                ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata).ToList()
+            };
 
         /// <summary>
         /// Gets info about the layers in this network, as an enumerable of anonymous objects

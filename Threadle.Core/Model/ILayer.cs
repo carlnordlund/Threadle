@@ -10,6 +10,9 @@ namespace Threadle.Core.Model
     public interface ILayer
     {
         string Name { get; set; }
+
+        Dictionary<string, object> GetMetadata { get; }
+
         HashSet<uint> GetMentionedNodeIds();
         float GetEdgeValue(uint node1, uint node2);
         bool CheckEdgeExists(uint node1, uint node2);

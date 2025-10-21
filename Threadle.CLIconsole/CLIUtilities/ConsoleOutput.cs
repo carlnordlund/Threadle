@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 
 namespace Threadle.CLIconsole.CLIUtilities
@@ -40,6 +42,39 @@ namespace Threadle.CLIconsole.CLIUtilities
         {
             if (EndMarker)
                 Console.WriteLine("__END__");
+        }
+
+        public static void PrintDictionary(Dictionary<string, object> dict, int indent = 0)
+        {
+            string indentStr = new string(' ', indent * 2);
+
+            foreach (var kvp in dict)
+            {
+                if (kvp.Value is Dictionary<string, object> nestedDict)
+                {
+                    Console.WriteLine($"{indentStr}{kvp.Key}:");
+                    PrintDictionary(nestedDict, indent + 1);
+                }
+                else if (kvp.Value is IEnumerable<object> list && !(kvp.Value is string))
+                {
+                    Console.WriteLine($"{indentStr}{kvp.Key}: [");
+                    foreach (var item in list)
+                    {
+                        if (item is Dictionary<string, object> itemDict)
+                        {
+                            PrintDictionary(itemDict, indent + 2);
+                            Console.WriteLine();
+                        }
+                        else
+                            Console.WriteLine($"{new string(' ', (indent + 2) * 2)}{item}");
+                    }
+                    Console.WriteLine($"{indentStr}]");
+                }
+                else
+                {
+                    Console.WriteLine($"{indentStr}{kvp.Key}: {kvp.Value}");
+                }
+            }
         }
     }
 }

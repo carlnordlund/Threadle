@@ -39,6 +39,15 @@ namespace Threadle.Core.Model
             }
         }
 
+        public Dictionary<string, object> GetMetadata => new Dictionary<string, object>
+        {
+            ["Name"] = Name,
+            ["Mode"] = 1,
+            ["Directionality"] = Directionality.ToString(),
+            ["ValueType"] = ValueType.ToString(),
+            ["SelftiesAllowed"] = Selfties,
+            ["NbrEdges"] = NbrEdges
+        };
 
         public Dictionary<uint, IEdgeset> Edgesets = [];
 

@@ -11,6 +11,13 @@
 
   <ItemGroup>
     <Compile Remove="Analysis\AttributeDistanceWalker.cs" />
+    <Compile Remove="DTO\LayerMetadataBase.cs" />
+    <Compile Remove="DTO\LayerOneModeMetadata.cs" />
+    <Compile Remove="DTO\LayerTwoModeMetadata.cs" />
+    <Compile Remove="DTO\NetworkMetadata.cs" />
+    <Compile Remove="DTO\NodeAttributeMetadata.cs" />
+    <Compile Remove="DTO\NodesetMetadata.cs" />
+    <Compile Remove="DTO\StructureMetadata.cs" />
     <Compile Remove="Edge.cs" />
     <Compile Remove="IEdgeCollection.cs" />
     <Compile Remove="LayerSchema.cs" />
@@ -32,6 +39,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="DTO\" />
     <Folder Include="Management\" />
   </ItemGroup>
 

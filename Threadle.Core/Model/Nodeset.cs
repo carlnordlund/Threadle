@@ -117,7 +117,19 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Gets info about this structure as a JSON-compatible string
         /// </summary>
-        public string Info => JsonSerializer.Serialize(new { Type = "Nodeset", Name, Filepath, NbrNodes = Count, NodeAttributes = NodeAttributeDefinitionManager.Info }, new JsonSerializerOptions { WriteIndented = false });
+        //public string Info => JsonSerializer.Serialize(new { Type = "Nodeset", Name, Filepath, NbrNodes = Count, NodeAttributes = NodeAttributeDefinitionManager.Info }, new JsonSerializerOptions { WriteIndented = false });
+
+        //public StructureMetadata Info => new NodesetMetadata(Name, Filepath, Count, NodeAttributeDefinitionManager.GetMetadataList());
+
+        public Dictionary<string, object> Info => new Dictionary<string, object>
+        {
+            ["Type"] = "Nodeset",
+            ["Name"] = this.Name,
+            ["Filepath"] = this.Filepath,
+            ["NbrNodes"] = this.Count,
+            ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList()
+        };
+
         //{
         //    Type = "Nodeset",
         //    Name = this.Name,

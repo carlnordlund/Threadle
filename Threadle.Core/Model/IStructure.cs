@@ -16,6 +16,6 @@ namespace Threadle.Core.Model
 
         List<string> Content { get; }
 
-        string Info { get; }
+        Dictionary<string,object> Info { get; }
     }
 }
