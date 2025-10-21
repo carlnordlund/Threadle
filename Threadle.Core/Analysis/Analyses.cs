@@ -35,11 +35,12 @@ namespace Threadle.Core.Analysis
             return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
         }
 
-        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeid, string layerName, EdgeTraversal edgeTraversal)
+        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeid, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false)
         {
             List<uint> alterIds = new List<uint>();
             if (layerName != null && layerName.Length > 0)
             {
+                // Only use the specified layer
                 var layerResult = network.GetLayer(layerName);
                 if (!layerResult.Success)
                     return OperationResult<uint>.Fail(layerResult);
@@ -51,20 +52,40 @@ namespace Threadle.Core.Analysis
             }
             else
             {
-                foreach (var layer in network.Layers.Values)
+                if (balanced)
                 {
-                    var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
-                    if (!altersResult.Success)
-                        return OperationResult<uint>.Fail(altersResult);
-                    alterIds.AddRange(altersResult.Value!);
+                    List<uint[]> layerAlterslist = new List<uint[]>();
+
+                    foreach (var layer in network.Layers.Values)
+                    {
+                        var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
+                        if (!altersResult.Success)
+                            return OperationResult<uint>.Fail(altersResult);
+
+                        var alters = altersResult.Value!;
+                        if (alters.Length > 0)
+                            layerAlterslist.Add(alters);
+                    }
+                    if (layerAlterslist.Count == 0)
+                        return OperationResult<uint>.Fail("NoAlters", $"Node {nodeid} has no alters in any layer with the given edge traversal.");
+                    var chosenLayerAlters = layerAlterslist[Functions.Random.Next(layerAlterslist.Count)];
+                    alterIds.AddRange(chosenLayerAlters);
+                }
+                else
+                {
+                    foreach (var layer in network.Layers.Values)
+                    {
+                        var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
+                        if (!altersResult.Success)
+                            return OperationResult<uint>.Fail(altersResult);
+                        alterIds.AddRange(altersResult.Value!);
+                    }
                 }
             }
             if (alterIds.Count == 0)
                 return OperationResult<uint>.Fail("NoAlters", $"Node {nodeid} has no alters in the specified layer(s) with the given edge traversal.");
-            
             uint randomAlterId = alterIds[Functions.Random.Next(alterIds.Count)];
             return OperationResult<uint>.Ok(randomAlterId);
-
         }
 
 
