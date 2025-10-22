@@ -86,12 +86,12 @@ namespace Threadle.Core.Utilities
             return null;
         }
 
-        public static T ParseEnumOrNull<T>(string? value, T defaultValue) where T: struct, Enum
-        {
-            if (Enum.TryParse<T>(value, true, out var result))
-                return result;
-            return defaultValue;
-        }
+        //public static T ParseEnumOrNull<T>(string? value, T defaultValue) where T: struct, Enum
+        //{
+        //    if (Enum.TryParse<T>(value, true, out var result))
+        //        return result;
+        //    return defaultValue;
+        //}
 
         public static ulong GetNbrPotentialEdges(ulong n, bool directed, bool selfties)
         {

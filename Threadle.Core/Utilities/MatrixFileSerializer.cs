@@ -16,7 +16,7 @@ namespace Threadle.Core.Utilities
             // So here we are just importing a standard 1-mode edgelist
             string[,] cells = ReadCells(filepath, separator);
             int nbrColumns = cells.GetLength(1);
-            EdgeType valueType = layerOneMode.ValueType;
+            EdgeType valueType = layerOneMode.EdgeValueType;
             if (valueType == EdgeType.Binary && nbrColumns != 2)
                 throw new Exception($"Error: Layer '{layerOneMode.Name}' is binary, so edgelist must have two columns.");
             if ((valueType == EdgeType.Valued) && nbrColumns != 3)

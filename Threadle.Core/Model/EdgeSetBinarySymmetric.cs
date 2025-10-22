@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
-    public class EdgesetBinarySymmetric : IEdgeset
+    public class EdgesetBinarySymmetric : IEdgesetBinary, IEdgesetSymmetric
     {
         private List<uint> _connections = new();
 

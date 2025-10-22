@@ -65,6 +65,7 @@ namespace Threadle.CLIconsole.Commands
             return value;
         }
 
+
         internal double GetArgumentParseDoubleThrowExceptionIfMissingOrNull(string key, string altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
@@ -84,6 +85,21 @@ namespace Threadle.CLIconsole.Commands
         {
             if (!(GetArgument(key) is string value))
                 return defaultvalue;
+            return value;
+        }
+
+        internal T GetArgumentParseEnum<T>(string key, T defaultValue) where T : struct, Enum
+        {
+            if (Enum.TryParse<T>(GetArgument(key), out var value))
+                return value;
+            return defaultValue;
+        }
+
+        internal T GetArgumentParseEnumThrowExceptionIfMissingOrNull<T>(string key, string altKey) where T : struct, Enum
+        {
+            string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
+            if (!Enum.TryParse<T>(valueString, out var value))
+                throw new Exception($"!Error: Value '{valueString}' not a valid {typeof(T).Name}.");
             return value;
         }
 

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
-    public class EdgesetBinaryDirectional : IEdgeset
+    public class EdgesetBinaryDirectional : IEdgesetBinary, IEdgesetDirectional
     {
         private List<uint> _outbound = new();
         private List<uint> _inbound = new();

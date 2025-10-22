@@ -61,7 +61,7 @@ namespace Threadle.Core.Model
                 foreach ((string layerName, ILayer layer) in Layers)
                 {
                     if (layer is LayerOneMode layerOneMode)
-                        lines.Add($" {layerOneMode.Name} (1-mode: {layerOneMode.ValueType},{layerOneMode.Directionality},{layerOneMode.Selfties}); Nbr edges:{layerOneMode.NbrEdges}");
+                        lines.Add($" {layerOneMode.Name} (1-mode: {layerOneMode.EdgeValueType},{layerOneMode.Directionality},{layerOneMode.Selfties}); Nbr edges:{layerOneMode.NbrEdges}");
                     else if (layer is LayerTwoMode layerTwoMode)
                     {
                         lines.Add($" {layerTwoMode.Name} (2-mode); Nbr hyperedges: {layerTwoMode.NbrHyperedges}");
@@ -290,7 +290,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult AddEdge(LayerOneMode layerOneMode, uint node1id, uint node2id, float value, bool addMissingNodes)
         {
-            value = Misc.FixConnectionValue(value, layerOneMode.ValueType);
+            value = Misc.FixConnectionValue(value, layerOneMode.EdgeValueType);
             if (value == 0)
                 return OperationResult.Ok("Edge value is zero: no edge added.");
             if (!addMissingNodes)

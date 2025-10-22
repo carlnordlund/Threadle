@@ -8,13 +8,13 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
-    public class EdgesetValuedDirectional : IEdgeset
+    public class EdgesetValuedDirectional : IEdgesetValued, IEdgesetDirectional
     {
         private List<Connection> _outbound = new();
         private List<Connection> _inbound = new();
 
-        public List<Connection> GetOutboundConnections() => _outbound;
-        public List<Connection> GetInboundConnections() => _inbound;
+        public List<Connection> GetOutboundConnections => _outbound;
+        public List<Connection> GetInboundConnections => _inbound;
 
         public uint NbrOutboundEdges { get => (uint)_outbound.Count; }
         public uint NbrInboundEdges { get => (uint)_inbound.Count; }

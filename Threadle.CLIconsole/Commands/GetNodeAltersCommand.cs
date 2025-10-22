@@ -23,7 +23,8 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg2");
 
-            EdgeTraversal edgeTraversal = Misc.ParseEnumOrNull<EdgeTraversal>(command.GetArgument("direction"), EdgeTraversal.Both);
+            //EdgeTraversal edgeTraversal = Misc.ParseEnumOrNull<EdgeTraversal>(command.GetArgument("direction"), EdgeTraversal.Both);
+            EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
 
             OperationResult<uint[]> result = network.GetNodeAlters(layerName, nodeid, edgeTraversal);
             if (result.Success)

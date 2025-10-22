@@ -37,8 +37,10 @@ namespace Threadle.CLIconsole.Commands
                 result = network.AddLayerOneMode(
                     layerName: layerNameVerified,
                     edgeDirectionality: command.GetArgumentParseBool("directed", false) ? EdgeDirectionality.Directed : EdgeDirectionality.Undirected,
-                    edgeValueType: Misc.ParseEnumOrNull<EdgeType>(command.GetArgument("valuetype"), EdgeType.Binary),
-            selfties: command.GetArgumentParseBool("selfties", false));
+                    //edgeValueType: Misc.ParseEnumOrNull<EdgeType>(command.GetArgument("valuetype"), EdgeType.Binary),
+                    edgeValueType: command.GetArgumentParseEnum<EdgeType>("valuetype", EdgeType.Binary),
+                    selfties: command.GetArgumentParseBool("selfties", false)
+                    );
             }
             else if (mode == '2')
             {

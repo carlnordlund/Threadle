@@ -15,7 +15,7 @@ namespace Threadle.Core.Model
 
         //public string Name = "";
         public EdgeDirectionality Directionality;
-        public EdgeType ValueType;
+        public EdgeType EdgeValueType;
         public bool Selfties;
 
         Func<IEdgeset>? edgeSetFactory;
@@ -24,8 +24,8 @@ namespace Threadle.Core.Model
 
         public bool IsSymmetric => Directionality == EdgeDirectionality.Undirected;
         public bool IsDirectional => Directionality == EdgeDirectionality.Directed;
-        public bool IsBinary => ValueType == EdgeType.Binary;
-        public bool IsValued => ValueType == EdgeType.Valued;
+        public bool IsBinary => EdgeValueType == EdgeType.Binary;
+        public bool IsValued => EdgeValueType == EdgeType.Valued;
         
 
         public ulong NbrEdges
@@ -44,7 +44,7 @@ namespace Threadle.Core.Model
             ["Name"] = Name,
             ["Mode"] = 1,
             ["Directionality"] = Directionality.ToString(),
-            ["ValueType"] = ValueType.ToString(),
+            ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
             ["NbrEdges"] = NbrEdges
         };
@@ -62,7 +62,7 @@ namespace Threadle.Core.Model
         {
             Name = name;
             Directionality = directionality;
-            ValueType = valueType;
+            EdgeValueType = valueType;
             Selfties = selfties;
             initializeFactory();
         }

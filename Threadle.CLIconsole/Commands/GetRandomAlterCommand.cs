@@ -22,7 +22,8 @@ namespace Threadle.CLIconsole.Commands
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string layerName = command.GetArgumentParseString("layername", "");
-            EdgeTraversal edgeTraversal = Misc.ParseEnumOrNull<EdgeTraversal>(command.GetArgument("direction"), EdgeTraversal.Both);
+            //EdgeTraversal edgeTraversal = Misc.ParseEnumOrNull<EdgeTraversal>(command.GetArgument("direction"), EdgeTraversal.Both);
+            EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
             bool balance = command.GetArgumentParseBool("balanced", false);
 
             OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeid, layerName, edgeTraversal, balance);

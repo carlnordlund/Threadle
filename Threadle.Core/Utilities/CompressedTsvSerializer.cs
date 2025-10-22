@@ -91,7 +91,7 @@ namespace Threadle.Core.Utilities
                     writer.WriteLine($"LayerMode: 1");
                     writer.WriteLine($"LayerName: {layerOneMode.Name}");
                     writer.WriteLine($"Directionality: {layerOneMode.Directionality.ToString().ToLower()}");
-                    writer.WriteLine($"ValueType: {layerOneMode.ValueType.ToString().ToLower()}");
+                    writer.WriteLine($"ValueType: {layerOneMode.EdgeValueType.ToString().ToLower()}");
                     writer.WriteLine($"Selfties: {layerOneMode.Selfties.ToString().ToLower()}");
 
                     // Iterate through all IEdgeSet objects in this layer, get the EdgeSet string for each
@@ -268,7 +268,7 @@ namespace Threadle.Core.Utilities
                         else if (line.StartsWith("ValueType:", StringComparison.OrdinalIgnoreCase))
                         {
                             var valString = line.Substring("ValueType:".Length).Trim().ToLower();
-                            currentLayerOneMode.ValueType = valString switch
+                            currentLayerOneMode.EdgeValueType = valString switch
                             {
                                 "valued" => EdgeType.Valued,
                                 _ => EdgeType.Binary
@@ -291,7 +291,7 @@ namespace Threadle.Core.Utilities
                         continue;
                     uint ego = uint.Parse(parts[0]);
 
-                    if (layerOneMode.ValueType == EdgeType.Binary)
+                    if (layerOneMode.EdgeValueType == EdgeType.Binary)
                     {
                         for (int i = 1; i < parts.Length; i++)
                         {
@@ -311,7 +311,7 @@ namespace Threadle.Core.Utilities
                                 continue;
                             var subparts = parts[i].Split(';', 2);
                             uint alter = uint.Parse(subparts[0]);
-                            float val = Misc.FixConnectionValue(float.Parse(subparts[1], CultureInfo.InvariantCulture), layerOneMode.ValueType);
+                            float val = Misc.FixConnectionValue(float.Parse(subparts[1], CultureInfo.InvariantCulture), layerOneMode.EdgeValueType);
                             // The AddEdge() below does layer-specific checks on directionality, selfties
                             // and UserSetting checks on outbound only and BlockMultiedges
                             layerOneMode.AddEdge(ego, alter, val);

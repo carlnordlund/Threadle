@@ -26,7 +26,7 @@ namespace Threadle.Core.Processing
                     true => condition switch
                     {
                         ConditionType.notnull => true,  // Existing attribute counts as 'notnull'
-                        _ => Misc.EvalutateCondition(result.Value, attrValue, condition), // Evaluate condition here
+                        _ => Misc.EvalutateCondition(result.Value, attrValue!, condition), // Evaluate condition here
                     },
                     false => condition switch
                     {
