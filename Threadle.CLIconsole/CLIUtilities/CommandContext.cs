@@ -73,6 +73,8 @@ namespace Threadle.CLIconsole.CLIUtilities
 
         internal string GetNextIncrementalName(string baseName = "Untitled-")
         {
+            if (!VariableExists(baseName))
+                return baseName;
             int i = 0;
             while (true)
             {

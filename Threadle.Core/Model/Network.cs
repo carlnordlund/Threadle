@@ -221,6 +221,25 @@ namespace Threadle.Core.Model
             return layer;
         }
 
+        /// <summary>
+        /// Generates the next available layer name based on the specified base name.
+        /// </summary>
+        /// <param name="baseName">The base name to use for generating the layer name. Defaults to <c>"layer-"</c> if not specified.</param>
+        /// <returns>A unique layer name that does not already exist in the collection of layers.</returns>
+        public string GetnextAvailableLayerName(string baseName = "layer")
+        {
+            if (!Layers.ContainsKey(baseName))
+                return baseName;
+            int counter = 1;
+            string layerName;
+            do
+            {
+                layerName = $"{baseName}-{counter}";
+                counter++;
+            } while (Layers.ContainsKey(layerName));
+            return layerName;
+        }
+
         //public OperationResult<ILayer> GetLayer(string layerName)
         //{
         //    if (!Layers.TryGetValue(layerName, out var layer))

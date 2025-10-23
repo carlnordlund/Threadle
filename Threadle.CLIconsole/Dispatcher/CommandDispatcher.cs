@@ -14,6 +14,7 @@ namespace Threadle.CLIconsole.Dispatcher
 
         public CommandDispatcher()
         {
+            _commands["dichotomize"] = new DichotomizeCommand();
             _commands["getrandomalter"] = new GetRandomAlterCommand();
             _commands["clearlayer"] = new ClearLayerCommand();
             _commands["degree"]=new DegreeCommand();

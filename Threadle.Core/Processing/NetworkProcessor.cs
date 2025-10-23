@@ -62,9 +62,8 @@ namespace Threadle.Core.Processing
                 }
 
             }
-
-            network.Layers.Add(newLayerName, newLayer);
-            return OperationResult.Ok("Dichotomization completed successfully.");
+            network.AddLayer(newLayerName, newLayer);
+            return OperationResult.Ok($"Dichotomized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
     }
 }
