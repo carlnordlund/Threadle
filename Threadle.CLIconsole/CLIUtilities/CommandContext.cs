@@ -12,6 +12,28 @@ namespace Threadle.CLIconsole.CLIUtilities
     {
         public Dictionary<string, IStructure> Variables { get; } = new();
 
+        internal Dictionary<string, object> VariablesMetadata()
+        {
+            Dictionary<string, object> metadata = new();
+            foreach (var kvp in Variables)
+            {
+                metadata[kvp.Key]= new Dictionary<string, object>
+                {
+                    { "Type", kvp.Value.GetType().Name },
+                    { "IsModified", kvp.Value.IsModified   },
+                    { "Filepath", kvp.Value.Filepath ?? "N/A" }
+                };
+                //metadata[kvp.Key] = new
+                //{
+                //    Type = kvp.Value.GetType().Name,
+                //    Filepath = kvp.Value.Filepath,
+                //    Modified = kvp.Value.IsModified
+                //};
+            }
+            return metadata;
+        }
+
+
         public void SetVariable(string name, IStructure value, bool renameIfExist = false)
         {
             Variables[name.ToLowerInvariant()] = value;
@@ -95,5 +117,6 @@ namespace Threadle.CLIconsole.CLIUtilities
             return nodeset;
 
         }
+
     }
 }

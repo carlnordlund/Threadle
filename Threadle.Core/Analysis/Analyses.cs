@@ -88,6 +88,19 @@ namespace Threadle.Core.Analysis
             return OperationResult<uint>.Ok(randomAlterId);
         }
 
+        /// <summary>
+        /// Selects a random node identifier from the specified nodeset.
+        /// </summary>
+        /// <param name="nodeset">The nodeset from which to select a random node. Must contain at least one node.</param>
+        /// <returns>An <see cref="OperationResult{T}"/> containing the identifier of the randomly selected node.</returns>
+        public static OperationResult<uint> GetRandomNode(Nodeset nodeset)
+        {
+            if (nodeset.Count == 0)
+                return OperationResult<uint>.Fail("NoNodes", $"Nodeset '{nodeset.Name}' contains no nodes.");
+            uint randomNodeId = nodeset.NodeIdArray[Functions.Random.Next(nodeset.Count)];
+            return OperationResult<uint>.Ok(randomNodeId);
+        }
+
 
 
         //public static MatrixStructure? ShortestPaths(Network network, string layerName)
