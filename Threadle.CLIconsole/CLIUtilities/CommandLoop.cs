@@ -9,12 +9,8 @@ namespace Threadle.CLIconsole.CLIUtilities
 {
     public static class CommandLoop
     {
-        //public static bool Verbose { get; set; } = true;
-
         public static void Run()
         {
-            //ConsoleOutput.Verbose = verbose;
-
             var context = new CommandContext();
             var dispatcher = new CommandDispatcher();            
 
@@ -30,7 +26,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                 var input = Console.ReadLine()?.Trim();
                 if (string.IsNullOrWhiteSpace(input))
                     continue;
-                if (input.Trim().ToLower() == "exit")
+                if (input.ToLower() == "exit")
                     break;
                 if (input.StartsWith("help", StringComparison.OrdinalIgnoreCase))
                 {

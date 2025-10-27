@@ -68,7 +68,7 @@ namespace Threadle.Core.Analysis
                     }
                     if (layerAlterslist.Count == 0)
                         return OperationResult<uint>.Fail("NoAlters", $"Node {nodeid} has no alters in any layer with the given edge traversal.");
-                    var chosenLayerAlters = layerAlterslist[Functions.Random.Next(layerAlterslist.Count)];
+                    var chosenLayerAlters = layerAlterslist[Misc.Random.Next(layerAlterslist.Count)];
                     alterIds.AddRange(chosenLayerAlters);
                 }
                 else
@@ -84,7 +84,7 @@ namespace Threadle.Core.Analysis
             }
             if (alterIds.Count == 0)
                 return OperationResult<uint>.Fail("NoAlters", $"Node {nodeid} has no alters in the specified layer(s) with the given edge traversal.");
-            uint randomAlterId = alterIds[Functions.Random.Next(alterIds.Count)];
+            uint randomAlterId = alterIds[Misc.Random.Next(alterIds.Count)];
             return OperationResult<uint>.Ok(randomAlterId);
         }
 
@@ -97,7 +97,7 @@ namespace Threadle.Core.Analysis
         {
             if (nodeset.Count == 0)
                 return OperationResult<uint>.Fail("NoNodes", $"Nodeset '{nodeset.Name}' contains no nodes.");
-            uint randomNodeId = nodeset.NodeIdArray[Functions.Random.Next(nodeset.Count)];
+            uint randomNodeId = nodeset.NodeIdArray[Misc.Random.Next(nodeset.Count)];
             return OperationResult<uint>.Ok(randomNodeId);
         }
 

@@ -9,7 +9,7 @@ using System.Xml.Linq;
 
 namespace Threadle.Core.Utilities
 {
-    public static class MatrixFileSerializer
+    public static class FormatImporters
     {
         internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, string separator, bool addMissingNodes)
         {
@@ -115,80 +115,6 @@ namespace Threadle.Core.Utilities
             //string[,] cells = ReadCells(filepath, separator);
             throw new NotImplementedException();
         }
-
-        internal static StructureResult Load(string filepath, Nodeset? nodeset = null, string separator = "\t", bool rowHeaders = true, bool columnHeaders = true)
-        {
-            bool includeNodeset = false;
-            string nameNoExt = Path.GetFileNameWithoutExtension(filepath);
-            string[,] cells = ReadCells(filepath, separator);
-            int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
-            if (nbrRows != nbrCols)
-                throw new Exception($"Error: Matrix not square shaped");
-            if (nodeset == null)
-            {
-                includeNodeset = true;
-                uint idNode;
-                nodeset = new Nodeset(nameNoExt + "_nodeset");
-                for (int r = 1; r < nbrRows; r++)
-                {
-                    if (!uint.TryParse(cells[r, 0], out idNode))
-                        throw new Exception($"Error: When generating nodeset, couldn't parse '{cells[r, 0]}' as unsigned int.");
-                    nodeset.AddNode(idNode);
-                }
-            }
-
-            float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
-            bool hasSelfties = Misc.HasNonzeroDiagonal(data);
-            EdgeDirectionality directionality = Misc.GetDirectionality(data);
-            EdgeType edgeValueType = Misc.GetValueType(data);
-
-            Network network = new Network(nameNoExt, nodeset);
-            network.AddLayerOneMode("layer", directionality, edgeValueType, hasSelfties);
-
-            uint fromId, toId;
-            if (directionality == EdgeDirectionality.Directed)
-                for (int r = 1; r < nbrRows; r++)
-                {
-                    uint.TryParse(cells[r, 0], out fromId);
-                    for (int c = 1; c < nbrCols; c++)
-                    {
-                        if (data[r - 1, c - 1] != 0)
-                        {
-                            uint.TryParse(cells[0, c], out toId);
-                            network.AddEdge("layer",fromId, toId, data[r - 1, c - 1]);
-                        }
-                    }
-                }
-            else
-                for (int r = 1; r < nbrRows; r++)
-                {
-                    uint.TryParse(cells[r, 0], out fromId);
-                    for (int c = r; c < nbrCols; c++)
-                    {
-                        if (data[r - 1, c - 1] != 0)
-                        {
-                            uint.TryParse(cells[0, c], out toId);
-                            network.AddEdge("layer", fromId, toId, data[r - 1, c - 1]);
-                        }
-                    }
-                }
-
-            StructureResult result = new StructureResult(network);
-            if (includeNodeset)
-                result.AdditionalStructures.Add("nodeset", nodeset);
-
-            return result;
-        }
-
-        //private static float[,] ParseFloats(string[,] cells, int startOffset)
-        //{
-        //    int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
-        //    float[,] data = new float[nbrRows - startOffset, nbrCols - startOffset];
-        //    for (int r = 0; r < nbrRows - startOffset; r++)
-        //        for (int c = 0; c < nbrCols - startOffset; c++)
-        //            float.TryParse(cells[r + startOffset, c + startOffset], out data[r, c]);
-        //    return data;
-        //}
 
         private static string[,] ReadCells(string filepath, string separator)
         {

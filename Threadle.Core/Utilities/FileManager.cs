@@ -25,11 +25,8 @@ namespace Threadle.Core.Utilities
                 case Network network:
                     SaveNetwork(network, filepath, format, nodesetFilepath);
                     break;
-                //case MatrixStructure matrix:
-                //    SaveMatrix(matrix, filepath, format);
-                //    break;
                 default:
-                    throw new NotSupportedException($"Save not implemented for type: {structure.GetType()}");
+                    throw new NotSupportedException($"Error: Save not implemented for type '{structure.GetType()}'.");
             }
         }
 
@@ -37,13 +34,13 @@ namespace Threadle.Core.Utilities
         public static StructureResult Load(string filepath, string structureTypeString, FileFormat format = FileFormat.TsvGzip)
         {
             Type structureType = structureTypes[structureTypeString]
-                ?? throw new NotSupportedException($"Error: Structure {structureTypeString} not supported.");
+                ?? throw new NotSupportedException($"Error: Structure '{structureTypeString}' not supported.");
 
             return structureType switch
             {
                 var t when t == typeof(Nodeset) => LoadNodeset(filepath, format),
                 var t when t == typeof(Network) => LoadNetwork(filepath, format),
-                _ => throw new NotSupportedException($"Load not implemented for type: {structureType}")
+                _ => throw new NotSupportedException($"Error: Load not implemented for type '{structureType}'.")
             };
         }
 
@@ -59,11 +56,11 @@ namespace Threadle.Core.Utilities
             if (format == FileFormat.TsvGzip)
             {
                 nodeset = CompressedTsvSerializer.LoadNodesetFromFile(filepath)
-                    ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'");
+                    ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
             }
             else
             {
-                throw new NotImplementedException($"File format '{format}' is not supported.");
+                throw new NotImplementedException($"Error: File format '{format}' is not supported.");
             }
             return new StructureResult(nodeset);
         }
@@ -77,14 +74,6 @@ namespace Threadle.Core.Utilities
                 CompressedTsvSerializer.SaveNetworkToFile(network, filepath, nodesetFilepath);
             }
         }
-
-        //private static void SaveMatrix(MatrixStructure matrix, string filepath, FileFormat format)
-        //{
-        //    if (format==FileFormat.TsvGzip)
-        //    {
-        //        CompressedTsvSerializer.SaveMatrixToFile(matrix, filepath);
-        //    }
-        //}
 
 
         private static StructureResult LoadNetwork(string filepath, FileFormat format)
@@ -103,35 +92,35 @@ namespace Threadle.Core.Utilities
 
         }
 
-        public static StructureResult Import(string filepath, string formatString, Nodeset? nodeset = null, string separator="\t", bool rowHeaders=true, bool columnHeaders=true)
-        {
-            // Import network given various formats.
-            // If nodeset is provided: use that when importing. If not provided: create and store as extra structure in StructureResult
-            return formatString switch
-            {
-                "matrix" => MatrixFileSerializer.Load(filepath, nodeset, separator, rowHeaders, columnHeaders),
-                _ => throw new Exception($"Error: Format {formatString} not known/implemented.")
-            };
+        //public static StructureResult Import(string filepath, string formatString, Nodeset? nodeset = null, string separator="\t", bool rowHeaders=true, bool columnHeaders=true)
+        //{
+        //    // Import network given various formats.
+        //    // If nodeset is provided: use that when importing. If not provided: create and store as extra structure in StructureResult
+        //    return formatString switch
+        //    {
+        //        "matrix" => MatrixFileSerializer.Load(filepath, nodeset, separator, rowHeaders, columnHeaders),
+        //        _ => throw new Exception($"Error: Format {formatString} not known/implemented.")
+        //    };
             
             
-            throw new NotImplementedException();
-        }
+        //    throw new NotImplementedException();
+        //}
 
         public static void ImportLayer(string filepath, Network network, ILayer layer, string format, string separator, bool addMissingNodes)
         {
             if (layer is LayerOneMode layerOneMode)
             {
                 if (format.Equals("edgelist", StringComparison.OrdinalIgnoreCase))
-                    MatrixFileSerializer.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
+                    FormatImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
                 else if (format.Equals("matrix", StringComparison.OrdinalIgnoreCase))
-                    MatrixFileSerializer.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
+                    FormatImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
             }
             else if (layer is LayerTwoMode layerTwoMode)
             {
                 if (format.Equals("edgelist", StringComparison.OrdinalIgnoreCase))
-                    MatrixFileSerializer.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
+                    FormatImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
                 else if (format.Equals("matrix", StringComparison.OrdinalIgnoreCase))
-                    MatrixFileSerializer.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
+                    FormatImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
             }
             else
                 throw new NotImplementedException();

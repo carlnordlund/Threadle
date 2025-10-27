@@ -9,22 +9,6 @@ namespace Threadle.Core.Utilities
 {
     public static class NetworkGenerators
     {
-        
-
-        //public static NetworkModel GenerateErdosRenyi(int n, double p, bool directed, bool selfties)
-        //{
-        //    NetworkModel model = new NetworkModel(n);
-        //    for (uint i = 0; i < n; i++)
-        //        model.AddNode(i);
-
-        //    model.DefineLayer(0, "er", (directed) ? EdgeDirectionality.Directed : EdgeDirectionality.Undirected, EdgeValueType.Binary, selfties);
-
-        //    for (uint i = 0; i < n; i++)
-        //        for (uint j = 0; j < ((directed) ? n : i); j++)
-        //            if ((i != j || selfties) && random.NextDouble() < p)
-        //                model.AddEdge(0, i, j, 1);
-        //    return model;
-        //}
 
         public static Network GenerateErdosRenyi3(Nodeset nodeset, double p, bool directed, bool selfties)
         {

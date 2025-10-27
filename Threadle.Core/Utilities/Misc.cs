@@ -17,8 +17,9 @@ namespace Threadle.Core.Utilities
     /// </summary>
     public static class Misc
     {
+        public static readonly Random Random = new Random();
         //public static readonly Random Random = new Random();
-        
+
         public static bool EvalutateCondition(NodeAttributeValue nodeValue, string comparisonValue, ConditionType condition)
         {
             switch (nodeValue.Type)
@@ -93,9 +94,9 @@ namespace Threadle.Core.Utilities
         //    return defaultValue;
         //}
 
-        public static ulong GetNbrPotentialEdges(ulong n, bool directed, bool selfties)
+        public static ulong GetNbrPotentialEdges(ulong n, EdgeDirectionality directionality, bool selfties)
         {
-            if (directed)
+            if (directionality == EdgeDirectionality.Directed)
                 return selfties ? n * n : n * (n - 1);
             else
                 return selfties ? n * (n + 1) / 2 : n * (n - 1) / 2;
@@ -283,6 +284,11 @@ namespace Threadle.Core.Utilities
         public static string BooleanAsString(bool check)
         {
             return check ? "true" : "false";
+        }
+
+        internal static ulong SampleGeometric(double p)
+        {
+            return (ulong)Math.Floor(Math.Log(Misc.Random.NextDouble()) / Math.Log(1.0 - p));
         }
 
         /// <summary>

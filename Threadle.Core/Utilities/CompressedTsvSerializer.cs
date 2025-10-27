@@ -21,16 +21,6 @@ namespace Threadle.Core.Utilities
                 : stream;
         }
 
-        public static void SaveNodesetToFile(Nodeset nodeset, string filepath)
-        {
-            using var fileStream = File.Create(filepath);
-            using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
-            using var writer = new StreamWriter(stream, Utf8NoBom);            
-            WriteNodesetToFile(nodeset, writer);
-            nodeset.Filepath = filepath;
-            nodeset.IsModified = false;
-        }
-
         public static Nodeset LoadNodesetFromFile(string filepath)
         {
             using var fileStream = File.OpenRead(filepath);
@@ -43,25 +33,15 @@ namespace Threadle.Core.Utilities
             return nodeset;
         }
 
-        public static void SaveNetworkToFile(Network network, string filepath, string? nodesetFileReference =null)
+        public static void SaveNodesetToFile(Nodeset nodeset, string filepath)
         {
             using var fileStream = File.Create(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
-            using var writer = new StreamWriter(stream, Utf8NoBom);
-
-            WriteNetworkModelToFile(network, writer, nodesetFileReference);
-            network.Filepath = filepath;
-            network.IsModified = false;
+            using var writer = new StreamWriter(stream, Utf8NoBom);            
+            WriteNodesetToFile(nodeset, writer);
+            nodeset.Filepath = filepath;
+            nodeset.IsModified = false;
         }
-
-        //internal static void SaveMatrixToFile(MatrixStructure matrix, string filepath)
-        //{
-        //    using var fileStream = File.Create(filepath);
-        //    using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
-        //    using var writer = new StreamWriter(stream, Utf8NoBom);
-
-        //    WriteMatrixToFile(matrix, writer);
-        //}
 
         public static StructureResult LoadNetworkFromFile(string filepath)
         {
@@ -72,8 +52,20 @@ namespace Threadle.Core.Utilities
             return ReadNetworkFromFile(filepath, reader);
         }
 
+        public static void SaveNetworkToFile(Network network, string filepath, string? nodesetFileReference =null)
+        {
+            using var fileStream = File.Create(filepath);
+            using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
+            using var writer = new StreamWriter(stream, Utf8NoBom);
 
-        private static void WriteNetworkModelToFile(Network network, StreamWriter writer, string? nodesetFileReference)
+            WriteNetworkToFile(network, writer, nodesetFileReference);
+            network.Filepath = filepath;
+            network.IsModified = false;
+        }
+
+
+
+        private static void WriteNetworkToFile(Network network, StreamWriter writer, string? nodesetFileReference)
         {
             writer.WriteLine("# Network Metadata");
             writer.WriteLine($"Name: {network.Name}");
@@ -94,76 +86,10 @@ namespace Threadle.Core.Utilities
                     writer.WriteLine($"ValueType: {layerOneMode.EdgeValueType.ToString().ToLower()}");
                     writer.WriteLine($"Selfties: {layerOneMode.Selfties.ToString().ToLower()}");
 
-                    // Iterate through all IEdgeSet objects in this layer, get the EdgeSet string for each
-                    // and write it to writer. Note that the GetNodelistAlters() returns different kinds of
-                    // content depending on what kind of IEdgeSet it is
-                    string ret = string.Empty;
+                    string nodelist = string.Empty;
                     foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
-                        if ((ret = edgeset.GetNodelistAlterString(nodeId)).Length > 0)
-                            writer.WriteLine($"{nodeId}\t{ret}");
-
-                    // In a way, not so nice to have file-data-generating content in the IEdgeset classes,
-                    // as those should strictly be for storing data, not demonstrating
-
-
-
-
-
-
-
-
-                            //bool directed = (layerOneMode.Directionality == EdgeDirectionality.Directed);
-                            //bool binary = (layerOneMode.ValueType == EdgeValueType.Binary);
-
-                            ////foreach ((uint sourceNodeId, IConnectionCollection connectionCollection) in layerOneMode.Connections)
-                            //if (layerOneMode.IsBinary)
-                            //{
-
-                            //    foreach ((uint sourceNodeId, IEdgeSet edgeset) in layerOneMode.Edgesets)
-                            //    {
-                            //        if (edgeset.GetNbrOutboundEdges() > 0)
-                            //        {
-                            //            sb.Clear();
-                            //            sb.Append(sourceNodeId);
-                            //            foreach (uint partnerNodeId in edgeset.GetOutboundNodeIds())
-                            //            //foreach (Connection conn in connectionCollection.GetOutboundConnections())
-                            //            {
-                            //                if (directed || partnerNodeId >= sourceNodeId)
-                            //                    // Might have errors here for valued and signed networks
-                            //                    //sb.Append("\t" + partnerNodeId.ToString() + (binary ? "" : ";" + conn.value.ToString()));
-                            //                    sb.Append("\t" + partnerNodeId.ToString());
-                            //            }
-                            //            if (sb.Length > sourceNodeId.ToString().Length)
-                            //                writer.WriteLine(sb.ToString());
-                            //        }
-                            //    }
-                            //}
-                            //else if (layerOneMode.IsValued)
-                            //{
-                            //    // NOT GOOD HERE - need to rewrite!
-
-                            //    // Not efficient here: I know that edgeset is valued, so I should get connection structs
-                            //    foreach ((uint sourceNodeId, IEdgeSet edgeset) in layerOneMode.Edgesets)
-                            //    {
-                            //        if (edgeset.GetNbrOutboundEdges() > 0)
-                            //        {
-                            //            sb.Clear();
-                            //            sb.Append(sourceNodeId);
-                            //            foreach (uint partnerNodeId in edgeset.GetOutboundNodeIds())
-                            //            //foreach (Connection conn in connectionCollection.GetOutboundConnections())
-                            //            {
-                            //                if (directed || partnerNodeId >= sourceNodeId)
-                            //                    // Might have errors here for valued and signed networks
-                            //                    //sb.Append("\t" + partnerNodeId.ToString() + (binary ? "" : ";" + conn.value.ToString()));
-                            //                    sb.Append("\t" + partnerNodeId.ToString());
-                            //            }
-                            //            if (sb.Length > sourceNodeId.ToString().Length)
-                            //                writer.WriteLine(sb.ToString());
-                            //        }
-                            //    }
-
-
-                            //}
+                        if ((nodelist = edgeset.GetNodelistAlterString(nodeId)).Length > 0)
+                            writer.WriteLine($"{nodeId}\t{nodelist}");
                 }
                 else if (layer is LayerTwoMode layerTwoMode)
                 {
@@ -179,33 +105,6 @@ namespace Threadle.Core.Utilities
                         writer.WriteLine(sb.ToString());
                     }
                 }
-
-
-                //// Only implemented for 1-mode so far
-                //if (!(kv.Value is LayerOneMode layerOneMode))
-                //    continue;
-                //writer.WriteLine("# Layer");
-                //writer.WriteLine($"Layer Name: {layerOneMode.Name}");
-                //writer.WriteLine($"Directionality: {layerOneMode.Directionality.ToString().ToLower()}");
-                //writer.WriteLine($"ValueType: {layerOneMode.ValueType.ToString().ToLower()}");
-                //writer.WriteLine($"Selfties: {layerOneMode.Selfties.ToString().ToLower()}");
-                //writer.WriteLine();
-
-                //foreach (var sourceNodeId in layerOneMode.Connections.Keys)
-                //{
-                //    bool directed = (layerOneMode.Directionality == EdgeDirectionality.Directed);
-                //    bool binary = (layerOneMode.ValueType == EdgeValueType.Binary);
-                //    sb.Clear();
-                //    sb.Append(sourceNodeId);
-                //    foreach (Connection conn in layerOneMode.Connections[sourceNodeId].GetOutboundConnections())
-                //    {
-                //        if (directed || conn.partnerNodeId > sourceNodeId)
-                //            sb.Append("\t" + conn.partnerNodeId.ToString() + (binary ? "" : conn.value.ToString()));
-                //    }
-                //    if (sb.Length > sourceNodeId.ToString().Length)
-                //        writer.WriteLine(sb.ToString());
-                //}
-                //writer.WriteLine();
             }
         }
 
@@ -399,8 +298,6 @@ namespace Threadle.Core.Utilities
             }
             return nodeset;
         }
-
-
 
         private static void WriteNodesetToFile(Nodeset nodeset, StreamWriter writer)
         {

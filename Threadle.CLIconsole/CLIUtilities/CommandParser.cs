@@ -10,9 +10,6 @@ namespace Threadle.CLIconsole.CLIUtilities
     public static class CommandParser
     {
         private static readonly Regex commandRegex = new(@"^(?:([a-zA-Z]\w*)\s*=)?\s*([a-zA-Z]\w*)(?:\s*\(\s*(.*?)\s*\))?\s*$", RegexOptions.Compiled);
-        //"^(?:([a-zA-Z]\w*)\s*=)?\s*([a-zA-Z]\w*)\s*\(\s*(.*?)\s*\)\s*$"
-        //@"(?:([a-zA-Z]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^,\s]+)))|(?:""([^""]*)""|'([^']*)'|([^=,\s]+))"
-        //@"(?:([a-zA-Z]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^,\s]+)))|([^=,\s]+)"
 
         private static readonly Regex argRegex = new(@"(?:([a-zA-Z]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^,\s]+)))|(?:""([^""]*)""|'([^']*)'|([^=,\s]+))", RegexOptions.Compiled);
 
@@ -49,11 +46,6 @@ namespace Threadle.CLIconsole.CLIUtilities
                     string key = $"arg{cmd.NamedArgs.Count}";
                     cmd.NamedArgs[key] = val.Trim();
                 }
-                //else if (argMatch.Groups[5].Success)
-                //{
-                //    string key = $"arg{cmd.NamedArgs.Count}";
-                //    cmd.NamedArgs[key] = argMatch.Groups[5].Value.Trim();
-                //}
             }
             return cmd;
         }

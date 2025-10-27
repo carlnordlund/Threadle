@@ -32,6 +32,8 @@
     <Compile Remove="Model\NodeAttributeDefinition.cs" />
     <Compile Remove="Model\UndirectedConnectionCollection.cs" />
     <Compile Remove="Utilities\CompressedJsonSerializer.cs" />
+    <Compile Remove="Utilities\NetworkGenerators.cs" />
+    <Compile Remove="Utilities\NetworkModelTsvSerializer.cs" />
   </ItemGroup>
 
   <ItemGroup>

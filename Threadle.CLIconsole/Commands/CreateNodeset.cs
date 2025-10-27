@@ -16,7 +16,7 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(true);
+            //command.CheckAssignment(true);
             string variableName = command.CheckAndGetAssignmentVariableName();
 
             string name = command.GetArgumentParseString("name", variableName);
@@ -24,7 +24,7 @@ namespace Threadle.CLIconsole.Commands
             int createNodes = command.GetArgumentParseInt("createnodes", 0);
             if (createNodes < 0)
                 throw new ArgumentException("Number of created nodes can not be less than zero");
-            Core.Model.Nodeset nodeset = new Core.Model.Nodeset(name, createNodes);
+            Nodeset nodeset = new Core.Model.Nodeset(name, createNodes);
             context.SetVariable(variableName, nodeset);
             ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created (with {createNodes} nodes) and stored in variable '{variableName}'");
         }

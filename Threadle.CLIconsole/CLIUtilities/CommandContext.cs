@@ -23,16 +23,9 @@ namespace Threadle.CLIconsole.CLIUtilities
                     { "IsModified", kvp.Value.IsModified   },
                     { "Filepath", kvp.Value.Filepath ?? "N/A" }
                 };
-                //metadata[kvp.Key] = new
-                //{
-                //    Type = kvp.Value.GetType().Name,
-                //    Filepath = kvp.Value.Filepath,
-                //    Modified = kvp.Value.IsModified
-                //};
             }
             return metadata;
         }
-
 
         public void SetVariable(string name, IStructure value, bool renameIfExist = false)
         {
@@ -115,8 +108,6 @@ namespace Threadle.CLIconsole.CLIUtilities
                 _ => throw new ArgumentException($"Structure '{structureName}' neither a Nodeset nor a Network.")
             };
             return nodeset;
-
         }
-
     }
 }

@@ -16,9 +16,9 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(true);
+            //command.CheckAssignment(true);
             string variableName = command.CheckAndGetAssignmentVariableName();
-            Core.Model.Nodeset nodeset;
+            Nodeset nodeset;
             if (command.GetArgument("nodeset") is string nameNodeset)
                 nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(nameNodeset);
             else
