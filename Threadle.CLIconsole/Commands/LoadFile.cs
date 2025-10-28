@@ -16,18 +16,19 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(true);
+            //command.CheckAssignment(true);
+            string variableName = command.CheckAndGetAssignmentVariableName();
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");
-            string assignedVariable = command.AssignedVariable!;
+            //string assignedVariable = command.AssignedVariable!;
 
             StructureResult structures = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
-            context.SetVariable(assignedVariable, structures.MainStructure);
-            ConsoleOutput.WriteLine($"Structure '{structures.MainStructure.Name}' loaded and stored in variable '{assignedVariable}'");
+            context.SetVariable(variableName, structures.MainStructure);
+            ConsoleOutput.WriteLine($"Structure '{structures.MainStructure.Name}' loaded and stored in variable '{variableName}'");
             if (structures.AdditionalStructures.Count > 0)
                 foreach (var kvp in structures.AdditionalStructures)
                 {
-                    string additionalAssignedVariable = assignedVariable + "_" + kvp.Key;
+                    string additionalAssignedVariable = variableName + "_" + kvp.Key;
                     context.SetVariable(additionalAssignedVariable, kvp.Value);
                     ConsoleOutput.WriteLine($"Structure '{kvp.Value.Name}' created and stored in variable '{additionalAssignedVariable}'.");
                 }

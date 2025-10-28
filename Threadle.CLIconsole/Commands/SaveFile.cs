@@ -17,12 +17,10 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            string objName = command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0");
-            IStructure structure = context.GetVariable(objName)
-                ?? throw new Exception($"!Error: No object variable '{objName}' found.");
+            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0"));
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg1");
 
-            if (structure is Core.Model.Network && command.GetArgument("nodesetfile") is string nodesetFilepath)
+            if (structure is Network && command.GetArgument("nodesetfile") is string nodesetFilepath)
             {
                 FileManager.Save(structure, filepath, FileFormat.TsvGzip, nodesetFilepath);
                 ConsoleOutput.WriteLine($"Saved network '{structure.Name}' to file: {filepath}");

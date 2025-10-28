@@ -17,21 +17,16 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
+            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg2");
-            string format = command.GetArgumentThrowExceptionIfMissingOrNull("format", "arg3").ToLower();
-            string separator = command.GetArgument("sep") ?? "\t";
+            string format = command.GetArgumentThrowExceptionIfMissingOrNull("format", "arg3");
+            string separator = command.GetArgumentParseString("sep", "\t");
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", false);
-
-            Core.Model.Network network = context.GetVariable<Core.Model.Network>(networkName)
-                ?? throw new Exception($"!Error: No Network '{networkName}' found.");
             if (!network.Layers.TryGetValue(layerName, out var layer))
                 throw new Exception($"!Error: Layer '{layerName}' not found.");
-
             FileManager.ImportLayer(filepath, network, layer, format, separator, addMissingNodes);
-
-            ConsoleOutput.WriteLine($"Imported data to layer '{layerName}' (in network {networkName}) from file.");
+            ConsoleOutput.WriteLine($"Imported data to layer '{layerName}' (in network '{network.Name}') from file.");
         }
     }
 }

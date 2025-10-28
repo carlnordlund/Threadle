@@ -20,10 +20,9 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            Core.Model.Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string? attrname = command.GetArgument("attrname");
-            //EdgeTraversal direction = Misc.ParseEnumOrNull<EdgeTraversal>(command.GetArgument("direction"), EdgeTraversal.In);
             EdgeTraversal direction = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.In);
             OperationResult result = Analyses.DegreeCentrality(network, layerName, attrname, direction);
             ConsoleOutput.WriteLine(result.ToString());

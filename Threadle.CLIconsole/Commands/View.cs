@@ -16,11 +16,8 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0");
-            if (!(context.GetVariable(structureName) is IStructure structure))
-                ConsoleOutput.WriteLine($"Structure '{structureName}' not found.");
-            else
-                ConsoleOutput.WriteLine(structure.Content, true);
+            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0"));
+            ConsoleOutput.WriteLine(structure.Content, true);
         }
     }
 }

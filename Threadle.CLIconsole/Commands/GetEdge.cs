@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            Core.Model.Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
             uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
@@ -28,22 +28,6 @@ namespace Threadle.CLIconsole.Commands
                 ConsoleOutput.WriteLine(result.Value.ToString(), true);
             else
                 ConsoleOutput.WriteLine(result.ToString());
-
-
-
-            //ConsoleOutput.WriteLine("Rewrite this",true);
-            //string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
-            //Network network = context.GetVariable<Network>(networkName)
-            //    ?? throw new Exception($"!Error: No Network '{networkName}' found.");
-            //Nodeset nodeset = network.Nodeset;
-            //string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-            //if (!network.Layers.TryGetValue(layerName, out var layer))
-            //    throw new Exception($"!Error: Layer with name '{layerName}' not found.");
-            //uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
-            //uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
-            //float val = network.GetEdgeValue(layerName, node1id, node2id);
-            //ConsoleOutput.Write($"Value: ");
-            //ConsoleOutput.WriteLine($"{val:0.####}", true);
         }
     }
 }

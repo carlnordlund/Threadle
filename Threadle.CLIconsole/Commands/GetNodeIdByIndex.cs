@@ -17,8 +17,8 @@ namespace Threadle.CLIconsole.Commands
         {
             command.CheckAssignment(false);
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
-            Core.Model.Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
             uint index = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("index", "arg1");
+            Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
             if (!(nodeset.GetNodeIdByIndex(index) is uint nodeId))
                 throw new Exception($"Node index '{index}' out of range");
             ConsoleOutput.WriteLine(nodeId.ToString(), true);

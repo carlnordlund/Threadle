@@ -21,7 +21,6 @@ namespace Threadle.CLIconsole.Commands
         {
             command.CheckAssignment(false);
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-
             OperationResult<uint> result = Analyses.GetRandomNode(nodeset);
             if (result.Success)
                 ConsoleOutput.WriteLine(result.Value.ToString(), true);

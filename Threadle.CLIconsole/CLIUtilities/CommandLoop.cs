@@ -9,16 +9,41 @@ namespace Threadle.CLIconsole.CLIUtilities
 {
     public static class CommandLoop
     {
+        public static List<string> WelcomeMessage
+        {
+            get
+            {
+                var cliAssembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var cliVersion = cliAssembly.GetName().Version?.ToString() ?? "unknown";
+
+                var coreAssembly = typeof(Threadle.Core.Model.Network).Assembly;
+                var coreVersion = coreAssembly.GetName().Version?.ToString() ?? "unknown";
+
+                return new()
+                {
+                    $"Threadle CLI Console v{cliVersion}",
+                    $"Threadle Core Library v{coreVersion}",
+                    "",
+                    "Developed by Carl Nordlund at The Institute for Analytical sociology (IAS), Linköping University, Sweden.",
+                    "See https://netreg.se/ for more information",
+                    "Type 'help' to see a list of available commands. Type 'exit' to quit.",
+                    ""
+                };
+            }
+        }
+
         public static void Run()
         {
+
+
             var context = new CommandContext();
             var dispatcher = new CommandDispatcher();            
 
             Console.OutputEncoding = Encoding.UTF8;
             Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 
-            ConsoleOutput.WriteLine("Threadle CLI Console");
-            ConsoleOutput.WriteLine("Type 'exit' to quit.");
+            if (ConsoleOutput.Verbose)
+                ConsoleOutput.WriteLine(WelcomeMessage);
 
             while (true)
             {

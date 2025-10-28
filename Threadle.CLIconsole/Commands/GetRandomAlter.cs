@@ -19,30 +19,16 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            Core.Model.Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string layerName = command.GetArgumentParseString("layername", "");
-            //EdgeTraversal edgeTraversal = Misc.ParseEnumOrNull<EdgeTraversal>(command.GetArgument("direction"), EdgeTraversal.Both);
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
-            bool balance = command.GetArgumentParseBool("balanced", false);
-
-            OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeid, layerName, edgeTraversal, balance);
+            bool balanced = command.GetArgumentParseBool("balanced", false);
+            OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeid, layerName, edgeTraversal, balanced);
             if (result.Success)
                 ConsoleOutput.WriteLine(result.Value.ToString(), true);
             else
                 ConsoleOutput.WriteLine(result.ToString());
-
-
-            //string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-
-            //EdgeTraversal edgeTraversal = Misc.ParseEnumOrNull<EdgeTraversal>(command.GetArgument("direction"), EdgeTraversal.Both);
-
-            //OperationResult<uint[]> result = network.GetNodeAlters(layerName, nodeid, edgeTraversal);
-            //if (result.Success)
-            //    ConsoleOutput.WriteLine("[" + string.Join(',', result.Value!) + "]", true);
-            //else
-            //    ConsoleOutput.WriteLine(result.ToString());
         }
-
     }
 }

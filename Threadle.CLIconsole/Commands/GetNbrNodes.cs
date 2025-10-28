@@ -18,7 +18,7 @@ namespace Threadle.CLIconsole.Commands
         {
             command.CheckAssignment(false);
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
-            Core.Model.Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
+            Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
             ConsoleOutput.WriteLine(nodeset.Count.ToString(), true);
         }
     }

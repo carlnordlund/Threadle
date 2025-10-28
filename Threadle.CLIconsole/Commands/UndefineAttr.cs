@@ -16,12 +16,9 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            Core.Model.Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
+            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
-
-
             ConsoleOutput.WriteLine(nodeset.UndefineNodeAttribute(attributeName).ToString());
         }
-
     }
 }

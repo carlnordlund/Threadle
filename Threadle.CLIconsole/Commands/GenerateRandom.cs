@@ -17,10 +17,8 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(true);
+            // Assigning already checks that an assignment is made
             string variableName = command.CheckAndGetAssignmentVariableName();
-            // public static Network ErdosRenyi(int size, double p, EdgeDirectionality directionality, bool selfties)
-
             string type = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg0");
             int size = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("size", "arg1");
             double p = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("p", "arg2");
@@ -29,7 +27,6 @@ namespace Threadle.CLIconsole.Commands
             if (!(command.GetArgument("newname") is string newName))
                 newName = context.GetNextIncrementalName($"{type}_s{size}_p{p}");
             Network network = NetworkGenerators.ErdosRenyi(size, p, directionality, selfties);
-
             context.SetVariable(variableName, network);
             ConsoleOutput.WriteLine($"Network '{newName}' generated and stored in variable '{variableName}'.");
             

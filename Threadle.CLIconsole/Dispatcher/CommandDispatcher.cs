@@ -32,10 +32,8 @@ namespace Threadle.CLIconsole.Dispatcher
             _commands["removelayer"] = new RemoveLayer();
             _commands["addedge"] = new AddEdge();
             _commands["addhyper"] = new AddHyper();
-            //_commands["generate"] = new GenerateNetworkCommand();
             _commands["getedge"] = new GetEdge();
             _commands["checkedge"] = new CheckEdge();
-            //_commands["info"] = new InfoCommand();
             _commands["view"]=new View();
             _commands["addnode"] = new AddNode();
             _commands["defineattr"] = new DefineAttr();
@@ -45,19 +43,13 @@ namespace Threadle.CLIconsole.Dispatcher
             _commands["getrandomnode"] = new GetRandomNode();
             _commands["i"] = new Inventory();
             _commands["setting"] = new Setting();
-            //_commands["setverbose"] = new SetVerboseCommand();
             _commands["density"] = new Density();
             _commands["getwd"] = new GetWorkingDirectory();
             _commands["setwd"] = new SetWorkingDirectory();
             _commands["loadfile"] = new LoadFile();
             _commands["savefile"] = new SaveFile();
             _commands["importlayer"] = new ImportLayer();
-            //_commands["import"] = new ImportCommand();
-            //_commands["walker"] = new RandomWalkerCommand();
-            //_commands["shortestpaths"] = new ShortestPathCommand();
-            //_commands["mergenetworks"] = new MergeNetworksCommand();
             _commands["filter"] = new Filter();
-
         }
 
         public void Dispatch(Command command, CommandContext context)

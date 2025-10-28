@@ -28,23 +28,6 @@ namespace Threadle.CLIconsole
                 }
             }
             CommandLoop.Run();
-
-            //if (args != null && args.Length > 0)
-            //{
-            //    switch (args[0])
-            //    {
-            //        case "-p":
-            //            CommandLoop.Run(false);
-            //            break;
-            //        default:
-            //            CommandLoop.Run();
-            //            break;
-            //    }
-            //}
-            //else
-            //{
-            //    CommandLoop.Run();
-            //}
         }
     }
 }

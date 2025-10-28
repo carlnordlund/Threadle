@@ -24,15 +24,6 @@ namespace Threadle.CLIconsole.Commands
                 ConsoleOutput.EndMarker = value;
             else
                 ConsoleOutput.WriteLine(UserSettings.Set(param, value).ToString());
-
-            //{
-            //    if (!UserSettings.Set(param, value))
-            //    {
-            //        ConsoleOutput.WriteLine($"!Error: Setting '{param}' not available.");
-            //        return;
-            //    }
-            //}
-            //ConsoleOutput.WriteLine($"Setting '{param}' set to '{value}'.");
         }
     }
 }
