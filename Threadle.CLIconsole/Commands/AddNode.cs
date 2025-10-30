@@ -18,7 +18,7 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             command.CheckAssignment(false);
-            Core.Model.Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
+            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
 
             //string nodesetName = command.GetArgument("nodeset", "arg0")
             //    ?? throw new Exception("!Error: No Nodeset specified.");

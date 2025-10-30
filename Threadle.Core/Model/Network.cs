@@ -305,6 +305,11 @@ namespace Threadle.Core.Model
             return RemoveEdge(layerResult.Value!, node1id, node2id);
         }
 
+        public void RemoveNodeEdges(uint nodeId)
+        {
+            foreach (ILayer layer in Layers.Values)
+                layer.RemoveNodeEdges(nodeId);
+        }
 
 
 
@@ -475,6 +480,7 @@ namespace Threadle.Core.Model
                 ids.UnionWith(layer.GetMentionedNodeIds());
             return ids;
         }
+
 
 
         #endregion

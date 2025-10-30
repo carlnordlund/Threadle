@@ -19,6 +19,7 @@ namespace Threadle.Core.Model
 
         OperationResult RemoveInboundEdge(uint partnerNodeId);
         OperationResult RemoveOutboundEdge(uint partnerNodeId);
+        void RemoveNodeEdges(uint nodeId);
 
         List<uint> GetOutboundNodeIds();
         List<uint> GetInboundNodeIds();

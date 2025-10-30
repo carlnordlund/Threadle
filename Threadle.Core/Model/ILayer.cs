@@ -17,6 +17,7 @@ namespace Threadle.Core.Model
         float GetEdgeValue(uint node1, uint node2);
         bool CheckEdgeExists(uint node1, uint node2);
         uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal);
+        void RemoveNodeEdges(uint nodeId);
 
         void ClearLayer();
 

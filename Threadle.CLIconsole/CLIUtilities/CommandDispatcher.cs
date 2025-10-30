@@ -44,6 +44,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             _commands["removeattr"] = new RemoveAttr();
             _commands["removeedge"] = new RemoveEdge();
             _commands["removelayer"] = new RemoveLayer();
+            _commands["removenode"] = new RemoveNode();
             _commands["savefile"] = new SaveFile();
             _commands["setattr"] = new SetAttr();
             _commands["setting"] = new Setting();

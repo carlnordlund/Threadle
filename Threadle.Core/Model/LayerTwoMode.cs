@@ -112,20 +112,28 @@ namespace Threadle.Core.Model
         public void RemoveHyperedge(string hyperName)
         {
             // 1. Check if there is a hyperedge in AllHyperEdges. If not: return (do nothing)
-            if (!AllHyperEdges.TryGetValue(hyperName, out var hyperEdge))
+            if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
                 return;
             // 2. take ref to this HyperEdge
             // 3. Remove from AllHyperEdges
             AllHyperEdges.Remove(hyperName);
             // If the hyperedge has nodes:
-            if (hyperEdge.nodeIds.Count > 0)
+            if (hyperedge.nodeIds.Count > 0)
             {
                 // 4. Iterate through all nodeIds in this hyperedge
-                foreach (uint nodeId in hyperEdge.nodeIds)
+                foreach (uint nodeId in hyperedge.nodeIds)
                     // 5. Remove any reference this node has to this Hyperedge
-                    RemoveHyperEdgeFromNode(nodeId, hyperEdge);
+                    RemoveHyperEdgeFromNode(nodeId, hyperedge);
             }
         }
+
+        public void RemoveNodeEdges(uint nodeId)
+        {
+            HyperEdgeCollections.Remove(nodeId);
+            foreach (HyperEdge hyperedge in AllHyperEdges.Values)
+                hyperedge.nodeIds.Remove(nodeId);
+        }
+
 
         public float GetEdgeValue(uint sourceNodeId, uint targetNodeId)
         {

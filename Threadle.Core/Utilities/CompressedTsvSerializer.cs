@@ -89,7 +89,7 @@ namespace Threadle.Core.Utilities
                     string nodelist = string.Empty;
                     foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
                         if ((nodelist = edgeset.GetNodelistAlterString(nodeId)).Length > 0)
-                            writer.WriteLine($"{nodeId}\t{nodelist}");
+                            writer.WriteLine($"{nodeId}{nodelist}");
                 }
                 else if (layer is LayerTwoMode layerTwoMode)
                 {

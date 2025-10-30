@@ -54,6 +54,11 @@ namespace Threadle.Core.Model
                 return OperationResult.Ok();
             return OperationResult.Fail("EdgeNotFound", "Edge not found.");
         }
+        public void RemoveNodeEdges(uint nodeId)
+        {
+            _connections.Remove(nodeId);
+        }
+
 
         public float GetOutboundPartnerEdgeValue(uint partnerNodeId)
         {
@@ -68,9 +73,11 @@ namespace Threadle.Core.Model
         public string GetNodelistAlterString(uint egoNodeId)
         {
             string ret = "";
+            
             foreach (uint alterNodeId in _connections)
                 if (alterNodeId > egoNodeId)
                     ret += "\t" + alterNodeId;
+
             return ret;
         }
 

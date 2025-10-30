@@ -38,15 +38,15 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
-        public void DeleteStructures(IEnumerable<IStructure> structures)
-        {
-            List<string> keysToRemove = new();
-            foreach (var kvp in Variables)
-                if (structures.Contains(kvp.Value))
-                    keysToRemove.Add(kvp.Key);
-            foreach (string key in keysToRemove)
-                Variables.Remove(key);
-        }
+        //public void DeleteStructures(IEnumerable<IStructure> structures)
+        //{
+        //    List<string> keysToRemove = new();
+        //    foreach (var kvp in Variables)
+        //        if (structures.Contains(kvp.Value))
+        //            keysToRemove.Add(kvp.Key);
+        //    foreach (string key in keysToRemove)
+        //        Variables.Remove(key);
+        //}
 
         public OperationResult RemoveStructure(string structureName)
         {
@@ -108,6 +108,11 @@ namespace Threadle.CLIconsole.CLIUtilities
                 _ => throw new ArgumentException($"Structure '{structureName}' neither a Nodeset nor a Network.")
             };
             return nodeset;
+        }
+
+        internal IEnumerable<Network> GetNetworksUsingNodeset(Nodeset nodeset)
+        {
+            return Variables.Values.OfType<Network>().Where(net => ReferenceEquals(net.Nodeset, nodeset));
         }
     }
 }

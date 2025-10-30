@@ -120,6 +120,15 @@ namespace Threadle.Core.Model
             return OperationResult.Ok($"Removed edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}'.");
         }
 
+        public void RemoveNodeEdges(uint nodeId)
+        {
+            // Remove any Edgeset that this node might have: none of these should be there
+            Edgesets.Remove(nodeId);
+            // Iterate through other nodes' Edgesets and prune out their 
+            foreach (var edgeset in Edgesets.Values)
+                edgeset.RemoveNodeEdges(nodeId);
+        }
+
         private IEdgeset GetOrCreateEdgeset(uint nodeId)
         {
             if (Edgesets.TryGetValue(nodeId, out var edgeset))

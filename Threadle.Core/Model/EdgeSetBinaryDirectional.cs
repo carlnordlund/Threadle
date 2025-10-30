@@ -47,6 +47,12 @@ namespace Threadle.Core.Model
             return OperationResult.Fail("EdgeNotFound", "Edge not found.");
         }
 
+        public void RemoveNodeEdges(uint nodeId)
+        {
+            _inbound.Remove(nodeId);
+            _outbound.Remove(nodeId);
+        }
+
         public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
         {
             if (UserSettings.BlockMultiedges && _outbound.Contains(partnerNodeId))
