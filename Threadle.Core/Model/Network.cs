@@ -297,6 +297,16 @@ namespace Threadle.Core.Model
                 return layerResult;
             return AddEdge(layerResult.Value!, node1id, node2id, value, addMissingNodes);
         }
+        public OperationResult RemoveEdge(string layerName, uint node1id, uint node2id)
+        {
+            var layerResult = GetOneModeLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            return RemoveEdge(layerResult.Value!, node1id, node2id);
+        }
+
+
+
 
         /// <summary>
         /// Adds an edge between node1id and node2id in the specified 1-mode layer.
@@ -332,6 +342,19 @@ namespace Threadle.Core.Model
             }
             return result;
         }
+
+        public OperationResult RemoveEdge(LayerOneMode layerOneMode, uint node1id, uint node2id)
+        {
+            var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+            if (!nodeCheckResult.Success)
+                return nodeCheckResult;
+            OperationResult result = layerOneMode.RemoveEdge(node1id, node2id);
+            if (result.Success)
+                IsModified = true;
+            return result;
+
+        }
+
 
         /// <summary>
         /// Adds an hyperedge in the specified (2-mode) layer. An optional array with node ids indicates the nodes that are connected
@@ -423,15 +446,10 @@ namespace Threadle.Core.Model
             var layerResult = GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
-            uint[] alterIds = layerResult.Value!.GetAlterIds(nodeId, edgeTraversal);
+            uint[] alterIds = Nodeset.RemoveNonExistentNodes(layerResult.Value!.GetAlterIds(nodeId, edgeTraversal));
             Array.Sort(alterIds);
-
             return OperationResult<uint[]>.Ok(alterIds);
-            
-
-            //throw new NotImplementedException();
         }
-
         #endregion
 
 
@@ -457,6 +475,7 @@ namespace Threadle.Core.Model
                 ids.UnionWith(layer.GetMentionedNodeIds());
             return ids;
         }
+
 
         #endregion
     }

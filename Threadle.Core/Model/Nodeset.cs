@@ -502,6 +502,15 @@ namespace Threadle.Core.Model
 
         }
 
+        internal uint[] RemoveNonExistentNodes(uint[] uints)
+        {
+            HashSet<uint> existing = new();
+            foreach (uint nodeId in uints)
+                if (CheckThatNodeExists(nodeId))
+                    existing.Add(nodeId);
+            return existing.ToArray();
+        }
+
 
         #endregion
     }

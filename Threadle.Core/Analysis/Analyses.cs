@@ -100,42 +100,5 @@ namespace Threadle.Core.Analysis
             uint randomNodeId = nodeset.NodeIdArray[Misc.Random.Next(nodeset.Count)];
             return OperationResult<uint>.Ok(randomNodeId);
         }
-
-
-
-        //public static MatrixStructure? ShortestPaths(Network network, string layerName)
-        //{
-        //    if (!network.Layers.ContainsKey(layerName))
-        //        throw new Exception($"Error: Network layer '{layerName}' not found in network {network.Name}.");
-        //    if (!(network.Layers[layerName] is LayerOneMode layerOneMode))
-        //        throw new Exception($"Error: Network layer '{layerName}' must be 1-mode.");
-        //    bool isSymmetric = layerOneMode.IsSymmetric;
-
-        //    MatrixStructure shortestpaths = new MatrixStructure("shortestpaths", network.Nodeset, isSymmetric);
-        //    int size = network.Nodeset.Count;
-
-        //    // Always use FW for both binary and valued
-        //    if (layerOneMode.IsBinary || layerOneMode.IsValued)
-        //    {
-        //        foreach (Node fromNode in network.Nodeset.Nodes)
-        //            foreach (Node toNode in network.Nodeset.Nodes)
-        //                shortestpaths.Set(fromNode.Id, toNode.Id, (fromNode == toNode) ? 0 : (network.GetEdgeValue(layerName, fromNode, toNode) == 0) ? double.PositiveInfinity : 1);
-        //        foreach (Node kNode in network.Nodeset.Nodes)
-        //        {
-        //            foreach (Node fromNode in network.Nodeset.Nodes)
-        //                foreach (Node toNode in network.Nodeset.Nodes)
-        //                    shortestpaths.Set(
-        //                        fromNode.Id,
-        //                        toNode.Id,
-        //                        Math.Min(
-        //                            shortestpaths.Get(fromNode.Id, toNode.Id),
-        //                            shortestpaths.Get(fromNode.Id, kNode.Id) + shortestpaths.Get(kNode.Id, toNode.Id)
-        //                            ));
-        //        }
-        //        return shortestpaths;
-        //    }
-        //    else
-        //        throw new Exception($"Error: Shortest path not implemented for signed networks yet.");
-        //}
     }
 }

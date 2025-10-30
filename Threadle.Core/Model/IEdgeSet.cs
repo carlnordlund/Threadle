@@ -17,6 +17,9 @@ namespace Threadle.Core.Model
         OperationResult AddInboundEdge(uint partnerNodeId, float value);
         OperationResult AddOutboundEdge(uint partnerNodeId, float value);
 
+        OperationResult RemoveInboundEdge(uint partnerNodeId);
+        OperationResult RemoveOutboundEdge(uint partnerNodeId);
+
         List<uint> GetOutboundNodeIds();
         List<uint> GetInboundNodeIds();
         List<uint> GetAllNodeIds();

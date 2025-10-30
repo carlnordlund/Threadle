@@ -14,8 +14,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Dispatcher\**" />
     <Compile Remove="Parser\**" />
+    <EmbeddedResource Remove="Dispatcher\**" />
     <EmbeddedResource Remove="Parser\**" />
+    <None Remove="Dispatcher\**" />
     <None Remove="Parser\**" />
   </ItemGroup>
 

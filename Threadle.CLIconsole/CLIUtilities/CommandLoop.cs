@@ -1,4 +1,4 @@
-﻿using Threadle.CLIconsole.Dispatcher;
+﻿using Threadle.CLIconsole.CLIUtilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -66,9 +66,9 @@ namespace Threadle.CLIconsole.CLIUtilities
                     }
                     else
                     {
-                        ConsoleOutput.WriteLine("Available commands (type 'help [command]' for details about specific [command]):", true);
+                        ConsoleOutput.WriteLine($"Available commands (type 'help [command]' for details about specific [command]):{Environment.NewLine}", true);
                         foreach (var kvp in dispatcher.GetAllCommands())
-                            ConsoleOutput.WriteLine($"  - {kvp.Key}:{Environment.NewLine}    {kvp.Value.Usage}", true);
+                            ConsoleOutput.WriteLine($"{kvp.Key}:{Environment.NewLine}  {kvp.Value.Usage}{Environment.NewLine}", true);
                     }
                     continue;
                 }

@@ -16,7 +16,6 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            //command.CheckAssignment(true);
             string variableName = command.CheckAndGetAssignmentVariableName();
             Nodeset nodeset;
             if (command.GetArgument("nodeset") is string nameNodeset)
@@ -25,14 +24,13 @@ namespace Threadle.CLIconsole.Commands
             {
                 string variableNameNodeset = variableName + "_nodeset";
                 int createnodes = command.GetArgumentParseInt("createnodes", 0);
-                nodeset = new Core.Model.Nodeset(variableNameNodeset, createnodes);
+                nodeset = new Nodeset(variableNameNodeset, createnodes);
                 context.SetVariable(variableNameNodeset, nodeset);
                 ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created and stored in variable '{variableNameNodeset}'");
             }
 
             string nameNetwork = command.GetArgumentParseString("name", variableName);
-            //string nameNetwork = command.GetArgument("name") ?? context.GetNextIncrementalName("network-");
-            Core.Model.Network network = new Core.Model.Network(nameNetwork, nodeset);
+            Network network = new Network(nameNetwork, nodeset);
             context.SetVariable(variableName, network);
             ConsoleOutput.WriteLine($"Network '{nameNetwork}' created and stored in variable '{variableName}'");
         }

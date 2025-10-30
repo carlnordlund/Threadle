@@ -8,9 +8,8 @@ using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Analysis
 {
-    public static class Functions
+    internal static class Functions
     {
-        //public static readonly Random Random = new Random();
         internal static Dictionary<uint, uint> DegreeCentrality(Network network, LayerOneMode layerOneMode, EdgeTraversal edgeTraversal)
         {
             Dictionary<uint, uint> degreeCentrality = edgeTraversal switch
@@ -21,6 +20,14 @@ namespace Threadle.Core.Analysis
             };
             return degreeCentrality;
         }
+
+        internal static double Density(Network network, LayerOneMode layer)
+        {
+            ulong nbrPotentialEdges = GetNbrPotentialEdges((ulong)network.Nodeset.Count, layer.IsDirectional, layer.Selfties);
+            ulong nbrExistingEdges = layer.NbrEdges;
+            return (double)nbrExistingEdges / nbrPotentialEdges;
+        }
+
 
         private static Dictionary<uint, uint> GrossDegreeCentrality(Network network, LayerOneMode layerOneMode)
         {
@@ -48,13 +55,6 @@ namespace Threadle.Core.Analysis
             foreach (var nodeId in network.Nodeset.NodeIdArray)
                 outDegreeCentrality[nodeId] = layerOneMode.GetOutDegree(nodeId);
             return outDegreeCentrality;
-        }
-
-        internal static double Density(Network network, LayerOneMode layer)
-        {
-            ulong nbrPotentialEdges = GetNbrPotentialEdges((ulong)network.Nodeset.Count, layer.IsDirectional, layer.Selfties);
-            ulong nbrExistingEdges = layer.NbrEdges;
-            return (double)nbrExistingEdges / nbrPotentialEdges;
         }
 
         private static ulong GetNbrPotentialEdges(ulong n, bool isDirectional, bool selfties)

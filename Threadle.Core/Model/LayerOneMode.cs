@@ -106,8 +106,18 @@ namespace Threadle.Core.Model
                     return OperationResult.Fail("EdgeAlreadyExist", $"Inbound edge to {node2Id} from {node1Id} already exists.");
             if (!edgeSetNode1.AddOutboundEdge(node2Id, value).Success)
                 return OperationResult.Fail("EdgeAlreadyExist", $"Outbound edge from {node1Id} to {node2Id} already exists.");
-            string msg = Directionality==EdgeDirectionality.Directed? $"from {node1Id} to {node2Id}" :$"between {node1Id} and {node2Id}";
-            return OperationResult.Ok($"Added edge {msg} (value={value}) in layer '{Name}'.");
+            //string msg = Directionality == EdgeDirectionality.Directed ? $"from {node1Id} to {node2Id}" : $"between {node1Id} and {node2Id}";
+            //string msg = Misc.BetweenFromToText(Directionality, node1Id, node2Id);
+            return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} (value={value}) in layer '{Name}'.");
+        }
+
+        internal OperationResult RemoveEdge(uint node1id, uint node2id)
+        {
+            if (!Edgesets.TryGetValue(node1id, out var edgesetNode1) || !Edgesets.TryGetValue(node2id, out var edgesetNode2))
+                return OperationResult.Fail("EdgeNotFound", $"No edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}' found.");
+            if (!edgesetNode1.RemoveOutboundEdge(node2id).Success || !edgesetNode2.RemoveInboundEdge(node1id).Success)
+                return OperationResult.Fail("EdgeNotFound", $"No edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}' found.");
+            return OperationResult.Ok($"Removed edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}'.");
         }
 
         private IEdgeset GetOrCreateEdgeset(uint nodeId)

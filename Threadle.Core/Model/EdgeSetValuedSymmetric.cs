@@ -40,6 +40,28 @@ namespace Threadle.Core.Model
             return OperationResult.Ok();
         }
 
+        public OperationResult RemoveInboundEdge(uint partnerNodeId)
+        {
+            int index = _connections.FindIndex(c => c.partnerNodeId == partnerNodeId);
+            if (index >= 0)
+            {
+                _connections.RemoveAt(index);
+                return OperationResult.Ok();
+            }
+            return OperationResult.Fail("EdgenotFound", "Edge not found.");
+        }
+
+        public OperationResult RemoveOutboundEdge(uint partnerNodeId)
+        {
+            int index = _connections.FindIndex(c => c.partnerNodeId == partnerNodeId);
+            if (index >= 0)
+            {
+                _connections.RemoveAt(index);
+                return OperationResult.Ok();
+            }
+            return OperationResult.Fail("EdgenotFound", "Edge not found.");
+        }
+
         public float GetOutboundPartnerEdgeValue(uint partnerNodeId)
         {
             foreach (var connection in _connections)
