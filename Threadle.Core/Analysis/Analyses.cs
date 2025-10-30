@@ -37,7 +37,7 @@ namespace Threadle.Core.Analysis
 
         public static OperationResult<uint> GetRandomAlter(Network network, uint nodeid, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false)
         {
-            List<uint> alterIds = new List<uint>();
+            List<uint> alterIds = [];
             if (layerName != null && layerName.Length > 0)
             {
                 // Only use the specified layer
@@ -54,7 +54,7 @@ namespace Threadle.Core.Analysis
             {
                 if (balanced)
                 {
-                    List<uint[]> layerAlterslist = new List<uint[]>();
+                    List<uint[]> layerAlterslist = [];
 
                     foreach (var layer in network.Layers.Values)
                     {

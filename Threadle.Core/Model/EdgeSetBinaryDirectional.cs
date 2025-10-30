@@ -10,12 +10,12 @@ namespace Threadle.Core.Model
 {
     public class EdgesetBinaryDirectional : IEdgesetBinary, IEdgesetDirectional
     {
-        private List<uint> _outbound = new();
-        private List<uint> _inbound = new();
+        private readonly List<uint> _outbound = [];
+        private readonly List<uint> _inbound = [];
 
         public List<uint> GetOutboundConnections() => _outbound;
         public List<uint> GetInboundConnections() => _inbound;
-        public List<uint> GetAllNodeIds() => _outbound.Concat(_inbound).ToList();
+        public List<uint> GetAllNodeIds() => [.. _outbound, .. _inbound];
 
         public uint NbrOutboundEdges { get => (uint)_outbound.Count; }
         public uint NbrInboundEdges { get => (uint)_inbound.Count; }
@@ -84,19 +84,19 @@ namespace Threadle.Core.Model
             switch (edgeTraversal)
             {
                 case EdgeTraversal.Out:
-                    return _outbound.Count > 0 ? _outbound.ToArray() : Array.Empty<uint>();
+                    return _outbound.Count > 0 ? [.. _outbound] : [];
                 case EdgeTraversal.In:
-                    return _inbound.Count > 0 ? _inbound.ToArray() : Array.Empty<uint>();
+                    return _inbound.Count > 0 ? [.. _inbound] : [];
                 case EdgeTraversal.Both:
-                    if (_outbound.Count == 0) return _inbound.Count > 0 ? _inbound.ToArray() : Array.Empty<uint>();
-                    if (_inbound.Count == 0) return _outbound.ToArray();
+                    if (_outbound.Count == 0) return _inbound.Count > 0 ? [.. _inbound] : [];
+                    if (_inbound.Count == 0) return [.. _outbound];
 
                     var union = new HashSet<uint>(_outbound.Count + _inbound.Count);
                     foreach (var id in _outbound) union.Add(id);
                     foreach (var id in _inbound) union.Add(id);
-                    return union.Count > 0 ? union.ToArray() : Array.Empty<uint>();
+                    return union.Count > 0 ? [.. union] : [];
                 default:
-                    return Array.Empty<uint>();
+                    return [];
             }
         }
 

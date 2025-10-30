@@ -31,7 +31,7 @@ namespace Threadle.Core.Analysis
 
         private static Dictionary<uint, uint> GrossDegreeCentrality(Network network, LayerOneMode layerOneMode)
         {
-            Dictionary<uint, uint> grossDegreeCentrality = new();
+            Dictionary<uint, uint> grossDegreeCentrality = [];
             if (layerOneMode.IsSymmetric)
                 foreach (var nodeId in network.Nodeset.NodeIdArray)
                     grossDegreeCentrality[nodeId] = layerOneMode.GetInDegree(nodeId);
@@ -43,7 +43,7 @@ namespace Threadle.Core.Analysis
 
         private static Dictionary<uint, uint> InDegreeCentrality(Network network, LayerOneMode layerOneMode)
         {
-            Dictionary<uint, uint> inDegreeCentrality = new();
+            Dictionary<uint, uint> inDegreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
                 inDegreeCentrality[nodeId] = layerOneMode.GetInDegree(nodeId);
             return inDegreeCentrality;
@@ -51,7 +51,7 @@ namespace Threadle.Core.Analysis
 
         private static Dictionary<uint, uint> OutDegreeCentrality(Network network, LayerOneMode layerOneMode)
         {
-            Dictionary<uint, uint> outDegreeCentrality = new();
+            Dictionary<uint, uint> outDegreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
                 outDegreeCentrality[nodeId] = layerOneMode.GetOutDegree(nodeId);
             return outDegreeCentrality;

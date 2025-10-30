@@ -10,7 +10,7 @@ namespace Threadle.Core.Model
 {
     public class EdgesetValuedSymmetric : IEdgesetValued, IEdgesetSymmetric
     {
-        private List<Connection> _connections = new();
+        private readonly List<Connection> _connections = [];
 
         public List<Connection> GetOutboundConnections => _connections;
         public List<Connection> GetInboundConnections => _connections;
@@ -19,9 +19,9 @@ namespace Threadle.Core.Model
         public uint NbrInboundEdges { get => (uint)_connections.Count; }
         public uint NbrEdges { get => (uint)_connections.Count; }
 
-        public List<uint> GetOutboundNodeIds() => _connections.Select(s => s.partnerNodeId).ToList();
-        public List<uint> GetInboundNodeIds() => _connections.Select(s => s.partnerNodeId).ToList();
-        public List<uint> GetAllNodeIds() => _connections.Select(s => s.partnerNodeId).ToList();
+        public List<uint> GetOutboundNodeIds() => [.. _connections.Select(s => s.partnerNodeId)];
+        public List<uint> GetInboundNodeIds() => [.. _connections.Select(s => s.partnerNodeId)];
+        public List<uint> GetAllNodeIds() => [.. _connections.Select(s => s.partnerNodeId)];
 
 
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
@@ -95,7 +95,7 @@ namespace Threadle.Core.Model
         public uint[] GetAlterIds(EdgeTraversal edgeTraversal)
         {
             if (_connections.Count == 0)
-                return Array.Empty<uint>();
+                return [];
             uint[] ids = new uint[_connections.Count];
             for (int i = 0; i < _connections.Count; i++)
                 ids[i] = _connections[i].partnerNodeId;

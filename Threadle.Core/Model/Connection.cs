@@ -6,15 +6,9 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
-    public struct Connection
+    public struct Connection(uint partnerNodeId, float value)
     {
-        public uint partnerNodeId;
-        public float value;
-
-        public Connection(uint partnerNodeId, float value)
-        {
-            this.partnerNodeId = partnerNodeId;
-            this.value = value;
-        }
+        public uint partnerNodeId = partnerNodeId;
+        public float value = value;
     }
 }

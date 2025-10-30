@@ -10,7 +10,7 @@ namespace Threadle.Core.Model
 {
     public class EdgesetBinarySymmetric : IEdgesetBinary, IEdgesetSymmetric
     {
-        private List<uint> _connections = new();
+        private readonly List<uint> _connections = [];
 
         public List<uint> GetOutboundConnections() => _connections;
         public List<uint> GetInboundConnections() => _connections;
@@ -83,7 +83,7 @@ namespace Threadle.Core.Model
 
         public uint[] GetAlterIds(EdgeTraversal edgeTraversal)
         {
-            return _connections.ToArray();
+            return [.. _connections];
         }
 
         public void ClearEdges()

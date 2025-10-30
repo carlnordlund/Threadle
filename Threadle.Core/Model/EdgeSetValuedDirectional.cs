@@ -10,8 +10,8 @@ namespace Threadle.Core.Model
 {
     public class EdgesetValuedDirectional : IEdgesetValued, IEdgesetDirectional
     {
-        private List<Connection> _outbound = new();
-        private List<Connection> _inbound = new();
+        private readonly List<Connection> _outbound = [];
+        private readonly List<Connection> _inbound = [];
 
         public List<Connection> GetOutboundConnections => _outbound;
         public List<Connection> GetInboundConnections => _inbound;
@@ -20,9 +20,9 @@ namespace Threadle.Core.Model
         public uint NbrInboundEdges { get => (uint)_inbound.Count; }
         public uint NbrEdges { get => (uint)_outbound.Count; }
 
-        public List<uint> GetOutboundNodeIds() => _outbound.Select(s => s.partnerNodeId).ToList();
-        public List<uint> GetInboundNodeIds() => _inbound.Select(s => s.partnerNodeId).ToList();
-        public List<uint> GetAllNodeIds() => GetOutboundNodeIds().Concat(GetInboundNodeIds()).ToList();
+        public List<uint> GetOutboundNodeIds() => [.. _outbound.Select(s => s.partnerNodeId)];
+        public List<uint> GetInboundNodeIds() => [.. _inbound.Select(s => s.partnerNodeId)];
+        public List<uint> GetAllNodeIds() => [.. GetOutboundNodeIds().Concat(GetInboundNodeIds())];
 
 
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
@@ -99,13 +99,13 @@ namespace Threadle.Core.Model
             switch (edgeTraversal)
             {
                 case EdgeTraversal.Out:
-                    if (_outbound.Count == 0) return Array.Empty<uint>();
+                    if (_outbound.Count == 0) return [];
                     var outboundIds = new uint[_outbound.Count];
                     for (int i = 0; i < _outbound.Count; i++)
                         outboundIds[i] = _outbound[i].partnerNodeId;
                     return outboundIds;
                 case EdgeTraversal.In:
-                    if (_inbound.Count == 0) return Array.Empty<uint>();
+                    if (_inbound.Count == 0) return [];
                     var inboundIds = new uint[_inbound.Count];
                     for (int i = 0; i < _inbound.Count; i++)
                         inboundIds[i] = _inbound[i].partnerNodeId;
@@ -119,10 +119,10 @@ namespace Threadle.Core.Model
                         union.Add(_outbound[i].partnerNodeId);
                     for (int i=0; i< _inbound.Count; i++)
                         union.Add(_inbound[i].partnerNodeId);
-                    return union.Count>0 ? union.ToArray() : Array.Empty<uint>();
+                    return union.Count>0 ? [.. union] : [];
 
                 default:
-                    return Array.Empty<uint>();
+                    return [];
             }
         }
 
