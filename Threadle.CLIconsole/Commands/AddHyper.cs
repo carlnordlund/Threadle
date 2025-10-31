@@ -13,7 +13,7 @@ namespace Threadle.CLIconsole.Commands
     {
         public string Usage => "addhyper(network = [var:network], layername = [str], hypername = [str], *nodes = [semicolon-separated uints], *addmissingnodes = ['true'(default), 'false'])";
 
-        public string Description => "Creates and adds a hyperedge (aka context or affiliation) called 'hypername' to layer 'layername' in the specified network. The layer must be 2-mode. This can then represent a particular school class or specific social event to which a set of nodes are affiliated. If there already is a hyperedge with the specified name, that is first removed. Can be provided with an optional list of nodes that are connected by this hyperedge. If the specified node id's do not exist in the Nodeset, they are by default created and added, but by setting 'addmissingnodes' to 'false' prevents this.";
+        public string Description => "Creates and adds a hyperedge (aka context or affiliation) called 'hypername' to layer 'layername' in the specified network. The layer must be 2-mode. This can then represent a particular school class or specific social event to which a set of nodes are affiliated. If there already is a hyperedge with the specified name, that is first removed. Can be provided with an optional list of nodes that are connected by this hyperedge. If the specified node id's do not exist in the Nodeset, they are by default created and added, but by setting 'addmissingnodes' to 'false' prevents this. Duplicate node id values are discarded.";
 
 
         public void Execute(Command command, CommandContext context)

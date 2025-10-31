@@ -34,7 +34,7 @@ namespace Threadle.Core.Model
         public Dictionary<string, HyperEdge> AllHyperEdges = [];
 
 
-        public Dictionary<string, object> GetMetadata => new Dictionary<string, object>
+        public Dictionary<string, object> GetMetadata => new()
         {
             ["Name"] = Name,
             ["Mode"] = 2,
@@ -55,52 +55,34 @@ namespace Threadle.Core.Model
             Name = name;
         }
 
-        // Method for AddAffiliation
-        //internal void AddAffiliation(uint nodeId, string affiliationLabel)
-        //{
-        //    // Get or create HyperEdgeCollection for this nodeId
-        //    // Get or create HyperEdge for this affiliationLabel (i.e. if create: store the new HyperEdge in AllHyperEdges)
-        //    // Add nodeId to the HyperEdge
-        //    // Add the hyperEdge to the HyperEdgeCollection for this nodeId
-        //}
 
         /// <summary>
-        /// Adds a Hyperedge with the specified name and array of nodeId members
+        /// Adds a Hyperedge with the specified name and array of nodeId members. Makes sure to filter out duplicte node Ids
+        /// for the Hyperedge. If there is already a Hyperedge with this name, the old one is first removed
         /// </summary>
         /// <param name="hyperName">Name of hyperedge.</param>
-        /// <param name="nodeIds">Array (uint[]) of node id's belonging to this hyperedge.</param>
+        /// <param name="nodeIds">Optional array (uint[]) of node id's belonging to this hyperedge.</param>
         public OperationResult AddHyperedge(string hyperName, uint[]? nodeIds)
         {
-            // If there is already a HyperEdge with this name, first remove it (including all pointers to it)
             if (AllHyperEdges.ContainsKey(hyperName))
                 RemoveHyperedge(hyperName);
-            // Create hyperedge and possibly initialize it with nodeIds
-            HyperEdge hyperedge = new HyperEdge();
+            HyperEdge hyperedge = new();
             AllHyperEdges.Add(hyperName, hyperedge);
             if (nodeIds != null && nodeIds.Length > 0)
             {
-                hyperedge.nodeIds = nodeIds.ToList();
+                hyperedge.nodeIds = [.. nodeIds.Distinct()];
                 foreach (uint nodeid in nodeIds)
                     AddHyperEdgeToNode(nodeid, hyperedge);
             }
             return OperationResult.Ok($"Added hyperedge '{hyperName}' (with {hyperedge.NbrNodes} nodes) in layer '{Name}'.");
         }
 
-        //public void AddHyperedge(string hyperName)
-        //{
-        //    AddHyperedge(hyperName, new HyperEdge());
-        //}
-
-        //public void AddHyperedge(string hyperName, HyperEdge hyperedge)
-        //{
-        //    if (AllHyperEdges.ContainsKey(hyperName))
-        //        RemoveHyperedge(hyperName);
-        //    AllHyperEdges[hyperName] = hyperedge;
-        //    if (hyperedge.nodeIds.Count > 0)
-        //        foreach (uint nodeId in hyperedge.nodeIds)
-        //            AddHyperEdgeToNode(nodeId, hyperedge);
-        //}
-
+        /// <summary>
+        /// Add a hyperedge reference to a node's collection of hyperedges. If the node has no such collection, it is
+        /// first created.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="hyperEdge">The hyperedge that the node is part of</param>
         private void AddHyperEdgeToNode(uint nodeId, HyperEdge hyperEdge)
         {
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
@@ -111,11 +93,10 @@ namespace Threadle.Core.Model
 
         public void RemoveHyperedge(string hyperName)
         {
-            // 1. Check if there is a hyperedge in AllHyperEdges. If not: return (do nothing)
+            // 1. Try getting this hyperedge in AllHyperEdges. If not: return (do nothing)
             if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
                 return;
-            // 2. take ref to this HyperEdge
-            // 3. Remove from AllHyperEdges
+            // 2. Remove this hyperedge from AllHyperEdges
             AllHyperEdges.Remove(hyperName);
             // If the hyperedge has nodes:
             if (hyperedge.nodeIds.Count > 0)
@@ -140,13 +121,6 @@ namespace Threadle.Core.Model
             if (!HyperEdgeCollections.TryGetValue(sourceNodeId, out var sourceCollection) || !HyperEdgeCollections.TryGetValue(targetNodeId, out var targetCollection))
                 return 0f;
             return (sourceCollection.HyperEdges.Intersect(targetCollection.HyperEdges)).Count();
-
-            //if (!HyperEdgeCollections.TryGetValue(sourceNodeId, out var hyperEdgeCollection))
-            //    return 0f;
-            //int count = 0;
-            //foreach (HyperEdge hyperedge in hyperEdgeCollection.HyperEdges)
-            //    count += (hyperedge.nodeIds.Contains(targetNodeId)) ? 1 : 0;
-            //return count;
         }
 
         public bool CheckEdgeExists(uint sourceNodeId, uint targetNodeId)
@@ -162,13 +136,13 @@ namespace Threadle.Core.Model
         public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal)
         {
             if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperEdgeCollection) || hyperEdgeCollection.HyperEdges.Count == 0)
-                return Array.Empty<uint>();
+                return [];
 
-            HashSet<uint> alters = new();
+            HashSet<uint> alters = [];
             foreach (HyperEdge hyperEdge in hyperEdgeCollection.HyperEdges)
                 alters.UnionWith(hyperEdge.nodeIds);
             alters.Remove(nodeId);
-            return alters.ToArray();
+            return [.. alters];
         }
 
         private void RemoveHyperEdgeFromNode(uint nodeId, HyperEdge hyperEdge)
@@ -189,7 +163,10 @@ namespace Threadle.Core.Model
 
         public void ClearLayer()
         {
-
+            HyperEdgeCollections.Clear();
+            foreach (HyperEdge hyperedge in AllHyperEdges.Values)
+                hyperedge.Clear();
+            AllHyperEdges.Clear();
         }
     }
 }

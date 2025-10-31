@@ -390,7 +390,7 @@ namespace Threadle.Core.Model
         {
             if (nodeIds != null && nodeIds.Length > 0)
             {
-                var uniqueNodeIds = new HashSet<uint>();
+                List<uint> existingNodeIds = [];
                 foreach (uint id in nodeIds)
                 {
                     if (!Nodeset.CheckThatNodeExists(id))
@@ -400,9 +400,9 @@ namespace Threadle.Core.Model
                         else
                             continue;
                     }
-                    uniqueNodeIds.Add(id);
+                    existingNodeIds.Add(id);
                 }
-                nodeIds = uniqueNodeIds.ToArray();
+                nodeIds = existingNodeIds.ToArray();
             }
             return layerTwoMode.AddHyperedge(hyperName, nodeIds);
         }

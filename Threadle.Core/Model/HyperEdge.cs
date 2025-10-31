@@ -28,7 +28,12 @@ namespace Threadle.Core.Model
 
         public HyperEdge(uint[] nodeIds)
         {
-            this.nodeIds = nodeIds.ToList();
+            this.nodeIds = [.. nodeIds];
+        }
+
+        internal void Clear()
+        {
+            nodeIds.Clear();
         }
     }
 }

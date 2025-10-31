@@ -17,13 +17,12 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            //command.CheckAssignment(true);
             string variableName = command.CheckAndGetAssignmentVariableName();
-            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
+            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             ConditionType conditionType = command.GetArgumentParseEnumThrowExceptionIfMissingOrNull<ConditionType>("cond", "arg2");
             string attributeValue = (conditionType == ConditionType.isnull || conditionType == ConditionType.notnull) ? "" : command.GetArgumentThrowExceptionIfMissingOrNull("attrvalue", "arg3");
-            OperationResult<Core.Model.Nodeset> result = NodesetProcessor.Filter(nodeset, attributeName, conditionType, attributeValue);
+            OperationResult<Nodeset> result = NodesetProcessor.Filter(nodeset, attributeName, conditionType, attributeValue);
             if (result.Success)
                 context.SetVariable(variableName, result.Value!);
             ConsoleOutput.WriteLine(result.ToString());

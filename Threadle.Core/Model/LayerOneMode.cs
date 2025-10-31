@@ -39,7 +39,7 @@ namespace Threadle.Core.Model
             }
         }
 
-        public Dictionary<string, object> GetMetadata => new Dictionary<string, object>
+        public Dictionary<string, object> GetMetadata => new()
         {
             ["Name"] = Name,
             ["Mode"] = 1,
@@ -64,10 +64,10 @@ namespace Threadle.Core.Model
             Directionality = directionality;
             EdgeValueType = valueType;
             Selfties = selfties;
-            initializeFactory();
+            InitializeFactory();
         }
 
-        private void initializeFactory()
+        private void InitializeFactory()
         {
             if (IsBinary)
             {
@@ -164,20 +164,15 @@ namespace Threadle.Core.Model
         public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal)
         {
             if (!(Edgesets.TryGetValue(nodeId, out var edgeset)))
-                return Array.Empty<uint>();
+                return [];
 
             return edgeset.GetAlterIds(edgeTraversal);
         }
 
-        //internal void CheckFactory()
-        //{
-        //    if (edgeSetFactory == null)
-        //        initializeFactory();
-        //}
 
         internal void TryInitFactory()
         {
-            initializeFactory();
+            InitializeFactory();
         }
 
         public void ClearLayer()
@@ -187,23 +182,6 @@ namespace Threadle.Core.Model
             Edgesets.Clear();
         }
 
-        internal List<string> GenerateNodelistLines()
-        {
-            List<string> lines = [];
-            // Iterate through all 
-            foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
-            {
-                // First: add nodeId (potentially not), then add edgeset values, but call these!
-                // e.g. edgeset.GenerateAlterString(nodeId)
-                // Need to add nodeId: for symmetric, only include ties where partnerId>nodeId, so need this as reference
-                // This means that this function will also add the nodeId at top?
-                // So: add GenerateAlterString(uint nodeid); to IEdgeSet
-
-            }
-
-
-            return lines;
-        }
 
         public HashSet<uint> GetMentionedNodeIds()
         {
