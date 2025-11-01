@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Version>1.2.3</Version>
     <TargetFramework>net8.0</TargetFramework>
     <RuntimeIdentifiers>win-x64;win-x86;win-arm64;linux-x64;linux-arm;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
 	  <Nullable>enable</Nullable>
@@ -8,37 +9,5 @@
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Remove="DTO\**" />
-    <Compile Remove="Management\**" />
-    <EmbeddedResource Remove="DTO\**" />
-    <EmbeddedResource Remove="Management\**" />
-    <None Remove="DTO\**" />
-    <None Remove="Management\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Analysis\AttributeDistanceWalker.cs" />
-    <Compile Remove="Edge.cs" />
-    <Compile Remove="IEdgeCollection.cs" />
-    <Compile Remove="LayerSchema.cs" />
-    <Compile Remove="Model\ConnectionLayer.cs" />
-    <Compile Remove="Model\Context.cs" />
-    <Compile Remove="Model\DirectedConnectionCollection.cs" />
-    <Compile Remove="Model\IConnectionCollection.cs" />
-    <Compile Remove="Model\LayerDefinition.cs" />
-    <Compile Remove="Model\MatrixStructure.cs" />
-    <Compile Remove="Model\Node.cs" />
-    <Compile Remove="Model\NodeAttributeDefinition.cs" />
-    <Compile Remove="Model\UndirectedConnectionCollection.cs" />
-    <Compile Remove="Utilities\CompressedJsonSerializer.cs" />
-    <Compile Remove="Utilities\NetworkGenerators.cs" />
-    <Compile Remove="Utilities\NetworkModelTsvSerializer.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="ClassDiagramCore.cd" />
-  </ItemGroup>
 
 </Project>

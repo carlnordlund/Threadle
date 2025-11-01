@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Version>1.0.0.0</Version>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -14,29 +15,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Dispatcher\**" />
-    <Compile Remove="Parser\**" />
-    <EmbeddedResource Remove="Dispatcher\**" />
-    <EmbeddedResource Remove="Parser\**" />
-    <None Remove="Dispatcher\**" />
-    <None Remove="Parser\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Command.cs" />
-    <Compile Remove="Commands\DisplayNetworkCommand.cs" />
-    <Compile Remove="Commands\GenerateNetworkCommand.cs" />
-    <Compile Remove="Commands\ImportCommand.cs" />
-    <Compile Remove="Commands\MergeNetworksCommand.cs" />
-    <Compile Remove="Commands\RandomWalkerCommand.cs" />
-    <Compile Remove="Commands\SetVerboseCommand.cs" />
-    <Compile Remove="Commands\ShortestPathCommand.cs" />
-    <Compile Remove="VariableRegistry.cs" />
+    <Folder Include="Properties\PublishProfiles\" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Threadle.Core\Threadle.Core.csproj" />
   </ItemGroup>
+  
   <Target Name="AlwaysBuildCore" BeforeTargets="Build">
     <MSBuild Projects="..\Threadle.Core\Threadle.Core.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
   </Target>
