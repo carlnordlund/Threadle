@@ -91,21 +91,17 @@ namespace Threadle.Core.Model
                 HyperEdgeCollections.Add(nodeId, new HyperEdgeCollection(hyperEdge));
         }
 
-        public void RemoveHyperedge(string hyperName)
+        public OperationResult RemoveHyperedge(string hyperName)
         {
-            // 1. Try getting this hyperedge in AllHyperEdges. If not: return (do nothing)
             if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
-                return;
-            // 2. Remove this hyperedge from AllHyperEdges
+                return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{Name}'.");
             AllHyperEdges.Remove(hyperName);
-            // If the hyperedge has nodes:
             if (hyperedge.nodeIds.Count > 0)
             {
-                // 4. Iterate through all nodeIds in this hyperedge
                 foreach (uint nodeId in hyperedge.nodeIds)
-                    // 5. Remove any reference this node has to this Hyperedge
                     RemoveHyperEdgeFromNode(nodeId, hyperedge);
             }
+            return OperationResult.Ok($"Hyperedge '{hyperName}' removed from 2-mode layer '{Name}'.");
         }
 
         public void RemoveNodeEdges(uint nodeId)

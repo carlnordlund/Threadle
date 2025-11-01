@@ -311,6 +311,14 @@ namespace Threadle.Core.Model
                 layer.RemoveNodeEdges(nodeId);
         }
 
+        public OperationResult RemoveHyperedge(string layerName, string hyperName)
+        {
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            return RemoveHyperedge(layerResult.Value!, hyperName);
+        }
+
 
 
         /// <summary>
@@ -358,6 +366,14 @@ namespace Threadle.Core.Model
                 IsModified = true;
             return result;
 
+        }
+
+        public OperationResult RemoveHyperedge(LayerTwoMode layerTwoMode, string hypername)
+        {
+            OperationResult result = layerTwoMode.RemoveHyperedge(hypername);
+            if (result.Success)
+                IsModified = true;
+            return result;
         }
 
 
@@ -480,6 +496,7 @@ namespace Threadle.Core.Model
                 ids.UnionWith(layer.GetMentionedNodeIds());
             return ids;
         }
+
 
 
 

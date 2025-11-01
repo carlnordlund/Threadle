@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.Commands
             command.CheckAssignment(false);
             Core.Model.Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-            string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2").ToLowerInvariant();
+            string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
             if (command.GetArgument("nodes") is string nodesString)
             {
                 uint[] nodeIds = Misc.NodesIdsStringToArray(nodesString)
