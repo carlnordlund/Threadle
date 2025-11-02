@@ -90,7 +90,7 @@ namespace Threadle.CLIconsole.CLIUtilities
 
         internal T GetArgumentParseEnum<T>(string key, T defaultValue) where T : struct, Enum
         {
-            if (Enum.TryParse<T>(GetArgument(key), out var value))
+            if (Enum.TryParse<T>(GetArgument(key),true, out var value))
                 return value;
             return defaultValue;
         }

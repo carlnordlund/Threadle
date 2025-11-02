@@ -188,9 +188,8 @@ namespace Threadle.Core.Model
             HashSet<uint> ids = [];
             foreach (IEdgeset edgeset in Edgesets.Values)
             {
-                ids.UnionWith(edgeset.GetAllNodeIds());
+                ids.UnionWith(edgeset.GetAllNodeIds);
             }
-
             return ids;
         }
 

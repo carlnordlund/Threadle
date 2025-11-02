@@ -12,17 +12,17 @@ namespace Threadle.Core.Model
     {
         private readonly List<uint> _connections = [];
 
-        public List<uint> GetOutboundConnections() => _connections;
-        public List<uint> GetInboundConnections() => _connections;
+        public List<uint> GetOutboundConnections { get => _connections; }
+        public List<uint> GetInboundConnections { get => _connections; }
 
         public uint NbrOutboundEdges { get => (uint)_connections.Count; }
         public uint NbrInboundEdges { get => (uint)_connections.Count; }
         public uint NbrEdges { get => (uint)_connections.Count; }
 
-        public List<uint> GetAllNodeIds() => _connections;
 
-        public List<uint> GetOutboundNodeIds() => _connections;
-        public List<uint> GetInboundNodeIds() => _connections;
+        public List<uint> GetOutboundNodeIds { get => _connections; }
+        public List<uint> GetInboundNodeIds { get => _connections; }
+        public List<uint> GetAllNodeIds { get => _connections; }
 
 
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)

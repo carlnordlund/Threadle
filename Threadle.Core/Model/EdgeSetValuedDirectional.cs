@@ -20,9 +20,9 @@ namespace Threadle.Core.Model
         public uint NbrInboundEdges { get => (uint)_inbound.Count; }
         public uint NbrEdges { get => (uint)_outbound.Count; }
 
-        public List<uint> GetOutboundNodeIds() => [.. _outbound.Select(s => s.partnerNodeId)];
-        public List<uint> GetInboundNodeIds() => [.. _inbound.Select(s => s.partnerNodeId)];
-        public List<uint> GetAllNodeIds() => [.. GetOutboundNodeIds().Concat(GetInboundNodeIds())];
+        public List<uint> GetOutboundNodeIds { get => [.. _outbound.Select(s => s.partnerNodeId)]; }
+        public List<uint> GetInboundNodeIds { get => [.. _inbound.Select(s => s.partnerNodeId)]; }
+        public List<uint> GetAllNodeIds { get => [.. GetOutboundNodeIds.Concat(GetInboundNodeIds)]; }
 
 
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
