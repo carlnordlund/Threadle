@@ -14,10 +14,11 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Removes the relational layer 'layername' and all edges in that layer for the specified network.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
-            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             ConsoleOutput.WriteLine(network.RemoveLayer(layerName).ToString());
         }

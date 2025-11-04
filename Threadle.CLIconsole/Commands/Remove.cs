@@ -14,9 +14,9 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Removes (deletes) the structure with the variable name 'name'. A Nodeset can not be deleted if it is currently used by another structure: first delete those structures. If deleting a network, the nodeset that it uses will remain.";
 
+        public bool ToAssign => false;
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0");
             ConsoleOutput.WriteLine(context.RemoveStructure(structureName).ToString());
         }

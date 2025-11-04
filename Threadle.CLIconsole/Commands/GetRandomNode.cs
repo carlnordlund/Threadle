@@ -17,9 +17,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[uint] = getrandomnode(structure = [var:structure])";
         public string Description => "Get a random node id from the specified nodeset (or the nodeset that is used by this network).";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             OperationResult<uint> result = Analyses.GetRandomNode(nodeset);
             if (result.Success)

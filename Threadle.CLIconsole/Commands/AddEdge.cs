@@ -15,9 +15,10 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Creates and adds an edge between node1id and node2id in the specified layer 'layername' (which must be 1-mode) in network 'network'. If the layer is directional, node1id is the source (from) and node2id is the destination (to). The edge value 'value' is optional, defaulting to 1. If the specified node id's do not exist in the Nodeset, they are by default created and added, but by setting 'addmissingnodes' to 'false' prevents this.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
             uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");

@@ -16,10 +16,11 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[array:uint] = getnodealters(network = [var:network], layername = [str], nodeid = [uint], *direction=['both'(default),'in','out'])";
         public string Description => "Get the id of the alters to a specific node in a specific layer, output in standard JSON array format. By default, both in- and outbound ties are included in the set of alters, but this can be adjusted with the optional direction argument.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
-            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg2");
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);

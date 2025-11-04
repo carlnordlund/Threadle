@@ -14,9 +14,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "savefile(name = [var:structure], file = \"[str]\", *nodesetfile = \"[filepath]\")";
         public string Description => "Saves the structure [var:structure] to file 'file'. If the structure is a Network and if the Nodeset is also to be stored, the filepath where to save the Nodeset is given by 'nodesetfile'. A reference to this Nodeset file will then also be added in the Network data file.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0"));
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg1");
 

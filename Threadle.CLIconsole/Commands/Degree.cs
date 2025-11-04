@@ -17,10 +17,11 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Calculates the degree centrality for the specified layer and network, and storing the result as a node attribute. The optional direction parameter decides whether the inbound (default) or the outbound ties should be counted, or - for layers with directional relations - if both in- and outbound ties should be counted. The node attribute is automatically named to the layername and the direction, but this can be overridden with the attrname parameter.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
-            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string? attrname = command.GetArgument("attrname");
             EdgeTraversal direction = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.In);

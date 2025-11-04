@@ -15,9 +15,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[var:network] = generate(type = ['er'], size = [int], p = [double], *directed = ['true'(default),'false'], *selfties = ['true','false'(default)], *newname = [str])";
         public string Description => "Creates a random network of the specified type (only Erdös-Renyi implemented so far) of specified size and tie probability (also density). The network is by default directed without selfties but that can be adjusted. Is automatically named but can be given a name with the optional parameter.";
 
+        public bool ToAssign => true;
+
         public void Execute(Command command, CommandContext context)
         {
-            // Assigning already checks that an assignment is made
             string variableName = command.CheckAndGetAssignmentVariableName();
             string type = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg0");
             int size = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("size", "arg1");

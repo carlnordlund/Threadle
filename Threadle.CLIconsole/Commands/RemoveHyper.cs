@@ -14,9 +14,10 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Removes the hyperedge 'hypername' from layer 'layername' in the specified network.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");

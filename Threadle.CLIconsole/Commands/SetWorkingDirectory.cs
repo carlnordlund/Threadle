@@ -14,9 +14,10 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Sets the current working directory for Threadle to 'dir'.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             string dir = command.GetArgumentThrowExceptionIfMissingOrNull("dir", "arg0");
             string newDir = FileManager.SafeSetCurrentDirectory(dir);
             ConsoleOutput.WriteLine("Current working directory:");

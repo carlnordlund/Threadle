@@ -80,6 +80,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                     ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
                     continue;
                 }
+                
                 try
                 {
                     dispatcher.Dispatch(command, context);

@@ -13,9 +13,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "view(name = [var:structure])";
         public string Description => "View the content of the structure with the variable name [var:structure]. E.g. display(mynet) will display detailed information about the network with the variable 'mynet'.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0"));
             ConsoleOutput.WriteLine(structure.Content, true);
         }

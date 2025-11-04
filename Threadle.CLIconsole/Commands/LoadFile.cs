@@ -14,9 +14,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[var:structure] = loadfile(file = \"[str]\", type = ['nodeset', 'network'])";
         public string Description => "Loads a structure from file 'file', using the internal text-based file format. The type of structure is given by the 'type' argument, which can be either 'nodeset' or 'network'. if the filepath has the ending .tsv, it is saved in the standard internal text-based format, if the .tsv.gz is used, it is subsequently gzipped and saved as such.";
 
+        public bool ToAssign => true;
+
         public void Execute(Command command, CommandContext context)
         {
-            //command.CheckAssignment(true);
             string variableName = command.CheckAndGetAssignmentVariableName();
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");

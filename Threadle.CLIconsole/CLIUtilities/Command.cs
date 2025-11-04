@@ -7,24 +7,46 @@ using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.CLIUtilities
 {
+    /// <summary>
+    /// Class representing a CLI command and its content
+    /// </summary>
     public class Command
     {
-        // OutputVariable: the variable that something is assigned to
+        /// <summary>
+        /// The variable that the command is assigned to (for those command that return a structure)
+        /// </summary>
         public string? AssignedVariable { get; set; }
 
-        // CommandName, like "createnetwork"
+        /// <summary>
+        /// The command (such as 'addnode', 'density' etc)
+        /// </summary>
         public string CommandName { get; set; } = "";
 
+        /// <summary>
+        /// Dictionary of named arguments in the command (such as 'nodeid'=>'13', 'arg2'=>'mynet.tsv')
+        /// </summary>
         public Dictionary<string, string> NamedArgs { get; set; } = new();
 
-        internal void CheckAssignment(bool mustAssign)
+
+        /// <summary>
+        /// Support function to check whether a command must be assigned (i.e. returning either a network or nodeset),
+        /// or whether it is not. Used internally by CommandDispatcher.
+        /// </summary>
+        /// <param name="toAssign">Boolean to indicate whether a command is to be assigned (true) or not (false).</param>
+        /// <exception cref="Exception">Throws an exception if an assignment is either missing or present when it should not be there.</exception>
+        internal void CheckAssigment(bool toAssign)
         {
-            if (mustAssign && AssignedVariable == null)
+            if (toAssign && AssignedVariable == null)
                 throw new Exception($"!Error: '{CommandName}()' must be assiged.");
-            else if (!mustAssign && AssignedVariable != null)
+            else if (!toAssign && AssignedVariable != null)
                 throw new Exception($"!Error: '{CommandName}()' not for assigning.");
         }
 
+        /// <summary>
+        /// Returns the value of an argument as a string if it exists; otherwise returns null.
+        /// </summary>
+        /// <param name="key">The argument name.</param>
+        /// <returns></returns>
         internal string? GetArgument(string key)
         {
             if (NamedArgs.TryGetValue(key, out var value))
@@ -32,15 +54,32 @@ namespace Threadle.CLIconsole.CLIUtilities
             return null;
         }
 
-        internal string? GetArgument(string key1, string key2)
+        /// <summary>
+        /// Returns the value of an argument as a string if it exists. If not, a second argument name is checked.
+        /// If thta doesn't exist either, returns null.
+        /// This is useful for getting the value of a non-optional command argument, which thus can either be
+        /// specified by name (key1) or by its position in the list of arguments (key2, e.g. 'arg0', 'arg1' etc).
+        /// </summary>
+        /// <param name="key">The first argument name to look for.</param>
+        /// <param name="altKey">The second argument name to look for.</param>
+        /// <returns>The value of the argument (as a string), or null if it is missing.</returns>
+        internal string? GetArgument(string key, string altKey)
         {
-            if (NamedArgs.TryGetValue(key1, out var value1))
+            if (NamedArgs.TryGetValue(key, out var value1))
                 return value1;
-            if (NamedArgs.TryGetValue(key2, out var value2))
+            if (NamedArgs.TryGetValue(altKey, out var value2))
                 return value2;
             return null;
         }
 
+        /// <summary>
+        /// Gets the value of argument 'key' (or 'altkey' if 'key' is missing). Throws an
+        /// exception if neither is found.
+        /// </summary>
+        /// <param name="key">The first argument name to look for.</param>
+        /// <param name="altKey">The second argument name to look for.</param>
+        /// <returns>The value of the argument (as a string).</returns>
+        /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
         internal string GetArgumentThrowExceptionIfMissingOrNull(string key, string altKey)
         {
             if (!(GetArgument(key, altKey) is string value) || value == string.Empty)
@@ -48,7 +87,14 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
-
+        /// <summary>
+        /// Gets the integer value of argument 'key' (or 'altkey' if 'key' is missing). Throws an
+        /// exception if neither is found.
+        /// </summary>
+        /// <param name="key">The first argument name to look for.</param>
+        /// <param name="altKey">The second argument name to look for.</param>
+        /// <returns>The value of the argument (as an integer).</returns>
+        /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
         internal int GetArgumentParseIntThrowExceptionIfMissingOrNull(string key, string altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
@@ -57,6 +103,14 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
+        /// <summary>
+        /// Gets the unsigned integer value of argument 'key' (or 'altkey' if 'key' is missing). Throws an
+        /// exception if neither is found.
+        /// </summary>
+        /// <param name="key">The first argument name to look for.</param>
+        /// <param name="altKey">The second argument name to look for.</param>
+        /// <returns>The value of the argument (as an unsigned integer).</returns>
+        /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
         internal uint GetArgumentParseUintThrowExceptionIfMissingOrNull(string key, string altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
@@ -65,7 +119,14 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
-
+        /// <summary>
+        /// Gets the floating-point (double) value of argument 'key' (or 'altkey' if 'key' is missing).
+        /// Throws an exception if neither is found.
+        /// </summary>
+        /// <param name="key">The first argument name to look for.</param>
+        /// <param name="altKey">The second argument name to look for.</param>
+        /// <returns>The value of the argument (as a double).</returns>
+        /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
         internal double GetArgumentParseDoubleThrowExceptionIfMissingOrNull(string key, string altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
@@ -74,6 +135,12 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
+        /// <summary>
+        /// Gets the boolean value of argument 'key'. If not found, the provided default value is returned.
+        /// </summary>
+        /// <param name="key">The argument name to look for.</param>
+        /// <param name="defaultValue">The default boolean value if the argument name is not found</param>
+        /// <returns>The boolean value of the argument, or the default value if the argument is not found.</returns>
         internal bool GetArgumentParseBool(string key, bool defaultValue)
         {
             if (bool.TryParse(GetArgument(key), out bool value))
@@ -81,6 +148,12 @@ namespace Threadle.CLIconsole.CLIUtilities
             return defaultValue;
         }
 
+        /// <summary>
+        /// Gets the string value of argument 'key'. If not found, the provided default string value is returned.
+        /// </summary>
+        /// <param name="key">The argument name to look for.</param>
+        /// <param name="defaultValue">The default string value if the argument name is not found</param>
+        /// <returns>The string value of the argument, or the default value if the argument is not found.</returns>
         internal string GetArgumentParseString(string key, string defaultvalue)
         {
             if (!(GetArgument(key) is string value))
@@ -88,6 +161,13 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
+        /// <summary>
+        /// Gets the value of argument 'key' for Enum type T. If not found, the provided default Enum value is returned.
+        /// </summary>
+        /// <typeparam name="T">The Enum type.</typeparam>
+        /// <param name="key">The argument name to look for.</param>
+        /// <param name="defaultValue">The default Enum value.</param>
+        /// <returns>The Enum value of the argument for Enum T, or the default value if the argument is not found.</returns>
         internal T GetArgumentParseEnum<T>(string key, T defaultValue) where T : struct, Enum
         {
             if (Enum.TryParse<T>(GetArgument(key),true, out var value))
@@ -95,6 +175,15 @@ namespace Threadle.CLIconsole.CLIUtilities
             return defaultValue;
         }
 
+        /// <summary>
+        /// Gets the value of argument 'key' for Enum type T (or 'altkey' if 'key' is missing).
+        /// Throws an exception if neither is found.
+        /// </summary>
+        /// <typeparam name="T">The Enum type.</typeparam>
+        /// <param name="key">The first argument name to look for.</param>
+        /// <param name="altKey">The second argument name to look for.</param>
+        /// <returns>The Enum value of the argument for Enum T.</returns>
+        /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
         internal T GetArgumentParseEnumThrowExceptionIfMissingOrNull<T>(string key, string altKey) where T : struct, Enum
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
@@ -103,6 +192,14 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
+        /// <summary>
+        /// Gets the boolean value of argument 'key' (or 'altkey' if 'key' is missing).
+        /// Throws an exception if neither is found.
+        /// </summary>
+        /// <param name="key">The first argument name to look for.</param>
+        /// <param name="altKey">The second argument name to look for.</param>
+        /// <returns>The value of the argument (as a boolean).</returns>
+        /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
         internal bool GetArgumentParseBoolThrowExceptionIfMissingOrNull(string key, string altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
@@ -111,6 +208,12 @@ namespace Threadle.CLIconsole.CLIUtilities
             return value;
         }
 
+        /// <summary>
+        /// Gets the integer value of argument 'key'. If not found, the provided default string value is returned.
+        /// </summary>
+        /// <param name="key">The argument name to look for.</param>
+        /// <param name="defaultValue">The default integer value if the argument name is not found.</param>
+        /// <returns>The integer value of the argument, or the default value if the argument is not found.</returns>
         internal int GetArgumentParseInt(string key, int defaultValue)
         {
             if (int.TryParse(GetArgument(key), out int value))
@@ -118,6 +221,12 @@ namespace Threadle.CLIconsole.CLIUtilities
             return defaultValue;
         }
 
+        /// <summary>
+        /// Gets the floating-point (double) value of argument 'key'. If not found, the provided default string value is returned.
+        /// </summary>
+        /// <param name="key">The argument name to look for.</param>
+        /// <param name="defaultValue">The default double value if the argument name is not found.</param>
+        /// <returns>The double value of the argument, or the default value if the argument is not found.</returns>
         internal float GetArgumentParseFloat(string key, float defaultValue)
         {
             if (float.TryParse(GetArgument(key), out float value))
@@ -125,6 +234,12 @@ namespace Threadle.CLIconsole.CLIUtilities
             return defaultValue;
         }
 
+        /// <summary>
+        /// Checks that a variable is assigned to the command, and returns this.
+        /// Throws an exception if the command is not assigned to a variable.
+        /// </summary>
+        /// <returns>The name of the variable.</returns>
+        /// <exception cref="Exception">Throws an exception if no variable is assigned.</exception>
         internal string CheckAndGetAssignmentVariableName()
         {
             if (AssignedVariable == null)
@@ -132,15 +247,25 @@ namespace Threadle.CLIconsole.CLIUtilities
             return AssignedVariable.Trim().ToLowerInvariant();
         }
 
-        internal bool NormalizeNameAndCheckValidity(string input, out string normalized)
+        /// <summary>
+        /// Support function to trim the name of a layer or node attribute. Trims whitespace at start
+        /// and end.
+        /// Names are kept case-sensitive, and only alphanumericals and underscore characters are allowed.
+        /// The First letter must also be an alphanumerical. No whitespace allowed inside.
+        /// If other characters are present, the method returns false.
+        /// </summary>
+        /// <param name="input">String to trim and check.</param>
+        /// <param name="output">String output (trimmed)</param>
+        /// <returns>Returns true if string contains unallowed characters.</returns>
+        internal bool TrimNameAndCheckValidity(string input, out string output)
         {
-            normalized = string.Empty;
+            output = string.Empty;
             if (string.IsNullOrWhiteSpace(input))
                 return false;
-            normalized = input.Trim().ToLowerInvariant();
-            if (!char.IsLetter(normalized[0]))
+            output = input.Trim();
+            if (!char.IsLetter(output[0]))
                 return false;
-            foreach (char c in normalized)
+            foreach (char c in output)
                 if (!char.IsLetterOrDigit(c) && c != '_')
                     return false;
             return true;

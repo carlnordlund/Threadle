@@ -13,9 +13,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "undefineattr(nodeset = [var:nodeset], attrname = [str])";
         public string Description => "Removes the definition of a node attribute for the specified nodeset. This will also iterate through all nodes with attributes, removing the attributes for those that have it.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             ConsoleOutput.WriteLine(nodeset.UndefineNodeAttribute(attributeName).ToString());

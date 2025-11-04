@@ -13,9 +13,10 @@ namespace Threadle.CLIconsole.Commands
         
         public string Description => "Removes (deletes) all current structures stored in the variable space. Use with caution!";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             context.RemoveAllStructures();
             ConsoleOutput.WriteLine($"Deleted all structures.");
         }

@@ -14,6 +14,8 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[var:network] = createnetwork(*nodeset = [var:nodeset]|*createnodes = [int], *name = [str])";
         public string Description => "Creates a network with the name 'name' and assigning it to the variable [var:network]. Can optionally be provided with an existing Nodeset to use (as given by the variable [var:nodeset]): if not, a new Nodeset object will also be created and stored. For such a new Nodeset, it is possible to specify how many nodes that should be created with the 'createnodes' argument. Note that either 'nodeset' OR 'createnodes' can be provided, not both of these.";
 
+        public bool ToAssign => true;
+
         public void Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();

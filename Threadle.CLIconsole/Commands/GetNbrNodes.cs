@@ -14,9 +14,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[uint] = getnbrnodes(structure = [var:structure])";
         public string Description => "Get the number of nodes in this structure (which can either be a Nodeset or a Network structure). If a network is provided, it uses the Nodeset that this network is pointing to";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
             Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
             ConsoleOutput.WriteLine(nodeset.Count.ToString(), true);

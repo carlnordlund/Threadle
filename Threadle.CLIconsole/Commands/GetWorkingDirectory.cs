@@ -14,9 +14,10 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Returns the current working directory that Threadle is currently using.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
             ConsoleOutput.WriteLine(FileManager.GetCurrentDirectory(), true);
         }
     }

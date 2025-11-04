@@ -9,9 +9,9 @@ namespace Threadle.CLIconsole.Commands
 {
     public interface ICommand
     {
-        //string Name { get; }
         string Usage { get; }
         string Description { get; }
+        bool ToAssign { get; }
         void Execute(Command parsedCommand, CommandContext context);
     }
 }

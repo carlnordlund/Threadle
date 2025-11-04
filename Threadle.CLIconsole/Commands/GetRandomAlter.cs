@@ -16,10 +16,11 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[uint] = getrandomalter(network = [var:network], nodeid = [uint], *layername = [str], *direction = ['both'(default),'in','out'], *balanced = ['true','false'(default)])";
         public string Description => "Get the node id of a random alter to the specified node. By default, the pick is randomly picked among all available layers, or the specified layer. By default, both in- and outbound ties are considered, but this can be adjusted.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
-            Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string layerName = command.GetArgumentParseString("layername", "");
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);

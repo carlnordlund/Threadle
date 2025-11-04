@@ -14,6 +14,8 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "i(*format = ['console'(default),'json'])";
         public string Description => "Provides an inventory of the currently stored data objects. Note that the brackets can be ignored. (This command is in honor of all 1970's text adventure games, where 'i' was used to check what you were carrying). The output will by default be console-friendly, but setting the optional format argument to 'json' produces a R/Python-friendly format for converting to native types.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
             string outputFormat = command.GetArgumentParseString("format", "console");

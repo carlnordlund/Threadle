@@ -57,7 +57,10 @@ namespace Threadle.CLIconsole.CLIUtilities
         public void Dispatch(Command command, CommandContext context)
         {
             if (_commands.TryGetValue(command.CommandName.ToLower(), out var handler))
+            {
+                command.CheckAssigment(handler.ToAssign);
                 handler.Execute(command, context);
+            }
             else
                 ConsoleOutput.WriteLine($"!Error: Unknown command: {command.CommandName}");
         }

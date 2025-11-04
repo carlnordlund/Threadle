@@ -14,9 +14,10 @@ namespace Threadle.CLIconsole.Commands
         public string Usage => "[var:nodeset] = createnodeset(*name = [str], *createnodes = [int(default:0)])";
         public string Description => "Creates an empty nodeset and stores it in the variable [var:nodeset]. An optional internal name 'name' can be provided. The Nodeset is by default empty, but nodes can also be created by specifying the number of nodes with the optional 'createnodes' integer value. The created nodes will then have id values starting from 0.";
 
+        public bool ToAssign => true;
+
         public void Execute(Command command, CommandContext context)
         {
-            //command.CheckAssignment(true);
             string variableName = command.CheckAndGetAssignmentVariableName();
 
             string name = command.GetArgumentParseString("name", variableName);

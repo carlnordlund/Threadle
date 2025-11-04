@@ -16,28 +16,22 @@ namespace Threadle.CLIconsole.Commands
 
         public string Description => "Adds a relational layer for a network, which can be either 1-mode or 2-mode (with hyperedges). For 1-mode layers, there are additional settings for the type of ties that exist, specifying edge directionality, edge value type and whether selfties are allowed or not. For 2-mode layer, these settings do not matter: all ties are deemed binary. A network must have at least one layer defined, referred to when adding edges between nodes and nodes-affiliations as well as when importing edges from file to a layer.";
 
+        public bool ToAssign => false;
+
         public void Execute(Command command, CommandContext context)
         {
-            command.CheckAssignment(false);
-            Core.Model.Network network = context.GetVariableThrowExceptionIfMissing<Core.Model.Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
 
-            // No, instead create a function that either returns a lowercase version, or throws an exception if it doesn't follow the rules.
-
-            
-
-
-            if (!command.NormalizeNameAndCheckValidity(layerName, out string layerNameVerified))
+            if (!command.TrimNameAndCheckValidity(layerName, out string layerNameVerified))
                 throw new Exception($"!Error: Layer name '{layerName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
             char mode = command.GetArgumentThrowExceptionIfMissingOrNull("mode", "arg2")[0];
             OperationResult result;
-
             if (mode == '1')
             {
                 result = network.AddLayerOneMode(
                     layerName: layerNameVerified,
                     edgeDirectionality: command.GetArgumentParseBool("directed", false) ? EdgeDirectionality.Directed : EdgeDirectionality.Undirected,
-                    //edgeValueType: Misc.ParseEnumOrNull<EdgeType>(command.GetArgument("valuetype"), EdgeType.Binary),
                     edgeValueType: command.GetArgumentParseEnum<EdgeType>("valuetype", EdgeType.Binary),
                     selfties: command.GetArgumentParseBool("selfties", false)
                     );
