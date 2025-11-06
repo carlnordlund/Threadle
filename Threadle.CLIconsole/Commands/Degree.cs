@@ -15,7 +15,7 @@ namespace Threadle.CLIconsole.Commands
     {
         public string Usage => "degree(network = [var:network], layername = [str], *attrname = [str], *direction=('in'(default),'out','both'))";
 
-        public string Description => "Calculates the degree centrality for the specified layer and network, and storing the result as a node attribute. The optional direction parameter decides whether the inbound (default) or the outbound ties should be counted, or - for layers with directional relations - if both in- and outbound ties should be counted. The node attribute is automatically named to the layername and the direction, but this can be overridden with the attrname parameter.";
+        public string Description => "Calculates the degree centrality for the specified layer and network, and storing the result as a node attribute. The optional direction parameter decides whether the inbound (default) or the outbound ties should be counted, or - for layers with directional relations - if both in- and outbound ties should be counted. The node attribute is automatically named to the layername and the direction, but this can be overridden with the attrname parameter. For 2-mode layers, the direction argument is moot.";
 
         public bool ToAssign => false;
 
