@@ -21,6 +21,7 @@ namespace Threadle.Core.Analysis
             return degreeCentrality;
         }
 
+
         internal static double Density(Network network, LayerOneMode layer)
         {
             ulong nbrPotentialEdges = GetNbrPotentialEdges((ulong)network.Nodeset.Count, layer.IsDirectional, layer.Selfties);
@@ -57,6 +58,16 @@ namespace Threadle.Core.Analysis
             return outDegreeCentrality;
         }
 
+        internal static Dictionary<uint, uint> DegreeCentrality(Network network, LayerTwoMode layerTwoMode)
+        {
+            // For 2-mode layers, degree centrality is the union of nodes a node is connected to through its hyperedges
+            // For this, I collect their alterId arrays and count their lenghts
+            Dictionary<uint, uint> degreeCentrality = [];
+            foreach (var nodeId in network.Nodeset.NodeIdArray)
+                degreeCentrality[nodeId] = (uint)layerTwoMode.GetAlterIds(nodeId).Length;
+            return degreeCentrality;
+        }
+
         private static ulong GetNbrPotentialEdges(ulong n, bool isDirectional, bool selfties)
         {
             if (isDirectional)
@@ -64,5 +75,6 @@ namespace Threadle.Core.Analysis
             else
                 return selfties ? n * (n + 1) / 2 : n * (n - 1) / 2;
         }
+
     }
 }

@@ -443,11 +443,14 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Defines and sets the node attribute values for all nodes in the provided dictionary.
+        /// Defines and sets node attribute values for multiple nodes based on the provided dictionary of nodeId=>attributeValueStr.
+        /// If the attribute is already defined, it checks that the provided type matches the existing type. If it exists but with a different type,
+        /// an error is returned. If the attribute is not yet defined, it is defined based on the provided type.
         /// </summary>
-        /// <param name="attrName"></param>
-        /// <param name="attrDict"></param>
-        /// <exception cref="NotImplementedException"></exception>
+        /// <param name="attrName">The name of the node attribute.</param>
+        /// <param name="attrDict">The dictionary of nodeId=>attributeValueStr.</param>
+        /// <param name="nodeAttributeType">The type of the node attribute.</param>
+        /// <returns>Returns an <see cref="OperationResult"/> informing how well it went.</returns>
         internal OperationResult DefineAndSetNodeAttributeValues(string attrName, Dictionary<uint, string> attrDict, NodeAttributeType nodeAttributeType)
         {
             // Check if attribute is already defined
@@ -460,14 +463,18 @@ namespace Threadle.Core.Model
                 // By now, the attribute is defined and I have its index
                 attrIndex = defineresult.Value;
             }
-            foreach ((uint nodeId, string attrValueStr) in attrDict)
+            else
             {
-                SetNodeAttribute(nodeId, attrName, attrValueStr);
+                // Attribute already defined: check that its type matches the provided type
+                if (NodeAttributeDefinitionManager.IndexToType[attrIndex] != nodeAttributeType)
+                    return OperationResult.Fail("AttributeTypeMismatch", $"Attribute '{attrName}' already defined with type '{NodeAttributeDefinitionManager.IndexToType[attrIndex]}', cannot set values of type '{nodeAttributeType}'.");
             }
+            // Set the attribute values for all nodes in the provided dictionary
+            foreach ((uint nodeId, string attrValueStr) in attrDict)
+                SetNodeAttribute(nodeId, attrName, attrValueStr);
             Modified();
             return OperationResult.Ok($"Node attribute '{attrName}' set for {attrDict.Count} nodes in nodeset '{Name}'.");
         }
-
         #endregion
 
 

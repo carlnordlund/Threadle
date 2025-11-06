@@ -129,7 +129,7 @@ namespace Threadle.Core.Model
             return false;
         }
 
-        public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal)
+        public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
             if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperEdgeCollection) || hyperEdgeCollection.HyperEdges.Count == 0)
                 return [];
