@@ -22,7 +22,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                 Console.WriteLine(str);
         }
 
-        public static void WriteLine(List<string> lines, bool overrule=false)
+        public static void WriteLine(List<string> lines, bool overrule = false)
         {
             foreach (string line in lines)
             {
