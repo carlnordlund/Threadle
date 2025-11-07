@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Model.Enums
 {
-    // Removed Signed for the time being
+    /// <summary>
+    /// Describes whether edges in a 1-mode layer are binary or valued.
+    /// (Could be expanded to Signed later on)
+    /// </summary>
     public enum EdgeType
     {
         Binary,

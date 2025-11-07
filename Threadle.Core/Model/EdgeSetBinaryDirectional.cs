@@ -38,7 +38,7 @@ namespace Threadle.Core.Model
         public uint NbrInboundEdges { get => (uint)_inbound.Count; }
 
         /// <summary>
-        /// Returns the number of outbound edges in this edgeset. Only used when counting edges for view command,
+        /// Returns the number of edges in this edgeset. Only used when counting edges for view command,
         /// and needs to be the same for directional and symmetric layers.
         /// </summary>
         public uint NbrEdges { get => (uint)_outbound.Count; }
@@ -130,7 +130,7 @@ namespace Threadle.Core.Model
         /// Returns 0 (zero) if no such edge exists.
         /// </summary>
         /// <param name="partnerNodeId">The id of the destination node.</param>
-        /// <returns>1 if the (binary) edge exists, otherwise 0..</returns>
+        /// <returns>1 if the (binary) edge exists, otherwise 0.</returns>
         public float GetOutboundPartnerEdgeValue(uint partnerNodeId)
         {
             return (_outbound.Contains(partnerNodeId)) ? 1 : 0;
@@ -148,10 +148,11 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// This method produces a nodelist2-style string with alters, intended for save files.
-        /// As symmetric edges should only be stored once in this format, I thus have to pass along
-        /// the node id that 'owns' this edgeset, where I only store edges when the id of the source node
-        /// is less than the id of the target node.
-        /// This method is thus not useful for getting Alter ids, but rather a helper for saving networks to file.
+        /// As directional edges are always stored as outgoing, where incoming edges can be seen as duplicates,
+        /// there is only a need to store partner ids for outgoing edges.
+        /// The egoNodeId, i.e. the owner of this edgeset, is passed along,
+        /// but not necessary for directional edges.
+        /// This method is thus not useful for getting Alter ids, but only a helper for saving networks to file.
         /// </summary>
         /// <param name="nodeId">Reference node id</param>
         /// <returns>A tab-separated string with node ids.</returns>
