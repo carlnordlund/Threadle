@@ -23,13 +23,23 @@ namespace Threadle.CLIconsole.Commands
 
             if (structure is Network && command.GetArgument("nodesetfile") is string nodesetFilepath)
             {
-                FileManager.Save(structure, filepath, FileFormat.TsvGzip, nodesetFilepath);
+                OperationResult result = FileManager.Save(structure, filepath, FileFormat.TsvGzip, nodesetFilepath);
+                if (!result.Success)
+                {
+                    ConsoleOutput.WriteLine(result.ToString(), true);
+                    return;                    
+                }
                 ConsoleOutput.WriteLine($"Saved network '{structure.Name}' to file: {filepath}");
                 ConsoleOutput.WriteLine($"Also saved nodeset to '{nodesetFilepath}' and added reference in network.");
             }
             else
             {
-                FileManager.Save(structure, filepath, FileFormat.TsvGzip);
+                OperationResult result = FileManager.Save(structure, filepath, FileFormat.TsvGzip);
+                if (!result.Success)
+                {
+                    ConsoleOutput.WriteLine(result.ToString(), true);
+                    return;
+                }
                 ConsoleOutput.WriteLine($"Saved structure '{structure.Name}' to file: {filepath}");
             }
         }

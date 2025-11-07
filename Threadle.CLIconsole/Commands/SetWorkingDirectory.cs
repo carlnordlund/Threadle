@@ -19,9 +19,7 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             string dir = command.GetArgumentThrowExceptionIfMissingOrNull("dir", "arg0");
-            string newDir = FileManager.SafeSetCurrentDirectory(dir);
-            ConsoleOutput.WriteLine("Current working directory:");
-            ConsoleOutput.WriteLine(newDir);
+            ConsoleOutput.WriteLine(FileManager.SafeSetCurrentDirectory(dir).Message);
         }
     }
 }

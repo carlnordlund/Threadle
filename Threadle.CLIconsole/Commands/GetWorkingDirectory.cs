@@ -18,7 +18,11 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            ConsoleOutput.WriteLine(FileManager.GetCurrentDirectory(), true);
+            var result = FileManager.GetCurrentDirectory();
+            if (result.Success)
+                ConsoleOutput.WriteLine(result.Value!, true);
+            else
+                ConsoleOutput.WriteLine(result.ToString());
         }
     }
 }

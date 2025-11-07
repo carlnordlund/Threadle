@@ -25,7 +25,7 @@ namespace Threadle.CLIconsole.Commands
             if (outputFormat.Equals("console"))
                 ConsoleOutput.PrintDictionary(infoMetadata);
             else
-                ConsoleOutput.WriteLine(JsonSerializer.Serialize(infoMetadata, new JsonSerializerOptions { WriteIndented = false }));
+                ConsoleOutput.WriteLine(JsonSerializer.Serialize(infoMetadata, new JsonSerializerOptions { WriteIndented = false }), true);
         }
     }
 }

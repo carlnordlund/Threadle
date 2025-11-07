@@ -23,7 +23,15 @@ namespace Threadle.CLIconsole.Commands
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");
             //string assignedVariable = command.AssignedVariable!;
 
-            StructureResult structures = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
+            var result = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
+            if (!result.Success)
+            {
+                ConsoleOutput.WriteLine(result.ToString());
+                return;
+            }
+
+            //StructureResult structures = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
+            StructureResult structures = result.Value!;
             context.SetVariable(variableName, structures.MainStructure);
             ConsoleOutput.WriteLine($"Structure '{structures.MainStructure.Name}' loaded and stored in variable '{variableName}'");
             if (structures.AdditionalStructures.Count > 0)
@@ -31,7 +39,7 @@ namespace Threadle.CLIconsole.Commands
                 {
                     string additionalAssignedVariable = variableName + "_" + kvp.Key;
                     context.SetVariable(additionalAssignedVariable, kvp.Value);
-                    ConsoleOutput.WriteLine($"Structure '{kvp.Value.Name}' created and stored in variable '{additionalAssignedVariable}'.");
+                    ConsoleOutput.WriteLine($"Structure '{kvp.Value.Name}' loaded and stored in variable '{additionalAssignedVariable}'.");
                 }
         }
     }
