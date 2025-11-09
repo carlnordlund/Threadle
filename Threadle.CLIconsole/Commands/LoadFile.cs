@@ -26,7 +26,7 @@ namespace Threadle.CLIconsole.Commands
             var result = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
             if (!result.Success)
             {
-                ConsoleOutput.WriteLine(result.ToString());
+                ConsoleOutput.WriteLine(result!.Message!.ToString());
                 return;
             }
 

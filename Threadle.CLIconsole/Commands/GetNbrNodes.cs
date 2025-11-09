@@ -18,8 +18,10 @@ namespace Threadle.CLIconsole.Commands
 
         public void Execute(Command command, CommandContext context)
         {
-            string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
-            Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
+            Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
+
+            //string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
+            //Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
             ConsoleOutput.WriteLine(nodeset.Count.ToString(), true);
         }
     }

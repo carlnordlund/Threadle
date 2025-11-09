@@ -270,6 +270,8 @@ namespace Threadle.Core.Utilities
             network.Filepath = filepath;
             network.IsModified = false;
 
+            
+
             if (nodesetFileReference != null)
             {
                 nodeset = LoadNodesetFromFile(nodesetFileReference);
@@ -286,6 +288,7 @@ namespace Threadle.Core.Utilities
                 nodeset = new Nodeset(network.Name + "_nodeset", allIds);
                 network.SetNodeset(nodeset);
             }
+            nodeset.IsModified = false;
             return new StructureResult(network, new Dictionary<string, IStructure>
             {
                 { "nodeset", nodeset }
