@@ -8,6 +8,9 @@ using System.Reflection.Metadata.Ecma335;
 
 namespace Threadle.Core.Utilities
 {
+    /// <summary>
+    /// Public-facing class for loading and saving data in Threadle
+    /// </summary>
     public static class FileManager
     {
         #region Fields
@@ -175,7 +178,7 @@ namespace Threadle.Core.Utilities
                 switch (format)
                 {
                     case FileFormat.TsvGzip:
-                        CompressedTsvSerializer.SaveNodesetToFile(nodeset, filepath);
+                        FileSerializerTsv.SaveNodesetToFile(nodeset, filepath);
                         return OperationResult.Ok($"Saved nodeset '{nodeset.Name}' to file: {filepath}");
                     default:
                         return OperationResult.Fail("UnsupportedFormat", $"Save format '{format}' not supported.");
@@ -203,8 +206,8 @@ namespace Threadle.Core.Utilities
                 {
                     case FileFormat.TsvGzip:
                         if (!string.IsNullOrEmpty(nodesetFilepath))
-                            CompressedTsvSerializer.SaveNodesetToFile(network.Nodeset, nodesetFilepath);
-                        CompressedTsvSerializer.SaveNetworkToFile(network, filepath, nodesetFilepath);
+                            FileSerializerTsv.SaveNodesetToFile(network.Nodeset, nodesetFilepath);
+                        FileSerializerTsv.SaveNetworkToFile(network, filepath, nodesetFilepath);
                         return OperationResult.Ok($"Saved network '{network.Name}' to file: {filepath}");
                     default:
                         return OperationResult.Fail("UnsupportedFormat", $"Save format '{format}' not supported.");
@@ -230,7 +233,7 @@ namespace Threadle.Core.Utilities
             Nodeset nodeset;
             if (format == FileFormat.TsvGzip)
             {
-                nodeset = CompressedTsvSerializer.LoadNodesetFromFile(filepath)
+                nodeset = FileSerializerTsv.LoadNodesetFromFile(filepath)
                     ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
             }
             else
@@ -255,7 +258,7 @@ namespace Threadle.Core.Utilities
             StructureResult result;
             if (format == FileFormat.TsvGzip)
             {
-                result = CompressedTsvSerializer.LoadNetworkFromFile(filepath)
+                result = FileSerializerTsv.LoadNetworkFromFile(filepath)
                     ?? throw new Exception($"Error: Failed to load Network '{filepath}'");
             }
             else

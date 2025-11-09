@@ -486,7 +486,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <returns>A HashSet with all unique node ids currently existing in the <see cref="Network">.</returns>
         /// <remarks>
-        /// This is currently used by CompressedTsvSerializer when loading a network without an existing Nodeset. I might change that so that a network MUST have a reference to a saved
+        /// This is currently used by FileSerializerTsv when loading a network without an existing Nodeset. I might change that so that a network MUST have a reference to a saved
         /// Nodeset. Or that it creates Nodes on the fly.
         /// </remarks>
         internal HashSet<uint> GetAllIdsMentioned()

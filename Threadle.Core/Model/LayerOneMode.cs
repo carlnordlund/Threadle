@@ -54,7 +54,7 @@ namespace Threadle.Core.Model
         public LayerOneMode()
         {
             // Factory isn't initialized after loading, need to do that!
-            // Regarding sentence above: Hm, no, this is used by CompressedTsvSerializer, and factory
+            // Regarding sentence above: Hm, no, this is used by FileSerializerTsv, and factory
             // is initialized!
         }
 

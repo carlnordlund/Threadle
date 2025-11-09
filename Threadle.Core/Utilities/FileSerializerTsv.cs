@@ -10,30 +10,44 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Utilities
 {
-    public static class CompressedTsvSerializer
+    /// <summary>
+    /// Class for loading/saving structures in Tab-separated values (TSV) format
+    /// </summary>
+    internal static class FileSerializerTsv
     {
+        #region Fields
+        /// <summary>
+        /// Creates a reusable UTF-8 encoding object (without a Byte Order Mark) for use throughout the class.
+        /// </summary>
         private static readonly Encoding Utf8NoBom = new UTF8Encoding(false);
+        #endregion
 
-        private static Stream WrapIfCompressed(Stream stream, string filepath, CompressionMode mode)
-        {
-            return filepath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-                ? new GZipStream(stream, mode)
-                : stream;
-        }
-
-        public static Nodeset LoadNodesetFromFile(string filepath)
+        #region Methods (internal)
+        /// <summary>
+        /// Method for loading a nodeset from file (TSV format).
+        /// Could throw exceptions that must be caught.
+        /// </summary>
+        /// <param name="filepath">The filepath to the file.</param>
+        /// <returns>A Nodeset object.</returns>
+        internal static Nodeset LoadNodesetFromFile(string filepath)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Decompress);
             using var reader = new StreamReader(stream, Utf8NoBom);
 
-            Nodeset nodeset = ReadNodesetFromFile(reader);
-            nodeset.Filepath = filepath;
-            nodeset.IsModified = false;
+            Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
+            //nodeset.Filepath = filepath;
+            //nodeset.IsModified = false;
             return nodeset;
         }
 
-        public static void SaveNodesetToFile(Nodeset nodeset, string filepath)
+        /// <summary>
+        /// Method for saving a nodeset to file (TSV format).
+        /// Could throw exceptions that must be caught.
+        /// </summary>
+        /// <param name="nodeset">The Nodeset to save to file.</param>
+        /// <param name="filepath">The filepath to save to.</param>
+        internal static void SaveNodesetToFile(Nodeset nodeset, string filepath)
         {
             using var fileStream = File.Create(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
@@ -43,7 +57,14 @@ namespace Threadle.Core.Utilities
             nodeset.IsModified = false;
         }
 
-        public static StructureResult LoadNetworkFromFile(string filepath)
+        /// <summary>
+        /// Method for loading a Network from file (TSV format). Could possibly also
+        /// load a Nodeset object if that is specified in the file.
+        /// Could throw exceptions that must be caught.
+        /// </summary>
+        /// <param name="filepath">The filepath to the file.</param>
+        /// <returns>A StructureResult object containing the Network object, and possibly also a Nodeset object.</returns>
+        internal static StructureResult LoadNetworkFromFile(string filepath)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Decompress);
@@ -52,7 +73,14 @@ namespace Threadle.Core.Utilities
             return ReadNetworkFromFile(filepath, reader);
         }
 
-        public static void SaveNetworkToFile(Network network, string filepath, string? nodesetFileReference =null)
+        /// <summary>
+        /// Method for saving a Network to file (TSV format). Could possibly also
+        /// save a Nodeset object if the nodesetFileReference is specified.
+        /// </summary>
+        /// <param name="network">The Network to save to file.</param>
+        /// <param name="filepath">The filepath to save the Network to.</param>
+        /// <param name="nodesetFileReference">The filepath to save the Nodeset of the Network to.</param>
+        internal static void SaveNetworkToFile(Network network, string filepath, string? nodesetFileReference =null)
         {
             using var fileStream = File.Create(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
@@ -62,18 +90,37 @@ namespace Threadle.Core.Utilities
             network.Filepath = filepath;
             network.IsModified = false;
         }
+        #endregion
 
+        #region Methods (support; private)
+        /// <summary>
+        /// Support method to potentially attach a GZipStream around the existing stream.
+        /// Checks the filepath: if it ends with .gz, then the GZip is attached.
+        /// </summary>
+        /// <param name="stream">The file stream.</param>
+        /// <param name="filepath">The filepath.</param>
+        /// <param name="mode">The used CompressionMode</param>
+        /// <returns>The original stream or the GZip stream.</returns>
+        private static Stream WrapIfCompressed(Stream stream, string filepath, CompressionMode mode)
+        {
+            return filepath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
+                ? new GZipStream(stream, mode)
+                : stream;
+        }
 
-
+        /// <summary>
+        /// Support method to write a Network object to file, and possibly also its Nodeset object.
+        /// </summary>
+        /// <param name="network">The Network object to save to file.</param>
+        /// <param name="writer">The stream writer.</param>
+        /// <param name="nodesetFileReference">Filepath to where to save the Nodeset object (optional).</param>
         private static void WriteNetworkToFile(Network network, StreamWriter writer, string? nodesetFileReference)
         {
             writer.WriteLine("# Network Metadata");
             writer.WriteLine($"Name: {network.Name}");
             if (!string.IsNullOrEmpty(nodesetFileReference))
                 writer.WriteLine($"NodesetFile: {nodesetFileReference}");
-
             var sb = new StringBuilder();
-
             foreach ((string layerName, ILayer layer) in network.Layers)
             {
                 writer.WriteLine();
@@ -85,7 +132,6 @@ namespace Threadle.Core.Utilities
                     writer.WriteLine($"Directionality: {layerOneMode.Directionality.ToString().ToLower()}");
                     writer.WriteLine($"ValueType: {layerOneMode.EdgeValueType.ToString().ToLower()}");
                     writer.WriteLine($"Selfties: {layerOneMode.Selfties.ToString().ToLower()}");
-
                     string nodelist = string.Empty;
                     foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
                         if ((nodelist = edgeset.GetNodelistAlterString(nodeId)).Length > 0)
@@ -108,15 +154,19 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        /// <summary>
+        /// Support method to read a Network object from file, and possibly also its Nodeset object.
+        /// </summary>
+        /// <param name="filepath">Filepath to the file.</param>
+        /// <param name="reader">The StreamReader object</param>
+        /// <returns>A StructureResult object containing the Network object, and possibly also a Nodeset object.</returns>
         private static StructureResult ReadNetworkFromFile(string filepath, StreamReader reader)
         {
             var network = new Network("");
             Nodeset? nodeset = null;
             string? nodesetFileReference = null;
-            
             string? line;
             ILayer? currentLayer = null;
-
             while ((line = reader.ReadLine()) != null)
             {
                 line = line.Trim();
@@ -135,11 +185,7 @@ namespace Threadle.Core.Utilities
                 if (line.StartsWith("LayerMode:", StringComparison.OrdinalIgnoreCase))
                 {
                     if (currentLayer != null)
-                    {
-                        // Working on a previous layer, so save that first
                         network.Layers.Add(currentLayer.Name, currentLayer);
-                    }
-
                     string layerModeStr = line.Substring("LayerMode:".Length).Trim();
                     if (layerModeStr.Equals("1"))
                         currentLayer = new LayerOneMode();
@@ -149,19 +195,14 @@ namespace Threadle.Core.Utilities
                 }
                 if (currentLayer != null && line.Contains(":"))
                 {
-                    // Working with a layer and got some parameters to set for this layer
                     if (line.StartsWith("LayerName:", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // applies for both 1-mode and 2-mode
                         currentLayer.Name = line.Substring("LayerName:".Length).Trim();
-                    }
                     else if (currentLayer is LayerOneMode currentLayerOneMode)
                     {
                         if (line.StartsWith("Directionality:", StringComparison.OrdinalIgnoreCase))
                         {
                             string dirString = line.Substring("Directionality:".Length).Trim().ToLower();
                             currentLayerOneMode.Directionality = dirString.Equals("directed") ? EdgeDirectionality.Directed : EdgeDirectionality.Undirected;
-                            // Given that I got directionality, try initializing the factory
                             currentLayerOneMode.TryInitFactory();
                         }
                         else if (line.StartsWith("ValueType:", StringComparison.OrdinalIgnoreCase))
@@ -172,7 +213,6 @@ namespace Threadle.Core.Utilities
                                 "valued" => EdgeType.Valued,
                                 _ => EdgeType.Binary
                             };
-                            // Given that I got value type, try initializing the factory
                             currentLayerOneMode.TryInitFactory();
                         }
                         else if (line.StartsWith("Selfties:", StringComparison.OrdinalIgnoreCase))
@@ -197,8 +237,6 @@ namespace Threadle.Core.Utilities
                             if (string.IsNullOrWhiteSpace(parts[i]))
                                 continue;
                             uint alter = uint.Parse(parts[i]);
-                            // The AddEdge() below does layer-specific checks on directionality, selfties
-                            // and UserSetting checks on outbound only and BlockMultiedges
                             layerOneMode.AddEdge(ego, alter);
                         }
                     }
@@ -211,8 +249,6 @@ namespace Threadle.Core.Utilities
                             var subparts = parts[i].Split(';', 2);
                             uint alter = uint.Parse(subparts[0]);
                             float val = Misc.FixConnectionValue(float.Parse(subparts[1], CultureInfo.InvariantCulture), layerOneMode.EdgeValueType);
-                            // The AddEdge() below does layer-specific checks on directionality, selfties
-                            // and UserSetting checks on outbound only and BlockMultiedges
                             layerOneMode.AddEdge(ego, alter, val);
                         }
                     }
@@ -223,19 +259,14 @@ namespace Threadle.Core.Utilities
                     if (parts.Length == 0)
                         continue;
                     string hyperName = parts[0];
-                    // By calling the AddHyperedge() in layerTwoMode, the ValidateNode setting is bypassed, as it should!
                     if (parts.Length > 1)
                         layerTwoMode.AddHyperedge(hyperName, Misc.NodesIdsStringToArray(parts[1], '\t'));
-                    //network.AddHyperedge(layerTwoMode, hyperName, Misc.NodesIdsStringToArray(parts[1], '\t'));
                     else
                         layerTwoMode.AddHyperedge(hyperName, null);
-                        //layerTwoMode.AddHyperedge(hyperName, new HyperEdge());
                 }
             }
             if (currentLayer != null)
-                // Reached last line and likely have the last layer to save
                 network.Layers.Add(currentLayer.Name, currentLayer);
-
             network.Filepath = filepath;
             network.IsModified = false;
 
@@ -261,55 +292,19 @@ namespace Threadle.Core.Utilities
             });
         }
 
-        private static Nodeset ReadNodesetFromFile(StreamReader reader)
-        {
-            var header = reader.ReadLine() ?? throw new InvalidDataException("Missing header line.");
-            var columns = header.Split('\t');
-            var nodeset = new Nodeset { Name = columns[0] };
-
-            int nbrCols = columns.Length;
-            string[] attributeNames = new string[nbrCols-1];
-
-            for (int i = 1; i < nbrCols; i++)
-            {
-                var parts = columns[i].Split(':', 2);
-                if (parts.Length != 2) throw new InvalidDataException($"Invalid column header: {columns[i]}");
-
-                attributeNames[i - 1] = parts[0];
-                nodeset.DefineNodeAttribute(parts[0], parts[1]);
-            }
-
-            while (!reader.EndOfStream)
-            {
-                var line = reader.ReadLine();
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                var parts = line.Split('\t');
-                uint nodeId = uint.Parse(parts[0]);
-                nodeset.AddNode(nodeId);
-
-                for (int i = 1; i < parts.Length && i <= nbrCols; i++)
-                {
-                    var val = parts[i];
-                    if (string.IsNullOrEmpty(val)) continue;
-
-                    nodeset.SetNodeAttribute(nodeId, attributeNames[i - 1], val);
-                }
-            }
-            return nodeset;
-        }
-
+        /// <summary>
+        /// Support method to write a Nodeset object to file.
+        /// </summary>
+        /// <param name="nodeset">The Nodeset object to save to file.</param>
+        /// <param name="writer">The stream writer.</param>
         private static void WriteNodesetToFile(Nodeset nodeset, StreamWriter writer)
         {
             var attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().ToList();
             int nbrAttributes = attributeDefs.Count;
-
             var header = nodeset.Name;
-
             if (attributeDefs.Count > 0)
                 header += "\t" + string.Join("\t", attributeDefs.Select(a => $"{a.Name}:{a.Type}"));
             writer.WriteLine(header);
-
             foreach (uint node in nodeset.NodeIdArray)
             {
                 var row = new List<string> { node.ToString() };
@@ -321,5 +316,43 @@ namespace Threadle.Core.Utilities
                 writer.WriteLine(string.Join("\t", row));
             }
         }
+
+        /// <summary>
+        /// Support method to read a Nodeset object from file.
+        /// </summary>
+        /// <param name="filepath">Filepath to the file.</param>
+        /// <param name="reader">The StreamReader object</param>
+        /// <returns>A Nodeset object.</returns>
+        private static Nodeset ReadNodesetFromFile(string filepath, StreamReader reader)
+        {
+            var header = reader.ReadLine() ?? throw new InvalidDataException("Missing header line.");
+            var columns = header.Split('\t');
+            var nodeset = new Nodeset { Name = columns[0], Filepath = filepath, IsModified = false };
+            int nbrCols = columns.Length;
+            string[] attributeNames = new string[nbrCols-1];
+            for (int i = 1; i < nbrCols; i++)
+            {
+                var parts = columns[i].Split(':', 2);
+                if (parts.Length != 2) throw new InvalidDataException($"Invalid column header: {columns[i]}");
+                attributeNames[i - 1] = parts[0];
+                nodeset.DefineNodeAttribute(parts[0], parts[1]);
+            }
+            while (!reader.EndOfStream)
+            {
+                var line = reader.ReadLine();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var parts = line.Split('\t');
+                uint nodeId = uint.Parse(parts[0]);
+                nodeset.AddNode(nodeId);
+                for (int i = 1; i < parts.Length && i <= nbrCols; i++)
+                {
+                    var val = parts[i];
+                    if (string.IsNullOrEmpty(val)) continue;
+                    nodeset.SetNodeAttribute(nodeId, attributeNames[i - 1], val);
+                }
+            }
+            return nodeset;
+        }
+        #endregion
     }
 }
