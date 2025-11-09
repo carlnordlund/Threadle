@@ -9,7 +9,7 @@ using System.Xml.Linq;
 
 namespace Threadle.Core.Utilities
 {
-    public static class FormatImporters
+    internal static class FormatImporters
     {
         internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, string separator, bool addMissingNodes)
         {
