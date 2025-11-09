@@ -78,6 +78,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                 if (command == null)
                 {
                     ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
+                    ConsoleOutput.WriteEndMarker();
                     continue;
                 }
                 
