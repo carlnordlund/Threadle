@@ -21,6 +21,21 @@
   <ItemGroup>
     <ProjectReference Include="..\Threadle.Core\Threadle.Core.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Examples\dscw.tsv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Examples\dscw_nodeset.tsv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Examples\lazega.tsv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Examples\lazega_nodes.tsv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
   
   <Target Name="AlwaysBuildCore" BeforeTargets="Build">
     <MSBuild Projects="..\Threadle.Core\Threadle.Core.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />

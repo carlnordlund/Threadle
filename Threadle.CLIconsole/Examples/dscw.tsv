@@ -1,0 +1,21 @@
+# Network Metadata
+Name: Davis's Southern Club Women
+NodesetFile: dscw_nodeset.tsv
+
+# Layer
+LayerMode: 2
+LayerName: events
+E1	1	2	4
+E2	1	2	3
+E3	1	2	3	4	5	6
+E4	1	3	4	5
+E5	1	2	3	4	5	6	7	9
+E6	1	2	3	4	6	7	8	14
+E7	2	3	4	5	7	9	10	13	14	15
+E8	1	2	3	4	6	7	8	9	10	11	12	13	15	16
+E9	1	3	8	9	10	11	12	13	14	16	17	18
+E10	11	12	13	14	15
+E11	14	15	17	18
+E12	10	11	12	13	14	15
+E13	12	13	14
+E14	12	13	14
