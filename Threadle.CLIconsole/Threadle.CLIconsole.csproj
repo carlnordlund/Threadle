@@ -35,6 +35,12 @@
     <None Update="Examples\lazega_nodes.tsv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Examples\mynet.tsv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Examples\mynet_nodesetfile.tsv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   
   <Target Name="AlwaysBuildCore" BeforeTargets="Build">

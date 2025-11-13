@@ -10,30 +10,70 @@ namespace Threadle.Core.Model
     /// Describes an affiliation, e.g. like a specific school class, a specific workplace or similar
     /// which is then an HyperEdge: a collection of Nodes that are connected.
     /// Each such affiliation should have a label (e.g. arbplatsId), but that is stored
-    /// in LayerTwomode.AllHyperEdges dictionary
+    /// in LayerTwomode.AllHyperEdges dictionary, not in the actual Hyperedge object.
     /// </summary>
     public class HyperEdge
     {
+        #region Fields
         /// <summary>
-        /// Decided to store this as a List, not a HashSet: saves memory, and not really needed to have this info actually!
+        /// List of node id that the Hyperedge connects.
         /// </summary>
-        public List<uint> nodeIds;
+        private List<uint> _nodeIds = [];
+        #endregion
 
-        public int NbrNodes => nodeIds.Count;
 
+        #region Constructors
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HyperEdge"/> class,
+        /// not connected to any node ids.
+        /// </summary>
         public HyperEdge()
         {
-            nodeIds = [];
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HyperEdge"/> class,
+        /// setting its connected endpoints to the provided array of node ids.
+        /// </summary>
+        /// <param name="nodeIds">An array of node ids that the Hyperedge connects.</param>
         public HyperEdge(uint[] nodeIds)
         {
-            this.nodeIds = [.. nodeIds];
+            _nodeIds = [.. nodeIds];
         }
+        #endregion
 
+
+        #region Properties
+        /// <summary>
+        /// The list of node ids that the hyperedge connects.
+        /// </summary>
+        public List<uint> NodeIds => _nodeIds;
+
+        /// <summary>
+        /// Returns the number of nodes connected by the hyperedge.
+        /// </summary>
+        public int NbrNodes => _nodeIds.Count;
+        #endregion
+
+
+        #region Methods
+        /// <summary>
+        /// Disconnects the hyperedge from all node ids.
+        /// </summary>
         internal void Clear()
         {
-            nodeIds.Clear();
+            _nodeIds.Clear();
         }
+
+        /// <summary>
+        /// Sets the node ids that the hyperedge is connected to (replacing any that it might
+        /// be connected to prior)
+        /// </summary>
+        /// <param name="nodeIds">List of node ids that the hyperedge should connect.</param>
+        internal void SetNodeIds(List<uint> nodeIds)
+        {
+            _nodeIds = nodeIds;
+        }
+        #endregion
     }
 }

@@ -21,6 +21,7 @@ namespace Threadle.Core.Model
         private readonly List<uint> _connections = [];
         #endregion
 
+
         #region Properties
         /// <summary>
         /// Returns the number of outbound edges in this edgeset, i.e. the
@@ -53,10 +54,11 @@ namespace Threadle.Core.Model
         public List<uint> GetInboundNodeIds { get => _connections; }
 
         /// <summary>
-        /// Returns a list of inbound and outbound node ids in this edgeset. Could thus contain duplicate node ids.
+        /// Returns a list of all node ids in this edgeset.
         /// </summary>
         public List<uint> GetAllNodeIds { get => _connections; }
         #endregion
+
 
         #region Methods
         /// <summary>
@@ -68,7 +70,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
         {
-            return AddEdge(partnerNodeId, value);
+            return AddEdge(partnerNodeId);
             //if (UserSettings.BlockMultiedges && _connections.Contains(partnerNodeId))
             //    return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
             //_connections.Add(partnerNodeId);
@@ -84,7 +86,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
         {
-            return AddEdge(partnerNodeId, value);
+            return AddEdge(partnerNodeId);
             //if (UserSettings.BlockMultiedges && _connections.Contains(partnerNodeId))
             //    return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
             //_connections.Add(partnerNodeId);                
@@ -95,9 +97,8 @@ namespace Threadle.Core.Model
         /// Private helper method for adding an edge, only used by the in- and outbound edge adder methods.
         /// </summary>
         /// <param name="partnerNodeId">The id of the partner node.</param>
-        /// <param name="value">The value of the edge (has no effect here).</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        private OperationResult AddEdge(uint partnerNodeId, float value)
+        private OperationResult AddEdge(uint partnerNodeId)
         {
             if (UserSettings.BlockMultiedges && _connections.Contains(partnerNodeId))
                 return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
@@ -109,7 +110,7 @@ namespace Threadle.Core.Model
         /// Removes an (inbound) edge from this edgeset.
         /// </summary>
         /// <param name="partnerNodeId">The id of the source node.</param>
-        /// <returns></returns>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveInboundEdge(uint partnerNodeId)
         {
             return RemoveEdge(partnerNodeId);
@@ -121,8 +122,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Removes an (outbound) edge from this edgeset.
         /// </summary>
-        /// <param name="partnerNodeId">The id of the source node.</param>
-        /// <returns></returns>
+        /// <param name="partnerNodeId">The id of the destination node.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveOutboundEdge(uint partnerNodeId)
         {
             return RemoveEdge(partnerNodeId);
@@ -134,8 +135,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Private helper method for removing an edge, only used by the in- and outbound edge remover methods.
         /// </summary>
-        /// <param name="partnerNodeId"></param>
-        /// <returns></returns>
+        /// <param name="partnerNodeId">The id of the partner node.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult RemoveEdge(uint partnerNodeId)
         {
             if (_connections.Remove(partnerNodeId))
@@ -181,7 +182,7 @@ namespace Threadle.Core.Model
         /// is less than the id of the target node.
         /// This method is thus not useful for getting Alter ids, but only a helper for saving networks to file.
         /// </summary>
-        /// <param name="nodeId">Reference node id</param>
+        /// <param name="egoNodeId">Reference node id</param>
         /// <returns>A tab-separated string with node ids.</returns>
         public string GetNodelistAlterString(uint egoNodeId)
         {

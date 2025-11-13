@@ -146,8 +146,8 @@ namespace Threadle.Core.Utilities
                     {
                         sb.Clear();
                         sb.Append(hyperName);
-                        if (hyperedge.nodeIds.Count > 0)
-                            sb.Append("\t" + string.Join("\t", hyperedge.nodeIds));
+                        if (hyperedge.NodeIds.Count > 0)
+                            sb.Append("\t" + string.Join("\t", hyperedge.NodeIds));
                         writer.WriteLine(sb.ToString());
                     }
                 }
@@ -354,6 +354,7 @@ namespace Threadle.Core.Utilities
                     nodeset.SetNodeAttribute(nodeId, attributeNames[i - 1], val);
                 }
             }
+            nodeset.IsModified = false;
             return nodeset;
         }
         #endregion

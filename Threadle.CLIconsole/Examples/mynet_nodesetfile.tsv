@@ -1,0 +1,9 @@
+mynet_nodeset	gender:Char	weight:Float
+123	m	122.4
+234	m	
+345	o	344.6
+456		455.7
+567	f	
+678	f	
+789	m	
+890	f	

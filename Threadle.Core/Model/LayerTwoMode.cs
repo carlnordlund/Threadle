@@ -70,7 +70,7 @@ namespace Threadle.Core.Model
             AllHyperEdges.Add(hyperName, hyperedge);
             if (nodeIds != null && nodeIds.Length > 0)
             {
-                hyperedge.nodeIds = [.. nodeIds.Distinct()];
+                hyperedge.SetNodeIds([.. nodeIds.Distinct()]);
                 foreach (uint nodeid in nodeIds)
                     AddHyperEdgeToNode(nodeid, hyperedge);
             }
@@ -96,9 +96,9 @@ namespace Threadle.Core.Model
             if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
                 return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{Name}'.");
             AllHyperEdges.Remove(hyperName);
-            if (hyperedge.nodeIds.Count > 0)
+            if (hyperedge.NodeIds.Count > 0)
             {
-                foreach (uint nodeId in hyperedge.nodeIds)
+                foreach (uint nodeId in hyperedge.NodeIds)
                     RemoveHyperEdgeFromNode(nodeId, hyperedge);
             }
             return OperationResult.Ok($"Hyperedge '{hyperName}' removed from 2-mode layer '{Name}'.");
@@ -108,7 +108,7 @@ namespace Threadle.Core.Model
         {
             HyperEdgeCollections.Remove(nodeId);
             foreach (HyperEdge hyperedge in AllHyperEdges.Values)
-                hyperedge.nodeIds.Remove(nodeId);
+                hyperedge.NodeIds.Remove(nodeId);
         }
 
 
@@ -124,7 +124,7 @@ namespace Threadle.Core.Model
             if (!HyperEdgeCollections.TryGetValue(sourceNodeId, out var hyperEdgeCollection))
                 return false;
             foreach (HyperEdge hyperedge in hyperEdgeCollection.HyperEdges)
-                if (hyperedge.nodeIds.Contains(targetNodeId))
+                if (hyperedge.NodeIds.Contains(targetNodeId))
                     return true;
             return false;
         }
@@ -136,7 +136,7 @@ namespace Threadle.Core.Model
 
             HashSet<uint> alters = [];
             foreach (HyperEdge hyperEdge in hyperEdgeCollection.HyperEdges)
-                alters.UnionWith(hyperEdge.nodeIds);
+                alters.UnionWith(hyperEdge.NodeIds);
             alters.Remove(nodeId);
             return [.. alters];
         }
@@ -152,7 +152,7 @@ namespace Threadle.Core.Model
             HashSet<uint> ids = [];
             foreach (HyperEdge hyperEdge in AllHyperEdges.Values)
             {
-                ids.UnionWith(hyperEdge.nodeIds);
+                ids.UnionWith(hyperEdge.NodeIds);
             }
             return ids;
         }

@@ -26,6 +26,7 @@ namespace Threadle.Core.Model
         private readonly List<uint> _inbound = [];
         #endregion
 
+
         #region Properties
         /// <summary>
         /// Returns the number of outbound edges in this edgeset.
@@ -58,6 +59,7 @@ namespace Threadle.Core.Model
         /// </summary>
         public List<uint> GetAllNodeIds { get => [.. _outbound, .. _inbound]; }
         #endregion
+
 
         #region Methods
         /// <summary>
@@ -154,7 +156,7 @@ namespace Threadle.Core.Model
         /// but not necessary for directional edges.
         /// This method is thus not useful for getting Alter ids, but only a helper for saving networks to file.
         /// </summary>
-        /// <param name="nodeId">Reference node id</param>
+        /// <param name="egoNodeId">Reference node id</param>
         /// <returns>A tab-separated string with node ids.</returns>
         public string GetNodelistAlterString(uint egoNodeId)
         {
@@ -181,7 +183,6 @@ namespace Threadle.Core.Model
                 case EdgeTraversal.Both:
                     if (_outbound.Count == 0) return _inbound.Count > 0 ? [.. _inbound] : [];
                     if (_inbound.Count == 0) return [.. _outbound];
-
                     var union = new HashSet<uint>(_outbound.Count + _inbound.Count);
                     foreach (var id in _outbound) union.Add(id);
                     foreach (var id in _inbound) union.Add(id);
