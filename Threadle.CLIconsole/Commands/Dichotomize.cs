@@ -26,7 +26,7 @@ namespace Threadle.CLIconsole.Commands
             float threshold = command.GetArgumentParseFloat("threshold", 1);
             float trueValue = command.GetArgument("truevalue") == "keep" ? float.NaN : command.GetArgumentParseFloat("truevalue", 1);
             float falseValue = command.GetArgument("falsevalue") == "keep" ? float.NaN : command.GetArgumentParseFloat("falsevalue", 0);
-            string newLayerName = network.GetnextAvailableLayerName(command.GetArgumentParseString("newlayername", layerName + "-dichotomized").ToLowerInvariant());
+            string newLayerName = network.GetNextAvailableLayerName(command.GetArgumentParseString("newlayername", layerName + "-dichotomized").ToLowerInvariant());
             OperationResult result = NetworkProcessor.DichotomizeLayer(network, layerName, conditionType, threshold, trueValue, falseValue, newLayerName);
             ConsoleOutput.WriteLine(result.ToString());
         }

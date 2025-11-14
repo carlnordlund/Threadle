@@ -152,7 +152,7 @@ namespace Threadle.Core.Model
         /// Used for cleaning up edgesets after a node has been removed from a nodeset.
         /// </summary>
         /// <param name="nodeId">The node id that should be searched for and eradicated.</param>
-        public void RemoveNodeEdges(uint nodeId)
+        public void RemoveNodeEdgesInEdgeset(uint nodeId)
         {
             _connections.RemoveAll(c => c.partnerNodeId == nodeId);
         }

@@ -81,18 +81,10 @@ namespace Threadle.Core.Model
         /// </summary>
         public bool IsModified { get; set; }
 
-        //private record InfoSummary(string Type, string Name, string Filepath, string Nodeset, object LayerMetadata);
-
         /// <summary>
-        /// Gets info about this network as a JSON-compatible string, including the layer names and modes
+        /// Returns a dictionary with meta-information about this Network, including nodeset name and Layers.
         /// </summary>
-        //public string Info => JsonSerializer.Serialize(new { Type = "Network", Name = Name, Filepath = Filepath, Nodeset = Nodeset.Name, Layers = LayerMetadata }, new JsonSerializerOptions { WriteIndented = false });
-
-        //public StructureMetadata Info => new NodesetMetadata(Name, Filepath, Count, NodeAttributeDefinitionManager.GetMetadataList());
-
-        //public StructureMetadata Info => new NetworkMetadata(Name, Filepath, Nodeset.Name, Layers.Select(kvp => kvp.Value.GetMetadata).ToList());
-
-        public Dictionary<string, object> Info =>             new Dictionary<string, object>
+        public Dictionary<string, object> Info => new Dictionary<string, object>
             {
                 ["Type"] = "Network",
                 ["Name"] = Name,
@@ -100,13 +92,6 @@ namespace Threadle.Core.Model
                 ["Nodeset"] = Nodeset.Name,
                 ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata).ToList()
             };
-
-        /// <summary>
-        /// Gets info about the layers in this network, as an enumerable of anonymous objects
-        /// </summary>
-        public IEnumerable<object> LayerMetadata =>
-            Layers.Select(kvp => new { LayerName = kvp.Key, Mode = (kvp.Value is LayerOneMode) ? 1 : 2 });
-
 
         /// <summary>
         /// Gets the Nodeset that this Network uses
@@ -120,28 +105,7 @@ namespace Threadle.Core.Model
         #endregion
 
 
-        #region Layer-related methods
-        /// <summary>
-        /// Creates a layer of relations (see <see cref="ILayer"/>) with the specified name.
-        /// </summary>
-        /// <param name="layerName">The name of the layer<./param>
-        /// <param name="layer">The <see cref="ILayer"/> object.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult AddLayer(string layerName, ILayer layer)
-        {
-            //if (!Misc.NormalizeNameAndCheckValidity(layerNameInput, out string layerName))
-            //    return OperationResult.Fail("InvalidLayerName", $"Layer name '{layerNameInput}' is invalid.");
-            layerName = layerName.Trim();
-            if (string.IsNullOrEmpty(layerName))
-                return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");
-            var layerResult = GetLayer(layerName);
-            if (layerResult.Success)
-                return OperationResult.Fail("LayerAlreadyExists", $"Layer with name '{layerName}' already exists.");
-            Layers[layerName] = layer;
-            IsModified = true;
-            return OperationResult.Ok($"Layer '{layerName}' added to network '{Name}'");
-        }
-
+        #region Methods (public)
         /// <summary>
         /// Creates a layer of 1-mode relations (see <see cref="LayerOneMode"/>) with the specified name and relational properties.
         /// </summary>
@@ -197,36 +161,11 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the <see cref="ILayer"/> object for the specified layer, packaged in an OperationResult object.
-        /// Can be either a 1-mode or a 2-mode layer.
-        /// </summary>
-        /// <param name="layerName">The name of the layer.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="ILayer"/>.</returns>
-        public OperationResult<ILayer> GetLayer(string layerName)
-        {
-            if (!Layers.TryGetValue(layerName, out var layer))
-                return OperationResult<ILayer>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-            return OperationResult<ILayer>.Ok(layer);
-        }
-
-        /// <summary>
-        /// Gets the <see cref="ILayer"/> object for the specified layer, or null if not found.
-        /// Can be either a 1-mode or a 2-mode layer.
-        /// </summary>
-        /// <param name="layerName">The name of the layer.</param>
-        /// <returns>The <see cref="ILayer"/> object, or null if not found.</returns>
-        internal ILayer? TryGetlayer(string layerName)
-        {
-            Layers.TryGetValue(layerName, out var layer);
-            return layer;
-        }
-
-        /// <summary>
         /// Generates the next available layer name based on the specified base name.
         /// </summary>
         /// <param name="baseName">The base name to use for generating the layer name. Defaults to <c>"layer-"</c> if not specified.</param>
         /// <returns>A unique layer name that does not already exist in the collection of layers.</returns>
-        public string GetnextAvailableLayerName(string baseName = "layer")
+        public string GetNextAvailableLayerName(string baseName = "layer")
         {
             if (!Layers.ContainsKey(baseName))
                 return baseName;
@@ -240,44 +179,6 @@ namespace Threadle.Core.Model
             return layerName;
         }
 
-        //public OperationResult<ILayer> GetLayer(string layerName)
-        //{
-        //    if (!Layers.TryGetValue(layerName, out var layer))
-        //        return OperationResult<ILayer>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-        //    return OperationResult<ILayer>.Ok(layer);
-        //}
-
-        /// <summary>
-        /// Gets the <see cref="LayerOneMode"/> object for the specifed layer.
-        /// </summary>
-        /// <param name="layerName">The name of the 1-mode layer.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="LayerOneMode"/>.</returns>
-        public OperationResult<LayerOneMode> GetOneModeLayer(string layerName)
-        {
-            if (!Layers.TryGetValue(layerName, out var layer))
-                return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-            if (!(layer is LayerOneMode layerOneMode))
-                return OperationResult<LayerOneMode>.Fail("LayerNotOneMode", $"Layer '{layerName}' is not a 1-mode layer.");
-            return OperationResult<LayerOneMode>.Ok(layerOneMode);
-        }
-
-        /// <summary>
-        /// Gets the <see cref="LayerTwoMode"/> object for the specifed layer.
-        /// </summary>
-        /// <param name="layerName">The name of the 2-mode layer.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="LayerTwoMode"/>.</returns>
-        public OperationResult<LayerTwoMode> GetTwoModeLayer(string layerName)
-        {
-            if (!Layers.TryGetValue(layerName, out var layer))
-                return OperationResult<LayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-            if (!(layer is LayerTwoMode layerTwoMode))
-                return OperationResult<LayerTwoMode>.Fail("LayerNotTwoMode", $"Layer '{layerName}' is not a 2-mode layer.");
-            return OperationResult<LayerTwoMode>.Ok(layerTwoMode);
-        }
-        #endregion
-
-
-        #region Edge-related methods
         /// <summary>
         /// Adds an edge between <paramref name="node1id"/> and <paramref name="node2id"/>, in the specified (1-mode) layer.
         /// The edge is either directional or symmetric depending on the properties of the layer.
@@ -297,6 +198,14 @@ namespace Threadle.Core.Model
                 return layerResult;
             return AddEdge(layerResult.Value!, node1id, node2id, value, addMissingNodes);
         }
+
+        /// <summary>
+        /// Removes an (the) edge between node1id and node2id in the specified 1-mode layer.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="node1id">The first node id.</param>
+        /// <param name="node2id">The second node id.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveEdge(string layerName, uint node1id, uint node2id)
         {
             var layerResult = GetOneModeLayer(layerName);
@@ -305,77 +214,15 @@ namespace Threadle.Core.Model
             return RemoveEdge(layerResult.Value!, node1id, node2id);
         }
 
+        /// <summary>
+        /// Removes all edges for a node id in all layers.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
         public void RemoveNodeEdges(uint nodeId)
         {
             foreach (ILayer layer in Layers.Values)
                 layer.RemoveNodeEdges(nodeId);
         }
-
-        public OperationResult RemoveHyperedge(string layerName, string hyperName)
-        {
-            var layerResult = GetTwoModeLayer(layerName);
-            if (!layerResult.Success)
-                return layerResult;
-            return RemoveHyperedge(layerResult.Value!, hyperName);
-        }
-
-
-
-        /// <summary>
-        /// Adds an edge between node1id and node2id in the specified 1-mode layer.
-        /// </summary>
-        /// <param name="layerOneMode">The <see cref="LayerOneMode"/> layer.</param>
-        /// <param name="node1id">Id of the first node.</param>
-        /// <param name="node2id">Id of the second node.</param>
-        /// <param name="value">Value of the edge.</param>
-        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        internal OperationResult AddEdge(LayerOneMode layerOneMode, uint node1id, uint node2id, float value, bool addMissingNodes)
-        {
-            value = Misc.FixConnectionValue(value, layerOneMode.EdgeValueType);
-            if (value == 0)
-                return OperationResult.Ok("Edge value is zero: no edge added.");
-            if (!addMissingNodes)
-            {
-                var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
-                if (!nodeCheckResult.Success)
-                    return nodeCheckResult;
-            }
-            OperationResult result = layerOneMode.AddEdge(node1id, node2id, value);
-            if (result.Success)
-            {
-                if (addMissingNodes)
-                {
-                    if (!Nodeset.CheckThatNodeExists(node1id))
-                        Nodeset.AddNode(node1id);
-                    if (!Nodeset.CheckThatNodeExists(node2id))
-                        Nodeset.AddNode(node2id);
-                }
-                IsModified = true;
-            }
-            return result;
-        }
-
-        public OperationResult RemoveEdge(LayerOneMode layerOneMode, uint node1id, uint node2id)
-        {
-            var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
-            if (!nodeCheckResult.Success)
-                return nodeCheckResult;
-            OperationResult result = layerOneMode.RemoveEdge(node1id, node2id);
-            if (result.Success)
-                IsModified = true;
-            return result;
-
-        }
-
-        public OperationResult RemoveHyperedge(LayerTwoMode layerTwoMode, string hypername)
-        {
-            OperationResult result = layerTwoMode.RemoveHyperedge(hypername);
-            if (result.Success)
-                IsModified = true;
-            return result;
-        }
-
 
         /// <summary>
         /// Adds an hyperedge in the specified (2-mode) layer. An optional array with node ids indicates the nodes that are connected
@@ -385,7 +232,7 @@ namespace Threadle.Core.Model
         /// <param name="hyperName">The (unique) name of the hyperedge.</param>
         /// <param name="nodeIds">An array of node ids (uint[]).</param>
         /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddHyperedge(string layerName, string hyperName, uint[]? nodeIds = null, bool addMissingNodes = true)
         {
             var layerResult = GetTwoModeLayer(layerName);
@@ -395,32 +242,17 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an hyperedge to the specified 2-mode layer.
+        /// Removes the specified Hyperedge and its connections to nodes in the specificed layer.
         /// </summary>
-        /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> layer.</param>
-        /// <param name="hyperName">The (unique) name of the hyperedge.</param>
-        /// <param name="nodeIds">An array of node ids (uint[]).</param>
-        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult AddHyperedge(LayerTwoMode layerTwoMode, string hyperName, uint[]? nodeIds, bool addMissingNodes)
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="hyperName">The name of the Hyperedge.</param>
+        /// <returns></returns>
+        public OperationResult RemoveHyperedge(string layerName, string hyperName)
         {
-            if (nodeIds != null && nodeIds.Length > 0)
-            {
-                List<uint> existingNodeIds = [];
-                foreach (uint id in nodeIds)
-                {
-                    if (!Nodeset.CheckThatNodeExists(id))
-                    {
-                        if (addMissingNodes)
-                            Nodeset.AddNode(id);
-                        else
-                            continue;
-                    }
-                    existingNodeIds.Add(id);
-                }
-                nodeIds = existingNodeIds.ToArray();
-            }
-            return layerTwoMode.AddHyperedge(hyperName, nodeIds);
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            return RemoveHyperedge(layerResult.Value!, hyperName);
         }
 
         /// <summary>
@@ -460,6 +292,13 @@ namespace Threadle.Core.Model
             return OperationResult<float>.Ok(layerResult.Value!.GetEdgeValue(node1id, node2id));
         }
 
+        /// <summary>
+        /// Returns an array of node ids for the alter of a specified ego node in a specified layer.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="edgeTraversal">A <see cref="EdgeTraversal"/> value indicating which alters should be included.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="uint"/> array.</returns>
         public OperationResult<uint[]> GetNodeAlters(string layerName, uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
             if (!Nodeset.CheckThatNodeExists(nodeId))
@@ -467,14 +306,170 @@ namespace Threadle.Core.Model
             var layerResult = GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
-            uint[] alterIds = Nodeset.RemoveNonExistentNodes(layerResult.Value!.GetAlterIds(nodeId, edgeTraversal));
+            uint[] alterIds = Nodeset.FilterOutNonExistingNodeIds(layerResult.Value!.GetAlterIds(nodeId, edgeTraversal));
             Array.Sort(alterIds);
             return OperationResult<uint[]>.Ok(alterIds);
         }
         #endregion
 
 
-        #region Support methods
+        #region Methods (internal)
+        /// <summary>
+        /// Creates a layer of relations (see <see cref="ILayer"/>) with the specified name.
+        /// </summary>
+        /// <param name="layerName">The name of the layer<./param>
+        /// <param name="layer">The <see cref="ILayer"/> object.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult AddLayer(string layerName, ILayer layer)
+        {
+            layerName = layerName.Trim();
+            if (string.IsNullOrEmpty(layerName))
+                return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");
+            var layerResult = GetLayer(layerName);
+            if (layerResult.Success)
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer with name '{layerName}' already exists.");
+            Layers[layerName] = layer;
+            IsModified = true;
+            return OperationResult.Ok($"Layer '{layerName}' added to network '{Name}'");
+        }
+
+        /// <summary>
+        /// Gets the <see cref="ILayer"/> object for the specified layer, packaged in an OperationResult object.
+        /// Can be either a 1-mode or a 2-mode layer.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="ILayer"/>.</returns>
+        internal OperationResult<ILayer> GetLayer(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<ILayer>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            return OperationResult<ILayer>.Ok(layer);
+        }
+
+        /// <summary>
+        /// Gets the <see cref="LayerOneMode"/> object for the specifed layer.
+        /// </summary>
+        /// <param name="layerName">The name of the 1-mode layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="LayerOneMode"/>.</returns>
+        internal OperationResult<LayerOneMode> GetOneModeLayer(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (!(layer is LayerOneMode layerOneMode))
+                return OperationResult<LayerOneMode>.Fail("LayerNotOneMode", $"Layer '{layerName}' is not a 1-mode layer.");
+            return OperationResult<LayerOneMode>.Ok(layerOneMode);
+        }
+
+        /// <summary>
+        /// Gets the <see cref="LayerTwoMode"/> object for the specifed layer.
+        /// </summary>
+        /// <param name="layerName">The name of the 2-mode layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="LayerTwoMode"/>.</returns>
+        internal OperationResult<LayerTwoMode> GetTwoModeLayer(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<LayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (!(layer is LayerTwoMode layerTwoMode))
+                return OperationResult<LayerTwoMode>.Fail("LayerNotTwoMode", $"Layer '{layerName}' is not a 2-mode layer.");
+            return OperationResult<LayerTwoMode>.Ok(layerTwoMode);
+        }
+
+        /// <summary>
+        /// Adds an edge between node1id and node2id in the specified 1-mode layer.
+        /// </summary>
+        /// <param name="layerOneMode">The <see cref="LayerOneMode"/> layer.</param>
+        /// <param name="node1id">Id of the first node.</param>
+        /// <param name="node2id">Id of the second node.</param>
+        /// <param name="value">Value of the edge.</param>
+        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult AddEdge(LayerOneMode layerOneMode, uint node1id, uint node2id, float value, bool addMissingNodes)
+        {
+            value = Misc.FixConnectionValue(value, layerOneMode.EdgeValueType);
+            if (value == 0)
+                return OperationResult.Ok("Edge value is zero: no edge added.");
+            if (!addMissingNodes)
+            {
+                var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+                if (!nodeCheckResult.Success)
+                    return nodeCheckResult;
+            }
+            OperationResult result = layerOneMode.AddEdge(node1id, node2id, value);
+            if (result.Success)
+            {
+                if (addMissingNodes)
+                {
+                    if (!Nodeset.CheckThatNodeExists(node1id))
+                        Nodeset.AddNode(node1id);
+                    if (!Nodeset.CheckThatNodeExists(node2id))
+                        Nodeset.AddNode(node2id);
+                }
+                IsModified = true;
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Removes an edge between two nodes in the specified 1-mode layer object.
+        /// </summary>
+        /// <param name="layerOneMode">The <see cref="LayerOneMode"/> object.</param>
+        /// <param name="node1id">The first node id.</param>
+        /// <param name="node2id">The second node id.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult RemoveEdge(LayerOneMode layerOneMode, uint node1id, uint node2id)
+        {
+            var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+            if (!nodeCheckResult.Success)
+                return nodeCheckResult;
+            OperationResult result = layerOneMode.RemoveEdge(node1id, node2id);
+            if (result.Success)
+                IsModified = true;
+            return result;
+        }
+
+        /// <summary>
+        /// Adds an hyperedge to the specified 2-mode layer.
+        /// </summary>
+        /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> layer.</param>
+        /// <param name="hyperName">The (unique) name of the hyperedge.</param>
+        /// <param name="nodeIds">An array of node ids (uint[]).</param>
+        /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult AddHyperedge(LayerTwoMode layerTwoMode, string hyperName, uint[]? nodeIds, bool addMissingNodes)
+        {
+            if (nodeIds != null && nodeIds.Length > 0)
+            {
+                List<uint> existingNodeIds = [];
+                foreach (uint id in nodeIds)
+                {
+                    if (!Nodeset.CheckThatNodeExists(id))
+                    {
+                        if (addMissingNodes)
+                            Nodeset.AddNode(id);
+                        else
+                            continue;
+                    }
+                    existingNodeIds.Add(id);
+                }
+                nodeIds = existingNodeIds.ToArray();
+            }
+            return layerTwoMode.AddHyperedge(hyperName, nodeIds);
+        }
+
+        /// <summary>
+        /// Removes a specified hyperedge from the specified 2-mode layer object.
+        /// </summary>
+        /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> object.</param>
+        /// <param name="hypername">The name of the hyperedge.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult RemoveHyperedge(LayerTwoMode layerTwoMode, string hypername)
+        {
+            OperationResult result = layerTwoMode.RemoveHyperedge(hypername);
+            if (result.Success)
+                IsModified = true;
+            return result;
+        }
+
         /// <summary>
         /// Internal method for setting the Nodeset (only to be used by the loader)
         /// </summary>
@@ -496,10 +491,6 @@ namespace Threadle.Core.Model
                 ids.UnionWith(layer.GetMentionedNodeIds());
             return ids;
         }
-
-
-
-
         #endregion
     }
 }

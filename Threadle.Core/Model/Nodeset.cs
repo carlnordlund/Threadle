@@ -13,8 +13,8 @@ using Threadle.Core.Utilities;
 namespace Threadle.Core.Model
 {
     /// <summary>
-    /// Describes a Nodeset, consisting of a set of Nodes, indexes for these nodes,
-    /// nodal attribute definitions and actual nodal attributes.
+    /// Describes a Nodeset, consisting of a set of node id, a node attribute definition manager,
+    /// and node attributes.
     /// </summary>
     public class Nodeset : IStructure
     {
@@ -28,6 +28,11 @@ namespace Threadle.Core.Model
         /// Storage container for nodes WITHOUT attributes
         /// </summary>
         private HashSet<uint> _nodesWithoutAttributes = new();
+
+        /// <summary>
+        /// Internal array storing an array of all nodeId uint values. Lazy-initialized by NodeIdArray
+        /// </summary>
+        private uint[]? _nodeIdCache;
         #endregion
 
 
@@ -112,15 +117,9 @@ namespace Threadle.Core.Model
         /// </summary>
         public bool IsModified { get; set; }
 
-        //private record InfoSummary(string Type, string Name, string Filepath, int NbrNodes, object NodeAttributes);
-
         /// <summary>
-        /// Gets info about this structure as a JSON-compatible string
+        /// Returns a dictionary with meta-information about this Nodeset, including its attributes.
         /// </summary>
-        //public string Info => JsonSerializer.Serialize(new { Type = "Nodeset", Name, Filepath, NbrNodes = Count, NodeAttributes = NodeAttributeDefinitionManager.Info }, new JsonSerializerOptions { WriteIndented = false });
-
-        //public StructureMetadata Info => new NodesetMetadata(Name, Filepath, Count, NodeAttributeDefinitionManager.GetMetadataList());
-
         public Dictionary<string, object> Info => new Dictionary<string, object>
         {
             ["Type"] = "Nodeset",
@@ -130,21 +129,13 @@ namespace Threadle.Core.Model
             ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList()
         };
 
-        //{
-        //    Type = "Nodeset",
-        //    Name = this.Name,
-        //    Filepath = this.Filepath,
-        //    NbrNodes = this.Count,
-        //    NodeAttributes = NodeAttributeDefinitionManager.Info
-        //});
-
         /// <summary>
         /// Reference to the manager for node attribute definitions
         /// </summary>
         public NodeAttributeDefinitionManager NodeAttributeDefinitionManager { get; init; }
 
         /// <summary>
-        /// Returns an array of all NodeId uint values. How that is done depends mainly
+        /// Returns an array of all NodeId uint values. How this is done depends mainly
         /// on whether the 'nodecache' user setting is true or false. If active (true), the lazy-initialized
         /// nodeIdCache is used: first time this array is requested, the array is generated and stored in memory
         /// before being returned. Subsequent calls to NodeArray will return the same, already stored array.
@@ -162,14 +153,12 @@ namespace Threadle.Core.Model
         {
             get
             {
-                // If NodeCache is turned on, use the lazy initialized _nodeCache
                 if (UserSettings.NodeCache)
                 {
                     if (_nodeIdCache == null)
                         _nodeIdCache = GetAllNodeIds();
                     return _nodeIdCache;
                 }
-                // If NodeCache is turned off, always generate the array of nodes
                 return GetAllNodeIds();
             }
         }
@@ -181,7 +170,7 @@ namespace Threadle.Core.Model
         #endregion
 
 
-        #region Node-related methods
+        #region Methods (public)
         /// <summary>
         /// Adds a node with the specified nodeid to this Nodeset.
         /// </summary>
@@ -198,11 +187,12 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Adds a node with the specified nodeId to this Nodeset. Possible to provide an optional attribute dictionary
+        /// where node attribute indices are mapped on <see cref="NodeAttributeValue"/> objects.
         /// </summary>
-        /// <param name="nodeId"></param>
-        /// <param name="nodeAttrDict"></param>
+        /// <param name="nodeId">The id of the node.</param>
+        /// <param name="nodeAttrDict">An optional dictionary of node attributes for this node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult AddNode(uint nodeId, Dictionary<uint, NodeAttributeValue>? nodeAttrDict)
+        internal OperationResult AddNode(uint nodeId, Dictionary<uint, NodeAttributeValue>? nodeAttrDict)
         {
             if (CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeAlreadyExists", $"Node with ID '{nodeId}' already exists in nodeset '{Name}'.");
@@ -215,8 +205,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes the <see cref="Node"/> with the specified node id from this Nodeset. Also clears
-        /// the nodecache.
+        /// Removes the specified node id from this Nodeset. Also clears the nodecache.
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be removed.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
@@ -244,59 +233,6 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Checks if the Nodeset contains a node object with the specified id.
-        /// </summary>
-        /// <param name="nodeId">The id of the node that is to be checked.</param>
-        /// <returns>True if there is a <see cref="Node"/> object with this id in the Nodeset, false otherwise.</returns>
-        public bool CheckThatNodeExists(uint nodeId)
-        {
-            return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
-        }
-
-        /// <summary>
-        /// Checks if the Nodeset contains the two nodes with the specified ids.
-        /// </summary>
-        /// <param name="node1id">The id of the first node that is to be checked.</param>
-        /// <param name="node2id">The id of the second node that is to be checked.</param>
-        /// <returns>An <see cref="OperationResult.Success"> if both are found, Fail otherwise.</returns>
-        public OperationResult CheckThatNodesExist(uint node1id, uint node2id)
-        {
-            bool node1exists = CheckThatNodeExists(node1id);
-            bool node2exists = CheckThatNodeExists(node2id);
-            if (node1exists && node2exists)
-                return OperationResult.Ok();
-            if (!node1exists && !node2exists)
-                return OperationResult.Fail("NodeNotFound", $"Neither node {node1id} nor node {node2id} found in nodeset '{Name}'.");
-            if (!node1exists)
-                return OperationResult.Fail("NodeNotFound", $"Node {node1id} not found in nodeset '{Name}'.");
-            return OperationResult.Fail("NodeNotFound", $"Node {node2id} not found in nodeset '{Name}'.");
-        }
-
-        /// <summary>
-        /// Clones the current Nodeset, creating a new NodeAttributeDefinitionManager and copying its
-        /// content. Copies the node ids
-        /// </summary>
-        /// <param name="newName"></param>
-        /// <param name="cloneNodes"></param>
-        /// <returns></returns>
-        public Nodeset Clone(string? newName = null, bool cloneNodes = true)
-        {
-            Nodeset clone = new Nodeset(newName != null ? newName : Name + "_clone") { NodeAttributeDefinitionManager = NodeAttributeDefinitionManager.Clone() };
-
-            if (cloneNodes)
-            {
-                foreach (var (nodeId, attrDict) in _nodesWithAttributes)
-                    clone._nodesWithAttributes[nodeId] = new Dictionary<uint, NodeAttributeValue>(attrDict);
-                foreach (uint nodeId in _nodesWithoutAttributes)
-                    clone._nodesWithoutAttributes.Add(nodeId);
-            }
-            return clone;
-        }
-        #endregion
-
-
-        #region Attribute methods
-        /// <summary>
         /// Defines a new node attribute for this Nodeset with the given name and the specific attribute type
         /// as given by the provided string representation. Acts as a wrapper to the subsequent
         /// <see cref="DefineNodeAttribute(string, NodeAttributeType)"/> method.
@@ -312,21 +248,6 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Defines a new node attribute for this Nodeset with the given name and
-        /// <see cref="NodeAttributeType"/>. Each node attribute in a <see cref="Nodeset"> must have a unique name.
-        /// </summary>
-        /// <param name="attributeName">The name of the nodal attribute (must be unique in this Nodeset).</param>
-        /// <param name="attributeType">The type (using the <see cref="NodeAttributeType"/> enum) of this attribute.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult<uint> DefineNodeAttribute(string attributeName, NodeAttributeType attributeType)
-        {
-            OperationResult<uint> result = NodeAttributeDefinitionManager.DefineNewNodeAttribute(attributeName, attributeType);
-            if (result.Success)
-                Modified();
-            return result;
-        }
-
-        /// <summary>
         /// Undefines the node attribute with the specified name. This will also remove this attribute from all nodes.
         /// </summary>
         /// <param name="attributeName">The name of the nodal attribute to undefine.</param>
@@ -336,7 +257,6 @@ namespace Threadle.Core.Model
             OperationResult<uint> result = NodeAttributeDefinitionManager.UndefineNodeAttribute(attributeName);
             if (!result.Success)
                 return result;
-
             uint oldAttributeIndex = result.Value;
             List<uint> nodesToRemove = new();
             foreach (var kvp in _nodesWithAttributes)
@@ -353,7 +273,6 @@ namespace Threadle.Core.Model
             }
             return OperationResult.Ok($"Node attribute '{attributeName}' is no longer defined.");
         }
-
 
         /// <summary>
         /// Sets the specific value for the node attribute of the selected node id.
@@ -372,17 +291,12 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attributeName}' in nodeset '{Name}': possibly corrupted.");
             if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, valueStr) is NodeAttributeValue nodeAttribute))
                 return OperationResult.Fail("StringConversionError", $"Could not convert string '{valueStr}' to type '{attrType}'.");
-            // By now, I know that the node exists, either with or without attributes
-            // If it is currently not registered as having attributes, then move it to those with attributes
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attrDict))
             {
-                // Move from no-attributes to attributes
                 _nodesWithoutAttributes.Remove(nodeId);
-                // Create a new attribute dictionary
                 attrDict = new Dictionary<uint, NodeAttributeValue>();
                 _nodesWithAttributes.Add(nodeId, attrDict);
             }
-            // By now, the node is in the dictionary with attributes and it has a attribute dict prepared
             attrDict[attrIndex] = nodeAttribute;
             Modified();
             return OperationResult.Ok($"Attribute '{attributeName}' for node {nodeId} set to {nodeAttribute}.");
@@ -423,11 +337,77 @@ namespace Threadle.Core.Model
             Modified();
             if (attrDict.Count == 0)
             {
-                // No more attributes: move node
                 _nodesWithAttributes.Remove(nodeId);
                 _nodesWithoutAttributes.Add(nodeId);
             }
             return OperationResult.Ok($"Attribute '{attributeName}' removed for node {nodeId}.");
+        }
+        #endregion
+
+
+        #region Method (internal)
+        /// <summary>
+        /// Checks if the Nodeset contains a node object with the specified id.
+        /// </summary>
+        /// <param name="nodeId">The id of the node that is to be checked.</param>
+        /// <returns>True if the node id exists, false otherwise.</returns>
+        internal bool CheckThatNodeExists(uint nodeId)
+        {
+            return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
+        }
+
+        /// <summary>
+        /// Checks if the Nodeset contains the two nodes with the specified ids.
+        /// </summary>
+        /// <param name="node1id">The id of the first node that is to be checked.</param>
+        /// <param name="node2id">The id of the second node that is to be checked.</param>
+        /// <returns>An <see cref="OperationResult.Success"> if both are found, Fail otherwise.</returns>
+        internal OperationResult CheckThatNodesExist(uint node1id, uint node2id)
+        {
+            bool node1exists = CheckThatNodeExists(node1id);
+            bool node2exists = CheckThatNodeExists(node2id);
+            if (node1exists && node2exists)
+                return OperationResult.Ok();
+            if (!node1exists && !node2exists)
+                return OperationResult.Fail("NodeNotFound", $"Neither node {node1id} nor node {node2id} found in nodeset '{Name}'.");
+            if (!node1exists)
+                return OperationResult.Fail("NodeNotFound", $"Node {node1id} not found in nodeset '{Name}'.");
+            return OperationResult.Fail("NodeNotFound", $"Node {node2id} not found in nodeset '{Name}'.");
+        }
+
+        /// <summary>
+        /// Clones the current Nodeset, creating a new NodeAttributeDefinitionManager and copying its
+        /// content. Copies the node ids
+        /// </summary>
+        /// <param name="newName"></param>
+        /// <param name="cloneNodes"></param>
+        /// <returns></returns>
+        internal Nodeset Clone(string? newName = null, bool cloneNodes = true)
+        {
+            Nodeset clone = new Nodeset(newName != null ? newName : Name + "_clone") { NodeAttributeDefinitionManager = NodeAttributeDefinitionManager.Clone() };
+            if (cloneNodes)
+            {
+                foreach (var (nodeId, attrDict) in _nodesWithAttributes)
+                    clone._nodesWithAttributes[nodeId] = new Dictionary<uint, NodeAttributeValue>(attrDict);
+                foreach (uint nodeId in _nodesWithoutAttributes)
+                    clone._nodesWithoutAttributes.Add(nodeId);
+            }
+            return clone;
+        }
+
+        /// <summary>
+        /// Defines a new node attribute for this Nodeset with the given name and
+        /// <see cref="NodeAttributeType"/>. Each node attribute in a <see cref="Nodeset"> must have a unique name.
+        /// </summary>
+        /// <param name="attributeName">The name of the nodal attribute (must be unique in this Nodeset).</param>
+        /// <param name="attributeType">The type (using the <see cref="NodeAttributeType"/> enum) of this attribute.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult<uint> DefineNodeAttribute(string attributeName, NodeAttributeType attributeType)
+        {
+            OperationResult<uint> result = NodeAttributeDefinitionManager.DefineNewNodeAttribute(attributeName, attributeType);
+            if (result.Success)
+                Modified();
+            return result;
         }
 
         /// <summary>
@@ -453,27 +433,37 @@ namespace Threadle.Core.Model
         /// <returns>Returns an <see cref="OperationResult"/> informing how well it went.</returns>
         internal OperationResult DefineAndSetNodeAttributeValues(string attrName, Dictionary<uint, string> attrDict, NodeAttributeType nodeAttributeType)
         {
-            // Check if attribute is already defined
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out uint attrIndex))
             {
-                // Attribute not defined yet: define it based on the provided type
                 OperationResult<uint> defineresult = DefineNodeAttribute(attrName, nodeAttributeType);
                 if (!defineresult.Success)
                     return defineresult;
-                // By now, the attribute is defined and I have its index
                 attrIndex = defineresult.Value;
             }
             else
             {
-                // Attribute already defined: check that its type matches the provided type
                 if (NodeAttributeDefinitionManager.IndexToType[attrIndex] != nodeAttributeType)
                     return OperationResult.Fail("AttributeTypeMismatch", $"Attribute '{attrName}' already defined with type '{NodeAttributeDefinitionManager.IndexToType[attrIndex]}', cannot set values of type '{nodeAttributeType}'.");
             }
-            // Set the attribute values for all nodes in the provided dictionary
             foreach ((uint nodeId, string attrValueStr) in attrDict)
                 SetNodeAttribute(nodeId, attrName, attrValueStr);
             Modified();
             return OperationResult.Ok($"Node attribute '{attrName}' set for {attrDict.Count} nodes in nodeset '{Name}'.");
+        }
+
+        /// <summary>
+        /// Given an array of node ids, creates a new array of node ids that only includes each
+        /// node id once and where the node id is part of this Nodeset object.
+        /// </summary>
+        /// <param name="uints">The array of node ids to check.</param>
+        /// <returns>An array of unique node ids that are also part of this Nodeset.</returns>
+        internal uint[] FilterOutNonExistingNodeIds(uint[] uints)
+        {
+            HashSet<uint> existing = new();
+            foreach (uint nodeId in uints)
+                if (CheckThatNodeExists(nodeId))
+                    existing.Add(nodeId);
+            return existing.ToArray();
         }
         #endregion
 
@@ -494,11 +484,6 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Internal array storing an array of all nodeId uint values. Lazy-initialized by NodeIdArray
-        /// </summary>
-        private uint[]? _nodeIdCache;
-
-        /// <summary>
         /// Methods that flags the Nodeset as being modified since last load/save, also
         /// clearing the _nodeIdCache
         /// </summary>
@@ -508,17 +493,6 @@ namespace Threadle.Core.Model
             _nodeIdCache = null;
 
         }
-
-        internal uint[] RemoveNonExistentNodes(uint[] uints)
-        {
-            HashSet<uint> existing = new();
-            foreach (uint nodeId in uints)
-                if (CheckThatNodeExists(nodeId))
-                    existing.Add(nodeId);
-            return existing.ToArray();
-        }
-
-
         #endregion
     }
 }

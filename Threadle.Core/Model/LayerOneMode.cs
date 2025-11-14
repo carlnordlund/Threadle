@@ -8,26 +8,97 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
+    /// <summary>
+    /// Represents a relational layer of 1-mode relations. Implements ILayer.
+    /// Has additional properties and methods specific for 1-mode types of relations, e.g.
+    /// specifies whether the layer has directional or symmetric ties, whether binary or valued, and
+    /// whether self-ties are allowed.
+    /// </summary>
     public class LayerOneMode : ILayer
     {
+        #region Fields
+        /// <summary>
+        /// The collection of Edgesets associated by unique node id.
+        /// </summary>
+        private Dictionary<uint, IEdgeset> _edgesets = [];
 
+        /// <summary>
+        /// The function used to create new edges.
+        /// </summary>
+        private Func<IEdgeset>? edgeSetFactory;
+        #endregion
+
+
+        #region Constructors
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LayerOneMode"/> class
+        /// </summary>
+        public LayerOneMode()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LayerOneMode"/> class, with the specified properties.
+        /// </summary>
+        /// <param name="name">The name of the 1-mode layer.</param>
+        /// <param name="directionality">A <see cref="EdgeDirectionality"/> value specifying whether the layer has directional or symmetric edges.</param>
+        /// <param name="valueType">A <see cref="EdgeValueType"/> value specifying whether edges are binary or valued.</param>
+        /// <param name="selfties">True if self-ties are allowed, false otherwise.</param>
+        public LayerOneMode(string name, EdgeDirectionality directionality, EdgeType valueType, bool selfties)
+        {
+            Name = name;
+            Directionality = directionality;
+            EdgeValueType = valueType;
+            Selfties = selfties;
+            InitializeFactory();
+        }
+        #endregion
+
+
+        #region Properties
+        /// <summary>
+        /// The name of the layer.
+        /// </summary>
         public string Name { get; set; } = "";
 
-        //public string Name = "";
+        /// <summary>
+        /// Directionality of edges in the layer.
+        /// </summary>
         public EdgeDirectionality Directionality;
+
+        /// <summary>
+        /// Value type of edges in the layer.
+        /// </summary>
         public EdgeType EdgeValueType;
+
+        /// <summary>
+        /// Boolean indicating whether selfties are allowed.
+        /// </summary>
         public bool Selfties;
 
-        Func<IEdgeset>? edgeSetFactory;
-
-
-
+        /// <summary>
+        /// Returns true if the layer is symmetric, otherwise false.
+        /// </summary>
         public bool IsSymmetric => Directionality == EdgeDirectionality.Undirected;
+
+        /// <summary>
+        /// Returns true if the layer is directional, otherwise false.
+        /// </summary>
         public bool IsDirectional => Directionality == EdgeDirectionality.Directed;
+
+        /// <summary>
+        /// Returns true if the layer has binary edges, otherwise false.
+        /// </summary>
         public bool IsBinary => EdgeValueType == EdgeType.Binary;
+
+        /// <summary>
+        /// Returns true if the layer has valued edges, otherwise false.
+        /// </summary>
         public bool IsValued => EdgeValueType == EdgeType.Valued;
         
-
+        /// <summary>
+        /// Returns the number of edges in the layer.
+        /// </summary>
         public ulong NbrEdges
         {
             get
@@ -39,6 +110,9 @@ namespace Threadle.Core.Model
             }
         }
 
+        /// <summary>
+        /// Returns metadata about the layer (as a dictionary of objects).
+        /// </summary>
         public Dictionary<string, object> GetMetadata => new()
         {
             ["Name"] = Name,
@@ -49,24 +123,94 @@ namespace Threadle.Core.Model
             ["NbrEdges"] = NbrEdges
         };
 
-        public Dictionary<uint, IEdgeset> Edgesets = [];
+        /// <summary>
+        /// Returns the dictionary of Edgeset objects by node id.
+        /// </summary>
+        public Dictionary<uint, IEdgeset> Edgesets => _edgesets;
+        #endregion
 
-        public LayerOneMode()
+
+        #region Methods (public)
+        /// <summary>
+        /// Removes any edge in the Edgeset that includes this node id.
+        /// Used for cleaning up relational layers for invalid edges after a node has been removed.
+        /// </summary>
+        /// <param name="nodeId">The node id whose edges are to be removed.</param>
+        public void RemoveNodeEdges(uint nodeId)
         {
-            // Factory isn't initialized after loading, need to do that!
-            // Regarding sentence above: Hm, no, this is used by FileSerializerTsv, and factory
-            // is initialized!
+            Edgesets.Remove(nodeId);
+            foreach (var edgeset in Edgesets.Values)
+                edgeset.RemoveNodeEdgesInEdgeset(nodeId);
         }
 
-        public LayerOneMode(string name, EdgeDirectionality directionality, EdgeType valueType, bool selfties)
+        /// <summary>
+        /// Gets the edge value between node1id and node2id if this exists (from node1id to node2id for directed layers).
+        /// </summary>
+        /// <param name="node1id">The first (source) node id.</param>
+        /// <param name="node2id">The second (destination) node id.</param>
+        /// <returns>The value of the edge if it exists, otherwise zero.</returns>
+        public float GetEdgeValue(uint node1id, uint node2id)
         {
-            Name = name;
-            Directionality = directionality;
-            EdgeValueType = valueType;
-            Selfties = selfties;
-            InitializeFactory();
+            if (!Edgesets.TryGetValue(node1id, out var edgeset))
+                return 0f;
+            return edgeset.GetOutboundPartnerEdgeValue(node2id);
         }
 
+        /// <summary>
+        /// Checks if an edge exists between node1id and node2id (from node1id to node2id for directed layers).
+        /// </summary>
+        /// <param name="node1id">The first (source) node id.</param>
+        /// <param name="node2id">The second (destination) node id.</param>
+        /// <returns>Returns true if there is an edge, false otherwise.</returns>
+        public bool CheckEdgeExists(uint node1id, uint node2id)
+        {
+            if (!Edgesets.TryGetValue(node1id, out var edgeset))
+                return false;
+            return edgeset.CheckOutboundPartnerEdgeExists(node2id);
+        }
+
+        /// <summary>
+        /// Returns an array of node ids in the edgeset for a particular node id, i.e. the set of alters.
+        /// For directional data, this could either be outbound, inbound, or both, as dictated by
+        /// the <paramref name="edgeTraversal"/> parameter.
+        /// </summary>
+        /// <param name="edgeTraversal"><see cref="EdgeTraversal"/>Declares whether alters should be inbound, outbound, or both.</param>
+        /// <returns>An array of node ids.</returns>
+        public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal)
+        {
+            if (!(Edgesets.TryGetValue(nodeId, out var edgeset)))
+                return [];
+            return edgeset.GetAlterIds(edgeTraversal);
+        }
+
+        /// <summary>
+        /// Clears the layer, i.e. clears all Edgeset objects and removes these.
+        /// </summary>
+        public void ClearLayer()
+        {
+            foreach (IEdgeset edgeset in Edgesets.Values)
+                edgeset.ClearEdges();
+            Edgesets.Clear();
+        }
+
+        /// <summary>
+        /// Returns a HashSet of all unique node ids mentioned in the Layer
+        /// </summary>
+        /// <returns>A HashSet of node ids.</returns>
+        public HashSet<uint> GetMentionedNodeIds()
+        {
+            HashSet<uint> ids = [];
+            foreach (IEdgeset edgeset in Edgesets.Values)
+                ids.UnionWith(edgeset.GetAllNodeIds);
+            return ids;
+        }
+        #endregion
+
+
+        #region Methods (private, internal)
+        /// <summary>
+        /// Support method attempting to initialize the edgesetFactory, i.e. the methods that is used to create new Edgeset instances.
+        /// </summary>
         private void InitializeFactory()
         {
             if (IsBinary)
@@ -85,32 +229,36 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Method for adding edge to this 1-mode layer. It is here assumed that node1id and node2id have
-        /// been previously verified, i.e. that they belong to the Nodeset in question.
-        /// Checks for self-ties.
-        /// This is the final bottleneck for adding edges: where all addedge() roads lead (e.g. from creating
-        /// programmatically, as well as loading etc).
+        /// Method to add an edge between two nodes. If the layer contains directional edges, the edge goes
+        /// from node1id to node2id. The edge value is optional for layers with binary edges.
+        /// If Directional and UserSetting is set to only add outbound edges, no inbound edge is stored at the destination node.
+        /// Returns an OperationResult informing how it all went.
         /// </summary>
-        /// <param name="node1Id"></param>
-        /// <param name="node2Id"></param>
-        /// <param name="value"></param>
-        internal OperationResult AddEdge(uint node1Id, uint node2Id, float value = 1)
+        /// <param name="node1id">The first (source) bode id.</param>
+        /// <param name="node2id">The second (destination) node id.</param>
+        /// <param name="value">The value of the edge (defaults to 1; moot for binary layers).</param>
+        /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
+        internal OperationResult AddEdge(uint node1id, uint node2id, float value = 1)
         {
-            if (node1Id == node2Id && !Selfties)
+            if (node1id == node2id && !Selfties)
                 return OperationResult.Fail("SelftiesNotAllowed",$"Layer {Name} does not allow for selfties.");
-            IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1Id);
-            IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2Id);
-            // Add inbound edge as long as OnlyOutboundEdges is not set to true
-            if (!UserSettings.OnlyOutboundEdges)
-                if (!edgeSetNode2.AddInboundEdge(node1Id, value).Success)
-                    return OperationResult.Fail("EdgeAlreadyExist", $"Inbound edge to {node2Id} from {node1Id} already exists.");
-            if (!edgeSetNode1.AddOutboundEdge(node2Id, value).Success)
-                return OperationResult.Fail("EdgeAlreadyExist", $"Outbound edge from {node1Id} to {node2Id} already exists.");
-            //string msg = Directionality == EdgeDirectionality.Directed ? $"from {node1Id} to {node2Id}" : $"between {node1Id} and {node2Id}";
-            //string msg = Misc.BetweenFromToText(Directionality, node1Id, node2Id);
-            return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} (value={value}) in layer '{Name}'.");
+            IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1id);
+            IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2id);
+            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+                if (!edgeSetNode2.AddInboundEdge(node1id, value).Success)
+                    return OperationResult.Fail("EdgeAlreadyExist", $"Inbound edge to {node2id} from {node1id} already exists.");
+            if (!edgeSetNode1.AddOutboundEdge(node2id, value).Success)
+                return OperationResult.Fail("EdgeAlreadyExist", $"Outbound edge from {node1id} to {node2id} already exists.");
+            return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} (value={value}) in layer '{Name}'.");
         }
 
+        /// <summary>
+        /// Removes an (the) edge between node1id and node2id. Returns a fail if no such edge is found.
+        /// (First checks if there indeed are any Edgeset recorded for these, then checks if there are any corresponding edges recorded)
+        /// </summary>
+        /// <param name="node1id">The first (source) node id.</param>
+        /// <param name="node2id">The second (destination) node id.</param>
+        /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
         internal OperationResult RemoveEdge(uint node1id, uint node2id)
         {
             if (!Edgesets.TryGetValue(node1id, out var edgesetNode1) || !Edgesets.TryGetValue(node2id, out var edgesetNode2))
@@ -120,15 +268,11 @@ namespace Threadle.Core.Model
             return OperationResult.Ok($"Removed edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}'.");
         }
 
-        public void RemoveNodeEdges(uint nodeId)
-        {
-            // Remove any Edgeset that this node might have: none of these should be there
-            Edgesets.Remove(nodeId);
-            // Iterate through other nodes' Edgesets and prune out their 
-            foreach (var edgeset in Edgesets.Values)
-                edgeset.RemoveNodeEdges(nodeId);
-        }
-
+        /// <summary>
+        /// Gets an existing Edgeset object for a node id, or creates it first if not existing.
+        /// </summary>
+        /// <param name="nodeId">The node id whose Edgeset is to be obtained.</param>
+        /// <returns></returns>
         private IEdgeset GetOrCreateEdgeset(uint nodeId)
         {
             if (Edgesets.TryGetValue(nodeId, out var edgeset))
@@ -138,61 +282,19 @@ namespace Threadle.Core.Model
             return newEdgeset;
         }
 
-        //private IConnectionCollection GetOrCreateCollection(uint nodeId)
-        //{
-        //    if (Connections.TryGetValue(nodeId, out var collectionNode))
-        //        return collectionNode;
-        //    IConnectionCollection newCollection = Directionality == EdgeDirectionality.Directed ? new DirectedConnectionCollection() : new UndirectedConnectionCollection();
-        //    Connections[nodeId] = newCollection;
-        //    return newCollection;
-        //}
-
-        public float GetEdgeValue(uint sourceNodeId, uint targetNodeId)
-        {
-            if (!Edgesets.TryGetValue(sourceNodeId, out var edgeset))
-                return 0f;
-            return edgeset.GetOutboundPartnerEdgeValue(targetNodeId);
-        }
-
-        public bool CheckEdgeExists(uint sourceNodeId, uint targetNodeId)
-        {
-            if (!Edgesets.TryGetValue(sourceNodeId, out var edgeset))
-                return false;
-            return edgeset.CheckOutboundPartnerEdgeExists(targetNodeId);
-        }
-
-        public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal)
-        {
-            if (!(Edgesets.TryGetValue(nodeId, out var edgeset)))
-                return [];
-
-            return edgeset.GetAlterIds(edgeTraversal);
-        }
-
-
+        /// <summary>
+        /// Non-private method to try to initialize the Edgeset-creating factory.
+        /// </summary>
         internal void TryInitFactory()
         {
             InitializeFactory();
         }
 
-        public void ClearLayer()
-        {
-            foreach (IEdgeset edgeset in Edgesets.Values)
-                edgeset.ClearEdges();
-            Edgesets.Clear();
-        }
-
-
-        public HashSet<uint> GetMentionedNodeIds()
-        {
-            HashSet<uint> ids = [];
-            foreach (IEdgeset edgeset in Edgesets.Values)
-            {
-                ids.UnionWith(edgeset.GetAllNodeIds);
-            }
-            return ids;
-        }
-
+        /// <summary>
+        /// Gets the outdegree (i.e. number of outbound edges) for a node id.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>The number of outbound edges this node id has.</returns>
         internal uint GetOutDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
@@ -200,11 +302,17 @@ namespace Threadle.Core.Model
             return edgeset.NbrOutboundEdges;
         }
 
+        /// <summary>
+        /// Gets the indegree (i.e. number of inbound edges) for a node id.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>The number of inbound edges this node id has.</returns>
         internal uint GetInDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
                 return 0;
             return edgeset.NbrInboundEdges;
         }
+        #endregion
     }
 }

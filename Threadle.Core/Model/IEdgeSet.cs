@@ -51,6 +51,7 @@ namespace Threadle.Core.Model
         List<uint> GetAllNodeIds { get; }
         #endregion
 
+
         #region Methods (shared)
         /// <summary>
         /// Adds an inbound edge to this edgeset.
@@ -87,9 +88,7 @@ namespace Threadle.Core.Model
         /// e.g. when a node has been removed.
         /// </summary>
         /// <param name="partnerNodeId">The id of the node (source or destination).</param>
-        void RemoveNodeEdges(uint partnerNodeId);
-
-
+        void RemoveNodeEdgesInEdgeset(uint partnerNodeId);
 
         /// <summary>
         /// Returns the value of the outbound edge to the specified node. Returns 0 (zero) if no such edge exists.

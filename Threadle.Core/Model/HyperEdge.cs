@@ -8,11 +8,11 @@ namespace Threadle.Core.Model
 {
     /// <summary>
     /// Describes an affiliation, e.g. like a specific school class, a specific workplace or similar
-    /// which is then an HyperEdge: a collection of Nodes that are connected.
+    /// which is then an Hyperedge: a collection of Nodes that are connected.
     /// Each such affiliation should have a label (e.g. arbplatsId), but that is stored
     /// in LayerTwomode.AllHyperEdges dictionary, not in the actual Hyperedge object.
     /// </summary>
-    public class HyperEdge
+    public class Hyperedge
     {
         #region Fields
         /// <summary>
@@ -24,19 +24,19 @@ namespace Threadle.Core.Model
 
         #region Constructors
         /// <summary>
-        /// Initializes a new instance of the <see cref="HyperEdge"/> class,
+        /// Initializes a new instance of the <see cref="Hyperedge"/> class,
         /// not connected to any node ids.
         /// </summary>
-        public HyperEdge()
+        public Hyperedge()
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="HyperEdge"/> class,
+        /// Initializes a new instance of the <see cref="Hyperedge"/> class,
         /// setting its connected endpoints to the provided array of node ids.
         /// </summary>
         /// <param name="nodeIds">An array of node ids that the Hyperedge connects.</param>
-        public HyperEdge(uint[] nodeIds)
+        public Hyperedge(uint[] nodeIds)
         {
             _nodeIds = [.. nodeIds];
         }

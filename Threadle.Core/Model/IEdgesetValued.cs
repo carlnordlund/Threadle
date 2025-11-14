@@ -8,6 +8,8 @@ namespace Threadle.Core.Model
 {
     /// <summary>
     /// Interface for the two edgeset classes that contain valued edges.
+    /// Implements two new properties, for getting lists of in- and outbound
+    /// Connection structs.
     /// </summary>
     public interface IEdgesetValued : IEdgeset
     {

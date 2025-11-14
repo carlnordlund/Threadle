@@ -142,7 +142,7 @@ namespace Threadle.Core.Utilities
                     writer.WriteLine($"LayerMode: 2");
                     writer.WriteLine($"LayerName: {layerTwoMode.Name}");
 
-                    foreach ((string hyperName, HyperEdge hyperedge) in layerTwoMode.AllHyperEdges)
+                    foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
                     {
                         sb.Clear();
                         sb.Append(hyperName);

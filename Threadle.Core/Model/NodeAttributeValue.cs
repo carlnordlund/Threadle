@@ -22,16 +22,28 @@ namespace Threadle.Core.Model
     [StructLayout(LayoutKind.Explicit)]
     public struct NodeAttributeValue
     {
-
+        #region Fields
+        /// <summary>
+        /// Storage for a char value.
+        /// </summary>
         [FieldOffset(0)]
         private char CharValue;
 
+        /// <summary>
+        /// Storage for an int value.
+        /// </summary>
         [FieldOffset(0)]
         private int IntValue;
 
+        /// <summary>
+        /// Storage for a float value.
+        /// </summary>
         [FieldOffset(0)]
         private float FloatValue;
 
+        /// <summary>
+        /// Storage for a bool value.
+        /// </summary>
         [FieldOffset(0)]
         private bool BoolValue;
 
@@ -40,7 +52,14 @@ namespace Threadle.Core.Model
         /// </summary>
         [FieldOffset(4)]
         public NodeAttributeType Type;
+        #endregion
 
+
+        #region Constructors
+        /// <summary>
+        /// Constructor when setting a <see cref="char"/> value.
+        /// </summary>
+        /// <param name="value">The <see cref="char"/> value of this attribute.</param>
         public NodeAttributeValue(char value)
         {
             this = default;
@@ -48,6 +67,10 @@ namespace Threadle.Core.Model
             CharValue = value;
         }
 
+        /// <summary>
+        /// Constructor when setting a <see cref="int"/> value.
+        /// </summary>
+        /// <param name="value">The <see cref="int"/> value of this attribute.</param>
         public NodeAttributeValue(int value)
         {
             this = default;
@@ -55,6 +78,10 @@ namespace Threadle.Core.Model
             IntValue = value;
         }
 
+        /// <summary>
+        /// Constructor when setting a <see cref="float"/> value.
+        /// </summary>
+        /// <param name="value">The <see cref="float"/> value of this attribute.</param>
         public NodeAttributeValue(float value)
         {
             this = default;
@@ -62,14 +89,34 @@ namespace Threadle.Core.Model
             FloatValue = value;
         }
 
+        /// <summary>
+        /// Constructor when setting a <see cref="bool"/> value.
+        /// </summary>
+        /// <param name="value">The <see cref="bool"/> value of this attribute.</param>
         public NodeAttributeValue(bool value)
         {
             this = default;
             Type = NodeAttributeType.Bool;
             BoolValue = value;
         }
+        #endregion
 
-        public object? GetValue() => Type switch
+
+        #region Methods (public)
+        /// <summary>
+        /// Overrides ToString() method to get the value of the node attribute.
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString() => GetValue()?.ToString() ?? "";
+        #endregion
+
+
+        #region Methods (internal)
+        /// <summary>
+        /// Gets the value of this node attribute.
+        /// </summary>
+        /// <returns>Returns the <see cref="object"/> that is thus either a <see cref="char"/>, an <see cref="int"/>, a <see cref="float"/>, or a <see cref="bool"/>.</returns>
+        internal object? GetValue() => Type switch
         {
             NodeAttributeType.Char => CharValue,
             NodeAttributeType.Int => IntValue,
@@ -77,7 +124,6 @@ namespace Threadle.Core.Model
             NodeAttributeType.Bool => BoolValue,
             _ => null
         };
-
-        public override string ToString() => GetValue()?.ToString() ?? "";
+        #endregion
     }
 }
