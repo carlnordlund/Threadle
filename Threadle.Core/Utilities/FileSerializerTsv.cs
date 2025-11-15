@@ -22,6 +22,7 @@ namespace Threadle.Core.Utilities
         private static readonly Encoding Utf8NoBom = new UTF8Encoding(false);
         #endregion
 
+
         #region Methods (internal)
         /// <summary>
         /// Method for loading a nodeset from file (TSV format).
@@ -92,7 +93,8 @@ namespace Threadle.Core.Utilities
         }
         #endregion
 
-        #region Methods (support; private)
+
+        #region Methods (private)
         /// <summary>
         /// Support method to potentially attach a GZipStream around the existing stream.
         /// Checks the filepath: if it ends with .gz, then the GZip is attached.
@@ -270,8 +272,6 @@ namespace Threadle.Core.Utilities
             network.Filepath = filepath;
             network.IsModified = false;
 
-            
-
             if (nodesetFileReference != null)
             {
                 nodeset = LoadNodesetFromFile(nodesetFileReference);
@@ -279,7 +279,6 @@ namespace Threadle.Core.Utilities
                 return new StructureResult(network, new Dictionary<string, IStructure>
                 {
                     { "nodeset", nodeset}
-
                 });
             }
             else

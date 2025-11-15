@@ -92,21 +92,15 @@ namespace Threadle.Core.Utilities
         {
             try
             {
-                if (layer is LayerOneMode layerOneMode)
+                OperationResult result = (layer, format.ToLower()) switch
                 {
-                    if (format.Equals("edgelist", StringComparison.OrdinalIgnoreCase))
-                        FormatImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
-                    else if (format.Equals("matrix", StringComparison.OrdinalIgnoreCase))
-                        FormatImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
-                }
-                else if (layer is LayerTwoMode layerTwoMode)
-                {
-                    if (format.Equals("edgelist", StringComparison.OrdinalIgnoreCase))
-                        FormatImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
-                    else if (format.Equals("matrix", StringComparison.OrdinalIgnoreCase))
-                        FormatImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
-                }
-                return OperationResult.Ok();
+                    (LayerOneMode layerOneMode, "edgelist") => LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes),
+                    (LayerOneMode layerOneMode, "matrix") => LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes),
+                    (LayerTwoMode layerTwoMode, "edgelist") => LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes),
+                    (LayerTwoMode layerTwoMode, "matrix") => LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes),
+                    _ => OperationResult.Fail("UnsupportedOptions", "The specific layer/format combination for imports is not supported.")
+                };
+                return result;
             }
             catch (Exception e)
             {
@@ -269,6 +263,5 @@ namespace Threadle.Core.Utilities
 
         }
         #endregion
-
     }
 }

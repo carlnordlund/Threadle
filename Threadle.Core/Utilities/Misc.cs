@@ -17,8 +17,33 @@ namespace Threadle.Core.Utilities
     /// </summary>
     public static class Misc
     {
-        public static readonly Random Random = new Random();
+        #region Fields
+        /// <summary>
+        /// Provides an instance of the random number generator.
+        /// </summary>
+        private static readonly Random _random = new Random();
+        #endregion
 
+
+        #region Properties
+        /// <summary>
+        /// Gets a shared instance of the <see cref="Random"/> class for generating random numbers.
+        /// </summary>
+        public static Random Random => _random;
+        #endregion
+
+
+        #region Methods (public)
+        /// <summary>
+        /// Evaluates a condition by comparing the value of a node attribute to a specified comparison value using the
+        /// provided condition type.
+        /// </summary>
+        /// <param name="nodeValue">The value of the node attribute to evaluate. The type of the value is determined by the <see
+        /// cref="NodeAttributeValue.Type"/> property.</param>
+        /// <param name="comparisonValue">The value to compare against as a string type.</param>
+        /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
+        /// <returns><see langword="true"/> if the condition is satisfied based on the comparison; otherwise, <see
+        /// langword="false"/>.</returns>
         public static bool EvalutateCondition(NodeAttributeValue nodeValue, string comparisonValue, ConditionType condition)
         {
             switch (nodeValue.Type)
@@ -44,6 +69,18 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        /// <summary>
+        /// Compares two values of a specified type based on the provided condition.
+        /// </summary>
+        /// <remarks>This method uses the <see cref="IComparable{T}.CompareTo"/> method to perform the
+        /// comparison. Supported conditions include equality, inequality, greater than, greater than or equal to, less
+        /// than, and less than or equal to.</remarks>
+        /// <typeparam name="T">The type of the values to compare. Must implement <see cref="IComparable{T}"/>.</typeparam>
+        /// <param name="nodeVal">The first value to compare.</param>
+        /// <param name="compVal">The second value to compare.</param>
+        /// <param name="condition">The condition to evaluate the comparison. Must be one of the values defined in <see cref="ConditionType"/>.</param>
+        /// <returns><see langword="true"/> if the comparison satisfies the specified condition; otherwise, <see
+        /// langword="false"/>.</returns>
         public static bool CompareValues<T>(T nodeVal, T compVal, ConditionType condition) where T : IComparable<T>
         {
             int cmp = nodeVal.CompareTo(compVal);
@@ -80,6 +117,15 @@ namespace Threadle.Core.Utilities
             return null;
         }
 
+        /// <summary>
+        /// Calculates the number of potential edges in a graph based on the number of nodes,  edge directionality, and
+        /// whether self-loops are allowed.
+        /// </summary>
+        /// <param name="n">The number of nodes in the graph. Must be a non-negative value.</param>
+        /// <param name="directionality">Specifies whether the graph is directed or undirected using <see cref="EdgeDirectionality"/> values.</param>
+        /// <param name="selfties">A boolean value indicating whether self-loops are allowed.</param>
+        /// <returns>The total number of potential edges in the graph. This value is calculated based on the  specified number of
+        /// nodes, directionality, and self-loop allowance.</returns>
         public static ulong GetNbrPotentialEdges(ulong n, EdgeDirectionality directionality, bool selfties)
         {
             if (directionality == EdgeDirectionality.Directed)
@@ -88,10 +134,8 @@ namespace Threadle.Core.Utilities
                 return selfties ? n * (n + 1) / 2 : n * (n - 1) / 2;
         }
 
-
-
         /// <summary>
-        /// Internal helper function for converting textual representation of a type of node attribute to
+        /// Helper methods for converting textual representation of a type of node attribute to
         /// a <see cref="NodeAttributeType"/> Enum. If the attributeTypeName is not recognized, it returns null
         /// </summary>
         /// <remarks>
@@ -110,6 +154,14 @@ namespace Threadle.Core.Utilities
                 _ => null
             };
 
+        /// <summary>
+        /// Adjusts the connection value based on the specified edge type.
+        /// </summary>
+        /// <param name="value">The input value to be adjusted.</param>
+        /// <param name="valueType">The type of edge that determines how the value is adjusted.  Use <see cref="EdgeType.Binary"/> for binary
+        /// adjustment, or other types for no modification.</param>
+        /// <returns>The adjusted connection value. For <see cref="EdgeType.Binary"/>, returns 1 if <paramref name="value"/> is
+        /// greater than 0; otherwise, 0.  For other edge types, returns the original <paramref name="value"/>.</returns>
         public static float FixConnectionValue(float value, EdgeType valueType)
             => valueType switch
             {
@@ -117,6 +169,13 @@ namespace Threadle.Core.Utilities
                 _ => value
             };
 
+        /// <summary>
+        /// Converts/parses a 2d array of strings into a 2d array of floats with the provided top-left offset.
+        /// Used by file importers.
+        /// </summary>
+        /// <param name="cells">A 2d array of strings.</param>
+        /// <param name="startOffset">The top-left offset (use 1 to ignore the first row and column).</param>
+        /// <returns>Returns a 2d array of parsed float values.</returns>
         public static float[,] ConvertStringCellsToFloatCells(string[,] cells, int startOffset)
         {
             int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
@@ -127,24 +186,49 @@ namespace Threadle.Core.Utilities
             return data;
         }
 
+        /// <summary>
+        /// Converts a string of char-separated node ids into an array of these uint values.
+        /// </summary>
+        /// <param name="nodesString">A string with char-separated integer values.</param>
+        /// <param name="sep">The separator character that should be used (default is semicolon ;)</param>
+        /// <returns>Returns an array of unsigned integers.</returns>
         public static uint[] NodesIdsStringToArray(string nodesString, char sep = ';')
         {
             return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
         }
 
+        /// <summary>
+        /// Convenience function for converting a boolean value to its lower-case textual representation.
+        /// </summary>
+        /// <param name="check"></param>
+        /// <returns></returns>
         public static string BooleanAsString(bool check)
         {
             return check ? "true" : "false";
         }
 
+        /// <summary>
+        /// Method for sampling very large numbers from the geometric distribution, by using the
+        /// inverse-CDF formula for a geometric random variable.
+        /// </summary>
+        /// <param name="p">The probability of success at each step.</param>
+        /// <returns></returns>
         internal static ulong SampleGeometric(double p)
         {
             return (ulong)Math.Floor(Math.Log(Misc.Random.NextDouble()) / Math.Log(1.0 - p));
         }
 
+        /// <summary>
+        /// Convenience function for expressing an edge with or without directional connotations.
+        /// </summary>
+        /// <param name="directionality">Directionality of the edge specified by a <see cref="EdgeDirectionality"/> value.</param>
+        /// <param name="node1id">The first node id.</param>
+        /// <param name="node2id">The second node id.</param>
+        /// <returns>A string either expressing this as 'from [node1id] to [node2id]', or 'between [node1id] and [node2id]'.</returns>
         internal static string BetweenFromToText(EdgeDirectionality directionality, uint node1id, uint node2id)
         {
             return directionality == EdgeDirectionality.Directed ? $"from {node1id} to {node2id}" : $"between {node1id} and {node2id}";
         }
+        #endregion
     }
 }

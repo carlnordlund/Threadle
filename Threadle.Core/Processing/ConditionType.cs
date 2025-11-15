@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace Threadle.Core.Processing
 {
+    /// <summary>
+    /// Enum to handle various comparisons that can be done
+    /// Used by the filter command
+    /// </summary>
     public enum ConditionType
     {
         eq,
