@@ -4,15 +4,21 @@ using System.Globalization;
 
 namespace Threadle.CLIconsole
 {
+    /// <summary>
+    /// Entry class for the CLIconsole application.
+    /// </summary>
     class Program
     {
+        /// <summary>
+        /// Entry point for the CLIconsole application. Parses startup arguments and sets
+        /// suitable properties before passing on execution to <see cref="CommandLoop.Run"/>.
+        /// </summary>
+        /// <param name="args">Arguments passed to the application.</param>
         static void Main(string[] args)
         {
-            // Override any localized number and UI formats to the generic
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
             CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
-            //bool verbose = true, endmarker = false;
             for (int i=0;i<args.Length;i++)
             {
                 switch (args[i])

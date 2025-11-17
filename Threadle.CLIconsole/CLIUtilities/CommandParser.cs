@@ -7,18 +7,37 @@ using System.Threading.Tasks;
 
 namespace Threadle.CLIconsole.CLIUtilities
 {
+    /// <summary>
+    /// Static class for parsing CLI input into a <see cref="Command"/> object for further processing.
+    /// </summary>
     public static class CommandParser
     {
+        #region Fields
+        /// <summary>
+        /// Pre-compiled regular expression for parsing a command, its string of arguments, and potential variable assignment.
+        /// </summary>
         private static readonly Regex commandRegex = new(@"^(?:([a-zA-Z]\w*)\s*=)?\s*([a-zA-Z]\w*)(?:\s*\(\s*(.*?)\s*\))?\s*$", RegexOptions.Compiled);
 
+        /// <summary>
+        /// Pre-compiled regular expression for parsing a string of arguments into separate key-value argument pairs.
+        /// </summary>
         private static readonly Regex argRegex = new(@"(?:([a-zA-Z]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^,\s]+)))|(?:""([^""]*)""|'([^']*)'|([^=,\s]+))", RegexOptions.Compiled);
+        #endregion
 
-        public static Command? Parse(string input)
+
+        #region Methods (internal)
+        /// <summary>
+        /// Parses a provided CLI string into a Command object - or null if it could not be parsed.
+        /// If an argument value is provided with a name, the name is used as the key. If only a value is provided,
+        /// the key for this argument is 'argN' where N is the index of the argument in the list of arguments.
+        /// </summary>
+        /// <param name="input">The CLI string.</param>
+        /// <returns>A <see cref="Command"/> object corresponding to a parsed command, or null if unsuccessfully parsed.</returns>
+        internal static Command? Parse(string input)
         {
             var match = commandRegex.Match(input);
             if (!match.Success)
                 return null;
-
             string? assignedVar = match.Groups[1].Value;
             string cmdName = match.Groups[2].Value;
             string argString = match.Groups[3].Value;
@@ -30,7 +49,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             var argMatches = argRegex.Matches(argString);
             foreach (Match argMatch in argMatches)
             {
-                if (argMatch.Groups[1].Success) // Named argument
+                if (argMatch.Groups[1].Success)
                 {
                     string key = argMatch.Groups[1].Value.Trim();
                     string val = argMatch.Groups[2].Success ? argMatch.Groups[2].Value :
@@ -49,5 +68,6 @@ namespace Threadle.CLIconsole.CLIUtilities
             }
             return cmd;
         }
+        #endregion
     }
 }

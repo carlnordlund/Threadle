@@ -10,13 +10,31 @@ using Threadle.Core.Processing;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'generate' CLI command.
+    /// </summary>
     public class GenerateRandom : ICommand
     {
-        public string Usage => "[var:network] = generate(type = ['er'], size = [int], p = [double], *directed = ['true'(default),'false'], *selfties = ['true','false'(default)], *newname = [str])";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "[var:network] = generate(type = ['er'], size = [int], p = [double], *directed = ['true'(default),'false'], *selfties = ['true','false'(default)], *newname = [str])";
+
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Creates a random network of the specified type (only Erdös-Renyi implemented so far) of specified size and tie probability (also density). The network is by default directed without selfties but that can be adjusted. Is automatically named but can be given a name with the optional parameter.";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => true;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();

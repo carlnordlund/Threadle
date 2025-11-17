@@ -9,19 +9,34 @@ using System.Threading.Tasks;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'getnbrnodes' CLI command.
+    /// </summary>
     public class GetNbrNodes : ICommand
     {
-        public string Usage => "[uint] = getnbrnodes(structure = [var:structure])";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "[uint] = getnbrnodes(structure = [var:structure])";
+
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Get the number of nodes in this structure (which can either be a Nodeset or a Network structure). If a network is provided, it uses the Nodeset that this network is pointing to";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => false;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-
-            //string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
-            //Nodeset nodeset = context.GetNodesetFromIStructure(structureName);
             ConsoleOutput.WriteLine(nodeset.Count.ToString(), true);
         }
     }

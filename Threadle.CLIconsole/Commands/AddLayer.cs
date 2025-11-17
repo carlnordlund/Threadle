@@ -10,14 +10,31 @@ using System.Threading.Tasks;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'addlayer' CLI command.
+    /// </summary>
     public class AddLayer : ICommand
     {
-        public string Usage => "addlayer(network = [var:network], layername = [str], mode = ['1', '2'], *directed = ['true', 'false'(default)], *valuetype = ['binary'(default), 'valued'], *selfties=['true', 'false'(default)])";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "addlayer(network = [var:network], layername = [str], mode = ['1', '2'], *directed = ['true', 'false'(default)], *valuetype = ['binary'(default), 'valued'], *selfties=['true', 'false'(default)])";
 
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Adds a relational layer for a network, which can be either 1-mode or 2-mode (with hyperedges). For 1-mode layers, there are additional settings for the type of ties that exist, specifying edge directionality, edge value type and whether selfties are allowed or not. For 2-mode layer, these settings do not matter: all ties are deemed binary. A network must have at least one layer defined, referred to when adding edges between nodes and nodes-affiliations as well as when importing edges from file to a layer.";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => false;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));

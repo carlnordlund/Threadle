@@ -8,14 +8,31 @@ using Threadle.Core.Model;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'removehyper' CLI command.
+    /// </summary>
     public class RemoveHyper : ICommand
     {
-        public string Usage => "removehyper(network = [var:network], layername = [str], hypername = [str])";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "removehyper(network = [var:network], layername = [str], hypername = [str])";
 
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Removes the hyperedge 'hypername' from layer 'layername' in the specified network.";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => false;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));

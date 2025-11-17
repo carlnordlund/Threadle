@@ -8,14 +8,31 @@ using System.Threading.Tasks;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'setwd' CLI command.
+    /// </summary>
     public class SetWorkingDirectory : ICommand
     {
-        public string Usage => "setwd(dir = [str])";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "setwd(dir = [str])";
 
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Sets the current working directory for Threadle to 'dir'.";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => false;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             string dir = command.GetArgumentThrowExceptionIfMissingOrNull("dir", "arg0");

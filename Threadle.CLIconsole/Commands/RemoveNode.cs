@@ -9,18 +9,34 @@ using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'removenode' CLI command.
+    /// </summary>
     public class RemoveNode : ICommand
     {
-        public string Usage => "removenode(structure = [var:structure], nodeid = [uint])";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "removenode(structure = [var:structure], nodeid = [uint])";
 
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Removes the specified node from the the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. This CLI command will also iterate through all stored Network structures, removing related edges for the networks that use this Nodeset.";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => false;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-            //Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             OperationResult result = nodeset.RemoveNode(nodeId);
             ConsoleOutput.WriteLine(result.ToString());

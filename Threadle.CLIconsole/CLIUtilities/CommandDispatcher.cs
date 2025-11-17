@@ -9,8 +9,19 @@ namespace Threadle.CLIconsole.CLIUtilities
 {
     public class CommandDispatcher
     {
-        private readonly Dictionary<string, ICommand> _commands = new();
+        #region Fields
+        /// <summary>
+        /// Stores all available CLI commands and their corresponding classes
+        /// </summary>
+        private readonly Dictionary<string, ICommand> _commands = [];
+        #endregion
 
+
+        #region Constructor
+        /// <summary>
+        /// Initializes a new instance of the <see cref="CommandDispatcher"/> class, setting
+        /// all available CLI commands and their corresponding classes.
+        /// </summary>
         public CommandDispatcher()
         {
             _commands["addedge"] = new AddEdge();
@@ -53,8 +64,17 @@ namespace Threadle.CLIconsole.CLIUtilities
             _commands["undefineattr"] = new UndefineAttr();
             _commands["view"] = new View();
         }
+        #endregion
 
-        public void Dispatch(Command command, CommandContext context)
+
+        #region Methods (internal)
+        /// <summary>
+        /// Method to dispatch a particular command, providing the current command context (i.e.
+        /// the console variable memory).
+        /// </summary>
+        /// <param name="command">The <see cref="Command"/> object describing a particular CLI command with argument values and possible assignment.</param>
+        /// <param name="context">The <see cref="CommandContext"/> object holding the current console variable memory.</param>
+        internal void Dispatch(Command command, CommandContext context)
         {
             if (_commands.TryGetValue(command.CommandName.ToLower(), out var handler))
             {
@@ -65,9 +85,20 @@ namespace Threadle.CLIconsole.CLIUtilities
                 ConsoleOutput.WriteLine($"!Error: Unknown command: {command.CommandName}");
         }
 
-        public Dictionary<string, ICommand> GetAllCommands() => _commands;
+        /// <summary>
+        /// Returns the dictionary of all commands, used by the command loop when responding to the
+        /// 'help' CLI command.
+        /// </summary>
+        /// <returns>Returns the dictionary of CLI commands and their corresponding classes.</returns>
+        internal Dictionary<string, ICommand> GetAllCommands() => _commands;
 
-        public ICommand? GetCommand(string name)
+        /// <summary>
+        /// Returns the command class for a particular CLI command, or null if no such command exists.
+        /// </summary>
+        /// <param name="name">The CLI command for the particular <see cref="ICommand"/> class.</param>
+        /// <returns></returns>
+        internal ICommand? GetCommand(string name)
             => _commands.TryGetValue(name.ToLower(), out var cmd) ? cmd : null;
+        #endregion
     }
 }

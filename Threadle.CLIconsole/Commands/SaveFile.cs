@@ -9,18 +9,35 @@ using System.Threading.Tasks;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'savefile' CLI command.
+    /// </summary>
     public class SaveFile : ICommand
     {
-        public string Usage => "savefile(name = [var:structure], file = \"[str]\", *nodesetfile = \"[filepath]\")";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "savefile(name = [var:structure], file = \"[str]\", *nodesetfile = \"[filepath]\")";
+
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Saves the structure [var:structure] to file 'file'. If the structure is a Network and if the Nodeset is also to be stored, the filepath where to save the Nodeset is given by 'nodesetfile'. A reference to this Nodeset file will then also be added in the Network data file.";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => false;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0"));
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg1");
-
             if (structure is Network && command.GetArgument("nodesetfile") is string nodesetFilepath)
             {
                 OperationResult result = FileManager.Save(structure, filepath, FileFormat.TsvGzip, nodesetFilepath);

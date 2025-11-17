@@ -9,28 +9,42 @@ using System.Threading.Tasks;
 
 namespace Threadle.CLIconsole.Commands
 {
+    /// <summary>
+    /// Class representing the 'loadfile' CLI command.
+    /// </summary>
     public class LoadFile : ICommand
     {
-        public string Usage => "[var:structure] = loadfile(file = \"[str]\", type = ['nodeset', 'network'])";
+        /// <summary>
+        /// Gets the command syntax definition as shown in help and usage output.
+        /// </summary>
+        public string Syntax => "[var:structure] = loadfile(file = \"[str]\", type = ['nodeset', 'network'])";
+
+        /// <summary>
+        /// Gets a human-readable description of what the command does.
+        /// </summary>
         public string Description => "Loads a structure from file 'file', using the internal text-based file format. The type of structure is given by the 'type' argument, which can be either 'nodeset' or 'network'. if the filepath has the ending .tsv, it is saved in the standard internal text-based format, if the .tsv.gz is used, it is subsequently gzipped and saved as such.";
 
+        /// <summary>
+        /// Gets a value indicating whether this command produces output that must be assigned to a variable.
+        /// </summary>
         public bool ToAssign => true;
 
+        /// <summary>
+        /// Executes the command.
+        /// </summary>
+        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");
-            //string assignedVariable = command.AssignedVariable!;
-
             var result = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
             if (!result.Success)
             {
                 ConsoleOutput.WriteLine(result!.Message!.ToString());
                 return;
             }
-
-            //StructureResult structures = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
             StructureResult structures = result.Value!;
             context.SetVariable(variableName, structures.MainStructure);
             ConsoleOutput.WriteLine($"Structure '{structures.MainStructure.Name}' loaded and stored in variable '{variableName}'");
