@@ -1,1 +1,5 @@
-Blabla
+To-do
+=====
+
+Inventory: currently only returns a list. Perhaps better as json? And similar to info: either output as json for interop or list of lines for human readability.
+

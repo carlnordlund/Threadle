@@ -23,12 +23,12 @@ lazeganet <- load_network("lazega","lazega.tsv")
 # Get an inventory of stored objects
 inventory()
 
-# Get info about the "lazega" structure
-info_net <- info("lazega")
-info_net
 
-info_nodes <- info("lazega_nodeset")
-info_nodes
+# Get info about the "lazega" structure
+info("lazega")
+
+# Get info about the lazega_nodeset
+info("lazega_nodeset")
 
 # Get nbr of nodes in the network (can either use the network or nodeset)
 nbr_nodes <- get_nbr_nodes("lazega")
@@ -48,4 +48,4 @@ office_alter <- get_attr("lazega_nodeset", random_alter_nodeid, "Office")
 
 # etc - so this should be looped of course, but mechanism is all there for random walker now
 
-#.stop_threadle()
+.stop_threadle()

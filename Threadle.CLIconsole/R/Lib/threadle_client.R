@@ -122,7 +122,8 @@ set_attr <- function(nodeset, nodeid, attrname, attrvalue) {
 
 get_attr <- function(nodeset, nodeid, attrname) {
   #getattr(nodeset=[var:nodeset],nodeid=[nodeid],attrname=[attributeName])
-  cli <- sprintf("getattr(nodeset=%s,nodeid=%d,attrname=%s)",nodeset,nodeid,attrname)
+  cli <- sprintf("getattr(structure=%s,nodeid=%d,attrname=%s)",nodeset,nodeid,attrname)
+  #print(cli)
   .send_command(cli)
 }
 
