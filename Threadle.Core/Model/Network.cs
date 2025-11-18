@@ -101,7 +101,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// A dictionary of relational layers (ILayer), accessible by their unique names.
         /// </summary>
-        public Dictionary<string, ILayer> Layers { get; set; } = new();
+        public Dictionary<string, ILayer> Layers { get; set; } = [];
         #endregion
 
 

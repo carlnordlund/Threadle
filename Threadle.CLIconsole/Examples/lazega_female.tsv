@@ -1,0 +1,65 @@
+# Network Metadata
+Name: lazega_subnet
+NodesetFile: lazega_female_nodeset.tsv
+
+# Layer
+LayerMode: 1
+LayerName: friends
+Directionality: directed
+ValueType: binary
+Selfties: false
+27	29	38	43
+29	27	34	38
+34	29	39	43	48
+39	34	48
+43	27	34	39	57	64
+38	57
+46	34	57	60
+60	46	61	64
+51	59
+57	46	60	61	64
+48	29	34	38	39	43	64
+64	39	43	46	48	57	59	60	61	69	71
+59	51
+61	57	60	64
+69	67	71
+71	64
+67	69	71
+
+# Layer
+LayerMode: 1
+LayerName: advice
+Directionality: directed
+ValueType: binary
+Selfties: false
+29	34
+34	29
+39	48	57
+46	34	60
+48	29	34	38	39	43	46	64
+43	27
+64	34
+27	29	34	57
+59	51
+60	34	46	61
+57	38	39	43
+61	34	60	64
+51	38	39	43	57	59	60
+44	34
+67	38	39	43	57	69
+69	39	64	67	71
+71	39	57	67	69
+
+# Layer
+LayerMode: 1
+LayerName: collaboration
+Directionality: undirected
+ValueType: binary
+Selfties: false
+39	69
+29	34	46	48	60	61
+34	48	61
+43	61	67	69
+27	38	43	71
+38	57
+46	60

@@ -70,6 +70,13 @@ namespace Threadle.Core.Model
         /// Removes all edges in the layer.
         /// </summary>
         void ClearLayer();
+
+        /// <summary>
+        /// Create a copy of this ILayer with those edges that refer to the nodes in the provided nodeset.
+        /// </summary>
+        /// <param name="nodeset">The <see cref="Nodeset"/> to filter on (only include edges with these node ids).</param>
+        /// <returns>A copy of the current <see cref="ILayer"/> object with relevant edges.</returns>
+        ILayer CreateFilteredCopy(Nodeset nodeset);
         #endregion
     }
 }

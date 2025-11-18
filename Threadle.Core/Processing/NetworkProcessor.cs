@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
@@ -74,6 +75,27 @@ namespace Threadle.Core.Processing
             }
             network.AddLayer(newLayerName, newLayer);
             return OperationResult.Ok($"Dichotomized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
+        }
+
+        /// <summary>
+        /// Creates a new Network object based on the provided network that instead uses the provided Nodeset, thus
+        /// removing all edges that are not related to any of the nodes in the provided nodeset.
+        /// </summary>
+        /// <param name="network">The original <see cref="Network"/> object.</param>
+        /// <param name="nodeset">The <see cref="Nodeset"/> of the new <see cref="Network"/> object that is created.</param>
+        /// <returns>A <see cref="Network"/> object that is a subset of the provided 'network'.</returns>
+        public static OperationResult<Network> Subnet(Network network, Nodeset nodeset)
+        {
+            Network subnet = new Network(network.Name + "_subnet", nodeset);
+
+            foreach (var (layerName, layer) in network.Layers)
+            {
+                subnet.AddLayer(layerName, layer.CreateFilteredCopy(nodeset));
+            }
+
+
+
+            return OperationResult<Network>.Ok(subnet);
         }
         #endregion
 

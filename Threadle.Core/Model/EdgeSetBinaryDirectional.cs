@@ -200,6 +200,24 @@ namespace Threadle.Core.Model
             _outbound.Clear();
             _inbound.Clear();
         }
+
+        /// <summary>
+        /// Creates a copy of the Edgeset only including the edges mentioned in the provided HashSet.
+        /// </summary>
+        /// <param name="allowedNodes">A <see cref="HashSet"/> with allowed node ids.</param>
+        /// <returns>A <see cref="IEdgeset"/> that is filtered.</returns>
+        public IEdgeset CreateFilteredCopy(HashSet<uint> allowedNodes)
+        {
+            var edgeset = new EdgesetBinaryDirectional();
+            foreach (uint nodeId in _inbound)
+                if (allowedNodes.Contains(nodeId))
+                    edgeset._inbound.Add(nodeId);
+            foreach (uint nodeId in _outbound)
+                if (allowedNodes.Contains(nodeId))
+                    edgeset._outbound.Add(nodeId);
+            return edgeset;
+        }
+
         #endregion
     }
 }

@@ -127,6 +127,13 @@ namespace Threadle.Core.Model
         /// Removes all edges in the edgeset.
         /// </summary>
         void ClearEdges();
+
+        /// <summary>
+        /// Creates a copy of the Edgeset only including the edges mentioned in the provided HashSet.
+        /// </summary>
+        /// <param name="allowedNodes">A <see cref="HashSet"/> with allowed node ids.</param>
+        /// <returns>A <see cref="IEdgeset"/> that is filtered.</returns>
+        IEdgeset CreateFilteredCopy(HashSet<uint> allowedNodes);
         #endregion
     }
 }

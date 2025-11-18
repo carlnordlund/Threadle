@@ -169,6 +169,26 @@ namespace Threadle.Core.Model
                 hyperedge.Clear();
             AllHyperEdges.Clear();
         }
+
+        /// <summary>
+        /// Create a new empty copy of this ILayer
+        /// </summary>
+        /// <returns>A copy of the current <see cref="ILayer"/> object.</returns>
+        public ILayer CreateFilteredCopy(Nodeset nodeset)
+        {
+            HashSet<uint> allowedNodeIds = [.. nodeset.NodeIdArray];
+            LayerTwoMode layerCopy = CreateEmptyCopy();
+            foreach (var(name, hyperedge) in AllHyperEdges)
+            {
+                Hyperedge hyperedge_filtered = new(hyperedge.NodeIds.Intersect(allowedNodeIds).ToArray());
+                if (hyperedge_filtered.NbrNodes == 0)
+                    continue;
+                layerCopy.AllHyperEdges.Add(name, hyperedge_filtered);
+                foreach (uint nodeId in hyperedge_filtered.NodeIds)
+                    layerCopy.AddHyperEdgeToNode(nodeId, hyperedge_filtered);
+            }
+            return layerCopy;
+        }
         #endregion
 
 
@@ -241,6 +261,16 @@ namespace Threadle.Core.Model
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
                 collection.HyperEdges.Remove(hyperEdge);
         }
+
+        /// <summary>
+        /// Creates and returns an empty copy of this layer.
+        /// </summary>
+        /// <returns></returns>
+        private LayerTwoMode CreateEmptyCopy()
+        {
+            return new LayerTwoMode(this.Name);
+        }
+
         #endregion
     }
 }

@@ -204,6 +204,24 @@ namespace Threadle.Core.Model
                 ids.UnionWith(edgeset.GetAllNodeIds);
             return ids;
         }
+
+        /// <summary>
+        /// Create a new empty copy of this ILayer
+        /// </summary>
+        /// <returns>A copy of the current <see cref="ILayer"/> object.</returns>
+        public ILayer CreateFilteredCopy(Nodeset nodeset)
+        {
+            HashSet<uint> nodeIds = [.. nodeset.NodeIdArray];
+            LayerOneMode layerCopy = CreateEmptyCopy();
+
+            foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
+            {
+                if (!nodeIds.Contains(nodeId))
+                    continue;
+                layerCopy.Edgesets.Add(nodeId, edgeset.CreateFilteredCopy(nodeIds));
+            }
+            return layerCopy;
+        }
         #endregion
 
 
@@ -312,6 +330,15 @@ namespace Threadle.Core.Model
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
                 return 0;
             return edgeset.NbrInboundEdges;
+        }
+
+        /// <summary>
+        /// Creates and returns an empty copy of this layer.
+        /// </summary>
+        /// <returns></returns>
+        private LayerOneMode CreateEmptyCopy()
+        {
+            return new LayerOneMode(this.Name, this.Directionality, this.EdgeValueType, this.Selfties);
         }
         #endregion
     }
