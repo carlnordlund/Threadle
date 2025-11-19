@@ -106,8 +106,12 @@ add_node <- function(nodeset, id) {
   #invisible(nodeset)
 }
 
-inventory <- function() {
-  .send_command(sprintf("i()"))
+inventory <- function(format = "json") {
+  retval <- .send_command(sprintf("i(format=json)"))
+  if (format == "json")
+    fromJSON(retval)
+  else
+    retval
 }
 
 define_attr <- function(nodeset, attrname, attrtype) {

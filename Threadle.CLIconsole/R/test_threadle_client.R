@@ -36,16 +36,22 @@ nbr_nodes
 
 # Get a random starting node
 nodeid <- get_nodeid_by_index("lazega", sample(0:nbr_nodes-1,1))
+nodeid
 
 # Get Office attribute
 office_current <- get_attr("lazega_nodeset",nodeid,"Office")
+office_current
 
 # Get a random alter in the friends layer:
 random_alter_nodeid <- get_random_alter("lazega", nodeid, layername = "friends")
+random_alter_nodeid
 
 # Get office attribute of this
 office_alter <- get_attr("lazega_nodeset", random_alter_nodeid, "Office")
+office_alter
 
 # etc - so this should be looped of course, but mechanism is all there for random walker now
 
 .stop_threadle()
+
+

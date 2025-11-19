@@ -20,26 +20,30 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// by the variable names that these structures were assigned to.
         /// </summary>
         public Dictionary<string, IStructure> Variables { get; } = new();
+
+        public List<string> VariableNames => Variables.Select(kvp => $"{kvp.Key} [{kvp.Value.GetType().Name}]").ToList();
         #endregion
 
 
-        #region Methods (internal)
-        /// <summary>
-        /// Returns a dictionary with metadata about the structures currently stored in the
-        /// console variable memory.
-        /// </summary>
-        /// <returns>A <see cref="Dictionary{string, object}"/> with metadata about each stored structure.</returns>
+            #region Methods (internal)
+            /// <summary>
+            /// Returns a dictionary with metadata about the structures currently stored in the
+            /// console variable memory.
+            /// </summary>
+            /// <returns>A <see cref="Dictionary{string, object}"/> with metadata about each stored structure.</returns>
         internal Dictionary<string, object> VariablesMetadata()
         {
             Dictionary<string, object> metadata = new();
             foreach (var kvp in Variables)
             {
-                metadata[kvp.Key]= new Dictionary<string, object>
-                {
-                    { "Type", kvp.Value.GetType().Name },
-                    { "IsModified", kvp.Value.IsModified   },
-                    { "Filepath", kvp.Value.Filepath ?? "N/A" }
-                };
+                //metadata[kvp.Key]= new Dictionary<string, object>
+                //{
+                //    { "Type", kvp.Value.GetType().Name },
+                //    { "IsModified", kvp.Value.IsModified   },
+                //    { "Filepath", kvp.Value.Filepath ?? "N/A" }
+                //};
+
+                metadata[kvp.Key] = kvp.Value.GetType().Name;
             }
             return metadata;
         }

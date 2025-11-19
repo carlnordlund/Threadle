@@ -40,10 +40,15 @@ namespace Threadle.CLIconsole.Commands
             if (context.Variables.Any())
             {
                 Dictionary<string, object> inventoryMetadata = context.VariablesMetadata();
+                List<string> variableNames = context.VariableNames;
+
+                //var inventoryList = context.VariablesMetadata2();
+
                 if (outputFormat.Equals("console"))
-                    ConsoleOutput.PrintDictionary(inventoryMetadata);
+                    ConsoleOutput.WriteLine(variableNames, true);
+                //ConsoleOutput.PrintDictionary(inventoryMetadata);
                 else
-                    ConsoleOutput.WriteLine(JsonSerializer.Serialize(inventoryMetadata, new JsonSerializerOptions { WriteIndented = false }), true);
+                    ConsoleOutput.WriteLine(JsonSerializer.Serialize(variableNames, new JsonSerializerOptions { WriteIndented = false }), true);
             }
             else
                 ConsoleOutput.WriteLine("No objects stored.");
