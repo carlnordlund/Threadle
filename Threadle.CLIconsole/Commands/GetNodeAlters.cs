@@ -19,12 +19,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[array:uint] = getnodealters(network = [var:network], layername = [str], nodeid = [uint], *direction=['both'(default),'in','out'])";
+        public string Syntax => "[array:uint] = getnodealters(network = [var:network], layername = [str], nodeid = [uint], *direction = ['both'(default),'in','out'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the id of the alters to a specific node in a specific layer, output in standard JSON array format. By default, both in- and outbound ties are included in the set of alters, but this can be adjusted with the optional direction argument.";
+        public string Description => "Get the id of the alters to a specific node in a specific layer in the Network with the variable name [var:network]. Output is in standard JSON array format. By default, both in- and outbound ties are included in the set of alters, but this can be adjusted with the optional direction argument.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

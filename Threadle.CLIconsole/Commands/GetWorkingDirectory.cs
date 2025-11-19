@@ -16,12 +16,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "getwd()";
+        public string Syntax => "[str] = getwd()";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Returns the current working directory that Threadle is currently using.";
+        public string Description => "Returns the working directory that Threadle is currently using.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

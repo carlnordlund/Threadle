@@ -22,7 +22,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Loads a structure from file 'file', using the internal text-based file format. The type of structure is given by the 'type' argument, which can be either 'nodeset' or 'network'. if the filepath has the ending .tsv, it is saved in the standard internal text-based format, if the .tsv.gz is used, it is subsequently gzipped and saved as such.";
+        public string Description => "Loads a structure from file 'file', using the internal text-based file format. The type of structure is given by the 'type' argument, which can be either 'nodeset' or 'network'. When loading a network file that refers to a nodeset file, the nodeset is also loaded. If the filepath has the ending .tsv, it is loaded in the standard internal text-based format, if the .tsv.gz is used, it is loading a gzipped version of this. When loading a network file that refers to a nodeset file, the nodeset is also loaded.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

@@ -22,7 +22,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates and adds a node with id [id] and adds it to the Nodeset that has the variable name [var:nodeset]. Note that the node id is what makes each node unique, and it must be an unsigned integer.";
+        public string Description => "Creates and adds a node with id [id] and adds it to the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Note that the node id is what makes each node unique, and it must be an unsigned integer.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

@@ -27,7 +27,7 @@ namespace Threadle.Core.Processing
         /// <param name="directionality">Specifies whether the edges in the network are directed or undirected.</param>
         /// <param name="selfties">Indicates whether self-loops (edges from a node to itself) are allowed in the network.</param>
         /// <returns>A <see cref="Network"/> object representing the generated Erdős–Rényi random network.</returns>
-        public static Network ErdosRenyi(int size, double p, EdgeDirectionality directionality, bool selfties)
+        public static StructureResult ErdosRenyi(int size, double p, EdgeDirectionality directionality, bool selfties)
         {
             Nodeset nodeset = new Nodeset("er_nodes", size);
             Network network = new Network("er", nodeset);
@@ -57,7 +57,10 @@ namespace Threadle.Core.Processing
                 network.AddEdge(layername, nodes[row], nodes[col]);
                 index++;
             }
-            return network;
+            return new StructureResult(network, new Dictionary<string, IStructure>
+            {
+                { "nodeset", nodeset }
+            });
         }
         #endregion
 

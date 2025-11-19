@@ -17,7 +17,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[str] = info(name = [var:structure], *format = ['console'(default),'json'])";
+        public string Syntax => "[str] = info(structure = [var:structure], *format = ['console'(default),'json'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -36,7 +36,7 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
-            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0"));
+            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             string outputFormat = command.GetArgumentParseString("format", "console");
             Dictionary<string, object> infoMetadata = structure.Info;
             if (outputFormat.Equals("console"))

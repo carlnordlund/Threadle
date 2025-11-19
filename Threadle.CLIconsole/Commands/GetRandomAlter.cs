@@ -24,7 +24,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the node id of a random alter to the specified node. By default, the pick is randomly picked among all available layers, or the specified layer. By default, both in- and outbound ties are considered, but this can be adjusted.";
+        public string Description => "Get the node id of a random alter to the specified node. By default, both in- and outbound ties are considered, but this can be adjusted. By default, the pick is randomly picked among a specific layer as given by the 'layername' argument, or all available layers can be used by omitting this argument. If all layers are included, the 'balanced' argument specifies how the pick should be done. If balanced is set to 'true', a uniformly random pick between layer takes place first, followed by a random pick of an alter in the specific layer that was picked. If set to 'false', alters in all layers are first pooled together (with the possibility of an alter appearing multiple times) and a random pick is then done among this complete set of alters across layers.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

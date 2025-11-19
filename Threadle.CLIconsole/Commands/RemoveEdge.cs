@@ -22,7 +22,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Removes the edge (if one exists) between node1id and node2id in the specified layer 'layername' (which must be 1-mode) in network 'network'. If the layer is directional, node1id is the source (from) and node2id is the destination (to). Gives a warning message if any of the nodes are missing, or if the edge does not exist.";
+        public string Description => "Removes the edge (if one exists) between node1id and node2id in the specified layer 'layername' (which must be 1-mode) in network [var:network]. If the layer is directional, node1id is the source (from) and node2id is the destination (to). Gives a warning message if any of the nodes are missing, or if the edge does not exist.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

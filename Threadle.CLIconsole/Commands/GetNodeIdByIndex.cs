@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the node id of the node with the specified index position. Note that the index positions could change as nodes and node attributes are added and removed. Also note that nodes with attributes come first in the index, followed by nodes without attributes.";
+        public string Description => "Get the node id of the node with the specified index position in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Note that the index positions could change as nodes and node attributes are added and removed. Also note that nodes with attributes come first in the index, followed by nodes without attributes.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

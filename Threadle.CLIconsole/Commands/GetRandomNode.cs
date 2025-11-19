@@ -25,7 +25,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get a random node id from the specified nodeset (or the nodeset that is used by this network).";
+        public string Description => "Get a random node id from the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure].";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

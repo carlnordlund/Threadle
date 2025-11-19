@@ -15,12 +15,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:network2] = subnet(network = [var:network1], nodeset = [var:nodeset])";
+        public string Syntax => "[var:network] = subnet(network = [var:network2], nodeset = [var:nodeset])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates a new network that based on the provided network but only including the nodes in the provided nodeset. For instance, if a subset of a Nodeset has first been created using 'filter()', one can then use this command to create a subset of a network that is using the original Nodeset.";
+        public string Description => "Creates and stores a new network [var:network] that based on the provided network [var:network2] but only including the nodes in the provided nodeset [var:nodeset]. For instance, if a subset of a Nodeset has first been created using 'filter()', one can then use this command to create a subset of a network that is using the original Nodeset.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

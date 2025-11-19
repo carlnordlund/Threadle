@@ -23,7 +23,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates the density of layer 'layername' of the specified network, up to 8 decimals. Treats all existing ties as binary ties.";
+        public string Description => "Calculates and returns the density of layer 'layername' of the specified network, up to 8 decimals. Treats all existing ties as binary ties.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

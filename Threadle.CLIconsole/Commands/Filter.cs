@@ -18,12 +18,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:nodeset1] = filter(nodeset = [var:nodeset2], attrname = [str], cond=['eq','ne','gt','lt','ge','le','isnull','notnull'], +attrvalue = [str])";
+        public string Syntax => "[var:nodeset] = filter(nodeset = [var:nodeset2], attrname = [str], cond=['eq','ne','gt','lt','ge','le','isnull','notnull'], +attrvalue = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates and stores a new nodeset [var:nodeset1] containing all the nodes in [var:nodeset2] that fulfills the specified condition 'cond' concerning the specified attribute 'attrname' and the reference value 'attrvalue'. The new nodeset and its nodes and attributes constitute a partial deep copy of the inbound nodeset, making them completely independent from each other. Note: when checking for 'isnull' or 'notnull', the 'attrvalue' argument can be ignored.";
+        public string Description => "Creates and stores a new nodeset [var:nodeset] containing all the nodes in [var:nodeset2] that fulfills the specified condition 'cond' concerning the specified attribute 'attrname' and the reference value 'attrvalue'. The new nodeset and its nodes and attributes constitute a partial deep copy of the inbound nodeset, making them completely independent from each other. Note: when checking for 'isnull' or 'notnull', the 'attrvalue' argument can be ignored.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

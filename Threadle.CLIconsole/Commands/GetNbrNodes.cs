@@ -22,7 +22,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the number of nodes in this structure (which can either be a Nodeset or a Network structure). If a network is provided, it uses the Nodeset that this network is pointing to";
+        public string Description => "Get the number of nodes in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure].";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

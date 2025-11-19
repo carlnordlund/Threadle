@@ -16,7 +16,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "view(name = [var:structure])";
+        public string Syntax => "[str] = view(structure = [var:structure])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -35,7 +35,7 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public void Execute(Command command, CommandContext context)
         {
-            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0"));
+            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             ConsoleOutput.WriteLine(structure.Content, true);
         }
     }

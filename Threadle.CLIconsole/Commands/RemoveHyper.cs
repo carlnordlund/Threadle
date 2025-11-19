@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Removes the hyperedge 'hypername' from layer 'layername' in the specified network.";
+        public string Description => "Removes the hyperedge 'hypername' from layer 'layername' in the specified network [var:network].";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
