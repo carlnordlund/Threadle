@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove=".Rhistory" />
     <None Remove="R\.Rhistory" />
   </ItemGroup>
 
