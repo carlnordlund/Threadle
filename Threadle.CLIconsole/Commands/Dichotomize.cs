@@ -18,7 +18,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "dichotomize(network = [var:network], layername = [str], *cond = ['eq','ne','gt','lt','ge'(default),'le','isnull'(invalid),'notnull'(invalid)], *threshold = [float(default:1)], *truevalue = [float(default:1)|'keep'], *falsevalue = [float(default:0)|'keep'], *newlayername = [str])";
+        public string Syntax => "dichotomize(network = [var:network], layername = [str], *cond = ['eq','ne','gt','lt','ge'(default),'le','isnull'(invalid),'notnull'(invalid)], *threshold = [float(default:1)], *truevalue = [float(default:1),'keep'], *falsevalue = [float(default:0),'keep'], *newlayername = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.

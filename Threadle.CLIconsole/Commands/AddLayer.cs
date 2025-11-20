@@ -18,7 +18,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "addlayer(network = [var:network], layername = [str], mode = ['1', '2'], *directed = ['true', 'false'(default)], *valuetype = ['binary'(default), 'valued'], *selfties=['true', 'false'(default)])";
+        public string Syntax => "addlayer(network = [var:network], layername = [str], mode = ['1','2'], *directed = ['true','false'(default)], *valuetype = ['binary'(default),'valued'], *selfties=['true','false'(default)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.

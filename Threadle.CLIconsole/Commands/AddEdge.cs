@@ -17,7 +17,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "addedge(network = [var:network], layername = [str], node1id = [uint], node2id = [uint], *value = [float (default:1)], *addmissingnodes = ['true'(default), 'false'])";
+        public string Syntax => "addedge(network = [var:network], layername = [str], node1id = [uint], node2id = [uint], *value = [float(default:1)], *addmissingnodes = ['true'(default), 'false'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.

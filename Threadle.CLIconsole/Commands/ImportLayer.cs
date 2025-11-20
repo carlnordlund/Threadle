@@ -17,7 +17,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "importlayer(network = [var:network], layername = [str], file = \"[str]\", format = ['edgelist','matrix'], *sep = [char(default: '\t')], *addmissingnodes = ['true','false'(default:'false')])";
+        public string Syntax => "importlayer(network = [var:network], layername = [str], file = \"[str]\", format = ['edgelist','matrix'], *sep = [char(default:'\t')], *addmissingnodes = ['true','false'(default)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.

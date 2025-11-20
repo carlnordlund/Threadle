@@ -17,7 +17,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:structure] = loadfile(file = \"[str]\", type = ['nodeset', 'network'])";
+        public string Syntax => "[var:structure] = loadfile(file = \"[str]\", type = ['nodeset','network'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
