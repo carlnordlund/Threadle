@@ -3,3 +3,25 @@ To-do
 
 Inventory: currently only returns a list. Perhaps better as json? And similar to info: either output as json for interop or list of lines for human readability.
 
+
+threadleR stuff
+===============
+
+So: building an interop package for R!
+In /threadleR/R/: threadle_client.R
+Keep on adding functions and commenting - make sure they are up-to-date (new CLI command signatures)
+
+Then to build package:
+1. Navigate to inside /threadleR/ folder (i.e. where the stuff is)
+2. library(roxygen2)
+3. > roxygen2::roxygenise() # This will write NAMESPACE etc
+4. Go to parent folder: /Threadle/Threadle.CLIconsole # i.e. the folder where /threadleR/ resides
+5. > system("R CMD build threadleR") # This builds the tar.gz package
+6. This package can now be installed: install.packages("threadleR_0.1.0.tar.gz", repos=NULL, type="source")
+7. Then I can use it: library(threadleR)
+
+Note that when starting: .start_threadle(), I really need to provide the path (assuming I am in \Threadle\Threadle.CLIconsole\)
+path_to_exe <-"bin/Debug/net8.0/Threadle.CLIconsole.exe"
+.start_threadle(path_to_exe)
+
+Then I can later navigate etc and load networks etc.

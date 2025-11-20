@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="threadleR\" />
     <Folder Include="Properties\PublishProfiles\" />
   </ItemGroup>
 

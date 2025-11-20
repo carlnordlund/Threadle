@@ -1,0 +1,12 @@
+Package: threadleR
+Title: R Client for Threadle CLI Console
+Version: 0.1.0
+Description: A lightweight R wrapper for the Threadle CLI console.
+Authors@R: person("Your", "Name", email = "you@example.com", role = c("aut", "cre"))
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Imports:
+    processx,
+    jsonlite
+RoxygenNote: 7.3.3
