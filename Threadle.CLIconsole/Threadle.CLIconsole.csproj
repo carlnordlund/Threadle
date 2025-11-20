@@ -15,6 +15,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="R\Lib\**" />
+    <EmbeddedResource Remove="R\Lib\**" />
+    <None Remove="R\Lib\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="R\.Rhistory" />
   </ItemGroup>
 
@@ -44,9 +50,6 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Examples\mynet_nodesetfile.tsv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="R\Lib\threadle_client.R">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="R\test_threadle_client.R">
