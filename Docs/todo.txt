@@ -1,9 +1,28 @@
 To-do
 =====
+Add CLI command and Core methods for add affiliation and remove affiliation (addaff, removeaff?). So far only addhyper, removehyper. Maybe something like:
+addaff(
+	network = [var:network],
+	layername = [str],
+	node1id = [uint],
+	hypername = [str],
+	*addmissingnodes = ['true'(default), 'false'],
+	*addmissinghyper = ['true'(default), 'false']
+)
 
+Perhaps modify createnetwork() so that it MUST be provided with an already existing Nodeset? In that way, forcing so that a command at max creates a single
+IStructure. Would make threadleR easier. Auto-create nodeset in createnetwork() feels a bit unnecessary.
+
+CLI command and Core methods for importing attributes from file? 'importattr()'? Given a file with attribute data, supplement existing Nodeset with this.
+Pre-define attributes prior to import? Need to think a bit about this. Could also do this programmatically from R.
+
+
+DONE the below ones!
 Inventory: currently only returns a list. Perhaps better as json? And similar to info: either output as json for interop or list of lines for human readability.
 
 
+
+Notes for 
 threadleR stuff
 ===============
 
