@@ -4,8 +4,8 @@ CLI command and Core methods for importing attributes from file? 'importattr()'?
 Pre-define attributes prior to import? Need to think a bit about this. Could also do this programmatically from R.
 
 
-DONE the below ones!
-
+FINISHED DOING the ones below
+=============================
 Added 'addaff(..)' CLI command and core methods for adding an affiliation, i.e. connecting a node id to a hyperedge.
 
 Added 'removeaff(..)' CLI command and core methods for removing an affiliation, i.e. disconnecting a node id from a hyperedge.
