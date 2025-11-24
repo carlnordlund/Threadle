@@ -3,6 +3,44 @@ To-do
 CLI command and Core methods for importing attributes from file? 'importattr()'? Given a file with attribute data, supplement existing Nodeset with this.
 Pre-define attributes prior to import? Need to think a bit about this. Could also do this programmatically from R.
 
+Modify how savefile and loadfile works? Idea for 'savefile()': make 'file' optional! Instead, always save to the IStructure.Filepath property by default, which is
+set to something if 1) the structure has previously been loaded from file, or 2) if it has already been saved. I could thus do this:
+
+nodes = loadfile(nodes.tsv, type = nodeset)
+# the Nodeset is now loaded and stored to 'nodes' and the Filepath property is set to 'nodes.tsv'
+# I could then modify this Nodeset - add/remove nodes, set attributes.
+# If I then save it again, skipping the file argument:
+savefile(nodes)
+# ...the Nodeset will save it to its Filepath property, which is 'nodes.tsv'
+
+# However, if the Filepath property was empty, e.g. if one has programmatically created it, then 'savefile(nodes)' would not work:
+# that would give an error: no file specified. Then one must specify the filepath:
+savefile(nodes, nodes.tsv)
+# This would then save the Nodeset 'nodes' to this file, and ALSO set the Filepath property to 'nodes.tsv', so any additional
+# saves can now skip the 'file' argument.
+
+# However, one can still use the 'file' argument, even if the Filepath property is already set. Then this would save this Nodeset to this new
+# 'file' - and it would also change the Filepath property of the Nodeset to this new 'file'. In essence, this is then like the typical 'Save as...'.
+
+# What about loading and saving networks? Let's start with loading network:
+net = loadfile(mynet.tsv, type = network)
+# This would then load the 'mynet.tsv' file and create the Network structure, setting its Filepath to 'mynet.tsv'.
+# As the NodesetFile: tag would be discovered, it would also try to load the Nodeset, i.e. setting it to 'net_nodes', i.e. '[base]_nodes',
+# and setting the Nodeset Filepath to this path. If this fails, if there is no Nodeset found, this would then just produce a warning. Then
+# nodes would be created on-the-fly instead. So 'loadfile([file], network)' would result in two stored structures: a Network and a Nodeset (either loaded or created on
+# the fly)
+
+# What about 'savefile(net)'?
+# This would save the Network net to the file Filepath, i.e. given by its Filepath. It should also store the Nodeset! If the Nodeset has a Filepath, great: use that.
+# If Nodeset doesn't have a filepath: ... Perhaps don't allow this? Force all savefile(net) to only work with Nodeset structures that are already saved?
+
+# This means: if trying 'savefile(net)' and this network has a Nodeset that has no Filepath set, then refuse to save the network: state that the nodeset must be saved first.
+# After the nodeset has been saved, it has a Filepath. Great! Then I can do 'savefile(net)', which would then save the Network AND its Nodeset (if it has been modified).
+
+# This would remove the silly 'nodesetfile' argument in savefile, which is very weird.
+
+
+
 
 FINISHED DOING the ones below
 =============================
