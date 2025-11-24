@@ -1,21 +1,15 @@
 To-do
 =====
-Add CLI command and Core methods for add affiliation and remove affiliation (addaff, removeaff?). So far only addhyper, removehyper. Maybe something like:
-addaff(
-	network = [var:network],
-	layername = [str],
-	node1id = [uint],
-	hypername = [str],
-	*addmissingnodes = ['true'(default), 'false'],
-	*addmissinghyper = ['true'(default), 'false']
-)
-
-
 CLI command and Core methods for importing attributes from file? 'importattr()'? Given a file with attribute data, supplement existing Nodeset with this.
 Pre-define attributes prior to import? Need to think a bit about this. Could also do this programmatically from R.
 
 
 DONE the below ones!
+
+Added 'addaff(..)' CLI command and core methods for adding an affiliation, i.e. connecting a node id to a hyperedge.
+
+Added 'removeaff(..)' CLI command and core methods for removing an affiliation, i.e. disconnecting a node id from a hyperedge.
+
 Modified createnetwork() so that it MUST be provided with an already existing Nodeset!
 
 

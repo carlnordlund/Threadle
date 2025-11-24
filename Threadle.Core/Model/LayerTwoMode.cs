@@ -255,9 +255,30 @@ namespace Threadle.Core.Model
                 AllHyperEdges.Add(hyperName, hyperedge);
             }
             AddHyperEdgeToNode(nodeId, hyperedge);
-            hyperedge.NodeIds.Add(nodeId);
-            return OperationResult.Ok();
+            if (!hyperedge.NodeIds.Contains(nodeId))
+                hyperedge.NodeIds.Add(nodeId);
+            return OperationResult.Ok($"Node '{nodeId}' affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
         }
+
+        /// <summary>
+        /// Remove an affiliation between a specific node and a hyperedge. If the node is not affiliated with the hyperedge,
+        /// i.e. something is internally wrong, then just continue as normal. Otherwise, remove the node id from the hyperedge
+        /// and remove the nodal reference to this hyperedge.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="hyperName">The name of the hyperedge that the node is part of.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult RemoveAffiliation(uint nodeId, string hyperName)
+        {
+            if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
+                return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{Name}'.");
+            if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
+                collection.HyperEdges.Remove(hyperedge);
+            if (!hyperedge.NodeIds.Remove(nodeId))
+                return OperationResult.Fail("NodeNotAffiliated", $"Node '{nodeId}' not affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
+            return OperationResult.Ok($"Node '{nodeId}' no longer affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
+        }
+
 
         /// <summary>
         /// Removes a Hyperedge by its name. Also removes all references to this Hyperedge from the

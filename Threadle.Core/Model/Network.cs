@@ -273,6 +273,16 @@ namespace Threadle.Core.Model
             return AddAffiliation(layerResult.Value!, hyperName, nodeId, addMissingNode, addMissingHyperedge);
         }
 
+        public OperationResult RemoveAffiliation(string layerName, string hyperName, uint nodeId)
+        {
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            return RemoveAffiliation(layerResult.Value!, hyperName, nodeId);
+
+        }
+
+
         /// <summary>
         /// Check if an edge exists between two nodes in a particular layer. Works for both 1- and 2-mode layers.
         /// </summary>
@@ -519,6 +529,20 @@ namespace Threadle.Core.Model
             }
             return result;
         }
+
+        internal OperationResult RemoveAffiliation(LayerTwoMode layerTwoMode, string hyperName, uint nodeId)
+        {
+            if (!Nodeset.CheckThatNodeExists(nodeId))
+                return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
+            if (!layerTwoMode.CheckThatHyperedgeExists(hyperName))
+                return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{layerTwoMode.Name}'.");
+            OperationResult result = layerTwoMode.RemoveAffiliation(nodeId, hyperName);
+            if (result.Success)
+                IsModified = true;
+            return result;
+        }
+
+
 
         /// <summary>
         /// Internal method for setting the Nodeset (only to be used by the loader)

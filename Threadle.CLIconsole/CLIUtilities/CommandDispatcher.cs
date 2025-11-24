@@ -53,6 +53,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             _commands["importlayer"] = new ImportLayer();
             _commands["info"] = new Info();
             _commands["loadfile"] = new LoadFile();
+            _commands["removeaff"] = new RemoveAffiliation();
             _commands["removeattr"] = new RemoveAttr();
             _commands["removeedge"] = new RemoveEdge();
             _commands["removehyper"] = new RemoveHyper();
