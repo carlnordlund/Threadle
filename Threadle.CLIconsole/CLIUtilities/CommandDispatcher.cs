@@ -24,6 +24,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// </summary>
         public CommandDispatcher()
         {
+            _commands["addaff"] = new AddAffiliation();
             _commands["addedge"] = new AddEdge();
             _commands["addhyper"] = new AddHyper();
             _commands["addlayer"] = new AddLayer();

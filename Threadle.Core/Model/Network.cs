@@ -256,6 +256,24 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Adds an node affiliation in the specified (2-mode) layer. Optional flags allow for creating and adding nodes and hyperedges to the nodeset
+        /// in case they are missing.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="hyperName">The (unique) name of the hyperedge.</param>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="addMissingNode">Indicates whether a non-existing node should be added.</param>
+        /// <param name="addMissingHyperedge">Indicates whether a non-existing hyperedge should be added.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult AddAffiliation(string layerName, string hyperName, uint nodeId, bool addMissingNode, bool addMissingHyperedge)
+        {
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            return AddAffiliation(layerResult.Value!, hyperName, nodeId, addMissingNode, addMissingHyperedge);
+        }
+
+        /// <summary>
         /// Check if an edge exists between two nodes in a particular layer. Works for both 1- and 2-mode layers.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
@@ -467,6 +485,38 @@ namespace Threadle.Core.Model
             OperationResult result = layerTwoMode.RemoveHyperedge(hypername);
             if (result.Success)
                 IsModified = true;
+            return result;
+        }
+
+        /// <summary>
+        /// Adds an node affiliation in the specified (2-mode) layer. Flags allow for creating and adding nodes and hyperedges to the nodeset
+        /// in case they are missing.
+        /// </summary>
+        /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> object.</param>
+        /// <param name="hyperName">The name of the hyperedge.</param>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="addMissingNode">Indicates whether a non-existing node should be added.</param>
+        /// <param name="addMissingHyperedge">Indicates whether a non-existing hyperedge should be added.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult AddAffiliation(LayerTwoMode layerTwoMode, string hyperName, uint nodeId, bool addMissingNode, bool addMissingHyperedge)
+        {
+            if (!addMissingNode)
+            {
+                if (!Nodeset.CheckThatNodeExists(nodeId))
+                    return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
+            }
+            if (!addMissingHyperedge)
+            {
+                if (!layerTwoMode.CheckThatHyperedgeExists(hyperName))
+                    return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{layerTwoMode.Name}'.");
+            }
+            OperationResult result = layerTwoMode.AddAffiliation(nodeId, hyperName, addMissingHyperedge);
+            if (result.Success)
+            {
+                if (addMissingNode && !Nodeset.CheckThatNodeExists(nodeId))
+                    Nodeset.AddNode(nodeId);
+                IsModified = true;
+            }
             return result;
         }
 

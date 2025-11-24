@@ -17,12 +17,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:network] = createnetwork(*nodeset = [var:nodeset]|*createnodes = [int], *name = [str])";
+        public string Syntax => "[var:network] = createnetwork(nodeset = [var:nodeset], *name = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates a network with the name 'name' and assigning it to the variable [var:network]. Can optionally be provided with an existing Nodeset to use (as given by the variable [var:nodeset]): if not, a new Nodeset object will also be created and stored. For such a new Nodeset, it is possible to specify how many nodes that should be created with the 'createnodes' argument. Note that either 'nodeset' OR 'createnodes' can be provided, not both of these.";
+        public string Description => "Creates a network using the provided [var:nodeset], giving the network the optional name 'name' and assigning it to the variable [var:network].";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -37,17 +37,20 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
-            Nodeset nodeset;
-            if (command.GetArgument("nodeset") is string nameNodeset)
-                nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(nameNodeset);
-            else
-            {
-                string variableNameNodeset = variableName + "_nodeset";
-                int createnodes = command.GetArgumentParseInt("createnodes", 0);
-                nodeset = new Nodeset(variableNameNodeset, createnodes);
-                context.SetVariable(variableNameNodeset, nodeset);
-                ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created and stored in variable '{variableNameNodeset}'");
-            }
+            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
+
+            //Nodeset nodeset = context.get context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
+            //Nodeset nodeset;
+            //if (command.GetArgument("nodeset") is string nameNodeset)
+            //    nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(nameNodeset);
+            //else
+            //{
+            //    string variableNameNodeset = variableName + "_nodeset";
+            //    int createnodes = command.GetArgumentParseInt("createnodes", 0);
+            //    nodeset = new Nodeset(variableNameNodeset, createnodes);
+            //    context.SetVariable(variableNameNodeset, nodeset);
+            //    ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created and stored in variable '{variableNameNodeset}'");
+            //}
 
             string nameNetwork = command.GetArgumentParseString("name", variableName);
             Network network = new Network(nameNetwork, nodeset);

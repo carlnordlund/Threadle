@@ -127,6 +127,11 @@ namespace Threadle.Core.Model
             return false;
         }
 
+        public bool CheckThatHyperedgeExists(string hyperName)
+        {
+            return AllHyperEdges.ContainsKey(hyperName);
+        }
+
         /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters.
         /// As this is 2-mode data, this is the set of all unique node ids of the Hyperedge objects of a particular
@@ -222,13 +227,36 @@ namespace Threadle.Core.Model
         /// of Hyperedge objects, it is first created.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
-        /// <param name="hyperEdge">The hyperedge that the node is part of</param>
+        /// <param name="hyperEdge">The hyperedge that the node is part of.</param>
         private void AddHyperEdgeToNode(uint nodeId, Hyperedge hyperEdge)
         {
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
                 collection.AddHyperEdge(hyperEdge);
             else
                 HyperEdgeCollections.Add(nodeId, new HyperedgeCollection(hyperEdge));
+        }
+
+        /// <summary>
+        /// Add an affiliation between a specific node and a hyperedge. If the hyperedge does not exist, it is created
+        /// if the addMissingHyperedge setting is true. Adding affiliation both means that the hyperedge gets a reference
+        /// to the nodeId, and the HyperedgeCollection belong to that nodeId gets a reference to the hyperedge.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="hyperName">The name of the hyperedge that the node is part of.</param>
+        /// <param name="addMissingHyperedge">Indicates whether a non-existing hyperedge should be added.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult AddAffiliation(uint nodeId, string hyperName, bool addMissingHyperedge)
+        {
+            if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
+            {
+                if (!addMissingHyperedge)
+                    return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in layer '{Name}'.");
+                hyperedge = new Hyperedge();
+                AllHyperEdges.Add(hyperName, hyperedge);
+            }
+            AddHyperEdgeToNode(nodeId, hyperedge);
+            hyperedge.NodeIds.Add(nodeId);
+            return OperationResult.Ok();
         }
 
         /// <summary>
@@ -270,7 +298,6 @@ namespace Threadle.Core.Model
         {
             return new LayerTwoMode(this.Name);
         }
-
         #endregion
     }
 }
