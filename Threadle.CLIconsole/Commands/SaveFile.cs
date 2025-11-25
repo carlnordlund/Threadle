@@ -17,12 +17,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "savefile(structure = [var:structure], file = \"[str]\", *nodesetfile = \"[filepath]\")";
+        public string Syntax => "savefile(structure = [var:structure], *file = \"[str]\")";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Saves the structure [var:structure] to file 'file'. If the structure is a Network and if the Nodeset is also to be stored, the filepath where to save the Nodeset is given by 'nodesetfile'. A reference to this Nodeset file will then also be added in the Network data file.";
+        public string Description => "Saves the structure [var:structure] to file. By default, the Filepath of the structure is used to save to, but if the 'file' argument is provided, it will instead be saved to this, which will replace Filepath. If the Filepath property is not set (i.e. it hasn't been saved before, or loaded from file) and no 'file' is provided, an error will be returned. If the structure is a Network, this will also save the Nodeset to its file if it has been modified. However, if the Nodeset has not been saved before (or loaded from file), i.e. it has a null Filepath property, that will result in an error.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -37,28 +37,9 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-            string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg1");
-            if (structure is Network && command.GetArgument("nodesetfile") is string nodesetFilepath)
-            {
-                OperationResult result = FileManager.Save(structure, filepath, FileFormat.TsvGzip, nodesetFilepath);
-                if (!result.Success)
-                {
-                    ConsoleOutput.WriteLine(result.ToString(), true);
-                    return;                    
-                }
-                ConsoleOutput.WriteLine($"Saved network '{structure.Name}' to file: {filepath}");
-                ConsoleOutput.WriteLine($"Also saved nodeset to '{nodesetFilepath}' and added reference in network.");
-            }
-            else
-            {
-                OperationResult result = FileManager.Save(structure, filepath, FileFormat.TsvGzip);
-                if (!result.Success)
-                {
-                    ConsoleOutput.WriteLine(result.ToString(), true);
-                    return;
-                }
-                ConsoleOutput.WriteLine($"Saved structure '{structure.Name}' to file: {filepath}");
-            }
+            string filepath = command.GetArgumentParseString("file", structure.Filepath);
+            OperationResult result = FileManager.Save(structure, filepath, FileFormat.TsvGzip);
+            ConsoleOutput.WriteLine(result.ToString());
         }
     }
 }
