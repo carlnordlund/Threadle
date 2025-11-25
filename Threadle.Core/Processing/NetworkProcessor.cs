@@ -92,9 +92,6 @@ namespace Threadle.Core.Processing
             {
                 subnet.AddLayer(layerName, layer.CreateFilteredCopy(nodeset));
             }
-
-
-
             return OperationResult<Network>.Ok(subnet);
         }
         #endregion
