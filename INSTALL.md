@@ -1,5 +1,4 @@
-﻿THREADLE INSTALLATION INSTRUCTIONS
-===================================
+﻿# THREADLE INSTALLATION INSTRUCTIONS
 Threadle is a cross-platform software system for handling large-scale complex network data.
 See README.txt for more information or visit:
 https://threadle.dev
@@ -20,8 +19,7 @@ and frontends, it is most likely that most users want the CLIconsole frontend as
 are for compiling Threadle.CLIconsole, with Threadle.Core included, as a single-file executable binary.
 
 
-1. DEPENDENCIES
-===============
+### 1. DEPENDENCIES
 To build Threadle from source, you need:
 - .NET 8.0 SDK or later
   Download this from: https://dotnet.microsoft.com/download
