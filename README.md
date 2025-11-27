@@ -1,5 +1,6 @@
-About
-=====
+# Threadle
+
+### About
 Threadle is a high-performance software system for large, complex, multilayer network datasets, particularly from administrative registers.
 Unlike general-purpose network libraries, it emphasizes memory-efficient storage and fast querying rather than implementing every graph algorithm.
 
@@ -11,16 +12,14 @@ Threadle can be compiled for multiple operating systems and architectures. See I
 Precompiled binaries and installation files for Windows, Linux, and MacOS are available on the project website:
 https://threadle.dev/
 
-Authors and Funding
-===================
+### Authors and Funding
 Threadle is developed and maintained by Carl Nordlund at the Institute for Analytical Sociology, Linköping University, Sweden.
 The project is part of The Complete Network of Sweden project, a research environment funded by Swedish Research Council (grant #2024-01861)
 
 More information about the project can be found here:
 https://www.netreg.se
 
-License
-=======
+### License
 Threadle is released under the MIT License, which allows anyone to use, modify, and redistribute the software for any purpose, including academic, research, or commercial use.
 
 Since Threadle and its methods are publicly released and documented, this publication constitutes prior art, preventing others from patenting the same methods implemented in this software.
