@@ -17,7 +17,9 @@ Threadle consists of two separate projects:
 - **Threadle.CLIconsole** — A CLI-based console/terminal frontend to Threadle.Core.
 
 Although Threadle.Core can be used independently (e.g., for integration with other applications), most users will want the CLIconsole frontend. These instructions describe how to build Threadle.CLIconsole (including Threadle.Core) as a single-file executable binary.
+
 ---
+
 ## 1. DEPENDENCIES
 To build Threadle from source, you need:
 - **.NET 8.0 SDK or later**  
