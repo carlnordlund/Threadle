@@ -86,8 +86,40 @@ Or run the compiled binary (Release mode):
 To generate stand-alone executables for different platforms, use `dotnet publish:`
 ### Windows (x64)
 ```bash
-/[path to executable binary]/.Threadle.CLIconsole
+dotnet publish Threadle.CLIconsole -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
+### Linux (x64)
+```bash
+dotnet publish Threadle.CLIconsole -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true
+```
+
+### macOS (x64)
+```bash
+dotnet publish Threadle.CLIconsole -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true
+```
+Output will be located in:
+```bash
+bin/Release/net8.0/<RID>/publish/
+```
+...where <RID> is the runtime identifier (e.g., `win-x64`, `linux-x64`, `osx-x64`).
+
+These published files can be distributed and run on their respective platforms *without requiring the .NET runtime*.
+(These are the files available as pre-compiled and code-signed binaries on [https://threadle.dev/](https://threadle.dev))
+### Supported Runtime Identifiers (RIDs)
+#### Windows
+- `win-x86` - 32-bit Intel/AMD
+- `win-x64` - 64-bit Intel/AMD
+- `win-arm` - 32-bit ARM
+- `win-arm64` 64-bit ARM
+#### Linux
+- `linux-x64` - 64-bit Intel/AMD
+- `linux-arm` - 32-bit ARM (e.g. Raspberry Pi OS 32-bit)
+- `linux-arm64` - 64-bit ARM (e.g. Raspberry Pi 4/5, ARM servers)
+#### macOS
+- `osx-x64` - 64-bit Intel
+- `osx-arm64` - Apple Silicon (M1, M2, M3 ...)
+
+## 6. PUBLISHING WITH VISUAL STUDIO (Windows only)
 
 
 
