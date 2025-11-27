@@ -120,8 +120,18 @@ These published files can be distributed and run on their respective platforms *
 - `osx-arm64` - Apple Silicon (M1, M2, M3 ...)
 
 ## 6. PUBLISHING WITH VISUAL STUDIO (Windows only)
+Windows users may alternatively open the solution file:
+```bash
+Threadle.sln
+```
+From Visual Studio 2022, you can build, run, and publish directly from the IDE.
+Ensure that:
+- **Threadle.CLIconsole** is set as the Startup Project in the Solution explorer.
+- **Threadle.Core** is listed under `Threadle.CLIconsole -> Dependencies -> Projects`.
 
-
+## 7. NOTES
+- Threadle is fully cross-platform: it compiles and runs on Windows, Linux, and macOS.
+- Ensure that the .NET SDK is correctly installed and available in your system PATH before building or running.
 
 
 
