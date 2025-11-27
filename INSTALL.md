@@ -29,71 +29,63 @@ Optional (Windows only):
   includes the .NET SDK.
 
 
-2. GETTING THE SOURCE CODE
-==========================
+### 2. GETTING THE SOURCE CODE
 Clone this repository from GitHub:
-  git clone https://github.com/carlnordlund/threadle.git
+  `git clone https://github.com/carlnordlund/threadle.git`
 
 Navigate to the folder where your copy of the source code is:
-  cd threadle
+  `cd threadle`
 
 Optional (Visual Studio only):
 - It is also possible to clone the repository from Visual Studio,
   i.e. using the github.com URL provided above.
 
 
-3. BUILDING FROM SOURCE (CROSS-PLATFORM)
-========================================
+### 3. BUILDING FROM SOURCE (CROSS-PLATFORM)
 Threadle project can be built using the .NET CLI, which works
 the same on Windows, Linux and MacOS.
 
 To build in Release mode:
-
-  dotnet build -c Release
+  `dotnet build -c Release`
 
 Binaries will be in:
-  bin/Release/net8.0/
+  `bin/Release/net8.0/`
 
 To build in Debug mode:
-
-  dotnet build
+  `dotnet build`
 
 This will produce binaries in:
-  bin/Debug/net8.0/
+  `bin/Debug/net8.0/`
 
-
-4. RUNNING THE APPLICATION
-==========================
+### 4. RUNNING THE APPLICATION
 You can run Socnet.se directly from the .NET CLI:
-
-  dotnet run --project Threadle.CLIconsole
+  `dotnet run --project Threadle.CLIconsole`
 
 Or by executing the compiled binary (Release mode):
 
 - Windows:
-  .\bin\Release\net8.0\Threadle.CLIconsole.exe
+  `Threadle.CLIconsole.exe`
 
 - Linux / MacOS:
-  ./bin/Release/net8.0/Threadle.CLIconsole
+  `./Threadle.CLIconsole`
 
-5. PUBLISHING SELF-CONTAINED BINARIES
-=====================================
+### 5. PUBLISHING SELF-CONTAINED BINARIES
 To compile the source code into stand-alone executables for
 different platforms, use the 'dotnet publish' command in .NET CLI:
 
 - Windows (x64, i.e. 64-bit):
-    dotnet publish Threadle.CLIconsole -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+    `dotnet publish Threadle.CLIconsole -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true`
 
 - Linux (x64):
-    dotnet publish Threadle.CLIconsole -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true
+    `dotnet publish Threadle.CLIconsole -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true`
 
 - MacOS (x64):
-    dotnet publish Threadle.CLIconsole -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true
+    `dotnet publish Threadle.CLIconsole -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true`
 
 The output will be placed in:
-  bin/Release/net8.0/<RID>/publish/
+  `bin/Release/net8.0/<RID>/publish/`
 
-...where <RID> is the runtime identifier (e.g. win-x64, linux-x64, osx-x64).
+...where `<RID>` is the runtime identifier (e.g. win-x64, linux-x64, osx-x64).
 
 These published files can be distributed and run on the respective platforms without
 requiring the .NET runtime. (These are the files that are available as pre-compiled
@@ -116,20 +108,15 @@ Linux:
   linux-arm   32-bit ARM (e.g. Raspberry Pi OS 32-bit, embedded systems)
   linux-arm64 64-bit ARM (Raspberry Pi 4/5 with 64-bit OS, ARM servers etc)
 
-
-6. PUBLISH WITH VISUAL STUDIO (Windows only)
-============================================
+### 6. PUBLISH WITH VISUAL STUDIO (Windows only)
 Windows users can alternatively open the solution file in Visual Studio 2022:
-
-  Threadle.sln
+  `Threadle.sln`
 
 This can then be built, run and published directly from the Visual Studio IDE.
 Make sure that Threadle.CLIconsole then is the selected Startup project. Also
 make sure that Threadle.Core is in Threadle.CLIconsole/Dependencies/Projects/.
 
-
-7. NOTES
-========
+### 7. NOTES
 - Threadle is cross-platform: it compiles and runs on Windows, Linux and MacOS.
 - 
 - Ensure that the .NET SDK is correctly installed and available in your system PATH
