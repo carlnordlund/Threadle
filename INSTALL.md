@@ -18,8 +18,6 @@ Threadle consists of two separate projects:
 
 Although Threadle.Core can be used independently (e.g., for integration with other applications), most users will want the CLIconsole frontend. These instructions describe how to build Threadle.CLIconsole (including Threadle.Core) as a single-file executable binary.
 
----
-
 ## 1. DEPENDENCIES
 To build Threadle from source, you need:
 - **.NET 8.0 SDK or later**  
@@ -27,7 +25,6 @@ To build Threadle from source, you need:
 
 Optional (Windows only):
 - **Visual Studio 2022** (Community Edition or higher), which includes the .NET SDK.
----
 
 ## 2. GETTING THE SOURCE CODE
 Clone the repository:
