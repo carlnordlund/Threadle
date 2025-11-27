@@ -120,8 +120,9 @@ namespace Threadle.Core.Utilities
         {
             writer.WriteLine("# Network Metadata");
             writer.WriteLine($"Name: {network.Name}");
-            if (!string.IsNullOrEmpty(nodesetFileReference))
-                writer.WriteLine($"NodesetFile: {nodesetFileReference}");
+            //if (!string.IsNullOrEmpty(nodesetFileReference))
+                
+            writer.WriteLine($"NodesetFile: {network.Nodeset.Filepath}");
             var sb = new StringBuilder();
             foreach ((string layerName, ILayer layer) in network.Layers)
             {
@@ -354,6 +355,7 @@ namespace Threadle.Core.Utilities
                 }
             }
             nodeset.IsModified = false;
+            nodeset.Filepath = filepath;
             return nodeset;
         }
         #endregion
