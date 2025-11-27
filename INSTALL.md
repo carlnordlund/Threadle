@@ -74,7 +74,7 @@ To compile the source code into stand-alone executables for
 different platforms, use the 'dotnet publish' command in .NET CLI:
 
 - Windows (x64, i.e. 64-bit):
-    `dotnet publish Threadle.CLIconsole -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true`
+`dotnet publish Threadle.CLIconsole -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true`
 
 - Linux (x64):
     `dotnet publish Threadle.CLIconsole -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true`
