@@ -31,13 +31,18 @@ namespace Threadle.CLIconsole.CLIUtilities
 
                 return new()
                 {
-                    $"Threadle CLI Console v{cliVersion}",
-                    $"Threadle Core Library v{coreVersion}",
-                    "",
-                    "Developed by Carl Nordlund at The Institute for Analytical sociology (IAS), Linköping University, Sweden.",
-                    "See https://netreg.se/ for more information",
-                    "Type 'help' to see a list of available commands. Type 'exit' to quit.",
-                    ""
+                    $"\u001b[36mThreadle CLI Console v1.0.0.0   |   Threadle Core v1.0.0.0\u001b[0m\r\n" +
+                    $"\u001b[90m--------------------------------------------------------------------------\u001b[0m\r\n" +
+                    $"\r\n" +
+                    $"  Developed by: \u001b[36mCarl Nordlund\u001b[0m\r\n" +
+                    $"  Institute for Analytical Sociology (IAS), Linköping University\r\n" +
+                    $"\r\n" +
+                    $"  R extension (threadleR) by: \u001b[36mYukun Jiao\u001b[0m\r\n" +
+                    $"\r\n" +
+                    $"  Project website: \u001b[36mhttps://threadle.dev\u001b[0m\r\n" +
+                    $"  Funding: Swedish Research Council (Vetenskapsrådet), Grant 2024-01861\r\n" +
+                    $"\r\n" +
+                    $"  Type '\u001b[36mhelp\u001b[0m' for commands, '\u001b[36mexit\u001b[0m' to quit.\r\n"
                 };
             }
         }
