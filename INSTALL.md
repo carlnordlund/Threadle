@@ -43,7 +43,10 @@ git clone https://github.com/carlnordlund/threadle.git
 Navigate into the project folder:
 ```bash
 cd threadle
+```
 
+Optional (Visual Studio users):
+- You can also clone the repository directly via Visual Studio using the GitHub URL above.
 
 
 
