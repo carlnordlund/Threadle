@@ -48,7 +48,46 @@ cd threadle
 Optional (Visual Studio users):
 - You can also clone the repository directly via Visual Studio using the GitHub URL above.
 
+## 3. BUILDING FROM SOURCE (CROSS-PLATFORM)
 
+Threadle can be built using the .NET CLI, which works the same on Windows, Linux, and macOS.
+
+### Build in Release mode:
+```bash
+dotnet build -c Release
+```
+Binaries will be in:
+```bash
+bin/Release/net8.0/
+```
+### Build in Debug mode:
+```bash
+dotnet build -c Debug
+```
+Binaries will be in:
+```bash
+bin/Debug/net8.0/
+```
+## 4. RUNNING THE APPLICATION
+You can run Threadle directly using the .NET CLI:
+```bash
+dotnet run --project Threadle.CLIconsole
+```
+Or run the compiled binary (Release mode):
+- **Windows:**
+```bash
+/[path to executable binary]/Threadle.CLIconsole.exe
+```
+- **Linux / macOS:**
+```bash
+/[path to executable binary]/.Threadle.CLIconsole
+```
+## 5. PUBLISHING SELF-CONTAINED BINARIES
+To generate stand-alone executables for different platforms, use `dotnet publish:`
+### Windows (x64)
+```bash
+/[path to executable binary]/.Threadle.CLIconsole
+```
 
 
 
