@@ -3,7 +3,7 @@ Threadle is a cross-platform software system for handling large-scale complex ne
 See README.txt for more information or visit:
 https://threadle.dev
 
-Threadle is developed under the so-called MIT License. Please read LICENSE.txt
+Threadle is developed under the so-called MIT License. Please read [LICENSE.md](LICENSE.md)
 before use and/or compiling the source code.
 
 This document explains how to compile the Threadle client from source code
