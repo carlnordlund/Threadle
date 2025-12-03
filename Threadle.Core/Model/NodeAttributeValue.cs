@@ -106,8 +106,44 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Overrides ToString() method to get the value of the node attribute.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>String version of the value</returns>
         public override string ToString() => GetValue()?.ToString() ?? "";
+
+        /// <summary>
+        /// Convert the type into byte (for binary serialization)
+        /// </summary>
+        /// <returns>A byte corresponding to the Type (i.e. the NodeAttributeType enum value)</returns>
+        public byte TypeAsByte() => (byte)Type;
+
+        /// <summary>
+        /// Convert the value into a raw integer, irrespective of what that integer is. Used by BinaryReader
+        /// </summary>
+        /// <returns>A 32-bit int representing the value in raw format</returns>
+        public int RawValueAsInt()
+        {
+            ReadOnlySpan<byte> span = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref this, 1));
+            return MemoryMarshal.Read<int>(span);
+        }
+
+        /// <summary>
+        /// Static factory to create a NodeAttributeValue struct. Used when reading from binary data.
+        /// E.g. NodeAttributeValue nav = NodeAttributeValue.FromRaw(rawInt, (NodeAttributeType)typeByte);
+        /// </summary>
+        /// <param name="raw">The raw integer read from a byte stream.</param>
+        /// <param name="type">The <see cref="NodeAttributeType"/> this should be interpreted as.</param>
+        /// <returns>A correctly configured and set <see cref="NodeAttributeValue"/> struct.</returns>
+        public static NodeAttributeValue FromRaw (int raw, NodeAttributeType type)
+        {
+            return type switch
+            {
+                NodeAttributeType.Char => new NodeAttributeValue((char)raw),
+                NodeAttributeType.Int => new NodeAttributeValue(raw),
+                NodeAttributeType.Float => new NodeAttributeValue(BitConverter.Int32BitsToSingle(raw)),
+                NodeAttributeType.Bool => new NodeAttributeValue(raw != 0),
+                _ => default
+            };
+        }
+
         #endregion
 
 

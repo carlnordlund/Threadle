@@ -176,6 +176,9 @@ namespace Threadle.Core.Utilities
                     case FileFormat.TsvGzip:
                         FileSerializerTsv.SaveNodesetToFile(nodeset, filepath);
                         return OperationResult.Ok($"Saved nodeset '{nodeset.Name}' to file: {filepath}");
+                    case FileFormat.BinLz4:
+                        FileSerializerBin.SaveNodesetToFile(nodeset, filepath);
+                        return OperationResult.Ok($"Saved nodeset '{nodeset.Name}' to file: {filepath}");
                     default:
                         return OperationResult.Fail("UnsupportedFormat", $"Save format '{format}' not supported.");
                 }
@@ -239,6 +242,11 @@ namespace Threadle.Core.Utilities
                 nodeset = FileSerializerTsv.LoadNodesetFromFile(filepath)
                     ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
             }
+            //else if (format == FileFormat.BinLz4)
+            //{
+            //    //nodeset = FileSerializerBin.LoadNodesetFromFile(filepath)
+            //    //    ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
+            //}
             else
             {
                 throw new NotImplementedException($"Error: File format '{format}' is not supported.");

@@ -93,7 +93,9 @@ namespace Threadle.Core.Model
         /// <param name="type">The (outbound) <see cref="NodeAttributeType"/> of the node attribute.</param>
         /// <returns>Returns true if the node attribute was found, false otherwise.</returns>
         internal bool TryGetAttributeType(uint index, out NodeAttributeType type) => _indexToType.TryGetValue(index, out type);
-        
+
+        internal bool TryGetAttributeName(uint index, out string name) => _indexToName.TryGetValue(index, out name!);
+
         /// <summary>
         /// Returns a collection of tuples of node attribute names and <see cref="NodeAttributeType"/> values for all defined node attributes.
         /// </summary>

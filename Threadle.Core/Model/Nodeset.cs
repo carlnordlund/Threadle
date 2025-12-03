@@ -422,6 +422,35 @@ namespace Threadle.Core.Model
             return null;
         }
 
+        internal Dictionary<string, NodeAttributeValue> GetNodeAttributeValues(uint nodeId)
+        {
+            Dictionary<string, NodeAttributeValue> nodeAttributeValues = [];
+            if (_nodesWithAttributes.TryGetValue(nodeId, out var nodeAttrDict))
+            {
+                foreach (var nodeAttr in nodeAttrDict)
+                {
+                    if (NodeAttributeDefinitionManager.TryGetAttributeName(nodeAttr.Key, out var attrName))
+                        nodeAttributeValues.Add(attrName, nodeAttr.Value);
+                }
+            }
+            return nodeAttributeValues;
+        }
+
+        //internal string[] GetExistingAttributeNamesForNode(uint nodeId)
+        //{
+        //    List<string> existingNodeAttributeNames = [];
+        //    if (_nodesWithAttributes.TryGetValue(nodeId, out var attrDict))
+        //    {
+        //        uint[] keys = attrDict.Keys.ToArray();
+        //    }
+                
+
+        //    return existingNodeAttributeNames.ToArray();
+        //}
+
+
+
+
         /// <summary>
         /// Defines and sets node attribute values for multiple nodes based on the provided dictionary of nodeId=>attributeValueStr.
         /// If the attribute is already defined, it checks that the provided type matches the existing type. If it exists but with a different type,
