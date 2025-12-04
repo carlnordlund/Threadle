@@ -60,12 +60,16 @@ namespace Threadle.Core.Utilities
         /// <param name="format">The file format (currently only TsvGzip by default)</param>
         /// <param name="nodesetFilepath">The optional filepath where to save the nodeset (if saving a network)</param>
         /// <returns>Returns an OperationResult informing how well it went.</returns>
-        public static OperationResult Save(IStructure structure, string filepath, FileFormat format = FileFormat.TsvGzip)
+        public static OperationResult Save(IStructure structure, string filepath)
         {
             try
             {
                 if (filepath is null || filepath.Length == 0)
                     return OperationResult.Fail("MissingFilepath", $"No filepath for structure '{structure.Name}' provided.");
+                string filepathlc = filepath.ToLower();
+
+                FileFormat format = filepathlc.EndsWith(".bin") || filepathlc.EndsWith(".bin.lz4") ? FileFormat.BinLz4 : FileFormat.TsvGzip;
+
                 return structure switch
                 {
                     Nodeset nodeset => SaveNodeset(nodeset, filepath, format),

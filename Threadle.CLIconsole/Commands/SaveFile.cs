@@ -37,8 +37,9 @@ namespace Threadle.CLIconsole.Commands
         public void Execute(Command command, CommandContext context)
         {
             IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-            string filepath = command.GetArgumentParseString("file", structure.Filepath);
-            OperationResult result = FileManager.Save(structure, filepath, FileFormat.TsvGzip);
+            string filepath = command.GetArgumentParseString("file", structure.Filepath);            
+
+            OperationResult result = FileManager.Save(structure, filepath);
             ConsoleOutput.WriteLine(result.ToString());
         }
     }
