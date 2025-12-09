@@ -123,9 +123,10 @@ namespace Threadle.Core.Model
         public Dictionary<string, object> Info => new Dictionary<string, object>
         {
             ["Type"] = "Nodeset",
-            ["Name"] = this.Name,
-            ["Filepath"] = this.Filepath,
-            ["NbrNodes"] = this.Count,
+            ["Name"] = Name,
+            ["Filepath"] = Filepath,
+            ["isModified"] = IsModified,
+            ["NbrNodes"] = Count,
             ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList()
         };
 

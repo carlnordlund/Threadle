@@ -11,7 +11,10 @@ namespace Threadle.Core.Utilities
     /// </summary>
     public enum FileFormat
     {
+        None,
+        Tsv,
         TsvGzip,
-        BinLz4
+        Bin,
+        BinGzip
     }
 }

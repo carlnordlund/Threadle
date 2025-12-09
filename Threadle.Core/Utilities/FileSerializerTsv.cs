@@ -30,10 +30,10 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="filepath">The filepath to the file.</param>
         /// <returns>A Nodeset object.</returns>
-        internal static Nodeset LoadNodesetFromFile(string filepath)
+        internal static Nodeset LoadNodesetFromFile(string filepath, FileFormat format)
         {
             using var fileStream = File.OpenRead(filepath);
-            using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Decompress);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var reader = new StreamReader(stream, Utf8NoBom);
 
             Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
@@ -48,10 +48,10 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="nodeset">The Nodeset to save to file.</param>
         /// <param name="filepath">The filepath to save to.</param>
-        internal static void SaveNodesetToFile(Nodeset nodeset, string filepath)
+        internal static void SaveNodesetToFile(Nodeset nodeset, string filepath, FileFormat format)
         {
             using var fileStream = File.Create(filepath);
-            using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
             using var writer = new StreamWriter(stream, Utf8NoBom);            
             WriteNodesetToFile(nodeset, writer);
             nodeset.Filepath = filepath;
@@ -65,10 +65,10 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="filepath">The filepath to the file.</param>
         /// <returns>A StructureResult object containing the Network object, and possibly also a Nodeset object.</returns>
-        internal static StructureResult LoadNetworkFromFile(string filepath)
+        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
         {
             using var fileStream = File.OpenRead(filepath);
-            using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Decompress);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var reader = new StreamReader(stream, Utf8NoBom);
 
             return ReadNetworkFromFile(filepath, reader);
@@ -81,13 +81,13 @@ namespace Threadle.Core.Utilities
         /// <param name="network">The Network to save to file.</param>
         /// <param name="filepath">The filepath to save the Network to.</param>
         /// <param name="nodesetFileReference">The filepath to save the Nodeset of the Network to.</param>
-        internal static void SaveNetworkToFile(Network network, string filepath, string? nodesetFileReference =null)
+        internal static void SaveNetworkToFile(Network network, string filepath, FileFormat format)
         {
             using var fileStream = File.Create(filepath);
-            using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
             using var writer = new StreamWriter(stream, Utf8NoBom);
 
-            WriteNetworkToFile(network, writer, nodesetFileReference);
+            WriteNetworkToFile(network, writer, network.Nodeset.Filepath);
             network.Filepath = filepath;
             network.IsModified = false;
         }
@@ -103,11 +103,13 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">The filepath.</param>
         /// <param name="mode">The used CompressionMode</param>
         /// <returns>The original stream or the GZip stream.</returns>
-        private static Stream WrapIfCompressed(Stream stream, string filepath, CompressionMode mode)
+        private static Stream WrapIfCompressed(Stream stream, string filepath, FileFormat format, CompressionMode mode)
         {
-            return filepath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-                ? new GZipStream(stream, mode)
-                : stream;
+            return format == FileFormat.TsvGzip ? new GZipStream(stream, mode) : stream;
+
+            //return filepath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
+            //    ? new GZipStream(stream, mode)
+            //    : stream;
         }
 
         /// <summary>
@@ -275,7 +277,8 @@ namespace Threadle.Core.Utilities
 
             if (nodesetFileReference != null)
             {
-                nodeset = LoadNodesetFromFile(nodesetFileReference);
+                FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFileReference);
+                nodeset = LoadNodesetFromFile(nodesetFileReference, nodesetFormat);
                 network.SetNodeset(nodeset);
                 return new StructureResult(network, new Dictionary<string, IStructure>
                 {

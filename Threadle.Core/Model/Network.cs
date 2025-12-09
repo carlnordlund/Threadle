@@ -89,6 +89,7 @@ namespace Threadle.Core.Model
                 ["Type"] = "Network",
                 ["Name"] = Name,
                 ["Filepath"] = Filepath,
+                ["isModified"] = IsModified,
                 ["Nodeset"] = Nodeset.Name,
                 ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata).ToList()
             };

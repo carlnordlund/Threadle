@@ -5,8 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Model;
-using K4os.Compression;
-using K4os.Compression.LZ4.Streams;
 
 namespace Threadle.Core.Utilities
 {
@@ -41,10 +39,10 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="nodeset">The Nodeset to save to file.</param>
         /// <param name="filepath">The filepath to save to.</param>
-        internal static void SaveNodesetToFile(Nodeset nodeset, string filepath)
+        internal static void SaveNodesetToFile(Nodeset nodeset, string filepath, FileFormat format)
         {
             using var fileStream = File.Create(filepath);
-            using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Compress);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
             using var writer = new BinaryWriter(stream);
             WriteNodesetToFile(nodeset, writer);
             nodeset.Filepath = filepath;
@@ -62,14 +60,15 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">The filepath.</param>
         /// <param name="mode">The used CompressionMode</param>
         /// <returns>The original stream or the GZip stream.</returns>
-        private static Stream WrapIfCompressed(Stream stream, string filepath, CompressionMode mode)
+        private static Stream WrapIfCompressed(Stream stream, string filepath, FileFormat format, CompressionMode mode)
         {
-            if (!filepath.EndsWith(".lz4", StringComparison.OrdinalIgnoreCase))
-                return stream;
-            if (mode == CompressionMode.Compress)
-                return LZ4Stream.Encode(stream);
-            else
-                return LZ4Stream.Decode(stream);
+            return format == FileFormat.BinGzip ? new GZipStream(stream, mode) : stream;
+            //if (!filepath.EndsWith(".lz4", StringComparison.OrdinalIgnoreCase))
+            //    return stream;
+            //if (mode == CompressionMode.Compress)
+            //    return LZ4Stream.Encode(stream);
+            //else
+            //    return LZ4Stream.Decode(stream);
         }
 
 
@@ -93,7 +92,7 @@ namespace Threadle.Core.Utilities
             var attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().ToList();
 
             // Nbr of node attributes (4)
-            writer.Write(attributeDefs.Count);
+            writer.Write((byte)attributeDefs.Count);
 
             Dictionary<string, int> nameToIndex = [];
 
@@ -119,12 +118,12 @@ namespace Threadle.Core.Utilities
                 Dictionary<string, NodeAttributeValue> nodeAttrValues = nodeset.GetNodeAttributeValues(nodeId);
 
                 // Nbr of node attributes
-                writer.Write(nodeAttrValues.Count);
+                writer.Write((byte)nodeAttrValues.Count);
 
                 foreach (var nodeAttrValue in nodeAttrValues)
                 {
                     // Node attribute index (mapping from node attribute name to the index it got above) [4]
-                    writer.Write(nameToIndex[nodeAttrValue.Key]);
+                    writer.Write((byte)nameToIndex[nodeAttrValue.Key]);
 
                     //Node attribute value
                     writer.Write(nodeAttrValue.Value.RawValueAsInt());
@@ -141,7 +140,7 @@ namespace Threadle.Core.Utilities
             }
 
             var bytes = Encoding.UTF8.GetBytes(value);
-            writer.Write(bytes.Length);
+            writer.Write((byte)bytes.Length);
             writer.Write(bytes);
         }
     }

@@ -1,5 +1,9 @@
 To-do
 =====
+
+IN THE MIDDLE OF DOING SAVEFILE() functions with new fileformat style
+
+
 CLI command and Core methods for importing attributes from file? 'importattr()'? Given a file with attribute data, supplement existing Nodeset with this.
 Pre-define attributes prior to import? Need to think a bit about this. Could also do this programmatically from R.
 

@@ -229,6 +229,25 @@ namespace Threadle.Core.Utilities
         {
             return directionality == EdgeDirectionality.Directed ? $"from {node1id} to {node2id}" : $"between {node1id} and {node2id}";
         }
+
+        internal static string GetFileEnding(string filepath)
+        {
+            var filename = Path.GetFileName(filepath);
+            var firstDot = filename.IndexOf(".");
+            return firstDot >= 0 ? filename.Substring(firstDot + 1) : "";
+        }
+
+        internal static FileFormat GetFileFormatFromFileEnding(string filepath)
+        {
+            return GetFileEnding(filepath) switch
+            {
+                "tsv" => FileFormat.Tsv,
+                "tsv.gz" => FileFormat.TsvGzip,
+                "bin" => FileFormat.Bin,
+                "bin.gz" => FileFormat.BinGzip,
+                _ => FileFormat.None
+            };
+        }
         #endregion
     }
 }

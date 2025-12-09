@@ -38,7 +38,10 @@ namespace Threadle.Core.Utilities
                 if (!_structureTypes.TryGetValue(structureTypeString, out var structureType))
                     return OperationResult<StructureResult>.Fail("TypeNotSupported", $"Loading type '{structureTypeString}' not supported.");
                 if (structureType == typeof(Nodeset))
-                    return OperationResult<StructureResult>.Ok(LoadNodeset(filepath, format));
+                {
+                    return LoadNodeset(filepath);
+                    //return OperationResult<StructureResult>.Ok(LoadNodeset(filepath));
+                }
                 else if (structureType == typeof(Network))
                     return OperationResult<StructureResult>.Ok(LoadNetwork(filepath, format));
                 else
@@ -66,14 +69,11 @@ namespace Threadle.Core.Utilities
             {
                 if (filepath is null || filepath.Length == 0)
                     return OperationResult.Fail("MissingFilepath", $"No filepath for structure '{structure.Name}' provided.");
-                string filepathlc = filepath.ToLower();
-
-                FileFormat format = filepathlc.EndsWith(".bin") || filepathlc.EndsWith(".bin.lz4") ? FileFormat.BinLz4 : FileFormat.TsvGzip;
-
+                    
                 return structure switch
                 {
-                    Nodeset nodeset => SaveNodeset(nodeset, filepath, format),
-                    Network network => SaveNetwork(network, filepath, format),
+                    Nodeset nodeset => SaveNodeset(nodeset, filepath),
+                    Network network => SaveNetwork(network, filepath),
                     _ => OperationResult.Fail("UnsupportedType", $"Save not implemented for type '{structure.GetType().Name}'.")
                 };
             }
@@ -171,17 +171,23 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">The filepath to save to.</param>
         /// <param name="format">The file format to save to (only FileFormat.TsvGzip implemented so far).</param>
         /// <returns>Returns an OperationResult informing how well it went.</returns>
-        private static OperationResult SaveNodeset(Nodeset nodeset, string filepath, FileFormat format)
+        private static OperationResult SaveNodeset(Nodeset nodeset, string filepath)
         {
             try
             {
+                FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
+                if (format == FileFormat.None)
+                    return OperationResult.Fail("UnsupportedFormat", $"Save format not supported.");
+
                 switch (format)
                 {
+                    case FileFormat.Tsv:
                     case FileFormat.TsvGzip:
-                        FileSerializerTsv.SaveNodesetToFile(nodeset, filepath);
+                        FileSerializerTsv.SaveNodesetToFile(nodeset, filepath, format);
                         return OperationResult.Ok($"Saved nodeset '{nodeset.Name}' to file: {filepath}");
-                    case FileFormat.BinLz4:
-                        FileSerializerBin.SaveNodesetToFile(nodeset, filepath);
+                    case FileFormat.Bin:
+                    case FileFormat.BinGzip:
+                        FileSerializerBin.SaveNodesetToFile(nodeset, filepath, format);
                         return OperationResult.Ok($"Saved nodeset '{nodeset.Name}' to file: {filepath}");
                     default:
                         return OperationResult.Fail("UnsupportedFormat", $"Save format '{format}' not supported.");
@@ -201,23 +207,38 @@ namespace Threadle.Core.Utilities
         /// <param name="format">The file format to save to (only FileFormat.TsvGzip implemented so far).</param>
         /// <param name="nodesetFilepath">The filepath to save the Nodeset to (optional)</param>
         /// <returns></returns>
-        private static OperationResult SaveNetwork(Network network, string filepath, FileFormat format)
+        private static OperationResult SaveNetwork(Network network, string filepath)
         {
             try
             {
+                // Get ref to the Nodeset that this Network is referring to.
                 Nodeset nodeset = network.Nodeset;
+
+                // Imperative that this Nodeset is first stored on file (separately, so that it has a Filepath property).
+                // If not: throw back a Fail
                 if (nodeset.Filepath is null || nodeset.Filepath.Length == 0)
                     return OperationResult.Fail("UnsavedNodeset",$"Network '{network.Name}' uses nodeset '{nodeset.Name}' which is not yet saved to file. Save that first!");
+                
+                // Get fileformat of the network based on the filepath
+                FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
 
                 switch (format)
                 {
+                    case FileFormat.Tsv:
                     case FileFormat.TsvGzip:
+                        // If the nodeset has been modified since last save, save this first
                         if (nodeset.IsModified)
-                            FileSerializerTsv.SaveNodesetToFile(nodeset, nodeset.Filepath);
-                        FileSerializerTsv.SaveNetworkToFile(network, filepath);
-                        //if (!string.IsNullOrEmpty(nodesetFilepath))
-                        //    FileSerializerTsv.SaveNodesetToFile(network.Nodeset, nodesetFilepath);
-                        //FileSerializerTsv.SaveNetworkToFile(network, filepath, nodesetFilepath);
+                        {
+                            // Do a fileformat check on the nodeset as well and send that along to this. The Nodeset might be stored in different format
+                            FileFormat formatNodeset = Misc.GetFileFormatFromFileEnding(nodeset.Filepath);
+                            FileSerializerTsv.SaveNodesetToFile(nodeset, nodeset.Filepath, formatNodeset);
+                            // Then save Network
+                            FileSerializerTsv.SaveNetworkToFile(network, filepath, format);
+                            // And return OpResult to inform that both were saved.
+                            return OperationResult.Ok($"Saved network '{network.Name}' to file: {filepath}, and saved nodeset '{nodeset.Name}' to file: {nodeset.Filepath}.");
+                        }
+                        // Nodeset has not been modified since last save, so just save network and inform about that
+                        FileSerializerTsv.SaveNetworkToFile(network, filepath, format);
                         return OperationResult.Ok($"Saved network '{network.Name}' to file: {filepath}");
                     default:
                         return OperationResult.Fail("UnsupportedFormat", $"Save format '{format}' not supported.");
@@ -238,24 +259,48 @@ namespace Threadle.Core.Utilities
         /// <returns>A StructureResult containing the Nodeset object.</returns>
         /// <exception cref="Exception">Thrown if there is an error loading the Nodeset.</exception>
         /// <exception cref="NotImplementedException">Thrown if a non-implemented file format is used.</exception>
-        private static StructureResult LoadNodeset(string filepath, FileFormat format)
+        private static OperationResult<StructureResult> LoadNodeset(string filepath)
         {
-            Nodeset nodeset;
-            if (format == FileFormat.TsvGzip)
+            try
             {
-                nodeset = FileSerializerTsv.LoadNodesetFromFile(filepath)
-                    ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
+                FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
+                if (format == FileFormat.None)
+                    return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported.");
+
+                Nodeset nodeset;
+                switch (format)
+                {
+                    case FileFormat.Tsv:
+                    case FileFormat.TsvGzip:
+                        nodeset = FileSerializerTsv.LoadNodesetFromFile(filepath, format);
+                        return OperationResult<StructureResult>.Ok(new StructureResult(nodeset));
+                        //return new StructureResult(nodeset);
+                    case FileFormat.Bin:
+                    case FileFormat.BinGzip:
+                        //nodeset= FileSerializerBin.loadnodeset
+                        break;
+                }
+                return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported.");
+                //if (format == FileFormat.TsvGzip)
+                //{
+                //    nodeset = FileSerializerTsv.LoadNodesetFromFile(filepath, format)
+                //        ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
+                //}
+                ////else if (format == FileFormat.BinGzip)
+                ////{
+                ////    //nodeset = FileSerializerBin.LoadNodesetFromFile(filepath)
+                ////    //    ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
+                ////}
+                //else
+                //{
+                //    throw new NotImplementedException($"Error: File format '{format}' is not supported.");
+                //}
+                //return new StructureResult(nodeset);
             }
-            //else if (format == FileFormat.BinLz4)
-            //{
-            //    //nodeset = FileSerializerBin.LoadNodesetFromFile(filepath)
-            //    //    ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
-            //}
-            else
+            catch (Exception e)
             {
-                throw new NotImplementedException($"Error: File format '{format}' is not supported.");
+                return OperationResult<StructureResult>.Fail("IOError", $"Unexpected error while saving nodeset: {e.Message}");
             }
-            return new StructureResult(nodeset);
         }
 
         /// <summary>
@@ -273,7 +318,7 @@ namespace Threadle.Core.Utilities
             StructureResult result;
             if (format == FileFormat.TsvGzip)
             {
-                result = FileSerializerTsv.LoadNetworkFromFile(filepath)
+                result = FileSerializerTsv.LoadNetworkFromFile(filepath, format)
                     ?? throw new Exception($"Error: Failed to load Network '{filepath}'");
             }
             else

@@ -39,7 +39,7 @@ namespace Threadle.CLIconsole.Commands
             string variableName = command.CheckAndGetAssignmentVariableName();
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");
-            var result = FileManager.Load(filepath, typeString, FileFormat.TsvGzip);
+            var result = FileManager.Load(filepath, typeString);
             if (!result.Success)
             {
                 ConsoleOutput.WriteLine(result!.Message!.ToString());
