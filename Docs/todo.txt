@@ -1,7 +1,17 @@
 To-do
 =====
 
-IN THE MIDDLE OF DOING SAVEFILE() functions with new fileformat style
+tsv, tsv.gz:
+reader/writer for nodeset/network done
+nodeset writer: bin, bin.gz: done
+
+To-do:
+bin, bin.gz
+nodeset reader
+network reader, writer
+
+
+
 
 
 CLI command and Core methods for importing attributes from file? 'importattr()'? Given a file with attribute data, supplement existing Nodeset with this.
