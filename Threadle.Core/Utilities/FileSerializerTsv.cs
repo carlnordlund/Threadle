@@ -36,6 +36,7 @@ namespace Threadle.Core.Utilities
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var reader = new StreamReader(stream, Utf8NoBom);
 
+            // Passing filepath only to set the Filepath property for nodeset
             Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
             //nodeset.Filepath = filepath;
             //nodeset.IsModified = false;

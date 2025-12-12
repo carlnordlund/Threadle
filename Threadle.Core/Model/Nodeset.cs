@@ -292,16 +292,20 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attributeName}' in nodeset '{Name}': possibly corrupted.");
             if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, valueStr) is NodeAttributeValue nodeAttribute))
                 return OperationResult.Fail("StringConversionError", $"Could not convert string '{valueStr}' to type '{attrType}'.");
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attrDict))
-            {
-                _nodesWithoutAttributes.Remove(nodeId);
-                attrDict = new Dictionary<uint, NodeAttributeValue>();
-                _nodesWithAttributes.Add(nodeId, attrDict);
-            }
-            attrDict[attrIndex] = nodeAttribute;
+
+            SetNodeAttribute(nodeId, attrIndex, nodeAttribute);
+
+            //if (!_nodesWithAttributes.TryGetValue(nodeId, out var attrDict))
+            //{
+            //    _nodesWithoutAttributes.Remove(nodeId);
+            //    attrDict = new Dictionary<uint, NodeAttributeValue>();
+            //    _nodesWithAttributes.Add(nodeId, attrDict);
+            //}
+            //attrDict[attrIndex] = nodeAttribute;
             Modified();
             return OperationResult.Ok($"Attribute '{attributeName}' for node {nodeId} set to {nodeAttribute}.");
         }
+
 
         /// <summary>
         /// Gets the specific value for the node attribute of the selected node id.
@@ -410,6 +414,40 @@ namespace Threadle.Core.Model
                 Modified();
             return result;
         }
+
+        internal OperationResult SetNodeAttribute(uint nodeId, string attributeName, NodeAttributeValue value)
+        {
+            try
+            {
+                if (!CheckThatNodeExists(nodeId))
+                    return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+                if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attributeName, out uint attrIndex))
+                    return OperationResult.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
+                if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
+                    return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attributeName}' in nodeset '{Name}': possibly corrupted.");
+                if (attrType != value.Type)
+                    return OperationResult.Fail("AttributeTypeMismatch", $"The provided data type ({value.Type}) does not match the value type for attribute '{attributeName}': ({attrType})");
+                SetNodeAttribute(nodeId, attrIndex, value);
+                return OperationResult.Ok();
+                
+            }
+            catch (Exception e)
+            {
+                return OperationResult.Fail("NodeAttributeError", $"Error setting node attribute '{attributeName}' for node '{nodeId}' to '{value.ToString()}': {e.Message}");
+            }
+        }
+
+        private void SetNodeAttribute(uint nodeId, uint attrIndex, NodeAttributeValue nodeAttribute)
+        {
+            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attrDict))
+            {
+                _nodesWithoutAttributes.Remove(nodeId);
+                attrDict = new Dictionary<uint, NodeAttributeValue>();
+                _nodesWithAttributes.Add(nodeId, attrDict);
+            }
+            attrDict[attrIndex] = nodeAttribute;
+        }
+
 
         /// <summary>
         /// Clones the internal attribute dictionary for a particular node. If it doesn't have attributes, return null

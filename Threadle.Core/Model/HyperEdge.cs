@@ -47,7 +47,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// The list of node ids that the hyperedge connects.
         /// </summary>
-        public List<uint> NodeIds => _nodeIds;
+        public IReadOnlyList<uint> NodeIds => _nodeIds;
 
         /// <summary>
         /// Returns the number of nodes connected by the hyperedge.
@@ -57,6 +57,17 @@ namespace Threadle.Core.Model
 
 
         #region Methods
+
+        internal void AddNode(uint nodeId)
+        {
+            _nodeIds.Add(nodeId);
+        }
+
+        internal bool RemoveNode(uint nodeId)
+        {
+            return _nodeIds.Remove(nodeId);
+        }
+
         /// <summary>
         /// Disconnects the hyperedge from all node ids.
         /// </summary>

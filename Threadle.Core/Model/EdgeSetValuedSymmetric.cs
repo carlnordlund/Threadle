@@ -45,13 +45,13 @@ namespace Threadle.Core.Model
         /// Returns a list of the outbound Connection structs in this edgeset, i.e. all
         /// Connection structs as they are symmetric.
         /// </summary>
-        public List<Connection> GetOutboundConnections => _connections;
+        public IReadOnlyList<Connection> GetOutboundConnections => _connections;
 
         /// <summary>
         /// Returns a list of the inbound Connection structs in this edgeset, i.e. all
         /// Connection structs as they are symmetric.
         /// </summary>
-        public List<Connection> GetInboundConnections => _connections;
+        public IReadOnlyList<Connection> GetInboundConnections => _connections;
 
         /// <summary>
         /// Returns a list of the outbound node ids in this edgeset.
@@ -202,6 +202,21 @@ namespace Threadle.Core.Model
                     ret += $"\t{connection.partnerNodeId};{connection.value}";
             return ret;
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="egoNodeId"></param>
+        /// <returns></returns>
+        public IReadOnlyList<Connection> GetNodelistAlterConnections(uint egoNodeId)
+        {
+            var ret = new List<Connection>();
+            foreach (var connection in _connections)
+                if (connection.partnerNodeId > egoNodeId)
+                    ret.Add(connection);
+            return ret;
+        }
+
 
         /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters. For directional data, this

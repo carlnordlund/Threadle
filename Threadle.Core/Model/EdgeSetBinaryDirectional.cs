@@ -166,6 +166,11 @@ namespace Threadle.Core.Model
             return ret;
         }
 
+        public List<uint> GetNodelistAlterUints(uint nodeId)
+        {
+            return GetOutboundNodeIds;
+        }
+
         /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters. For directional data, this
         /// could either be outbound, inbound, or both, as dictated by the <paramref name="edgeTraversal"/> parameter.

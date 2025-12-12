@@ -90,7 +90,7 @@ namespace Threadle.Core.Model
         {
             HyperEdgeCollections.Remove(nodeId);
             foreach (Hyperedge hyperedge in AllHyperEdges.Values)
-                hyperedge.NodeIds.Remove(nodeId);
+                hyperedge.RemoveNode(nodeId);
         }
 
         /// <summary>
@@ -256,7 +256,7 @@ namespace Threadle.Core.Model
             }
             AddHyperEdgeToNode(nodeId, hyperedge);
             if (!hyperedge.NodeIds.Contains(nodeId))
-                hyperedge.NodeIds.Add(nodeId);
+                hyperedge.AddNode(nodeId);
             return OperationResult.Ok($"Node '{nodeId}' affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
         }
 
@@ -274,7 +274,7 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{Name}'.");
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
                 collection.HyperEdges.Remove(hyperedge);
-            if (!hyperedge.NodeIds.Remove(nodeId))
+            if (!hyperedge.RemoveNode(nodeId))
                 return OperationResult.Fail("NodeNotAffiliated", $"Node '{nodeId}' not affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
             return OperationResult.Ok($"Node '{nodeId}' no longer affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
         }

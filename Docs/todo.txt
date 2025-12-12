@@ -4,6 +4,8 @@ To-do
 tsv, tsv.gz:
 reader/writer for nodeset/network done
 nodeset writer: bin, bin.gz: done
+network bin writer: done! ?
+
 
 To-do:
 bin, bin.gz

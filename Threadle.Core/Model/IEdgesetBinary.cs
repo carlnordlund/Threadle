@@ -11,5 +11,6 @@ namespace Threadle.Core.Model
     /// </summary>
     public interface IEdgesetBinary : IEdgeset
     {
+        List<uint> GetNodelistAlterUints(uint nodeId);
     }
 }

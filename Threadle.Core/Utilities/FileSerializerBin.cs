@@ -5,13 +5,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Utilities
 {
     internal static class FileSerializerBin
     {
 
-        private static readonly string Magic = "TNDS";
+        private static readonly string MagicNodeset = "TNDS";
+        private static readonly string MagicNetwork = "TNTW";
         private const byte FormatVersion = 1;
 
 
@@ -33,6 +35,20 @@ namespace Threadle.Core.Utilities
         //    return nodeset;
         //}
 
+        
+        
+        internal static Nodeset LoadNodesetFromFile(string filepath, FileFormat format)
+        {
+            using var fileStream = File.OpenRead(filepath);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
+            using var reader = new BinaryReader(stream);
+            Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
+            nodeset.Filepath = filepath;
+            nodeset.IsModified = false;
+            return nodeset;
+        }
+
+
         /// <summary>
         /// Method for saving a nodeset to file (TSV format).
         /// Could throw exceptions that must be caught.
@@ -47,6 +63,16 @@ namespace Threadle.Core.Utilities
             WriteNodesetToFile(nodeset, writer);
             nodeset.Filepath = filepath;
             nodeset.IsModified = false;
+        }
+
+        internal static void SaveNetworkToFile(Network network, string filepath, FileFormat format)
+        {
+            using var fileStream = File.Create(filepath);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
+            using var writer = new BinaryWriter(stream);
+            WriteNetworkToFile(network, writer);
+            network.Filepath = filepath;
+            network.IsModified = false;
         }
 
 
@@ -71,6 +97,74 @@ namespace Threadle.Core.Utilities
             //    return LZ4Stream.Decode(stream);
         }
 
+        /// <summary>
+        /// Support method to read a Nodeset object from file.
+        /// </summary>
+        /// <param name="filepath">Filepath to the file.</param>
+        /// <param name="reader">The BinaryReader object.</param>
+        /// <returns>A Nodeset object.</returns>
+        private static Nodeset ReadNodesetFromFile(string filepath, BinaryReader reader)
+        {
+            // Check magic  bytes - should be the MagicNodeset characters (TNDS)
+            var magicBytes = reader.ReadBytes(4);
+            string magic = Encoding.ASCII.GetString(magicBytes);
+            if (magic != MagicNodeset)
+                throw new InvalidDataException($"Invalid magic bytes in file '{filepath}'.");
+
+            // Check file version - should be the same as here implemented
+            byte version = reader.ReadByte();
+            if (version != FormatVersion)
+                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version {FormatVersion}.");
+
+            // Get nodeset name
+            string nodesetName = ReadString(reader);
+
+            // Initialize Nodeset object - set name, filepath, ismodified
+            var nodeset = new Nodeset { Name = nodesetName, Filepath = filepath, IsModified = false };
+
+            // Get nbr of defined node attributes
+            byte attrCount = reader.ReadByte();
+
+            // Prepare collection of node attributes
+            var attributeDefs = new List<(string name, NodeAttributeType type)>(attrCount);
+
+            // Iterate node attribute data and define node attributes
+            for (int i = 0; i < attrCount; i++)
+            {
+                string attrName = ReadString(reader);
+                byte typeByte = reader.ReadByte();
+                NodeAttributeType type = (NodeAttributeType)typeByte;
+
+                nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, type);
+                attributeDefs.Add((attrName, type));
+            }
+
+            // Get nbr of nodes
+            int nodeCount = reader.ReadInt32();
+
+            for (int n = 0; n < nodeCount; n++)
+            {
+                uint nodeId = reader.ReadUInt32();
+                nodeset.AddNode(nodeId);
+
+                byte nodeAttrCount = reader.ReadByte();
+                for (int a = 0; a < nodeAttrCount; a++)
+                {
+                    byte attrIndex = reader.ReadByte();
+                    var def = attributeDefs[attrIndex];
+                    int rawValue = reader.ReadInt32();
+
+                    NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, def.type);
+                    nodeset.SetNodeAttribute(nodeId, def.name, value);
+
+                    //nodeset.SetNodeAttribute(nodeId, def.name, value.ToString());
+                    nodeset.SetNodeAttribute(nodeId, def.name, value);
+                }
+            }
+
+            return nodeset;
+        }
+
 
         /// <summary>
         /// Support method to write a Nodeset object to file.
@@ -79,8 +173,8 @@ namespace Threadle.Core.Utilities
         /// <param name="writer">The stream writer.</param>
         private static void WriteNodesetToFile(Nodeset nodeset, BinaryWriter writer)
         {
-            // Magic bytes (4)
-            writer.Write(Encoding.ASCII.GetBytes(Magic));
+            // MagicNodeset bytes (4)
+            writer.Write(Encoding.ASCII.GetBytes(MagicNodeset));
 
             // Format version (1)
             writer.Write(FormatVersion);
@@ -131,6 +225,131 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        private static void WriteNetworkToFile(Network network, BinaryWriter writer)
+        {
+            // MagicNodeset bytes (4)
+            writer.Write(Encoding.ASCII.GetBytes(MagicNetwork));
+
+            // Format version (1)
+            writer.Write(FormatVersion);
+
+            // Network name (length + string)
+            WriteString(writer, network.Name);
+
+            // Nodeset filepath
+            WriteString(writer, network.Nodeset.Filepath);
+
+            // Nbr of layers (max 255 layers)
+            writer.Write((byte)network.Layers.Count);
+
+            foreach (var layer in network.Layers)
+            {
+                // Write the name of this layer
+                WriteString(writer, layer.Key);
+
+                // Check if it is 1-mode or 2-mode: different writing logics
+                if (layer.Value is LayerOneMode layerOneMode)
+                {
+                    // LAYER IS 1-MODE
+                    ///////////
+
+                    // Write mode (1)
+                    writer.Write((byte)1);
+
+                    // Write directionality enum as a byte
+                    writer.Write((byte)layerOneMode.Directionality);
+
+                    // Write value type as a byte
+                    writer.Write((byte)layerOneMode.EdgeValueType);
+
+                    // Write selfties boolean as a byte (0:false, 1:true)
+                    writer.Write(layerOneMode.Selfties);
+
+                    // Get nbr of edgesets (nodelist rows)
+                    int nbrEdgesets = layerOneMode.Edgesets.Count;
+
+                    // Write nbr of nodelist rows
+                    writer.Write(nbrEdgesets);
+
+                    if (layerOneMode.IsValued)
+                    {
+                        // Layer is 1-mode valued: store both alter and edge value
+                        foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
+                        {
+                            if (edgeset is IEdgesetValued edgesetValued)
+                            {
+                                // Write ego node id
+                                writer.Write(nodeId);
+
+                                // Get outbound (upper triangle for symmetric data)
+                                IReadOnlyList<Connection> outbound = edgesetValued.GetNodelistAlterConnections(nodeId);
+
+                                // Note: need to include all nodeId even for those with empty outbound: this is because it has to fit nbrEdgesets above
+
+                                // Write nbr of alters this node id has
+                                writer.Write(outbound.Count);
+
+                                // Iterate through alters and write partnerNodeId and float value
+                                foreach (Connection conn in outbound)
+                                {
+                                    // Writes the partner node id
+                                    writer.Write(conn.partnerNodeId);
+
+                                    // Writes the float value of this edge
+                                    writer.Write(conn.value);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Layer is 1-mode and binary: store only alter
+                        foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
+                        {
+                            if (edgeset is IEdgesetBinary edgesetBinary)
+                            {
+                                // Ego node id
+                                writer.Write(nodeId);
+
+                                List<uint> outbound = edgesetBinary.GetNodelistAlterUints(nodeId);
+
+                                // Write nbr of alters this node id has
+                                writer.Write(outbound.Count);
+
+                                // Iterate through alters and write partnerNodeId
+                                foreach (uint partnerNodeId in outbound)
+                                    writer.Write(partnerNodeId);
+                            }
+                        }
+                    }
+                }
+                else if (layer.Value is LayerTwoMode layerTwoMode)
+                {
+                    // LAYER IS 2-MODE
+                    ///////////
+
+                    // Write mode (2)
+                    writer.Write((byte)2);
+
+                    // Write the number of hyperedges in this layer
+                    writer.Write(layerTwoMode.AllHyperEdges.Count);
+
+                    foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
+                    {
+                        // Write the name of the hyperedge
+                        writer.Write(hyperName);
+
+                        // Write the number of affiliated nodes to this hyperedge
+                        writer.Write(hyperedge.NbrNodes);
+
+                        foreach (uint nodeId in hyperedge.NodeIds)
+                            writer.Write(nodeId);
+                    }
+                }                
+            }
+        }
+
+
         private static void WriteString(BinaryWriter writer, string? value)
         {
             if (value == null)
@@ -143,5 +362,15 @@ namespace Threadle.Core.Utilities
             writer.Write((byte)bytes.Length);
             writer.Write(bytes);
         }
+
+        private static string ReadString(BinaryReader reader)
+        {
+            byte len = reader.ReadByte();
+            if (len == 0)
+                return string.Empty;
+            byte[] bytes = reader.ReadBytes(len);
+            return Encoding.ASCII.GetString(bytes);
+        }
+
     }
 }

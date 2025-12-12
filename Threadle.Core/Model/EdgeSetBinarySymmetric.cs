@@ -193,6 +193,18 @@ namespace Threadle.Core.Model
             return ret;
         }
 
+        public List<uint> GetNodelistAlterUints(uint nodeId)
+        {
+            List<uint> ret = [];
+            foreach (uint alterNodeId in _connections)
+            {
+                if (alterNodeId > nodeId)
+                    ret.Add(alterNodeId);                
+            }
+            return ret;
+        }
+
+
         /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the
         /// set of alters. For symmetric data, the edge traversal

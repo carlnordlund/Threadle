@@ -17,12 +17,14 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a list of outbound Connection structs, i.e. edges that hold a partner node id and a value
         /// </summary>
-        List<Connection> GetOutboundConnections { get; }
+        IReadOnlyList<Connection> GetOutboundConnections { get; }
 
         /// <summary>
         /// Returns a list of inbound Connection structs, i.e. edges that hold a partner node id and a value
         /// </summary>
-        List<Connection> GetInboundConnections { get; }
+        IReadOnlyList<Connection> GetInboundConnections { get; }
+
+        IReadOnlyList<Connection> GetNodelistAlterConnections(uint nodeId);
         #endregion
     }
 }

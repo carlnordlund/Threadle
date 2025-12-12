@@ -47,12 +47,12 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a list of the outbound Connection structs in this edgeset.
         /// </summary>
-        public List<Connection> GetOutboundConnections => _outbound;
+        public IReadOnlyList<Connection> GetOutboundConnections => _outbound;
 
         /// <summary>
         /// Returns a list of the inbound Connection structs in this edgeset.
         /// </summary>
-        public List<Connection> GetInboundConnections => _inbound;
+        public IReadOnlyList<Connection> GetInboundConnections => _inbound;
 
         /// <summary>
         /// Returns a list of the outbound node ids in this edgeset.
@@ -188,6 +188,11 @@ namespace Threadle.Core.Model
             foreach (Connection connection in _outbound)
                 ret += $"\t{connection.partnerNodeId};{connection.value}";
             return ret;
+        }
+
+        public IReadOnlyList<Connection> GetNodelistAlterConnections(uint egoNodeId)
+        {
+            return _outbound;
         }
 
         /// <summary>
