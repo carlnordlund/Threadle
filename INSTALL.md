@@ -97,7 +97,6 @@ These published files can be distributed and run on their respective platforms *
 #### Windows
 - `win-x86` - 32-bit Intel/AMD
 - `win-x64` - 64-bit Intel/AMD
-- `win-arm` - 32-bit ARM
 - `win-arm64` 64-bit ARM
 #### Linux
 - `linux-x64` - 64-bit Intel/AMD
