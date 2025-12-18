@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// <summary>
         /// Pre-compiled regular expression for parsing a string of arguments into separate key-value argument pairs.
         /// </summary>
-        private static readonly Regex argRegex = new(@"(?:([a-zA-Z]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^,\s]+)))|(?:""([^""]*)""|'([^']*)'|([^=,\s]+))", RegexOptions.Compiled);
+        private static readonly Regex argRegex = new(@"(?:([a-zA-Z0-9]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^,\s]+)))|(?:""([^""]*)""|'([^']*)'|([^=,\s]+))", RegexOptions.Compiled);
         #endregion
 
 
