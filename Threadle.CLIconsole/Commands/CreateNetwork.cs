@@ -38,20 +38,6 @@ namespace Threadle.CLIconsole.Commands
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
             Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
-
-            //Nodeset nodeset = context.get context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-            //Nodeset nodeset;
-            //if (command.GetArgument("nodeset") is string nameNodeset)
-            //    nodeset = context.GetVariableThrowExceptionIfMissing<Core.Model.Nodeset>(nameNodeset);
-            //else
-            //{
-            //    string variableNameNodeset = variableName + "_nodeset";
-            //    int createnodes = command.GetArgumentParseInt("createnodes", 0);
-            //    nodeset = new Nodeset(variableNameNodeset, createnodes);
-            //    context.SetVariable(variableNameNodeset, nodeset);
-            //    ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created and stored in variable '{variableNameNodeset}'");
-            //}
-
             string nameNetwork = command.GetArgumentParseString("name", variableName);
             Network network = new Network(nameNetwork, nodeset);
             context.SetVariable(variableName, network);
