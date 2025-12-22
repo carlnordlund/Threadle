@@ -19,17 +19,17 @@ namespace Threadle.CLIconsole.CLIUtilities
         public string Code { get; init; } = "";
 
         /// <summary>
-        /// Human-readable message describing what happened (success as well as fail; takes message from OperationResult)
+        /// Human-readable message describing what happened (success or failure)
         /// </summary>
         public string Message { get; init; } = "";
 
         /// <summary>
-        /// Optional payload: what should be displayed (e.g. density, info stuff, attribute values etc)
+        /// Optional structured payload to be rendered (tables, info, statistics etc)
         /// </summary>
         public object? Payload { get; init; }
 
         /// <summary>
-        /// Details about internal variables that were assigned and their types
+        /// Details about internal variables that were assigned and their type names
         /// </summary>
         public IReadOnlyDictionary<string, string>? Assigned { get; init; }
 
@@ -46,12 +46,15 @@ namespace Threadle.CLIconsole.CLIUtilities
             => new()
             {
                 Success = true,
-                Code = "OK",
+                Code = "Ok",
                 Message = message,
                 Payload = payload,
                 Assigned = assignments is null ? null : new Dictionary<string, string>(assignments)
 
             };
+
+        public static CommandResult Ok(string message)
+            => Ok(message, null, null);
 
         /// <summary>
         /// Factory method to create a CommandResult object for commands that failed.
