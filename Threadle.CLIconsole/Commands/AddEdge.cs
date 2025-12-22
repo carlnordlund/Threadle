@@ -34,7 +34,7 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
@@ -42,7 +42,16 @@ namespace Threadle.CLIconsole.Commands
             uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
             float value = command.GetArgumentParseFloat("value", 1);
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", true);
-            ConsoleOutput.WriteLine(network.AddEdge(layerName, node1id, node2id, value, addMissingNodes).ToString());
+
+            var opResult = network.AddEdge(layerName, node1id, node2id, value, addMissingNodes);
+            return CommandResult.FromOperationResult(opResult);
+
+            //return opResult.Success
+            //    ? CommandResult.Ok(opResult.Message)
+            //    : CommandResult.Fail(opResult.Code, opResult.Message);
+
+
+            //ConsoleOutput.WriteLine(network.AddEdge(layerName, node1id, node2id, value, addMissingNodes).ToString());
         }
     }
 }

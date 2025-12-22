@@ -34,17 +34,19 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
             uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
-            OperationResult<bool> result = network.CheckEdgeExists(layerName, node1id, node2id);
+            var result = network.CheckEdgeExists(layerName, node1id, node2id);
             if (result.Success)
-                ConsoleOutput.WriteLine(Misc.BooleanAsString(result.Value), true);
+                return CommandResult.Ok(result.Message, result.Value);
+            //ConsoleOutput.WriteLine(Misc.BooleanAsString(result.Value), true);
             else
-                ConsoleOutput.WriteLine(result.ToString());
+                return CommandResult.Fail(result.Code, result.Message);
+                //ConsoleOutput.WriteLine(result.ToString());
         }
     }
 }

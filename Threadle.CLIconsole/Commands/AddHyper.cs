@@ -34,20 +34,24 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
+            OperationResult opResult;
             if (command.GetArgument("nodes") is string nodesString)
             {
                 uint[] nodeIds = Misc.NodesIdsStringToArray(nodesString)
                     ?? throw new Exception($"!Error: Couldn't parse semicolon-separated list with nodes.");
                 bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", true);
-                ConsoleOutput.WriteLine(network.AddHyperedge(layerName, hyperName, nodeIds, addMissingNodes).ToString());
+                opResult = network.AddHyperedge(layerName, hyperName, nodeIds, addMissingNodes);
+                //ConsoleOutput.WriteLine(network.AddHyperedge(layerName, hyperName, nodeIds, addMissingNodes).ToString());
             }
             else
+                opResult = network.AddHyperedge(layerName, hyperName);
                 ConsoleOutput.WriteLine(network.AddHyperedge(layerName, hyperName).ToString());
+            return CommandResult.FromOperationResult(opResult);
         }
     }
 }

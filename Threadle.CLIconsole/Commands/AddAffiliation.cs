@@ -34,7 +34,7 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
@@ -42,7 +42,12 @@ namespace Threadle.CLIconsole.Commands
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg3");
             bool addMissingNode = command.GetArgumentParseBool("addmissingnodes", true);
             bool addMissingAffiliation = command.GetArgumentParseBool("addmissingaffiliations", true);
-            ConsoleOutput.WriteLine(network.AddAffiliation(layerName, hyperName, nodeId, addMissingNode, addMissingAffiliation).ToString());
+            var opResult = network.AddAffiliation(layerName, hyperName, nodeId, addMissingNode, addMissingAffiliation);
+            return CommandResult.FromOperationResult(opResult);
+
+            //return opResult.Success
+            //    ? CommandResult.Ok(opResult.Message)
+            //    : CommandResult.Fail(opResult.Code, opResult.Message);
         }
     }
 }

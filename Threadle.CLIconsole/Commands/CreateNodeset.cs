@@ -34,7 +34,7 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
             string name = command.GetArgumentParseString("name", variableName);
@@ -43,7 +43,13 @@ namespace Threadle.CLIconsole.Commands
                 throw new ArgumentException("Number of created nodes can not be less than zero");
             Nodeset nodeset = new Core.Model.Nodeset(name, createNodes);
             context.SetVariable(variableName, nodeset);
-            ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created (with {createNodes} nodes) and stored in variable '{variableName}'");
+            return CommandResult.Ok(
+                message: $"Network '{name}' created.",
+                assignments: CommandResult.Assigning(variableName, typeof(Nodeset))
+                );
+
+
+            //ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created (with {createNodes} nodes) and stored in variable '{variableName}'");
         }
     }
 }

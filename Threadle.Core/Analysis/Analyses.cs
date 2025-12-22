@@ -41,7 +41,7 @@ namespace Threadle.Core.Analysis
         /// <param name="attrName"></param>
         /// <param name="edgeTraversal"></param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public static OperationResult DegreeCentrality(Network network, string layerName, string? attrName = null, EdgeTraversal edgeTraversal = EdgeTraversal.Out)
+        public static OperationResult DegreeCentralities(Network network, string layerName, string? attrName = null, EdgeTraversal edgeTraversal = EdgeTraversal.Out)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)

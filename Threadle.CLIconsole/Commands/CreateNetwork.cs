@@ -34,14 +34,20 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
             Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string nameNetwork = command.GetArgumentParseString("name", variableName);
             Network network = new Network(nameNetwork, nodeset);
             context.SetVariable(variableName, network);
-            ConsoleOutput.WriteLine($"Network '{nameNetwork}' created and stored in variable '{variableName}'");
+
+            return CommandResult.Ok(
+                message: $"Network '{nameNetwork}' created.",
+                assignments: CommandResult.Assigning(variableName, typeof(Network))
+                );
+
+            //ConsoleOutput.WriteLine($"Network '{nameNetwork}' created and stored in variable '{variableName}'");
         }
     }
 }

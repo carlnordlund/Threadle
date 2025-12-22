@@ -100,14 +100,17 @@ namespace Threadle.CLIconsole.CLIUtilities
                     ConsoleOutput.WriteEndMarker();
                     continue;
                 }
+                CommandResult result;
                 try
                 {
-                    dispatcher.Dispatch(command, context);
+                    result = dispatcher.Dispatch(command, context);
                 }
                 catch (Exception ex)
                 {
-                    ConsoleOutput.WriteLine($"{ex.Message}");
+                    result = CommandResult.Fail("Exception", ex.Message);
+                    //ConsoleOutput.WriteLine($"{ex.Message}");
                 }
+                RenderResult(result);
                 ConsoleOutput.WriteEndMarker();
             }
             ConsoleOutput.WriteLine("Exiting...");
@@ -145,6 +148,26 @@ namespace Threadle.CLIconsole.CLIUtilities
                 currentLineLength += word.Length;
             }
             return wrapped;
+        }
+
+        private static void RenderResult(CommandResult result)
+        {
+            if (!result.Success)
+            {
+                ConsoleOutput.WriteLine($"!Error [{result.Code}]: {result.Message}");
+                return;
+            }
+            ConsoleOutput.WriteLine(result.Message);
+            if (result.Assigned!=null)
+            {
+                foreach (var kvp in result.Assigned)
+                    ConsoleOutput.WriteLine($"  Assigned {kvp.Key} : {kvp.Value}");
+            }
+
+            if (result.Payload!=null)
+            {
+                ConsoleOutput.WriteLine(result.Payload.ToString() ?? "");
+            }
         }
         #endregion
     }

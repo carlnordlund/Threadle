@@ -35,15 +35,17 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             var densityResult = Analyses.Density(network, layerName);
             if (densityResult.Success)
-                ConsoleOutput.WriteLine($"{densityResult.Value:0.0000####}", true);
+                return CommandResult.Ok(densityResult.Message, densityResult.Value);
+            //ConsoleOutput.WriteLine($"{densityResult.Value:0.0000####}", true);
             else
-                ConsoleOutput.WriteLine(densityResult.ToString());
+                return CommandResult.Fail(densityResult.Code, densityResult.Message);
+                //ConsoleOutput.WriteLine(densityResult.ToString());
         }
     }
 }

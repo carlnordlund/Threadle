@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.CLIUtilities
 {
@@ -33,7 +35,21 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// </summary>
         public IReadOnlyDictionary<string, string>? Assigned { get; init; }
 
-
+        public static CommandResult FromOperationResult(OperationResult opResult, object? payload = null, IDictionary<string,string>? assignments = null)
+        {
+            if (opResult.Success)
+            {
+                return Ok(
+                    message: opResult.Message,
+                    payload: payload,
+                    assignments: assignments
+                    );
+            }
+            return Fail(
+                code: opResult.Code,
+                message: opResult.Message
+                );
+        }
 
         /// <summary>
         /// Factory method to create a CommandResult object for successful commands.
@@ -69,5 +85,8 @@ namespace Threadle.CLIconsole.CLIUtilities
                 Code = code,
                 Message = message,
             };
+
+        public static IDictionary<string, string> Assigning(string name, Type type)
+            => new Dictionary<string, string> { [name] = type.Name };
     }
 }
