@@ -33,13 +33,14 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             uint index = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("index", "arg1");
             if (!(nodeset.GetNodeIdByIndex(index) is uint nodeId))
                 throw new Exception($"Node index '{index}' out of range");
-            ConsoleOutput.WriteLine(nodeId.ToString(), true);
+            return CommandResult.Ok($"Node id (index={index}): {nodeId}", nodeId);
+            //ConsoleOutput.WriteLine(nodeId.ToString(), true);
         }
     }
 }

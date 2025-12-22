@@ -36,7 +36,7 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
@@ -44,10 +44,9 @@ namespace Threadle.CLIconsole.Commands
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
             bool balanced = command.GetArgumentParseBool("balanced", false);
             OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeid, layerName, edgeTraversal, balanced);
-            if (result.Success)
-                ConsoleOutput.WriteLine(result.Value.ToString(), true);
-            else
-                ConsoleOutput.WriteLine(result.ToString());
+            if (!result.Success)
+                return CommandResult.Fail(result.Code,result.Message);
+            return CommandResult.Ok(result.Message, result.Value);
         }
     }
 }

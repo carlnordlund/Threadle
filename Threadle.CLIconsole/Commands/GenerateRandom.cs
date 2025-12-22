@@ -36,7 +36,7 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
             string type = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg0");
@@ -48,13 +48,36 @@ namespace Threadle.CLIconsole.Commands
                 newName = context.GetNextIncrementalName($"{type}_s{size}_p{p}");
             StructureResult structures = NetworkGenerators.ErdosRenyi(size, p, directionality, selfties);
             context.SetVariable(variableName, structures.MainStructure);
-            ConsoleOutput.WriteLine($"Network '{newName}' generated and stored in variable '{variableName}'.");
+            //ConsoleOutput.WriteLine($"Network '{newName}' generated and stored in variable '{variableName}'.");
             if (structures.AdditionalStructures.TryGetValue("nodeset", out var nodeset))
             {
                 string nodeset_variableName = variableName + "_nodeset";
                 context.SetVariable(nodeset_variableName, nodeset);
-                ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' generated and stored in variable '{nodeset_variableName}'.");
+                //ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' generated and stored in variable '{nodeset_variableName}'.");
+                return CommandResult.Ok(
+                    message: $"Generated random network of type '{type}'.",
+                    null,
+                    assignments: new Dictionary<string,string>
+                    {
+                        [variableName] = nameof(Network),
+                        [nodeset_variableName] = nameof(Nodeset)
+                    }
+                    );
             }
+            return CommandResult.Ok(
+                message: $"Generated random network of type '{type}'.",
+                null,
+                assignments: new Dictionary<string, string>
+                {
+                    [variableName] = nameof(Network)
+                }
+                );
+
+            //        return CommandResult.Ok(
+            //message: $"Network '{nameNetwork}' created.",
+            //assignments: CommandResult.Assigning(variableName, typeof(Network))
+            //);
+
         }
     }
 }

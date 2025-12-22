@@ -152,7 +152,7 @@ namespace Threadle.Core.Model
         /// Gets the value of this node attribute.
         /// </summary>
         /// <returns>Returns the <see cref="object"/> that is thus either a <see cref="char"/>, an <see cref="int"/>, a <see cref="float"/>, or a <see cref="bool"/>.</returns>
-        internal object? GetValue() => Type switch
+        public object? GetValue() => Type switch
         {
             NodeAttributeType.Char => CharValue,
             NodeAttributeType.Int => IntValue,

@@ -31,9 +31,9 @@ namespace Threadle.CLIconsole.CLIUtilities
             /// console variable memory.
             /// </summary>
             /// <returns>A <see cref="Dictionary{string, object}"/> with metadata about each stored structure.</returns>
-        internal Dictionary<string, object> VariablesMetadata()
+        internal Dictionary<string, string> VariablesMetadata()
         {
-            Dictionary<string, object> metadata = new();
+            Dictionary<string, string> metadata = new();
             foreach (var kvp in Variables)
             {
                 //metadata[kvp.Key]= new Dictionary<string, object>
@@ -43,7 +43,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                 //    { "Filepath", kvp.Value.Filepath ?? "N/A" }
                 //};
 
-                metadata[kvp.Key] = kvp.Value.GetType().Name;
+                metadata[kvp.Key] = nameof(kvp.Value);
             }
             return metadata;
         }

@@ -36,17 +36,16 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg2");
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
             OperationResult<uint[]> result = network.GetNodeAlters(layerName, nodeid, edgeTraversal);
-            if (result.Success)
-                ConsoleOutput.WriteLine("[" + string.Join(',', result.Value!) + "]", true);
-            else
-                ConsoleOutput.WriteLine(result.ToString());
+            if (!result.Success)
+                return CommandResult.Fail(result.Code, result.Message);
+            return CommandResult.Ok(result.Message, result.Value);
         }
     }
 }

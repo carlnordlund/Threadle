@@ -34,27 +34,31 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
+            var assigned = new Dictionary<string, string>();
             string variableName = command.CheckAndGetAssignmentVariableName();
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");
             var result = FileManager.Load(filepath, typeString);
             if (!result.Success)
-            {
-                ConsoleOutput.WriteLine(result!.Message!.ToString());
-                return;
-            }
+                return CommandResult.Fail(result.Code, result.Message);
             StructureResult structures = result.Value!;
             context.SetVariable(variableName, structures.MainStructure);
-            ConsoleOutput.WriteLine($"Structure '{structures.MainStructure.Name}' loaded and stored in variable '{variableName}'");
+            assigned[variableName] = nameof(structures.MainStructure);
             if (structures.AdditionalStructures.Count > 0)
                 foreach (var kvp in structures.AdditionalStructures)
                 {
                     string additionalAssignedVariable = variableName + "_" + kvp.Key;
                     context.SetVariable(additionalAssignedVariable, kvp.Value);
-                    ConsoleOutput.WriteLine($"Structure '{kvp.Value.Name}' loaded and stored in variable '{additionalAssignedVariable}'.");
+                    assigned[additionalAssignedVariable] = nameof(kvp.Value);
+                    //ConsoleOutput.WriteLine($"Structure '{kvp.Value.Name}' loaded and stored in variable '{additionalAssignedVariable}'.");
                 }
+            return CommandResult.Ok(
+                $"Loaded structure '{structures.MainStructure.Name}' from '{filepath}'",
+                null,
+                assigned
+                );
         }
     }
 }

@@ -34,7 +34,7 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
@@ -44,8 +44,8 @@ namespace Threadle.CLIconsole.Commands
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", false);
             if (!network.Layers.TryGetValue(layerName, out var layer))
                 throw new Exception($"!Error: Layer '{layerName}' not found.");
-            FileManager.ImportLayer(filepath, network, layer, format, separator, addMissingNodes);
-            ConsoleOutput.WriteLine($"Imported data to layer '{layerName}' (in network '{network.Name}') from file.");
+            var result = FileManager.ImportLayer(filepath, network, layer, format, separator, addMissingNodes);
+            return CommandResult.FromOperationResult(result);
         }
     }
 }

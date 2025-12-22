@@ -37,14 +37,13 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             OperationResult<uint> result = Analyses.GetRandomNode(nodeset);
-            if (result.Success)
-                ConsoleOutput.WriteLine(result.Value.ToString(), true);
-            else
-                ConsoleOutput.WriteLine(result.ToString());
+            if (!result.Success)
+                return CommandResult.Fail(result.Code, result.Message);
+            return CommandResult.Ok(result.Message, result.Value);
         }
     }
 }

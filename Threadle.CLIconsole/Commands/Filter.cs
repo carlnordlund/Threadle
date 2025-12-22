@@ -35,7 +35,7 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
             Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
@@ -43,9 +43,17 @@ namespace Threadle.CLIconsole.Commands
             ConditionType conditionType = command.GetArgumentParseEnumThrowExceptionIfMissingOrNull<ConditionType>("cond", "arg2");
             string attributeValue = (conditionType == ConditionType.isnull || conditionType == ConditionType.notnull) ? "" : command.GetArgumentThrowExceptionIfMissingOrNull("attrvalue", "arg3");
             OperationResult<Nodeset> result = NodesetProcessor.Filter(nodeset, attributeName, conditionType, attributeValue);
-            if (result.Success)
-                context.SetVariable(variableName, result.Value!);
-            ConsoleOutput.WriteLine(result.ToString());
+            if (!result.Success)
+                return CommandResult.Fail(result.Code,result.Message);
+            return CommandResult.Ok(
+                message: result.Message,
+                assignments: CommandResult.Assigning(variableName, typeof(Nodeset))
+                );
+
+
+
+            //context.SetVariable(variableName, result.Value!);
+            //ConsoleOutput.WriteLine(result.ToString());
         }
     }
 }

@@ -34,10 +34,13 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-            ConsoleOutput.WriteLine(nodeset.Count.ToString(), true);
+            int nbrNodes = nodeset.Count;
+
+            return CommandResult.Ok($"Number of nodes in '{nodeset.Name}': {nbrNodes}", nbrNodes);
+            //ConsoleOutput.WriteLine(nodeset.Count.ToString(), true);
         }
     }
 }
