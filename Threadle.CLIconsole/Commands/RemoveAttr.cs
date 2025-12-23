@@ -33,12 +33,14 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg2");
-            ConsoleOutput.WriteLine(nodeset.RemoveNodeAttribute(nodeId, attributeName).ToString());
+            return CommandResult.FromOperationResult(nodeset.RemoveNodeAttribute(nodeId, attributeName));
+
+            //ConsoleOutput.WriteLine(nodeset.RemoveNodeAttribute(nodeId, attributeName).ToString());
         }
     }
 }

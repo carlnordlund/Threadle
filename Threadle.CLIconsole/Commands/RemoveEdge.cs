@@ -34,13 +34,14 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
             uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
             uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
-            ConsoleOutput.WriteLine(network.RemoveEdge(layerName, node1id, node2id).ToString());
+            return CommandResult.FromOperationResult(network.RemoveEdge(layerName, node1id, node2id));
+            //ConsoleOutput.WriteLine(network.RemoveEdge(layerName, node1id, node2id).ToString());
         }
     }
 }

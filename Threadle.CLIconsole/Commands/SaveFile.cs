@@ -34,13 +34,14 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             string filepath = command.GetArgumentParseString("file", structure.Filepath);            
 
             OperationResult result = FileManager.Save(structure, filepath);
-            ConsoleOutput.WriteLine(result.ToString());
+            return CommandResult.FromOperationResult(result);
+            //ConsoleOutput.WriteLine(result.ToString());
         }
     }
 }

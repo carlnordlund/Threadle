@@ -33,16 +33,39 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
-            string param = command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0").ToLower();
-            bool value = command.GetArgumentParseBoolThrowExceptionIfMissingOrNull("value", "arg1");
-            if (param.Equals("verbose"))
+            string param =
+                command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0")
+                       .ToLowerInvariant();
+
+            bool value =
+                command.GetArgumentParseBoolThrowExceptionIfMissingOrNull("value", "arg1");
+
+            if (param == "verbose")
+            {
                 ConsoleOutput.Verbose = value;
-            else if (param.Equals("endmarker"))
+                return CommandResult.Ok(
+                    $"Setting 'verbose' set to {value}.",
+                    payload: new { Setting = "verbose", Value = value }
+                );
+            }
+
+            if (param == "endmarker")
+            {
                 ConsoleOutput.EndMarker = value;
-            else
-                ConsoleOutput.WriteLine(UserSettings.Set(param, value).ToString());
+                return CommandResult.Ok(
+                    $"Setting 'endmarker' set to {value}.",
+                    payload: new { Setting = "endmarker", Value = value }
+                );
+            }
+
+            // Delegate to shared settings manager
+            OperationResult result = UserSettings.Set(param, value);
+            return CommandResult.FromOperationResult(
+                result,
+                payload: new { Setting = param, Value = value }
+            );
         }
     }
 }

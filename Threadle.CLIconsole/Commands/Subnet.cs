@@ -32,20 +32,23 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg1"));
 
             OperationResult<Network> result = NetworkProcessor.Subnet(network, nodeset);
-            if (result.Success)
-            {
-                var subnet = result.Value!;
-                subnet.Name = context.GetNextIncrementalName(network.Name + "_subnet");
-                context.SetVariable(variableName, result.Value!);
-            }
-            ConsoleOutput.WriteLine(result.ToString());
+            if (!result.Success)
+                return CommandResult.Fail(result.Code, result.Message);
+            var subnet = result.Value!;
+            subnet.Name = context.GetNextIncrementalName(network.Name + "_subnet");
+            context.SetVariable(variableName, result.Value!);
+
+            return CommandResult.Ok(
+                message: result.Message,
+                assignments: CommandResult.Assigning(variableName, typeof(Network))
+                );
         }
     }
 }

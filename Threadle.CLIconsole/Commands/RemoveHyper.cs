@@ -33,12 +33,13 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
-            ConsoleOutput.WriteLine(network.RemoveHyperedge(layerName, hyperName).ToString());
+            return CommandResult.FromOperationResult(network.RemoveHyperedge(layerName, hyperName));
+            //ConsoleOutput.WriteLine(network.RemoveHyperedge(layerName, hyperName).ToString());
         }
 
     }
