@@ -25,12 +25,13 @@ namespace Threadle.CLIconsole.CLIUtilities
         #endregion
 
 
-            #region Methods (internal)
-            /// <summary>
-            /// Returns a dictionary with metadata about the structures currently stored in the
-            /// console variable memory.
-            /// </summary>
-            /// <returns>A <see cref="Dictionary{string, object}"/> with metadata about each stored structure.</returns>
+            
+        #region Methods (internal)
+        /// <summary>
+        /// Returns a dictionary with metadata about the structures currently stored in the
+        /// console variable memory.
+        /// </summary>
+        /// <returns>A <see cref="Dictionary{string, object}"/> with metadata about each stored structure.</returns>
         internal Dictionary<string, string> VariablesMetadata()
         {
             Dictionary<string, string> metadata = new();
@@ -100,6 +101,18 @@ namespace Threadle.CLIconsole.CLIUtilities
                 return typedValue;
             throw new Exception($"!Error: No {typeof(T).Name} named '{name}' found.");
         }
+
+        internal bool TryGetVariable<T>(string name, out T value) where T : class
+        {
+            if (Variables.TryGetValue(name, out var raw) && raw is T typed)
+            {
+                value = typed;
+                return true;
+            }
+            value = null!;
+            return false;
+        }
+
 
         /// <summary>
         /// Returns the next available variable name, either based on a provided <paramref name="baseName"/> or following the Untitled-

@@ -11,17 +11,17 @@ namespace Threadle.CLIconsole.Commands
     /// <summary>
     /// Class representing the 'view' CLI command.
     /// </summary>
-    public class View : ICommand
+    public class Preview : ICommand
     {
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[str] = view(structure = [var:structure])";
+        public string Syntax => "[str] = preview(structure = [var:structure], *maxlines = [int(default:50)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "View the content of the structure with the variable name [var:structure]. E.g. display(mynet) will display detailed information about the network with the variable 'mynet'.";
+        public string Description => "Previews the content of the structure with the variable name [var:structure]. Caps the number of outputted lines to 50 by default, which can be changed with the optional maxlines argument.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -33,10 +33,15 @@ namespace Threadle.CLIconsole.Commands
         /// </summary>
         /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public void Execute(Command command, CommandContext context)
+        public CommandResult Execute(Command command, CommandContext context)
         {
             IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-            ConsoleOutput.WriteLine(structure.Content, true);
+            int maxLines = command.GetArgumentParseInt("maxlines", 50);
+            //ConsoleOutput.WriteLine(structure.Content, true);
+            return CommandResult.Ok(
+                message: $"Preview of {nameof(IStructure)} '{structure.Name}'",
+                payload: structure.Content
+                );
         }
     }
 }

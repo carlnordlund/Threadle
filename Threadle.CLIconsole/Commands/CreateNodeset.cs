@@ -47,9 +47,6 @@ namespace Threadle.CLIconsole.Commands
                 message: $"Network '{name}' created.",
                 assignments: CommandResult.Assigning(variableName, typeof(Nodeset))
                 );
-
-
-            //ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' created (with {createNodes} nodes) and stored in variable '{variableName}'");
         }
     }
 }

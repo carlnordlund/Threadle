@@ -65,7 +65,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             _commands["setwd"] = new SetWorkingDirectory();
             _commands["subnet"] = new Subnet();
             _commands["undefineattr"] = new UndefineAttr();
-            _commands["view"] = new View();
+            _commands["view"] = new Preview();
         }
         #endregion
 
