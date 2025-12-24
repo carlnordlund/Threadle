@@ -37,7 +37,10 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
-            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
+            string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
+            if (CommandHelpers.TryGetVariable<Nodeset>(context, nodesetName, out var nodeset) is CommandResult commandResult)
+                return commandResult;
+            //Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string nameNetwork = command.GetArgumentParseString("name", variableName);
             Network network = new Network(nameNetwork, nodeset);
             context.SetVariable(variableName, network);

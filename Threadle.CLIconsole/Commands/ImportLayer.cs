@@ -36,15 +36,19 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
+            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResult)
+                return commandResult;
+
+            //Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg2");
             string format = command.GetArgumentThrowExceptionIfMissingOrNull("format", "arg3");
             string separator = command.GetArgumentParseString("sep", "\t");
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", false);
             if (!network.Layers.TryGetValue(layerName, out var layer))
-                throw new Exception($"!Error: Layer '{layerName}' not found.");
-            var result = FileManager.ImportLayer(filepath, network, layer, format, separator, addMissingNodes);
+                return CommandResult.Fail("LayerNotFound", $"!Error: Layer '{layerName}' not found.");
+            OperationResult result = FileManager.ImportLayer(filepath, network, layer, format, separator, addMissingNodes);
             return CommandResult.FromOperationResult(result);
         }
     }

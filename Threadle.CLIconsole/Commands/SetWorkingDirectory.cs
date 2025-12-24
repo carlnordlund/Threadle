@@ -37,7 +37,6 @@ namespace Threadle.CLIconsole.Commands
         {
             string dir = command.GetArgumentThrowExceptionIfMissingOrNull("dir", "arg0");
             return CommandResult.FromOperationResult(FileManager.SafeSetCurrentDirectory(dir));
-            //ConsoleOutput.WriteLine(FileManager.SafeSetCurrentDirectory(dir).Message);
         }
     }
 }

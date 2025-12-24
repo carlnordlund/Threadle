@@ -40,7 +40,10 @@ namespace Threadle.CLIconsole.Commands
                 return CommandResult.Ok("No structures stored in the current session.");
             Dictionary<string, string> inventory = context.VariablesMetadata();
 
-            return CommandResult.Ok($"Inventory contains {inventory.Count} structure(s)", inventory);
+            return CommandResult.Ok(
+                message: $"Inventory contains {inventory.Count} structure(s)",
+                payload: inventory
+                );
         }
     }
 }

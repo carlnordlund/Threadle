@@ -36,17 +36,22 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
+            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResult)
+                return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
             uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
             var result = network.CheckEdgeExists(layerName, node1id, node2id);
-            if (result.Success)
-                return CommandResult.Ok(result.Message, result.Value);
-            //ConsoleOutput.WriteLine(Misc.BooleanAsString(result.Value), true);
-            else
-                return CommandResult.Fail(result.Code, result.Message);
-                //ConsoleOutput.WriteLine(result.ToString());
+            // Will this work? Not yet tested.
+            // Issue: OperationResult has a value with it, and I'm attaching that
+            // as the payload for the CommandResult object
+
+            return CommandResult.FromOperationResult(result, result.Value);
+            //if (result.Success)
+            //    return CommandResult.Ok(result.Message, result.Value);
+            //else
+            //    return CommandResult.Fail(result.Code, result.Message);
         }
     }
 }

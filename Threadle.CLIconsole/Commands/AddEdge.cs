@@ -37,19 +37,13 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(Command command, CommandContext context)
         {
             string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
-
-            //Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResult)
+                return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
             uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
             uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
             float value = command.GetArgumentParseFloat("value", 1);
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", true);
-
-            var fail = CommandHelpers.TryGetVariable<Network>(context, networkName, out var network);
-            if (fail != null)
-                return fail;
-
-            //var opResult = network.AddEdge(layerName, node1id, node2id, value, addMissingNodes);
             return CommandResult.FromOperationResult(network.AddEdge(layerName, node1id, node2id, value, addMissingNodes));
         }
     }

@@ -53,6 +53,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             _commands["importlayer"] = new ImportLayer();
             _commands["info"] = new Info();
             _commands["loadfile"] = new LoadFile();
+            _commands["preview"] = new Preview();
             _commands["removeaff"] = new RemoveAffiliation();
             _commands["removeattr"] = new RemoveAttr();
             _commands["removeedge"] = new RemoveEdge();
@@ -65,7 +66,6 @@ namespace Threadle.CLIconsole.CLIUtilities
             _commands["setwd"] = new SetWorkingDirectory();
             _commands["subnet"] = new Subnet();
             _commands["undefineattr"] = new UndefineAttr();
-            _commands["view"] = new Preview();
         }
         #endregion
 

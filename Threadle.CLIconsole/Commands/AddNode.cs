@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Reflection.Metadata.Ecma335;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -36,9 +37,10 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
+            if (CommandHelpers.TryGetNodeset(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
+                return commandResult;                
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("id", "arg1");
-            return CommandResult.FromOperationResult(nodeset.AddNode(nodeId));
+            return CommandResult.FromOperationResult(nodeset!.AddNode(nodeId));
         }
     }
 }

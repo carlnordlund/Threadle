@@ -35,7 +35,12 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
+            string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
+            if (CommandHelpers.TryGetVariable<IStructure>(context, structureName, out var structure) is CommandResult commandResult)
+                return commandResult;
+
+
+            //IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             int maxLines = command.GetArgumentParseInt("maxlines", 50);
             //ConsoleOutput.WriteLine(structure.Content, true);
             return CommandResult.Ok(

@@ -37,30 +37,25 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
+            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResult)
+                return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-
             if (!command.TrimNameAndCheckValidity(layerName, out string layerNameVerified))
                 throw new Exception($"!Error: Layer name '{layerName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
             char mode = command.GetArgumentThrowExceptionIfMissingOrNull("mode", "arg2")[0];
             OperationResult result;
             if (mode == '1')
-            {
                 result = network.AddLayerOneMode(
                     layerName: layerNameVerified,
                     edgeDirectionality: command.GetArgumentParseBool("directed", false) ? EdgeDirectionality.Directed : EdgeDirectionality.Undirected,
                     edgeValueType: command.GetArgumentParseEnum<EdgeType>("valuetype", EdgeType.Binary),
                     selfties: command.GetArgumentParseBool("selfties", false)
                     );
-            }
             else if (mode == '2')
-            {
                 result = network.AddLayerTwoMode(layerNameVerified);
-            }
             else
                 return CommandResult.Fail("UnknownMode", $"Error: Unknown mode ('{mode}') - must be either '1' or '2'.");
-            //throw new Exception($"!Error: Unknown mode ('{mode}') - must be either '1' or '2'.");
-            //ConsoleOutput.WriteLine(result.ToString());
             return CommandResult.FromOperationResult(result);
         }
     }

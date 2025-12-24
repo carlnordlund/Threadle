@@ -35,12 +35,8 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            string param =
-                command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0")
-                       .ToLowerInvariant();
-
-            bool value =
-                command.GetArgumentParseBoolThrowExceptionIfMissingOrNull("value", "arg1");
+            string param = command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0").ToLowerInvariant();
+            bool value = command.GetArgumentParseBoolThrowExceptionIfMissingOrNull("value", "arg1");
 
             if (param == "verbose")
             {

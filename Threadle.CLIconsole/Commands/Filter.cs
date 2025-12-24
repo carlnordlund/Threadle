@@ -38,22 +38,27 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
-            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
+
+            string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
+            if (CommandHelpers.TryGetVariable<Nodeset>(context, nodesetName, out var nodeset) is CommandResult commandResult)
+                return commandResult;
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             ConditionType conditionType = command.GetArgumentParseEnumThrowExceptionIfMissingOrNull<ConditionType>("cond", "arg2");
             string attributeValue = (conditionType == ConditionType.isnull || conditionType == ConditionType.notnull) ? "" : command.GetArgumentThrowExceptionIfMissingOrNull("attrvalue", "arg3");
             OperationResult<Nodeset> result = NodesetProcessor.Filter(nodeset, attributeName, conditionType, attributeValue);
-            if (!result.Success)
-                return CommandResult.Fail(result.Code,result.Message);
-            return CommandResult.Ok(
-                message: result.Message,
+            // Not sure that this works!
+            return CommandResult.FromOperationResult(
+                opResult: result,
+                payload: null,
                 assignments: CommandResult.Assigning(variableName, typeof(Nodeset))
                 );
 
-
-
-            //context.SetVariable(variableName, result.Value!);
-            //ConsoleOutput.WriteLine(result.ToString());
+            //if (!result.Success)
+            //    return CommandResult.Fail(result.Code,result.Message);
+            //return CommandResult.Ok(
+            //    message: result.Message,
+            //    assignments: CommandResult.Assigning(variableName, typeof(Nodeset))
+            //    );
         }
     }
 }

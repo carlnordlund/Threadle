@@ -52,7 +52,6 @@ namespace Threadle.CLIconsole.Commands
                     string additionalAssignedVariable = variableName + "_" + kvp.Key;
                     context.SetVariable(additionalAssignedVariable, kvp.Value);
                     assigned[additionalAssignedVariable] = nameof(kvp.Value);
-                    //ConsoleOutput.WriteLine($"Structure '{kvp.Value.Name}' loaded and stored in variable '{additionalAssignedVariable}'.");
                 }
             return CommandResult.Ok(
                 $"Loaded structure '{structures.MainStructure.Name}' from '{filepath}'",

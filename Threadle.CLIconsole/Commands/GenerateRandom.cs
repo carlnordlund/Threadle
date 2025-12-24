@@ -48,12 +48,10 @@ namespace Threadle.CLIconsole.Commands
                 newName = context.GetNextIncrementalName($"{type}_s{size}_p{p}");
             StructureResult structures = NetworkGenerators.ErdosRenyi(size, p, directionality, selfties);
             context.SetVariable(variableName, structures.MainStructure);
-            //ConsoleOutput.WriteLine($"Network '{newName}' generated and stored in variable '{variableName}'.");
             if (structures.AdditionalStructures.TryGetValue("nodeset", out var nodeset))
             {
                 string nodeset_variableName = variableName + "_nodeset";
                 context.SetVariable(nodeset_variableName, nodeset);
-                //ConsoleOutput.WriteLine($"Nodeset '{nodeset.Name}' generated and stored in variable '{nodeset_variableName}'.");
                 return CommandResult.Ok(
                     message: $"Generated random network of type '{type}'.",
                     null,
@@ -72,12 +70,6 @@ namespace Threadle.CLIconsole.Commands
                     [variableName] = nameof(Network)
                 }
                 );
-
-            //        return CommandResult.Ok(
-            //message: $"Network '{nameNetwork}' created.",
-            //assignments: CommandResult.Assigning(variableName, typeof(Network))
-            //);
-
         }
     }
 }

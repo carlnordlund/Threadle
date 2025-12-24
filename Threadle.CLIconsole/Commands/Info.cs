@@ -36,9 +36,17 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
+            string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
+            if (CommandHelpers.TryGetVariable<IStructure>(context, structureName, out var structure) is CommandResult commandResult)
+                return commandResult;
+
+            //IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
+
             Dictionary<string, object> infoMetadata = structure.Info;
-            return CommandResult.Ok($"Returning metadata about '{structure.Name}'", infoMetadata);
+            return CommandResult.Ok(
+                message: $"Returning metadata about '{structure.Name}'",
+                payload: infoMetadata
+                );
         }
     }
 }

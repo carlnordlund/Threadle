@@ -38,15 +38,23 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+            string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
+            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResult)
+                return commandResult;
+
+            //Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string layerName = command.GetArgumentParseString("layername", "");
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
             bool balanced = command.GetArgumentParseBool("balanced", false);
             OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeid, layerName, edgeTraversal, balanced);
-            if (!result.Success)
-                return CommandResult.Fail(result.Code,result.Message);
-            return CommandResult.Ok(result.Message, result.Value);
+            return CommandResult.FromOperationResult(
+                opResult: result,
+                payload: result.Value
+                );
+            //if (!result.Success)
+            //    return CommandResult.Fail(result.Code,result.Message);
+            //return CommandResult.Ok(result.Message, result.Value);
         }
     }
 }

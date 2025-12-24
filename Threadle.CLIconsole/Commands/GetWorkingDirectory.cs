@@ -36,9 +36,10 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(Command command, CommandContext context)
         {
             var result = FileManager.GetCurrentDirectory();
-            if (!result.Success)
-                return CommandResult.Fail(result.Code, result.Message);
-            return CommandResult.Ok(result.Message, result.Value);
+            return CommandResult.FromOperationResult(result, result.Value);
+            //if (!result.Success)
+            //    return CommandResult.Fail(result.Code, result.Message);
+            //return CommandResult.Ok(result.Message, result.Value);
         }
     }
 }

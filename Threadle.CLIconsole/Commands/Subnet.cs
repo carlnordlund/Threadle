@@ -35,8 +35,17 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(Command command, CommandContext context)
         {
             string variableName = command.CheckAndGetAssignmentVariableName();
-            Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
-            Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg1"));
+            string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
+            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResultNetwork)
+                return commandResultNetwork;
+
+            //Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
+
+            string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg1");
+            if (CommandHelpers.TryGetVariable<Nodeset>(context, nodesetName, out var nodeset) is CommandResult commandResultNodeset)
+                return commandResultNodeset;
+
+            //Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg1"));
 
             OperationResult<Network> result = NetworkProcessor.Subnet(network, nodeset);
             if (!result.Success)
@@ -44,7 +53,6 @@ namespace Threadle.CLIconsole.Commands
             var subnet = result.Value!;
             subnet.Name = context.GetNextIncrementalName(network.Name + "_subnet");
             context.SetVariable(variableName, result.Value!);
-
             return CommandResult.Ok(
                 message: result.Message,
                 assignments: CommandResult.Assigning(variableName, typeof(Network))
