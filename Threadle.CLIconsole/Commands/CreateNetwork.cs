@@ -32,9 +32,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
             //string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
@@ -50,7 +50,7 @@ namespace Threadle.CLIconsole.Commands
                 assignments: CommandResult.Assigning(variableName, typeof(Network))
                 );
 
-            //ConsoleOutput.WriteLine($"Network '{nameNetwork}' created and stored in variable '{variableName}'");
+            //ConsoleOutput.WriteLines($"Network '{nameNetwork}' created and stored in variable '{variableName}'");
         }
     }
 }

@@ -31,9 +31,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string param = command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0").ToLowerInvariant();
             bool value = command.GetArgumentParseBoolThrowExceptionIfMissingOrNull("value", "arg1");

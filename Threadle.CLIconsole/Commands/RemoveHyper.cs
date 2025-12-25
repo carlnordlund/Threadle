@@ -31,9 +31,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             //string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
@@ -43,7 +43,7 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
             return CommandResult.FromOperationResult(network.RemoveHyperedge(layerName, hyperName));
-            //ConsoleOutput.WriteLine(network.RemoveHyperedge(layerName, hyperName).ToString());
+            //ConsoleOutput.WriteLines(network.RemoveHyperedge(layerName, hyperName).ToString());
         }
 
     }

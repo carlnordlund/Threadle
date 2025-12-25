@@ -31,9 +31,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
             if (CommandHelpers.TryGetVariable<IStructure>(context, structureName, out var structure) is CommandResult commandResult)
@@ -42,7 +42,7 @@ namespace Threadle.CLIconsole.Commands
 
             //IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             int maxLines = command.GetArgumentParseInt("maxlines", 50);
-            //ConsoleOutput.WriteLine(structure.Content, true);
+            //ConsoleOutput.WriteLines(structure.Content, true);
             return CommandResult.Ok(
                 message: $"Preview of {nameof(IStructure)} '{structure.Name}'",
                 payload: structure.Content

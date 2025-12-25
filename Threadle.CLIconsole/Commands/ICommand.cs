@@ -30,9 +30,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         /// <returns>A <see cref="CommandResult"/> object with info on how command execution went.</returns>
-        CommandResult Execute(Command command, CommandContext context);
+        CommandResult Execute(CommandPackage command, CommandContext context);
     }
 }

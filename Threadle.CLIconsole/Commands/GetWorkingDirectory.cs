@@ -31,9 +31,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             var result = FileManager.GetCurrentDirectory();
             return CommandResult.FromOperationResult(result, result.Value);

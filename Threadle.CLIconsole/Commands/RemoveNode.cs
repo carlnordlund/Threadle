@@ -32,9 +32,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
@@ -42,7 +42,7 @@ namespace Threadle.CLIconsole.Commands
             //Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             OperationResult result = nodeset!.RemoveNode(nodeId);
-            //ConsoleOutput.WriteLine(result.ToString());
+            //ConsoleOutput.WriteLines(result.ToString());
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);
 
@@ -51,7 +51,7 @@ namespace Threadle.CLIconsole.Commands
             {
                 network.RemoveNodeEdges(nodeId);
                 affectedNetworks.Add(network.Name);
-                //ConsoleOutput.WriteLine($"Also removing edges involving node '{nodeId}' from network '{network.Name}'.");
+                //ConsoleOutput.WriteLines($"Also removing edges involving node '{nodeId}' from network '{network.Name}'.");
             }
 
             return CommandResult.Ok(

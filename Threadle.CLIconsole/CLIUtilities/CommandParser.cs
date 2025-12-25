@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace Threadle.CLIconsole.CLIUtilities
 {
     /// <summary>
-    /// Static class for parsing CLI input into a <see cref="Command"/> object for further processing.
+    /// Static class for parsing CLI input into a <see cref="CommandPackage"/> object for further processing.
     /// </summary>
     public static class CommandParser
     {
@@ -32,8 +32,8 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// the key for this argument is 'argN' where N is the index of the argument in the list of arguments.
         /// </summary>
         /// <param name="input">The CLI string.</param>
-        /// <returns>A <see cref="Command"/> object corresponding to a parsed command, or null if unsuccessfully parsed.</returns>
-        internal static Command? Parse(string input)
+        /// <returns>A <see cref="CommandPackage"/> object corresponding to a parsed command, or null if unsuccessfully parsed.</returns>
+        internal static CommandPackage? Parse(string input)
         {
             var match = commandRegex.Match(input);
             if (!match.Success)
@@ -42,7 +42,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             string cmdName = match.Groups[2].Value;
             string argString = match.Groups[3].Value;
 
-            var cmd = new Command();
+            var cmd = new CommandPackage();
             cmd.CommandName = cmdName;
             if (!string.IsNullOrWhiteSpace(assignedVar))
                 cmd.AssignedVariable = assignedVar;

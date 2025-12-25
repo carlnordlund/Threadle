@@ -10,7 +10,7 @@ namespace Threadle.CLIconsole.CLIUtilities
     /// <summary>
     /// Class representing a CLI command and its content
     /// </summary>
-    public class Command
+    public class CommandPackage
     {
         #region Properties
         /// <summary>

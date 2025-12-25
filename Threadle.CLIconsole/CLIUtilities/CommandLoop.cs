@@ -52,14 +52,14 @@ namespace Threadle.CLIconsole.CLIUtilities
         #region Methods (internal)
         /// <summary>
         /// Method that starts the command loop: reads input from console (STDIN), takes care of
-        /// the special 'exit' and 'help' commands, parses the input to a <see cref="Command"/> object
+        /// the special 'exit' and 'help' commands, parses the input to a <see cref="CommandPackage"/> object
         /// and sends this to the <see cref="CommandDispatcher"/> for execution. All output is passed on
         /// to <see cref="ConsoleOutput"/>.
         /// </summary>
         internal static void Run(bool jsonMode)
         {
             var context = new CommandContext();
-            var dispatcher = new CommandDispatcher();
+            //var dispatcher = new CommandDispatcher();
 
             ICommandResultRenderer renderer = jsonMode
                 ? new JsonCommandResultRenderer()
@@ -68,8 +68,8 @@ namespace Threadle.CLIconsole.CLIUtilities
             Console.OutputEncoding = Encoding.UTF8;
             Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 
-            if (ConsoleOutput.Verbose)
-                ConsoleOutput.WriteLine(WelcomeMessage);
+            if (!jsonMode && ConsoleOutput.Verbose)
+                ConsoleOutput.WriteLines(WelcomeMessage);
 
             while (true)
             {
@@ -84,7 +84,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                     var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 2)
                     {
-                        var cmd = dispatcher.GetCommand(parts[1]);
+                        var cmd = CommandDispatcher.GetCommand(parts[1]);
                         if (cmd != null)
                             ConsoleOutput.WriteLine($"{Environment.NewLine} Syntax: {cmd.Syntax}{Environment.NewLine}{Environment.NewLine}" + WordWrap(cmd.Description), true);
                         else
@@ -93,7 +93,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                     else
                     {
                         ConsoleOutput.WriteLine($"Available commands (type 'help [command]' for details about specific [command]):{Environment.NewLine}", true);
-                        foreach (var kvp in dispatcher.GetAllCommands())
+                        foreach (var kvp in CommandDispatcher.GetAllCommands())
                             ConsoleOutput.WriteLine($"{kvp.Key}:{Environment.NewLine}  {kvp.Value.Syntax}{Environment.NewLine}", true);
                     }
                     continue;
@@ -102,24 +102,18 @@ namespace Threadle.CLIconsole.CLIUtilities
                 if (command == null)
                 {
                     ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
-                    //ConsoleOutput.WriteEndMarker();
                     continue;
                 }
                 
-                //CommandResult result;
                 try
                 {
-                    var result = dispatcher.Dispatch(command, context);
+                    var result = CommandDispatcher.Dispatch(command, context);
                     renderer.Render(result);
                 }
                 catch (Exception ex)
                 {
                     renderer.RenderException(ex);
-                    //result = CommandResult.Fail("Exception", ex.Message);
-                    //ConsoleOutput.WriteLine($"{ex.Message}");
                 }
-                //RenderResult(result);
-                //ConsoleOutput.WriteEndMarker();
             }
             ConsoleOutput.WriteLine("Exiting...");
         }

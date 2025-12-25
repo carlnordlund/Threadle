@@ -32,9 +32,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
@@ -44,7 +44,7 @@ namespace Threadle.CLIconsole.Commands
                 return CommandResult.Fail("AttributeNameFormatError", $"Error: Attribute name '{attributeName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
             string attributeType = command.GetArgumentThrowExceptionIfMissingOrNull("attrtype", "arg2");
             return CommandResult.FromOperationResult(nodeset!.DefineNodeAttribute(attributeName, attributeType));
-            //ConsoleOutput.WriteLine(nodeset.DefineNodeAttribute(attributeName, attributeType).ToString());
+            //ConsoleOutput.WriteLines(nodeset.DefineNodeAttribute(attributeName, attributeType).ToString());
         }
     }
 }

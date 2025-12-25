@@ -33,9 +33,9 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Executes the command.
         /// </summary>
-        /// <param name="command">The parsed <see cref="Command"/> to be executed.</param>
+        /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
-        public CommandResult Execute(Command command, CommandContext context)
+        public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             //string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
@@ -48,12 +48,12 @@ namespace Threadle.CLIconsole.Commands
             OperationResult<float> result = network.GetEdge(layerName, node1id, node2id);
             return CommandResult.FromOperationResult(result, result.Value);
             //if (result.Success)
-            //    ConsoleOutput.WriteLine(result.Value.ToString(), true);
+            //    ConsoleOutput.WriteLines(result.Value.ToString(), true);
             //if (!result.Success)
             //    return CommandResult.Fail(result.Code, result.Message);
             //return CommandResult.Ok(result.Message, result.Value);
             //else
-            //    ConsoleOutput.WriteLine(result.ToString());
+            //    ConsoleOutput.WriteLines(result.ToString());
         }
     }
 }
