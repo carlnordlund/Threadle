@@ -45,13 +45,13 @@ namespace Threadle.CLIconsole.Commands
                 return CommandResult.Fail(result.Code, result.Message);
             StructureResult structures = result.Value!;
             context.SetVariable(variableName, structures.MainStructure);
-            assigned[variableName] = nameof(structures.MainStructure);
+            assigned[variableName] = structures.MainStructure.GetType().Name;
             if (structures.AdditionalStructures.Count > 0)
                 foreach (var kvp in structures.AdditionalStructures)
                 {
                     string additionalAssignedVariable = variableName + "_" + kvp.Key;
                     context.SetVariable(additionalAssignedVariable, kvp.Value);
-                    assigned[additionalAssignedVariable] = nameof(kvp.Value);
+                    assigned[additionalAssignedVariable] = kvp.Value.GetType().Name;
                 }
             return CommandResult.Ok(
                 $"Loaded structure '{structures.MainStructure.Name}' from '{filepath}'",
