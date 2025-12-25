@@ -37,7 +37,7 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(Command command, CommandContext context)
         {
             string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
-            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResult)
+            if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
 
             //Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));

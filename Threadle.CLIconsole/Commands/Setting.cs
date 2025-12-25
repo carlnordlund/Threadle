@@ -47,14 +47,14 @@ namespace Threadle.CLIconsole.Commands
                 );
             }
 
-            if (param == "endmarker")
-            {
-                ConsoleOutput.EndMarker = value;
-                return CommandResult.Ok(
-                    $"Setting 'endmarker' set to {value}.",
-                    payload: new { Setting = "endmarker", Value = value }
-                );
-            }
+            //if (param == "endmarker")
+            //{
+            //    ConsoleOutput.EndMarker = value;
+            //    return CommandResult.Ok(
+            //        $"Setting 'endmarker' set to {value}.",
+            //        payload: new { Setting = "endmarker", Value = value }
+            //    );
+            //}
 
             // Delegate to shared settings manager
             OperationResult result = UserSettings.Set(param, value);

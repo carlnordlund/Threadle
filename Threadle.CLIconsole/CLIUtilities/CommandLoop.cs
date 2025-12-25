@@ -56,10 +56,15 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// and sends this to the <see cref="CommandDispatcher"/> for execution. All output is passed on
         /// to <see cref="ConsoleOutput"/>.
         /// </summary>
-        internal static void Run()
+        internal static void Run(bool jsonMode)
         {
             var context = new CommandContext();
-            var dispatcher = new CommandDispatcher();            
+            var dispatcher = new CommandDispatcher();
+
+            ICommandResultRenderer renderer = jsonMode
+                ? new JsonCommandResultRenderer()
+                : new TextCommandResultRenderer();
+
             Console.OutputEncoding = Encoding.UTF8;
             Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 
@@ -97,21 +102,24 @@ namespace Threadle.CLIconsole.CLIUtilities
                 if (command == null)
                 {
                     ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
-                    ConsoleOutput.WriteEndMarker();
+                    //ConsoleOutput.WriteEndMarker();
                     continue;
                 }
-                CommandResult result;
+                
+                //CommandResult result;
                 try
                 {
-                    result = dispatcher.Dispatch(command, context);
+                    var result = dispatcher.Dispatch(command, context);
+                    renderer.Render(result);
                 }
                 catch (Exception ex)
                 {
-                    result = CommandResult.Fail("Exception", ex.Message);
+                    renderer.RenderException(ex);
+                    //result = CommandResult.Fail("Exception", ex.Message);
                     //ConsoleOutput.WriteLine($"{ex.Message}");
                 }
-                RenderResult(result);
-                ConsoleOutput.WriteEndMarker();
+                //RenderResult(result);
+                //ConsoleOutput.WriteEndMarker();
             }
             ConsoleOutput.WriteLine("Exiting...");
         }

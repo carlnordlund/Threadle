@@ -36,9 +36,9 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            string variableName = command.CheckAndGetAssignmentVariableName();
-            string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
-            if (CommandHelpers.TryGetVariable<Nodeset>(context, nodesetName, out var nodeset) is CommandResult commandResult)
+            string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
+            //string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
+            if (CommandHelpers.TryGetVariable<Nodeset>(context, command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
             //Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string nameNetwork = command.GetArgumentParseString("name", variableName);

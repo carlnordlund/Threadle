@@ -38,7 +38,7 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            string variableName = command.CheckAndGetAssignmentVariableName();
+            string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
             string type = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg0");
             int size = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("size", "arg1");
             double p = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("p", "arg2");

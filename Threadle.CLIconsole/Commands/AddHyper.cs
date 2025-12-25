@@ -36,22 +36,24 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
-            if (CommandHelpers.TryGetVariable<Network>(context, networkName, out var network) is CommandResult commandResult)
+            //string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
+            if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
-            OperationResult opResult;
+            //OperationResult opResult;
             if (command.GetArgument("nodes") is string nodesString)
             {
                 uint[] nodeIds = Misc.NodesIdsStringToArray(nodesString)
                     ?? throw new Exception($"!Error: Couldn't parse semicolon-separated list with nodes.");
                 bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", true);
-                opResult = network.AddHyperedge(layerName, hyperName, nodeIds, addMissingNodes);
+                return CommandResult.FromOperationResult(network.AddHyperedge(layerName, hyperName, nodeIds, addMissingNodes));
+                //opResult = network.AddHyperedge(layerName, hyperName, nodeIds, addMissingNodes);
             }
             else
-                opResult = network.AddHyperedge(layerName, hyperName);
-            return CommandResult.FromOperationResult(opResult);
+                return CommandResult.FromOperationResult(network.AddHyperedge(layerName, hyperName));
+                //opResult = network.AddHyperedge(layerName, hyperName);
+            //return CommandResult.FromOperationResult(opResult);
         }
     }
 }

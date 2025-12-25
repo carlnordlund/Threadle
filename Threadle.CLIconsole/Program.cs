@@ -27,13 +27,18 @@ namespace Threadle.CLIconsole
                     case "--silent":
                         ConsoleOutput.Verbose = false;
                         break;
-                    case "-e":
-                    case "--endmarker":
-                        ConsoleOutput.EndMarker = true;
+                    //case "-e":
+                    //case "--endmarker":
+                    //    ConsoleOutput.EndMarker = true;
+                    //    break;
+                    case "-j":
+                    case "--json":
+                        // INjection here - should I also inject silent etc?
+                        CommandLoop.Run(true);
                         break;
                 }
             }
-            CommandLoop.Run();
+            CommandLoop.Run(false);
         }
     }
 }

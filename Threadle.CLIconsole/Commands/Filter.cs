@@ -37,10 +37,10 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            string variableName = command.CheckAndGetAssignmentVariableName();
+            string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
 
-            string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
-            if (CommandHelpers.TryGetVariable<Nodeset>(context, nodesetName, out var nodeset) is CommandResult commandResult)
+            //string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
+            if (CommandHelpers.TryGetVariable<Nodeset>(context, command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             ConditionType conditionType = command.GetArgumentParseEnumThrowExceptionIfMissingOrNull<ConditionType>("cond", "arg2");

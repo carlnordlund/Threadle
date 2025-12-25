@@ -47,7 +47,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// <param name="name">The variable name of the structure</param>
         /// <param name="nodeset">The outbound Nodeset (will be null if failed)</param>
         /// <returns>Returns a <see cref="CommandResult"/> object if it failed.</returns>
-        public static CommandResult? TryGetNodeset(CommandContext context, string name, out Nodeset? nodeset)
+        public static CommandResult? TryGetNodesetFromIStructure(CommandContext context, string name, out Nodeset? nodeset)
         {
             if (!context.TryGetVariable<IStructure>(name, out IStructure structure))
             {

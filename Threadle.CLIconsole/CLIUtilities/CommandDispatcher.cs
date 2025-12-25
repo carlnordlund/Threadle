@@ -77,6 +77,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// </summary>
         /// <param name="command">The <see cref="Command"/> object describing a particular CLI command with argument values and possible assignment.</param>
         /// <param name="context">The <see cref="CommandContext"/> object holding the current console variable memory.</param>
+        /// <returns>A <see cref="CommandResult"/> object informing how the command went, including possible payload</returns>
         internal CommandResult Dispatch(Command command, CommandContext context)
         {
             if (_commands.TryGetValue(command.CommandName.ToLower(), out var handler))
@@ -88,9 +89,6 @@ namespace Threadle.CLIconsole.CLIUtilities
                 code: "UnknownCommand",
                 message: $"Unknown command: {command.CommandName}"
                 );
-
-            //else
-            //    ConsoleOutput.WriteLine($"!Error: Unknown command: {command.CommandName}");
         }
 
         /// <summary>

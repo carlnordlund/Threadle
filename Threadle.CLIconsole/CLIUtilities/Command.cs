@@ -52,7 +52,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// </summary>
         /// <returns>The name of the variable.</returns>
         /// <exception cref="Exception">Throws an exception if no variable is assigned.</exception>
-        internal string CheckAndGetAssignmentVariableName()
+        internal string GetAssignmentVariableNameThrowExceptionIfNull()
         {
             if (AssignedVariable == null)
                 throw new Exception("!Error: No variable assigned.");

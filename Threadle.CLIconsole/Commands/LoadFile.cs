@@ -37,7 +37,7 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(Command command, CommandContext context)
         {
             var assigned = new Dictionary<string, string>();
-            string variableName = command.CheckAndGetAssignmentVariableName();
+            string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");
             var result = FileManager.Load(filepath, typeString);

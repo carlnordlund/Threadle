@@ -35,8 +35,8 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(Command command, CommandContext context)
         {
-            string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
-            return CommandResult.FromOperationResult(context.RemoveStructure(structureName));
+            //string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
+            return CommandResult.FromOperationResult(context.RemoveStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0")));
         }
     }
 }
