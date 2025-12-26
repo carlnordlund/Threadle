@@ -70,8 +70,16 @@ namespace Threadle.CLIconsole.CLIUtilities
                     RenderLines(lines);
                     break;
 
+                case IDictionary<string, string> helpText:
+                    RenderHelpText(helpText);
+                    break;
+
                 case IDictionary<string, object> dict:
                     RenderDictionary(dict);
+                    break;
+
+                case IEnumerable<Dictionary<string,string>> helpTexts:
+                    RenderHelpLines(helpTexts);
                     break;
 
                 case IEnumerable<object> objects:
@@ -81,6 +89,23 @@ namespace Threadle.CLIconsole.CLIUtilities
                 default:
                     Console.Out.WriteLine(payload.ToString());
                     break;
+            }
+        }
+
+        private static void RenderHelpText(IDictionary<string, string> helpText)
+        {
+            Console.Out.WriteLine("SYNTAX:");
+            Console.Out.WriteLine($"  {helpText["Syntax"]}{Environment.NewLine}");
+            Console.Out.WriteLine("DESCRIPTION:");
+            Console.Out.WriteLine($"  {WordWrap(helpText["Description"])}{Environment.NewLine}");
+        }
+
+        private static void RenderHelpLines(IEnumerable<Dictionary<string, string>> helpLines)
+        {
+            foreach (var line in helpLines)
+            {
+                Console.Out.WriteLine($"{line["Command"]}");
+                Console.Out.WriteLine($"  {line["Syntax"]}{Environment.NewLine}");
             }
         }
 
@@ -165,6 +190,38 @@ namespace Threadle.CLIconsole.CLIUtilities
             else
                 Console.Out.WriteLine($"{pad}- {name}");
         }
+
+        /// <summary>
+        /// Helper function for word wrapping output to the console, doing this by adding the system-default
+        /// newline character(s) in a provided <paramref name="unwrapped"/> string so that the number of characters
+        /// per row does not exceed the provided <paramref name="charWidth"/>.
+        /// </summary>
+        /// <param name="unwrapped">The original string text to be word-wrapped.</param>
+        /// <param name="charWidth">The maximum width of the word-wrapped text.</param>
+        /// <returns>A word-wrapped version of the provided text.</returns>
+        private static string WordWrap(string unwrapped, int charWidth = 100)
+        {
+            string wrapped = "";
+            string[] words = unwrapped.Split(' ');
+            int currentLineLength = 0;
+            foreach (string word in words)
+            {
+                if (currentLineLength + word.Length + 1 > charWidth)
+                {
+                    wrapped += $"{Environment.NewLine}";
+                    currentLineLength = 0;
+                }
+                if (currentLineLength > 0)
+                {
+                    wrapped += " ";
+                    currentLineLength++;
+                }
+                wrapped += word;
+                currentLineLength += word.Length;
+            }
+            return wrapped;
+        }
+
 
     }
 }

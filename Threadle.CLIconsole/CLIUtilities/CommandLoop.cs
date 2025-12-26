@@ -73,31 +73,32 @@ namespace Threadle.CLIconsole.CLIUtilities
 
             while (true)
             {
-                ConsoleOutput.Write("> ");
+                if (!jsonMode)
+                    ConsoleOutput.Write("> ");
                 var input = Console.ReadLine()?.Trim();
                 if (string.IsNullOrWhiteSpace(input))
                     continue;
                 if (input.ToLower() == "exit")
                     break;
-                if (input.StartsWith("help", StringComparison.OrdinalIgnoreCase))
-                {
-                    var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 2)
-                    {
-                        var cmd = CommandDispatcher.GetCommand(parts[1]);
-                        if (cmd != null)
-                            ConsoleOutput.WriteLine($"{Environment.NewLine} Syntax: {cmd.Syntax}{Environment.NewLine}{Environment.NewLine}" + WordWrap(cmd.Description), true);
-                        else
-                            ConsoleOutput.WriteLine($" ? Unknown command: '{parts[1]}'", true);
-                    }
-                    else
-                    {
-                        ConsoleOutput.WriteLine($"Available commands (type 'help [command]' for details about specific [command]):{Environment.NewLine}", true);
-                        foreach (var kvp in CommandDispatcher.GetAllCommands())
-                            ConsoleOutput.WriteLine($"{kvp.Key}:{Environment.NewLine}  {kvp.Value.Syntax}{Environment.NewLine}", true);
-                    }
-                    continue;
-                }
+                //if (input.StartsWith("help", StringComparison.OrdinalIgnoreCase))
+                //{
+                //    var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                //    if (parts.Length == 2)
+                //    {
+                //        var cmd = CommandDispatcher.GetCommand(parts[1]);
+                //        if (cmd != null)
+                //            ConsoleOutput.WriteLine($"{Environment.NewLine} Syntax: {cmd.Syntax}{Environment.NewLine}{Environment.NewLine}" + WordWrap(cmd.Description), true);
+                //        else
+                //            ConsoleOutput.WriteLine($" ? Unknown command: '{parts[1]}'", true);
+                //    }
+                //    else
+                //    {
+                //        ConsoleOutput.WriteLine($"Available commands (type 'help [command]' for details about specific [command]):{Environment.NewLine}", true);
+                //        foreach (var kvp in CommandDispatcher.GetAllCommands())
+                //            ConsoleOutput.WriteLine($"{kvp.Key}:{Environment.NewLine}  {kvp.Value.Syntax}{Environment.NewLine}", true);
+                //    }
+                //    continue;
+                //}
                 var command = CommandParser.Parse(input);
                 if (command == null)
                 {

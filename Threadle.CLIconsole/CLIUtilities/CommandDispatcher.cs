@@ -41,6 +41,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             ["getrandomalter"] = new GetRandomAlter(),
             ["getrandomnode"] = new GetRandomNode(),
             ["getwd"] = new GetWorkingDirectory(),
+            ["help"] = new HelpCommand(),
             ["i"] = new Inventory(),
             ["importlayer"] = new ImportLayer(),
             ["info"] = new Info(),
@@ -150,6 +151,42 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// <returns></returns>
         internal static ICommand? GetCommand(string name)
             => _commands.TryGetValue(name.ToLower(), out var cmd) ? cmd : null;
+
+        internal static CommandResult GetHelpFor(string commandName)
+        {
+            if (!(CommandDispatcher.GetCommand(commandName) is ICommand command))
+                return CommandResult.Fail("CommandNotFound", $"The command '{commandName}' was not found.");
+
+
+            Dictionary<string, string> helpText = new()
+            {
+                ["Command"] = commandName,
+                ["Syntax"] = command.Syntax,
+                ["Description"] = command.Description
+            };
+            return CommandResult.Ok(
+                $"Help for command '{commandName}':",
+                helpText
+                );
+
+        }
+
+        internal static CommandResult GetHelpForAll()
+        {
+            List<Dictionary<string, string>> helpTexts = [];
+            foreach (var kvp in _commands)
+                helpTexts.Add(new Dictionary<string, string>()
+                {
+                    ["Command"] = kvp.Key,
+                    ["Syntax"] = kvp.Value.Syntax,
+                    ["Description"] = kvp.Value.Description
+                });
+
+            return CommandResult.Ok(
+                "Available commands",
+                helpTexts
+            );
+        }
         #endregion
     }
 }

@@ -18,8 +18,8 @@ namespace Threadle.CLIconsole
         {
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
             CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
-
-            for (int i=0;i<args.Length;i++)
+            bool json = false;
+            for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
                 {
@@ -27,18 +27,13 @@ namespace Threadle.CLIconsole
                     case "--silent":
                         ConsoleOutput.Verbose = false;
                         break;
-                    //case "-e":
-                    //case "--endmarker":
-                    //    ConsoleOutput.EndMarker = true;
-                    //    break;
                     case "-j":
                     case "--json":
-                        // INjection here - should I also inject silent etc?
-                        CommandLoop.Run(true);
+                        json = true;
                         break;
                 }
             }
-            CommandLoop.Run(false);
+            CommandLoop.Run(json);
         }
     }
 }
