@@ -42,8 +42,8 @@ namespace Threadle.CLIconsole.Commands
             {
                 ConsoleOutput.Verbose = value;
                 return CommandResult.Ok(
-                    $"Setting 'verbose' set to {value}.",
-                    payload: new { Setting = "verbose", Value = value }
+                    $"Setting 'verbose' set to {value}."//,
+                    //payload: new { Setting = "verbose", Value = value }
                 );
             }
 

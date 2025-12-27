@@ -58,48 +58,42 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// </summary>
         internal static void Run(bool jsonMode)
         {
+            // Create the CommandContext that will store variables
             var context = new CommandContext();
-            //var dispatcher = new CommandDispatcher();
 
+            /// Create the renderer that will output CommandResult data
+            /// Either as JSON or human-readable text
             ICommandResultRenderer renderer = jsonMode
                 ? new JsonCommandResultRenderer()
                 : new TextCommandResultRenderer();
 
+            /// Create parser that will convert input from either human-readable
+            /// text or JSON to a CommandPackage
+            ICommandParser parser = jsonMode
+                ? new JsonCommandParser()
+                : new TextCommandParser();
+
+            /// Set Console output properties
             Console.OutputEncoding = Encoding.UTF8;
             Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 
+            /// Write welcome message if non-JSON
             if (!jsonMode && ConsoleOutput.Verbose)
                 ConsoleOutput.WriteLines(WelcomeMessage);
 
+            // Start infinite command loop
             while (true)
             {
                 if (!jsonMode)
                     ConsoleOutput.Write("> ");
                 var input = Console.ReadLine()?.Trim();
-                if (string.IsNullOrWhiteSpace(input))
+
+                if (string.IsNullOrWhiteSpace(input) || input[0].Equals('#'))
                     continue;
                 if (input.ToLower() == "exit")
                     break;
-                //if (input.StartsWith("help", StringComparison.OrdinalIgnoreCase))
-                //{
-                //    var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-                //    if (parts.Length == 2)
-                //    {
-                //        var cmd = CommandDispatcher.GetCommand(parts[1]);
-                //        if (cmd != null)
-                //            ConsoleOutput.WriteLine($"{Environment.NewLine} Syntax: {cmd.Syntax}{Environment.NewLine}{Environment.NewLine}" + WordWrap(cmd.Description), true);
-                //        else
-                //            ConsoleOutput.WriteLine($" ? Unknown command: '{parts[1]}'", true);
-                //    }
-                //    else
-                //    {
-                //        ConsoleOutput.WriteLine($"Available commands (type 'help [command]' for details about specific [command]):{Environment.NewLine}", true);
-                //        foreach (var kvp in CommandDispatcher.GetAllCommands())
-                //            ConsoleOutput.WriteLine($"{kvp.Key}:{Environment.NewLine}  {kvp.Value.Syntax}{Environment.NewLine}", true);
-                //    }
-                //    continue;
-                //}
-                var command = CommandParser.Parse(input);
+                var command = parser.Parse(input);
+                //var command = CommandParser.Parse(input);
                 if (command == null)
                 {
                     ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
