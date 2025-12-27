@@ -1,11 +1,12 @@
-﻿using Threadle.CLIconsole.CLIUtilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.CLIconsole.Parsing;
+using Threadle.CLIconsole.Results;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Runtime
 {
     /// <summary>
     /// The static class representing the command loop, i.e. where the user types
@@ -26,7 +27,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                 var cliAssembly = System.Reflection.Assembly.GetExecutingAssembly();
                 var cliVersion = cliAssembly.GetName().Version?.ToString() ?? "unknown";
 
-                var coreAssembly = typeof(Threadle.Core.Model.Network).Assembly;
+                var coreAssembly = typeof(Core.Model.Network).Assembly;
                 var coreVersion = coreAssembly.GetName().Version?.ToString() ?? "unknown";
 
                 return new()

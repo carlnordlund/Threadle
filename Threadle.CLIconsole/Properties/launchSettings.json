@@ -2,8 +2,11 @@
   "profiles": {
     "Threadle.CLIconsole": {
       "commandName": "Project",
-      "commandLineArgs": "--json",
       "workingDirectory": "$(ProjectDir)\\Examples"
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
     }
   }
 }

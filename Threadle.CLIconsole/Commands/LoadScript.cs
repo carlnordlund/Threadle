@@ -1,6 +1,4 @@
-﻿using Threadle.Core.Analysis;
-using Threadle.Core.Model;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,23 +6,24 @@ using System.Threading.Tasks;
 using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
+using Threadle.Core.Model;
 
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'getnbrnodes' CLI command.
+    /// Class representing the 'addedge' CLI command.
     /// </summary>
-    public class GetNbrNodes : ICommand
+    public class LoadScript : ICommand
     {
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[uint] = getnbrnodes(structure = [var:structure])";
+        public string Syntax => "loadscript(file = \"[str]\")";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the number of nodes in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure].";
+        public string Description => "Loads and executes a script containing text CLI commands. Will abort if encountering an error.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -38,14 +37,9 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
-                return commandResult;
-            //Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
-            int nbrNodes = nodeset!.Count;
-            return CommandResult.Ok(
-                message: $"Number of nodes in '{nodeset.Name}': {nbrNodes}",
-                payload: nbrNodes
-                );
+            string file = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
+
+            return ScriptExecutor.LoadAndExecuteScript(file, context);
         }
     }
 }

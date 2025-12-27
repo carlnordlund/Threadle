@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Parsing
 {
     public sealed class TextCommandParser : ICommandParser
     {

@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Threadle.CLIconsole.Runtime;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Results
 {
     public sealed class JsonCommandResultRenderer : ICommandResultRenderer
     {
@@ -14,9 +15,10 @@ namespace Threadle.CLIconsole.CLIUtilities
 
         public void Render(CommandResult result)
         {
-            Console.WriteLine(
-                JsonSerializer.Serialize(result, Options)
-            );
+            ConsoleOutput.WriteLine(JsonSerializer.Serialize(result, Options), true);
+            //Console.WriteLine(
+            //    JsonSerializer.Serialize(result, Options)
+            //);
         }
 
         public void RenderException(Exception ex)
@@ -26,9 +28,11 @@ namespace Threadle.CLIconsole.CLIUtilities
                 ex.Message
             );
 
-            Console.WriteLine(
-                JsonSerializer.Serialize(error, Options)
-            );
+            ConsoleOutput.WriteLine(JsonSerializer.Serialize(error, Options), true);
+
+            //Console.WriteLine(
+            //    JsonSerializer.Serialize(error, Options)
+            //);
         }
     }
 }

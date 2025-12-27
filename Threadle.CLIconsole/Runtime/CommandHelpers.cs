@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.CLIconsole.Results;
 using Threadle.Core.Model;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Runtime
 {
     /// <summary>
     /// Why not place this in CommandContext, where it has access to the context,
@@ -26,7 +27,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// <returns>Returns a <see cref="CommandResult"/> object if it failed.</returns>
         public static CommandResult? TryGetVariable<T>(CommandContext context, string name, out T value) where T : class
         {
-            if (!context.TryGetVariable<T>(name, out value))
+            if (!context.TryGetVariable(name, out value))
             {
                 return CommandResult.Fail(
                     "VariableNotFound",
@@ -49,7 +50,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// <returns>Returns a <see cref="CommandResult"/> object if it failed.</returns>
         public static CommandResult? TryGetNodesetFromIStructure(CommandContext context, string name, out Nodeset? nodeset)
         {
-            if (!context.TryGetVariable<IStructure>(name, out IStructure structure))
+            if (!context.TryGetVariable(name, out IStructure structure))
             {
                 nodeset = null;
                 return CommandResult.Fail(
@@ -57,7 +58,7 @@ namespace Threadle.CLIconsole.CLIUtilities
                     $"No structure named '{name}' found."
                     );
             }
-            nodeset = (structure is Nodeset) ? (Nodeset)structure : (structure is Network) ? ((Network)structure).Nodeset : null;
+            nodeset = structure is Nodeset ? (Nodeset)structure : structure is Network ? ((Network)structure).Nodeset : null;
             if (nodeset == null)
                 return CommandResult.Fail("NoNodeset", $"No Nodeset found in structure named '{name}'.");
             return null;

@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Utilities;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Parsing
 {
     /// <summary>
     /// Class representing a CLI command and its content
@@ -41,7 +41,7 @@ namespace Threadle.CLIconsole.CLIUtilities
         internal void CheckAssigment(bool toAssign)
         {
             if (toAssign && AssignedVariable == null)
-                throw new Exception($"!Error: '{CommandName}()' must be assiged.");
+                throw new Exception($"!Error: '{CommandName}()' must be assigned.");
             else if (!toAssign && AssignedVariable != null)
                 throw new Exception($"!Error: '{CommandName}()' not for assigning.");
         }

@@ -7,7 +7,7 @@ using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using Threadle.Core.Utilities;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Runtime
 {
     /// <summary>
     /// Centralized helper for writing text output to the console.

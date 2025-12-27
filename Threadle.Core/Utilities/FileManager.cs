@@ -167,6 +167,20 @@ namespace Threadle.Core.Utilities
                 return OperationResult<string>.Fail("IOError", $"An unexpected error when getting current directory: {e.Message}.");
             }
         }
+
+        public static OperationResult<string[]> LoadTextfile(string filepath)
+        {
+            try
+            {
+                var lines = TextFileReader.LoadFile(filepath);
+                return OperationResult<string[]>.Ok(lines, $"Loaded {lines.Length} lines from file '{filepath}'.");
+
+            }
+            catch (Exception e)
+            {
+                return OperationResult<string[]>.Fail("LoadError", $"Unexpected error while loading: {e.Message}");
+            }
+        }
         #endregion
 
         #region Methods (private)

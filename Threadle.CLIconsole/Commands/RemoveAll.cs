@@ -1,9 +1,11 @@
-﻿using Threadle.CLIconsole.CLIUtilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.CLIconsole.Parsing;
+using Threadle.CLIconsole.Results;
+using Threadle.CLIconsole.Runtime;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -34,8 +36,8 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            context.RemoveAllStructures();
-            return CommandResult.Ok("Removed all structures.");
+            return context.RemoveAllStructures();
+            //return CommandResult.Ok("Removed all structures.");
         }
     }
 }

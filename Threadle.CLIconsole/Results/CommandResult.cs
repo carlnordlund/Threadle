@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Utilities;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Results
 {
     public sealed class CommandResult
     {

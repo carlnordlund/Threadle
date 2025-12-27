@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Threadle.CLIconsole.Runtime;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Results
 {
     public sealed class TextCommandResultRenderer : ICommandResultRenderer
     {

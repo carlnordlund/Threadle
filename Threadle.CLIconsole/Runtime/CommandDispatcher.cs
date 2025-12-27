@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.CLIconsole.Parsing;
+using Threadle.CLIconsole.Results;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Runtime
 {
     public static class CommandDispatcher
     {
@@ -45,6 +47,7 @@ namespace Threadle.CLIconsole.CLIUtilities
             ["i"] = new Inventory(),
             ["importlayer"] = new ImportLayer(),
             ["info"] = new Info(),
+            ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),
             ["preview"] = new Preview(),
             ["removeaff"] = new RemoveAffiliation(),
@@ -154,7 +157,7 @@ namespace Threadle.CLIconsole.CLIUtilities
 
         internal static CommandResult GetHelpFor(string commandName)
         {
-            if (!(CommandDispatcher.GetCommand(commandName) is ICommand command))
+            if (!(GetCommand(commandName) is ICommand command))
                 return CommandResult.Fail("CommandNotFound", $"The command '{commandName}' was not found.");
 
 

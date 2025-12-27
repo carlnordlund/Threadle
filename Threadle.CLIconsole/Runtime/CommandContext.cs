@@ -1,12 +1,14 @@
-﻿using System;
+﻿using K4os.Compression.LZ4.Streams.Frames;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.CLIconsole.Results;
 using Threadle.Core.Model;
 using Threadle.Core.Utilities;
 
-namespace Threadle.CLIconsole.CLIUtilities
+namespace Threadle.CLIconsole.Runtime
 {
     /// <summary>
     /// Represents the variable memory for a CLI console instance and various
@@ -57,26 +59,32 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// </summary>
         /// <param name="name">The variable´name.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        internal OperationResult RemoveStructure(string name)
+        //internal OperationResult RemoveStructure(string name)
+        internal CommandResult RemoveStructure(string name)
         {
-            if (!Variables.TryGetValue(name,out var structure))
-                return OperationResult.Fail("StructureNotFound", $"Structure {name} not found.");
+            if (!Variables.TryGetValue(name, out var structure))
+                return CommandResult.Fail("StructureNotFound", $"Structure {name} not found.");
+                //return OperationResult.Fail("StructureNotFound", $"Structure {name} not found.");
             if (structure is Nodeset nodeset)
             {
                 foreach (var kvp in Variables)
                     if (kvp.Value is Network network && network.Nodeset == nodeset)
-                        return OperationResult.Fail("NodesetInUse", $"Can not delete nodeset '{name}': used by network '{kvp.Key}'.");
+                        return CommandResult.Fail("NodesetInUse", $"Can not delete nodeset '{name}': used by network '{kvp.Key}'.");
+                        //return OperationResult.Fail("NodesetInUse", $"Can not delete nodeset '{name}': used by network '{kvp.Key}'.");
             }
             Variables.Remove(name);
-            return OperationResult.Ok($"Structure '{name}' removed.");
+            return CommandResult.Ok($"Structure '{name}' removed.");
+            //return OperationResult.Ok($"Structure '{name}' removed.");
         }
+
 
         /// <summary>
         /// Removes all variables and structures from the console variable memory.
         /// </summary>
-        internal void RemoveAllStructures()
+        internal CommandResult RemoveAllStructures()
         {
             Variables.Clear();
+            return CommandResult.Ok("All structures removed.");
         }
 
         /// <summary>
@@ -105,6 +113,30 @@ namespace Threadle.CLIconsole.CLIUtilities
         }
 
 
+        //internal CommandResult? TryGetVariable<T>(string name, out T value) where T : class
+        //{
+        //    if (Variables.TryGetValue(name, out var raw) && raw is T typed)
+        //    {
+        //        value = typed;
+        //        return null;
+        //    }
+        //    value = null!;
+        //    return CommandResult.Fail("VariableNotFound", $"No {typeof(T).Name} named '{name}' found.");
+
+
+
+
+        //    //if (!context.TryGetVariable(name, out value))
+        //    //{
+        //    //    return CommandResult.Fail(
+        //    //        "VariableNotFound",
+        //    //        $"No {typeof(T).Name} named '{name}' found."
+        //    //    );
+        //    //}
+        //    //return null;
+        //}
+
+
         /// <summary>
         /// Returns the next available variable name, either based on a provided <paramref name="baseName"/> or following the Untitled-
         /// pattern. If there is no stored variable with the 'basename', that is returned immediately. If there is already a stored
@@ -115,12 +147,12 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// <returns>Returns an available variable name based on the current basename.</returns>
         internal string GetNextIncrementalName(string baseName = "Untitled-")
         {
-            if (!VariableExists(baseName))
+            if (!Variables.ContainsKey(baseName))
                 return baseName;
             int i = 0;
             while (true)
             {
-                if (!VariableExists(baseName + i))
+                if (!Variables.ContainsKey(baseName + i))
                     return "Untitled-" + i;
                 i++;
             }
@@ -138,16 +170,16 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// <param name="structureName">The name of the structure (i.e. either a <see cref="Nodeset"/> or a <see cref="Network"/>).</param>
         /// <returns>Returns a <see cref="Nodeset"/> object.</returns>
         /// <exception cref="ArgumentException">Thrown if the structure is neither a Nodeset nor a Network object.</exception>
-        internal Nodeset GetNodesetFromIStructure(string structureName)
-        {
-            Nodeset nodeset = GetVariableThrowExceptionIfMissing<IStructure>(structureName) switch
-            {
-                Nodeset ns => ns,
-                Network net => net.Nodeset,
-                _ => throw new ArgumentException($"Structure '{structureName}' neither a Nodeset nor a Network.")
-            };
-            return nodeset;
-        }
+        //internal Nodeset GetNodesetFromIStructure(string structureName)
+        //{
+        //    Nodeset nodeset = GetVariableThrowExceptionIfMissing<IStructure>(structureName) switch
+        //    {
+        //        Nodeset ns => ns,
+        //        Network net => net.Nodeset,
+        //        _ => throw new ArgumentException($"Structure '{structureName}' neither a Nodeset nor a Network.")
+        //    };
+        //    return nodeset;
+        //}
 
         /// <summary>
         /// Returns a collection of all <see cref="Network"/> objects that refers to the provided <see cref="Nodeset"/> object.
@@ -169,10 +201,10 @@ namespace Threadle.CLIconsole.CLIUtilities
         /// </summary>
         /// <param name="name">The variable name.</param>
         /// <returns>Returns true if there is such a stored variable, false otherwise.</returns>
-        private bool VariableExists(string name)
-        {
-            return Variables.ContainsKey(name);
-        }
+        //private bool VariableExists(string name)
+        //{
+        //    return Variables.ContainsKey(name);
+        //}
         #endregion
     }
 }

@@ -15,8 +15,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="CLIUtilities\**" />
     <Compile Remove="R\Lib\**" />
+    <EmbeddedResource Remove="CLIUtilities\**" />
     <EmbeddedResource Remove="R\Lib\**" />
+    <None Remove="CLIUtilities\**" />
     <None Remove="R\Lib\**" />
   </ItemGroup>
 
