@@ -39,10 +39,8 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
-            //string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
             if (CommandHelpers.TryGetVariable<Nodeset>(context, command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-            //Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"));
             string nameNetwork = command.GetArgumentParseString("name", variableName);
             Network network = new Network(nameNetwork, nodeset);
             context.SetVariable(variableName, network);
@@ -51,8 +49,6 @@ namespace Threadle.CLIconsole.Commands
                 message: $"Network '{nameNetwork}' created.",
                 assignments: CommandResult.Assigning(variableName, typeof(Network))
                 );
-
-            //ConsoleOutput.WriteLines($"Network '{nameNetwork}' created and stored in variable '{variableName}'");
         }
     }
 }

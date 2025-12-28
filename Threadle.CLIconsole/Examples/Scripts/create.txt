@@ -1,0 +1,179 @@
+﻿# Creating Nodeset and Network in Threadle, defining Node attributes and Layers,
+# and adding attributes, edges and affiliations
+
+# Run this script by using the CLI command:
+
+# Text-based input:
+# loadscript("Scripts/create.txt")
+
+# Json-based input:
+# {"command":"loadscript", args: {"file":"Example/create.txt" }}
+
+# Start with deleting all existing structures
+deleteall()
+
+# Set the random seed to the default seed
+randomseed()
+
+# Creates a nodeset called 'My nodes' with 40 nodes (numbered 0-39), storing this in variable 'nodes'
+nodes = createnodeset(name = "My nodes", createnodes = 40)
+
+# Creates a network using the nodeset above
+net = createnetwork(nodeset = nodes, name = "My net")
+
+# Define four types of nodal attributes
+# Note that the names for non-optional arguments can be skipped as long as they are in the default order
+# Note that non-optional arguments can be in a different order as long as they are named
+defineattr(structure = nodes, attrname = gender, attrtype = char)
+defineattr(nodes, age, int)
+defineattr(attrtype=float, attrname = height, structure=nodes)
+defineattr(nodes, happy, bool)
+
+# Define directional, binary 1-mode layer called 'friends' (without selfties)
+addlayer(network = "net", layername="friends", mode=1, directed=true, valuetype=binary, selfties=false)
+
+# Define symmetric valued 1-mode layer called "nbr_calls" (also without selfties as it is by default false)
+addlayer(net, nbr_calls,1, directed=false, valuetype=valued)
+
+# Define 2-mode layer called "clubs":
+addlayer(net, clubs, 2)
+
+# Set some attributes for various nodes
+setattr(nodes,10,gender,'f')
+setattr(nodes,12,gender,'m')
+setattr(nodes,13,gender,'f')
+# Overwriting previous 'm'
+setattr(nodes,12,gender,'o')
+setattr(nodes,10,height,132.5)
+setattr(nodes,15,age,42)
+setattr(nodes,10,age,13)
+setattr(nodes,38,gender,'m')
+setattr(nodes,37,age,22)
+setattr(nodes,37,height,174.6)
+setattr(nodes,10,happy, true)
+setattr(nodes,14,happy,false)
+setattr(nodes,37,happy,true)
+
+# Add some edges in different layers
+addedge(net,friends,10,11)
+addedge(net,friends,10,14)
+addedge(net,friends,14,10)
+addedge(net,friends,14,18)
+addedge(net,friends,14,20)
+addedge(net,friends,16,11)
+addedge(net,nbr_calls,10,11,value=17)
+addedge(net,nbr_calls,10,13,value=12)
+addedge(net,nbr_calls,11,14,value=8)
+addaff(net,clubs,10,"ifk_norrkoping")
+addaff(net,clubs,13,"ifk_norrkoping")
+addaff(net,clubs,18,"ifk_norrkoping")
+addaff(net,clubs,22,"ifk_norrkoping")
+addaff(net,clubs,13,"bromma_fc")
+addaff(net,clubs,18,"bromma_fc")
+addaff(net,clubs,19,"bromma_fc")
+addaff(net,clubs,22,"bromma_fc")
+addaff(net,clubs,17,"chalmers_fc")
+
+#########
+## Validating created data
+#########
+# Having run this script and generated the network and nodeset above, type in the
+# following commands in the CLI interface to verify the output:
+
+# > i
+# Inventory contains 2 structure(s)
+# nodes: Nodeset
+# net: Network
+
+# > info(nodes)
+# Returning metadata about 'My nodes'
+# Type: Nodeset
+# Name: My nodes
+# Filepath:
+# isModified: True
+# NbrNodes: 40
+# NodeAttributes:
+#   - gender (Type=Char)
+#   - age (Type=Int)
+#   - height (Type=Float)
+#   - happy (Type=Bool)
+
+# > getattr(nodes, 13, gender)
+# Success
+# f
+
+# > getattr(nodes, 37, height)
+# Success
+# 174.6
+
+# > getattr(net, 10, height)
+# Success
+# 132.5
+## Note: a Network can also be provided to attribute-related commands: they will then
+## operate on the Nodeset that the specified Network refers to
+
+# > getattr(nodes, 35, happy)
+# AttributeNotFound: Attribute 'happy' not set for node '35' in nodeset 'My nodes'.
+## Note: if an attribute is not set for a specified node, nothing is returned
+
+# > checkedge(net,friends,1,2)
+# Success
+# false
+
+# > checkedge(net,friends,10,11)
+# Success
+# true
+
+# > checkedge(net,friends,11,10)
+# Success
+# false
+
+# > getedge(net, nbr_calls, 10,11)
+# Success
+# 17
+
+# > checkedge(net, nbr_calls, 10,11)
+# Success
+# true
+
+# > checkedge(net, clubs, 10,11)
+# Success
+# false
+
+# > checkedge(net, clubs, 18,13)
+# Success
+# true
+
+# > getedge(net, clubs, 18,13)
+# Success
+# 2
+## Note: this is the number of shared affiliations, i.e. this being the typical symmetric value when
+## projecting 2-mode data. Though this data is not projected.
+
+# > getnodealters(net,nbr_calls,10)
+# Success
+# [11, 13]
+
+# > getnodealters(net,friends,14,direction=out)
+# Success
+# [10, 18, 20]
+
+# > getnodealters(net,friends,14,direction=in)
+# Success
+# [10]
+
+# > getrandomalter(net,14)
+# Success
+# 20
+
+# > getrandomalter(net,20)
+# Success
+# 14
+
+# > getrandomalter(net,14)
+# Success
+# 11
+
+# > getrandomalter(net,11)
+# Success
+# 10

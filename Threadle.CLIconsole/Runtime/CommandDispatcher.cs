@@ -50,6 +50,7 @@ namespace Threadle.CLIconsole.Runtime
             ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),
             ["preview"] = new Preview(),
+            ["randomseed"] = new RandomSeed(),
             ["removeaff"] = new RemoveAffiliation(),
             ["removeattr"] = new RemoveAttr(),
             ["removeedge"] = new RemoveEdge(),

@@ -21,7 +21,7 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Provides an instance of the random number generator.
         /// </summary>
-        private static readonly Random _random = new Random();
+        private static Random _random = new Random();
         #endregion
 
 
@@ -34,6 +34,14 @@ namespace Threadle.Core.Utilities
 
 
         #region Methods (public)
+
+
+        public static void SetRandomSeed(int seed)
+        {
+            _random = new Random(seed);
+        }
+
+
         /// <summary>
         /// Evaluates a condition by comparing the value of a node attribute to a specified comparison value using the
         /// provided condition type.
@@ -248,6 +256,7 @@ namespace Threadle.Core.Utilities
                 _ => FileFormat.None
             };
         }
+
         #endregion
     }
 }
