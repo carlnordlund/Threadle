@@ -1,14 +1,15 @@
-﻿using Threadle.Core.Model;
-using Threadle.Core.Processing;
-using Threadle.Core.Utilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
+using Threadle.Core.Model;
+using Threadle.Core.Processing;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -48,6 +49,9 @@ namespace Threadle.CLIconsole.Commands
             ConditionType conditionType = command.GetArgumentParseEnumThrowExceptionIfMissingOrNull<ConditionType>("cond", "arg2");
             string attributeValue = (conditionType == ConditionType.isnull || conditionType == ConditionType.notnull) ? "" : command.GetArgumentThrowExceptionIfMissingOrNull("attrvalue", "arg3");
             OperationResult<Nodeset> result = NodesetProcessor.Filter(nodeset, attributeName, conditionType, attributeValue);
+            if (!result.Success)
+                return CommandResult.FromOperationResult(result);
+            context.SetVariable(variableName, result.Value!);
             // Not sure that this works!
             return CommandResult.FromOperationResult(
                 opResult: result,
