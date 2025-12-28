@@ -43,8 +43,8 @@ namespace Threadle.Core.Utilities
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var reader = new BinaryReader(stream);
             Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
-            nodeset.Filepath = filepath;
-            nodeset.IsModified = false;
+            //nodeset.Filepath = filepath;
+            //nodeset.IsModified = false;
             return nodeset;
         }
 
@@ -63,6 +63,24 @@ namespace Threadle.Core.Utilities
             WriteNodesetToFile(nodeset, writer);
             nodeset.Filepath = filepath;
             nodeset.IsModified = false;
+        }
+
+        //internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
+        //{
+        //    using var fileStream = File.OpenRead(filepath);
+        //    using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
+        //    using var reader = new StreamReader(stream, Utf8NoBom);
+
+        //    return ReadNetworkFromFile(filepath, reader);
+        //}
+
+        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
+        {
+            using var fileStream = File.OpenRead(filepath);
+            using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
+            using var reader = new BinaryReader(stream);
+
+            return ReadNetworkFromFile(filepath, reader);
         }
 
         internal static void SaveNetworkToFile(Network network, string filepath, FileFormat format)
@@ -97,6 +115,109 @@ namespace Threadle.Core.Utilities
             //    return LZ4Stream.Decode(stream);
         }
 
+        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader)
+        {
+            
+            // Check magic bytes - should be the MagicNetwork characters (TNTW)
+            var magicBytes = reader.ReadBytes(4);
+            string magic = Encoding.ASCII.GetString(magicBytes);
+            if (magic != MagicNetwork)
+                throw new InvalidDataException($"Invalid magic bytes in file '{filepath}': not Threadle Network binary file (TNTW).");
+
+            // Check file version - should be the same as here implemented
+            byte version = reader.ReadByte();
+            if (version != FormatVersion)
+                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
+
+            // Get Network name
+            string networkName = ReadString(reader);
+
+            // Get Nodeset filepath (compulsory here)
+            string nodesetFilepath = ReadString(reader);
+
+            // Load and initialize Nodeset:
+            FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFilepath);
+            Nodeset nodeset = LoadNodesetFromFile(nodesetFilepath, nodesetFormat);
+
+            // Create network with the recently loaded Nodeset
+            Network network = new Network(networkName, nodeset);
+            network.Filepath = filepath;
+
+            // Get nbr Layers
+            int nbrLayers = reader.ReadByte();
+
+            // Loop through the layers to load
+            for (int i=0; i<nbrLayers; i++)
+            {
+                string layerName = ReadString(reader);
+                int mode = reader.ReadByte();
+                if (mode == 1)
+                {
+                    // Get properties of the 1-mode layer
+                    EdgeDirectionality edgeDirectionality = (EdgeDirectionality)reader.ReadByte();
+                    EdgeType edgeType = (EdgeType)reader.ReadByte();
+                    bool selfties = reader.ReadBoolean();
+
+                    // Create 1-mode layer
+                    LayerOneMode layerOneMode = new LayerOneMode(layerName, edgeDirectionality, edgeType, selfties);
+
+                    // Add it to network's layers
+                    network.Layers.Add(layerName, layerOneMode);
+
+                    // Get nbr of nodelist rows
+                    uint nbrEdgesets = reader.ReadUInt32();
+
+
+                    if (layerOneMode.IsBinary)
+                    {
+                        // Looping for binary nodelist rows
+                        for (int j = 0; j < nbrEdgesets; j++)
+                        {
+                            // Get ego of nodelist row
+                            uint nodeIdEgo = reader.ReadUInt32();
+
+                            // Get nbr of alters
+                            uint nbrAlters = reader.ReadUInt32();
+
+                            for (int k = 0; k < nbrAlters; k++)
+                            {
+                                uint nodeIdAlter = reader.ReadUInt32();
+                                layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Looping for valued nodelist rows
+                        for (int j = 0; j < nbrEdgesets; j++)
+                        {
+                            uint nodeIdEgo=reader.ReadUInt32();
+                            uint nbrAlters = reader.ReadUInt32();
+                            for (int k = 0; k < nbrAlters; k++)
+                            {
+                                uint nodeIdAlter = reader.ReadUInt32();
+                                float edgeValue = reader.ReadSingle();
+                                layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter, edgeValue);
+                            }
+                        }
+                    }
+                }
+                else if (mode == 2)
+                {
+
+                }
+                else
+                    throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");
+
+            }
+
+            return new StructureResult(network, new Dictionary<string, IStructure>
+            {
+                { "nodeset", nodeset }
+            });
+        }
+
+
         /// <summary>
         /// Support method to read a Nodeset object from file.
         /// </summary>
@@ -109,12 +230,12 @@ namespace Threadle.Core.Utilities
             var magicBytes = reader.ReadBytes(4);
             string magic = Encoding.ASCII.GetString(magicBytes);
             if (magic != MagicNodeset)
-                throw new InvalidDataException($"Invalid magic bytes in file '{filepath}'.");
+                throw new InvalidDataException($"Invalid magic bytes in file '{filepath}': not Threadle Nodeset binary file (TNDS).");
 
             // Check file version - should be the same as here implemented
             byte version = reader.ReadByte();
             if (version != FormatVersion)
-                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version {FormatVersion}.");
+                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
 
             // Get nodeset name
             string nodesetName = ReadString(reader);
@@ -161,7 +282,8 @@ namespace Threadle.Core.Utilities
                     nodeset.SetNodeAttribute(nodeId, def.name, value);
                 }
             }
-
+            nodeset.Filepath = filepath;
+            nodeset.IsModified = false;
             return nodeset;
         }
 

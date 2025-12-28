@@ -1,5 +1,0 @@
-# Testing scripts
-
-nodes = createnodeset(name="My nodes")
-net = createnetwork(nodeset=nodes, name="My net")
-i

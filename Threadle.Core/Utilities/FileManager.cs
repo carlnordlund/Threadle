@@ -361,8 +361,10 @@ namespace Threadle.Core.Utilities
                     case FileFormat.TsvGzip:
                         structureResult = FileSerializerTsv.LoadNetworkFromFile(filepath, format);
                         return OperationResult<StructureResult>.Ok(structureResult);
-                    // Need to do Fileformat.Bin, .gz as well!
-                    // and the FileSerializerBin.LoadNetworkFromFile(filepath, format)!
+                    case FileFormat.Bin:
+                    case FileFormat.BinGzip:
+                        structureResult = FileSerializerBin.LoadNetworkFromFile(filepath, format);
+                        return OperationResult<StructureResult>.Ok(structureResult);
                 }
                 return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Network.");
             }
@@ -382,7 +384,7 @@ namespace Threadle.Core.Utilities
             //}
             //return result;
             //return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported.");
-            return OperationResult<StructureResult>.Fail("NotYetImplemented", $"LoadNetwork not yet implemented.");
+            //return OperationResult<StructureResult>.Fail("NotYetImplemented", $"LoadNetwork not yet implemented.");
 
         }
         #endregion
