@@ -55,11 +55,13 @@ namespace Threadle.Core.Model
         /// <param name="createNodes">The number of nodes that are to be created from the start.</param>
         public Nodeset(string name, int createNodes = 0)
         {
+            _initSizeWithoutAttributes(createNodes);
             Name = name;
             NodeAttributeDefinitionManager = new NodeAttributeDefinitionManager();
             if (createNodes > 0)
                 for (uint i = 0; i < createNodes; i++)
-                    AddNode(i);
+                    _AddNodeWithoutAttribute(i);
+                    //AddNode(i);
             IsModified = false;
         }
 
@@ -163,6 +165,19 @@ namespace Threadle.Core.Model
                 return GetAllNodeIds();
             }
         }
+
+        /// <summary>
+        /// Returns an array of all NodeId uint values for nodes without node attributes.
+        /// Used by binary writer.
+        /// </summary>
+        internal uint[] NodeIdArrayWithoutAttributes => _nodesWithoutAttributes.ToArray();
+
+        /// <summary>
+        /// Returns an array of all NodeId uint values for nodes with node attributes
+        /// Used by binary reader.
+        /// </summary>
+        internal uint[] NodeIdArrayWithAttributes => _nodesWithAttributes.Keys.ToArray();
+
 
         /// <summary>
         /// Returns the number of nodes in this Nodeset.
@@ -352,6 +367,26 @@ namespace Threadle.Core.Model
 
         #region Method (internal)
         /// <summary>
+        /// Adds a Node to the collection of nodes without attributes.
+        /// No verification is done: to be used with loaders.
+        /// </summary>
+        /// <param name="nodeId">The node id to add</param>
+        internal void _AddNodeWithoutAttribute(uint nodeId)
+        {
+            _nodesWithoutAttributes.Add(nodeId);
+        }
+
+        /// <summary>
+        /// Adds a Node to the collection of nodes with attributes.
+        /// No verification is done: to be used with loaders.
+        /// </summary>
+        /// <param name="nodeId"></param>
+        internal void _AddNodeWithAttribute(uint nodeId)
+        {
+            _nodesWithAttributes.Add(nodeId, new Dictionary<uint, NodeAttributeValue>());
+        }
+
+        /// <summary>
         /// Checks if the Nodeset contains a node object with the specified id.
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be checked.</param>
@@ -413,6 +448,18 @@ namespace Threadle.Core.Model
             if (result.Success)
                 Modified();
             return result;
+        }
+
+        /// <summary>
+        /// Sets a node attribute directly, without any validation anywhere.
+        /// To use with loaders.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="attrIndex">The attribute index in NodeAttributeDefinitionManager</param>
+        /// <param name="value">The NodeAttributeValue value</param>
+        internal void _setNodeAttribute(uint nodeId, uint attrIndex, NodeAttributeValue value)
+        {
+            _nodesWithAttributes[nodeId].Add(attrIndex, value);
         }
 
         internal OperationResult SetNodeAttribute(uint nodeId, string attributeName, NodeAttributeValue value)
@@ -561,6 +608,26 @@ namespace Threadle.Core.Model
             _nodeIdCache = null;
 
         }
+
+        /// <summary>
+        /// Initialize the capacity of the Hashset storing nodes without attributes
+        /// </summary>
+        /// <param name="nbrNodesWithoutAttributes">Upper range of number of nodes</param>
+        internal void _initSizeWithoutAttributes(int nbrNodesWithoutAttributes)
+        {
+            _nodesWithoutAttributes = new(nbrNodesWithoutAttributes);
+        }
+
+        /// <summary>
+        /// Initialize the capacity of the Díctionary storing nodes wit attributes
+        /// </summary>
+        /// <param name="nbrNodesWithAttributes">Upper range of number of nodes</param>
+        internal void _initSizeWithAttributes(int nbrNodesWithAttributes)
+        {
+            _nodesWithAttributes = new(nbrNodesWithAttributes);
+        }
+
+
         #endregion
     }
 }

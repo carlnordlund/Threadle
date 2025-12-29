@@ -18,7 +18,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Collection of ties (i.e. the id of partner nodes).
         /// </summary>
-        private readonly List<uint> _connections = [];
+        private List<uint> _connections = [];
         #endregion
 
 
@@ -105,6 +105,17 @@ namespace Threadle.Core.Model
             _connections.Add(partnerNodeId);
             return OperationResult.Ok();
         }
+
+        public void _addInboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _connections.Add(partnerNodeId);
+        }
+
+        public void _addOutboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _connections.Add(partnerNodeId);
+        }
+
 
         /// <summary>
         /// Removes an (inbound) edge from this edgeset.
@@ -237,6 +248,10 @@ namespace Threadle.Core.Model
                 if (allowedNodes.Contains(nodeId))
                     edgeset._connections.Add(nodeId);
             return edgeset;
+        }
+        public void _setCapacity(int capacity)
+        {
+            _connections = new(capacity);
         }
         #endregion
     }

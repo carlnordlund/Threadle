@@ -134,6 +134,24 @@ namespace Threadle.Core.Model
         /// <param name="allowedNodes">A <see cref="HashSet"/> with allowed node ids.</param>
         /// <returns>A <see cref="IEdgeset"/> that is filtered.</returns>
         IEdgeset CreateFilteredCopy(HashSet<uint> allowedNodes);
+
+        /// <summary>
+        /// Adds an inbound edge to this edgeset, without any validation or similar.
+        /// Only for bulk loading.
+        /// </summary>
+        /// <param name="partnerNodeId">The id of the source node</param>
+        /// <param name="value">The value of the edge.</param>
+        void _addInboundEdge(uint partnerNodeId, float value);
+
+        /// <summary>
+        /// Adds an outbound edge to this edgeset, without any validation or similar.
+        /// Only for bulk loading.
+        /// </summary>
+        /// <param name="partnerNodeId"></param>
+        /// <param name="value"></param>
+        void _addOutboundEdge(uint partnerNodeId, float value);
+
+        void _setCapacity(int capacity);
         #endregion
     }
 }

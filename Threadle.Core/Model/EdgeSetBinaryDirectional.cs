@@ -18,12 +18,12 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Collection of outbound ties (i.e. the id of destination nodes).
         /// </summary>
-        private readonly List<uint> _outbound = [];
+        private List<uint> _outbound = [];
 
         /// <summary>
         /// Collection of inbound ties (i.e. the id of source nodes).
         /// </summary>
-        private readonly List<uint> _inbound = [];
+        private List<uint> _inbound = [];
         #endregion
 
 
@@ -75,6 +75,16 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("EdgeExists","Edge already exists (blocked)");
             _inbound.Add(partnerNodeId);
             return OperationResult.Ok();
+        }
+
+        public void _addInboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _inbound.Add(partnerNodeId);
+        }
+
+        public void _addOutboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _outbound.Add(partnerNodeId);
         }
 
         /// <summary>
@@ -221,6 +231,13 @@ namespace Threadle.Core.Model
                 if (allowedNodes.Contains(nodeId))
                     edgeset._outbound.Add(nodeId);
             return edgeset;
+        }
+
+        public void _setCapacity(int capacity)
+        {
+            _outbound = new(capacity);
+            if (!UserSettings.OnlyOutboundEdges)
+                _inbound = new(capacity);
         }
 
         #endregion

@@ -165,52 +165,92 @@ namespace Threadle.Core.Utilities
                     network.Layers.Add(layerName, layerOneMode);
 
                     // Get nbr of nodelist rows
-                    uint nbrEdgesets = reader.ReadUInt32();
+                    int nbrEdgesets = reader.ReadInt32();
 
+                    // Initialize the capacity of the Edgeset dictionary
+                    layerOneMode._initSizeEdgesetDictionary(nbrEdgesets);
 
                     if (layerOneMode.IsBinary)
                     {
                         // Looping for binary nodelist rows
-                        for (int j = 0; j < nbrEdgesets; j++)
+                        for (uint j = 0; j < nbrEdgesets; j++)
                         {
                             // Get ego of nodelist row
                             uint nodeIdEgo = reader.ReadUInt32();
 
                             // Get nbr of alters
-                            uint nbrAlters = reader.ReadUInt32();
+                            int nbrAlters = reader.ReadInt32();
 
-                            for (int k = 0; k < nbrAlters; k++)
+                            // Prepare array of alters
+                            uint[] nodeIdsAlters = new uint[nbrAlters];
+
+                            for (uint k = 0; k < nbrAlters; k++)
                             {
-                                uint nodeIdAlter = reader.ReadUInt32();
-                                layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter);
+                                nodeIdsAlters[k] = reader.ReadUInt32();
+                                //uint nodeIdAlter = reader.ReadUInt32();
+                                //layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter);
                             }
+                            layerOneMode._addBinaryEdges(nodeIdEgo, nodeIdsAlters);
                         }
                     }
                     else
                     {
                         // Looping for valued nodelist rows
-                        for (int j = 0; j < nbrEdgesets; j++)
+                        for (uint j = 0; j < nbrEdgesets; j++)
                         {
+                            // Get ego of nodelist row
                             uint nodeIdEgo=reader.ReadUInt32();
-                            uint nbrAlters = reader.ReadUInt32();
-                            for (int k = 0; k < nbrAlters; k++)
+
+                            // Get nbr of alters
+                            int nbrAlters = reader.ReadInt32();
+
+                            // Prepare array of alters
+                            List<(uint alterId, float value)> nodeIdsAlters = new(nbrAlters);
+
+                            for (uint k = 0; k < nbrAlters; k++)
                             {
-                                uint nodeIdAlter = reader.ReadUInt32();
-                                float edgeValue = reader.ReadSingle();
-                                layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter, edgeValue);
+                                nodeIdsAlters.Add((reader.ReadUInt32(), reader.ReadSingle()));
+                                //nodeIdsAlters[k]=reader.ReadUInt32();
+                                ////uint nodeIdAlter = reader.ReadUInt32();
+                                //float edgeValue = reader.ReadSingle();
+                                //layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter, edgeValue);
                             }
+                            layerOneMode._addValuedEdges(nodeIdEgo, nodeIdsAlters);
                         }
                     }
                 }
                 else if (mode == 2)
                 {
+                    // Create 2-mode layer with the specified name
+                    LayerTwoMode layerTwoMode = new LayerTwoMode(layerName);
 
+                    // Add it to network's layers
+                    network.Layers.Add(layerName, layerTwoMode);
+
+                    // Get nbr of hyperedges in this layer
+                    uint nbrHyperedges = reader.ReadUInt32();
+
+                    // Iterate through all hyperedges
+                    for (uint j = 0; j < nbrHyperedges; j++)
+                    {
+                        // Get the name of this hyperedge
+                        string hyperedgeName = ReadString(reader);
+
+                        // Get the number of nodes connected to this hyperedge
+                        uint nbrNodes = reader.ReadUInt32();
+
+                        // Create an array of node ids connected to this hyperedge
+                        uint[] nodeIds = new uint[nbrNodes];
+                        for (uint k = 0; k < nbrNodes; k++)
+                            nodeIds[k] = reader.ReadUInt32();
+
+                        // Create and add hyperedge to this layer
+                        layerTwoMode.AddHyperedge(hyperedgeName, nodeIds);
+                    }
                 }
                 else
                     throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");
-
             }
-
             return new StructureResult(network, new Dictionary<string, IStructure>
             {
                 { "nodeset", nodeset }
@@ -247,7 +287,8 @@ namespace Threadle.Core.Utilities
             byte attrCount = reader.ReadByte();
 
             // Prepare collection of node attributes
-            var attributeDefs = new List<(string name, NodeAttributeType type)>(attrCount);
+            //var attributeDefs = new List<(string name, NodeAttributeType type)>(attrCount);
+            NodeAttributeType[] attrDefs = new NodeAttributeType[attrCount];
 
             // Iterate node attribute data and define node attributes
             for (int i = 0; i < attrCount; i++)
@@ -257,29 +298,61 @@ namespace Threadle.Core.Utilities
                 NodeAttributeType type = (NodeAttributeType)typeByte;
 
                 nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, type);
-                attributeDefs.Add((attrName, type));
+                //attributeDefs.Add((attrName, type));
+                attrDefs[i] = type;
             }
 
-            // Get nbr of nodes
-            int nodeCount = reader.ReadInt32();
+            // Get nbr of nodes WITHOUT attributes
+            int nbrNodesWithoutAttributes = reader.ReadInt32();
 
-            for (int n = 0; n < nodeCount; n++)
+            // I should prepare size of this hashset now!
+            nodeset._initSizeWithoutAttributes(nbrNodesWithoutAttributes);
+
+            // Iterate through all nodes without attributes
+            for (int i=0;  i < nbrNodesWithoutAttributes; i++)
             {
+                // Read nodeId
                 uint nodeId = reader.ReadUInt32();
-                nodeset.AddNode(nodeId);
 
+                // Add node without any validation checks etc.
+                nodeset._AddNodeWithoutAttribute(nodeId);
+            }
+
+            // Get nbr of nodes WITH attributes
+            int nbrNodesWithAttributes = reader.ReadInt32();
+
+            nodeset._initSizeWithAttributes(nbrNodesWithAttributes);
+
+            for (int i = 0; i < nbrNodesWithAttributes; i++)
+            {
+                // Read nodeId
+                uint nodeId = reader.ReadUInt32();
+                // Add node without any validation checks etc.
+                nodeset._AddNodeWithAttribute(nodeId);
+
+                // Get nbr attributes for this node
                 byte nodeAttrCount = reader.ReadByte();
+
+                // Loop through the attributes of this node
                 for (int a = 0; a < nodeAttrCount; a++)
                 {
+                    // Read attrIndex
                     byte attrIndex = reader.ReadByte();
-                    var def = attributeDefs[attrIndex];
+                    //var def = attributeDefs[attrIndex];
+                    // Get raw value
                     int rawValue = reader.ReadInt32();
 
-                    NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, def.type);
-                    nodeset.SetNodeAttribute(nodeId, def.name, value);
+                    // Convert to NodeAttributeValue
+                    //NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, def.type);
+                    NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, attrDefs[attrIndex]);
+
+
+                    // Set node attribute
+                    //nodeset.SetNodeAttribute(nodeId, def.name, value);
+                    nodeset._setNodeAttribute(nodeId, attrIndex, value);
 
                     //nodeset.SetNodeAttribute(nodeId, def.name, value.ToString());
-                    nodeset.SetNodeAttribute(nodeId, def.name, value);
+                    //nodeset.SetNodeAttribute(nodeId, def.name, value);
                 }
             }
             nodeset.Filepath = filepath;
@@ -321,11 +394,23 @@ namespace Threadle.Core.Utilities
                 nameToIndex[attributeDefs[i].Name] = i;
             }
 
-            var nodeIds = nodeset.NodeIdArray;
-            // Nbr nodes
-            writer.Write(nodeIds.Length);
+            // Get array of nodes without attributes
+            var nodeIdsWithoutAttributes = nodeset.NodeIdArrayWithoutAttributes;
 
-            foreach (var nodeId in nodeIds)
+            // Write number of nodes without attributes
+            writer.Write(nodeIdsWithoutAttributes.Length);
+
+            // Write each node id for those without attributes
+            foreach (uint nodeId in nodeIdsWithoutAttributes)
+                writer.Write(nodeId);
+
+            // Get array of nodes with attributes
+            var nodeIdsWithAttributes = nodeset.NodeIdArrayWithAttributes;
+
+            // Write number of nodes with attributes
+            writer.Write(nodeIdsWithAttributes.Length);
+
+            foreach (uint nodeId in nodeIdsWithAttributes)
             {
                 // Node id (4)
                 writer.Write(nodeId);
@@ -336,6 +421,7 @@ namespace Threadle.Core.Utilities
                 // Nbr of node attributes
                 writer.Write((byte)nodeAttrValues.Count);
 
+                // Loop through the node attributes for this node and write
                 foreach (var nodeAttrValue in nodeAttrValues)
                 {
                     // Node attribute index (mapping from node attribute name to the index it got above) [4]

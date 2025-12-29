@@ -7,7 +7,7 @@
 # loadscript("Scripts/create.txt")
 
 # Json-based input:
-# {"command":"loadscript", args: {"file":"Example/create.txt" }}
+# {"command":"loadscript", args: {"file":"Scripts/create.txt" }}
 
 # Start with deleting all existing structures
 deleteall()
@@ -42,7 +42,7 @@ addlayer(net, clubs, 2)
 setattr(nodes,10,gender,'f')
 setattr(nodes,12,gender,'m')
 setattr(nodes,13,gender,'f')
-# Overwriting previous 'm'
+# Overwriting: previous 'f', now to 'o':
 setattr(nodes,12,gender,'o')
 setattr(nodes,10,height,132.5)
 setattr(nodes,15,age,42)

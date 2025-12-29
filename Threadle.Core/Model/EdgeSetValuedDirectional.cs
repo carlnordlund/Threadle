@@ -18,12 +18,12 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Collection of outbound ties (i.e. the Connection structs of destination nodes).
         /// </summary>
-        private readonly List<Connection> _outbound = [];
+        private List<Connection> _outbound = [];
 
         /// <summary>
         /// Collection of inbound ties (i.e. the Connection structs of source nodes).
         /// </summary>
-        private readonly List<Connection> _inbound = [];
+        private List<Connection> _inbound = [];
         #endregion
 
 
@@ -101,6 +101,17 @@ namespace Threadle.Core.Model
             _outbound.Add(new Connection(partnerNodeId, value));
             return OperationResult.Ok();
         }
+
+        public void _addInboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _inbound.Add(new Connection(partnerNodeId,value));
+        }
+
+        public void _addOutboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _outbound.Add(new Connection(partnerNodeId, value));
+        }
+
 
         /// <summary>
         /// Removes an inbound edge (i.e. Connection struct) from this edgeset.
@@ -255,6 +266,13 @@ namespace Threadle.Core.Model
                 if (allowedNodes.Contains(conn.partnerNodeId))
                     edgeset._outbound.Add(conn);
             return edgeset;
+        }
+
+        public void _setCapacity(int capacity)
+        {
+            _outbound = new(capacity);
+            if (!UserSettings.OnlyOutboundEdges)
+                _inbound = new(capacity);
         }
         #endregion
     }

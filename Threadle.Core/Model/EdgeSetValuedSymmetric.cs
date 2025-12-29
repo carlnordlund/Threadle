@@ -18,7 +18,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Collection of ties (i.e. the Connection structs of partner nodes).
         /// </summary>
-        private readonly List<Connection> _connections = [];
+        private List<Connection> _connections = [];
         #endregion
 
 
@@ -109,6 +109,16 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)"); ;
             _connections.Add(new Connection(partnerNodeId, value));
             return OperationResult.Ok();
+        }
+
+        public void _addInboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _connections.Add(new Connection(partnerNodeId, value));
+        }
+
+        public void _addOutboundEdge(uint partnerNodeId, float value = 1)
+        {
+            _connections.Add(new Connection(partnerNodeId, value));
         }
 
         /// <summary>
@@ -254,6 +264,11 @@ namespace Threadle.Core.Model
                 if (allowedNodes.Contains(conn.partnerNodeId))
                     edgeset._connections.Add(conn);
             return edgeset;
+        }
+
+        public void _setCapacity(int capacity)
+        {
+            _connections = new(capacity);
         }
         #endregion
     }

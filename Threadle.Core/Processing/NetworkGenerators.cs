@@ -32,7 +32,17 @@ namespace Threadle.Core.Processing
             Nodeset nodeset = new Nodeset("er_nodes", size);
             Network network = new Network("er", nodeset);
             string layername = $"er_{p}";
-            network.AddLayerOneMode(layername, directionality, EdgeType.Binary, selfties);
+            //network.AddLayerOneMode(layername, directionality, EdgeType.Binary, selfties);
+            
+            LayerOneMode layerOneMode = new LayerOneMode(layername,directionality, EdgeType.Binary, selfties);
+            network.Layers.Add(layername, layerOneMode);
+            layerOneMode._initSizeEdgesetDictionary(size);
+
+            int edgesetCapacity = (int)(p * size);
+
+            layerOneMode._initSizeEdgesetDictionary(size);
+            layerOneMode._initEdgesetCapacity(edgesetCapacity);
+
             uint[] nodes = nodeset.NodeIdArray;
             uint n = (uint)nodeset.Count;
             ulong totalEdges = Misc.GetNbrPotentialEdges(n, directionality, selfties);
@@ -54,7 +64,10 @@ namespace Threadle.Core.Processing
                 }
                 uint offsetInRow = (uint)(index - rowStartindex);
                 uint col = GetCol(row, offsetInRow, n, directionality, selfties);
-                network.AddEdge(layername, nodes[row], nodes[col]);
+                //network.AddEdge(layername, nodes[row], nodes[col]);
+                layerOneMode.AddEdgeNoValidations(nodes[row], nodes[col], edgesetCapacity);
+
+                //layerOneMode.
                 index++;
             }
             return new StructureResult(network, new Dictionary<string, IStructure>

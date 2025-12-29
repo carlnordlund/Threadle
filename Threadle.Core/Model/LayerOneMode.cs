@@ -270,6 +270,53 @@ namespace Threadle.Core.Model
             return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} (value={value}) in layer '{Name}'.");
         }
 
+        internal void AddEdgeNoValidations(uint node1id, uint node2id, int edgesetCapacity)
+        {
+            IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1id, edgesetCapacity);
+            IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2id, edgesetCapacity);
+            edgeSetNode1.AddOutboundEdge(node2id, 1);
+            edgeSetNode2.AddInboundEdge(node1id, 1);
+        }
+
+        internal void _addBinaryEdges(uint nodeIdEgo, uint[] nodeIdsAlters)
+        {
+            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo, nodeIdsAlters.Length);
+            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+            {
+                foreach (uint idAlter in nodeIdsAlters)
+                {
+                    edgeSetEgo._addOutboundEdge(idAlter, 1);
+                    GetOrCreateEdgeset(idAlter, nodeIdsAlters.Length)._addInboundEdge(nodeIdEgo, 1);
+                }
+            }
+            else
+            {
+                foreach (uint idAlter in nodeIdsAlters)
+                    edgeSetEgo.AddOutboundEdge(idAlter, 1);
+            }
+        }
+
+        internal void _addValuedEdges(uint nodeIdEgo, List<(uint alterId, float value)> nodeIdsAlters)
+        {
+            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo, nodeIdsAlters.Count);
+            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+            {
+                foreach ((uint alterId, float value) in nodeIdsAlters)
+                {
+                    edgeSetEgo.AddOutboundEdge(alterId, value);
+                    GetOrCreateEdgeset(alterId, nodeIdsAlters.Count)._addInboundEdge(nodeIdEgo, value);
+                }
+            }
+            else
+            {
+                foreach ((uint alterId, float value) in nodeIdsAlters)
+                    edgeSetEgo.AddOutboundEdge(alterId, value);
+            }
+
+        }
+
+
+
         /// <summary>
         /// Removes an (the) edge between node1id and node2id. Returns a fail if no such edge is found.
         /// (First checks if there indeed are any Edgeset recorded for these, then checks if there are any corresponding edges recorded)
@@ -291,11 +338,12 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id whose Edgeset is to be obtained.</param>
         /// <returns></returns>
-        private IEdgeset GetOrCreateEdgeset(uint nodeId)
+        private IEdgeset GetOrCreateEdgeset(uint nodeId, int capacity = 1)
         {
             if (Edgesets.TryGetValue(nodeId, out var edgeset))
                 return edgeset;
-            IEdgeset newEdgeset= edgeSetFactory!();
+            IEdgeset newEdgeset = edgeSetFactory!();
+            newEdgeset._setCapacity(capacity);
             Edgesets[nodeId] = newEdgeset;
             return newEdgeset;
         }
@@ -340,6 +388,22 @@ namespace Threadle.Core.Model
         {
             return new LayerOneMode(this.Name, this.Directionality, this.EdgeValueType, this.Selfties);
         }
+
+        /// <summary>
+        /// Initialize the capacity of the _edgesets dictionary.
+        /// Suitable when loading from file.
+        /// </summary>
+        /// <param name="nbrEdgesets"></param>
+        internal void _initSizeEdgesetDictionary(int nbrEdgesets)
+        {
+            _edgesets = new(nbrEdgesets);
+        }
+
+        internal void _initEdgesetCapacity(int edgesetCapacity)
+        {
+
+        }
+
         #endregion
     }
 }
