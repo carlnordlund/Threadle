@@ -169,7 +169,7 @@ namespace Threadle.Core.Utilities
         private static StructureResult ReadNetworkFromFile(string filepath, StreamReader reader)
         {
             var network = new Network("");
-            Nodeset? nodeset = null;
+            
             string? nodesetFileReference = null;
             string? line;
             ILayer? currentLayer = null;
@@ -275,7 +275,7 @@ namespace Threadle.Core.Utilities
                 network.Layers.Add(currentLayer.Name, currentLayer);
             network.Filepath = filepath;
             network.IsModified = false;
-
+            Nodeset? nodeset = null;
             if (nodesetFileReference != null)
             {
                 FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFileReference);

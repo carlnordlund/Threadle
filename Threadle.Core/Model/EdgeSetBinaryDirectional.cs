@@ -236,8 +236,8 @@ namespace Threadle.Core.Model
         public void _setCapacity(int capacity)
         {
             _outbound = new(capacity);
-            if (!UserSettings.OnlyOutboundEdges)
-                _inbound = new(capacity);
+            //if (!UserSettings.OnlyOutboundEdges)
+            _inbound = new(capacity);
         }
 
         #endregion

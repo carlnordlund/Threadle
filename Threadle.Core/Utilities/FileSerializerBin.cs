@@ -17,40 +17,28 @@ namespace Threadle.Core.Utilities
         private const byte FormatVersion = 1;
 
 
+        
         /// <summary>
-        /// Method for loading a nodeset from file (TSV format).
-        /// Could throw exceptions that must be caught.
+        /// Method for loading a nodeset from file (binary format).
+        /// If the file format is not <see cref="FileFormat.BinGzip"/>, it is assumed to be
+        /// <see cref="FileFormat.Bin"/>.
+        /// Could throw exceptions that has to be caught.
         /// </summary>
-        /// <param name="filepath">The filepath to the file.</param>
-        /// <returns>A Nodeset object.</returns>
-        //internal static Nodeset LoadNodesetFromFile(string filepath)
-        //{
-        //    using var fileStream = File.OpenRead(filepath);
-        //    using var stream = WrapIfCompressed(fileStream, filepath, CompressionMode.Decompress);
-        //    using var reader = new StreamReader(stream, Utf8NoBom);
-
-        //    Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
-        //    //nodeset.Filepath = filepath;
-        //    //nodeset.IsModified = false;
-        //    return nodeset;
-        //}
-
-        
-        
+        /// <param name="filepath">The file to load the Nodeset from.</param>
+        /// <param name="format">The <see cref="FileFormat"/> to use.</param>
+        /// <returns></returns>
         internal static Nodeset LoadNodesetFromFile(string filepath, FileFormat format)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var reader = new BinaryReader(stream);
             Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
-            //nodeset.Filepath = filepath;
-            //nodeset.IsModified = false;
             return nodeset;
         }
 
 
         /// <summary>
-        /// Method for saving a nodeset to file (TSV format).
+        /// Method for saving a nodeset to file (binary format).
         /// Could throw exceptions that must be caught.
         /// </summary>
         /// <param name="nodeset">The Nodeset to save to file.</param>
@@ -64,15 +52,6 @@ namespace Threadle.Core.Utilities
             nodeset.Filepath = filepath;
             nodeset.IsModified = false;
         }
-
-        //internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
-        //{
-        //    using var fileStream = File.OpenRead(filepath);
-        //    using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
-        //    using var reader = new StreamReader(stream, Utf8NoBom);
-
-        //    return ReadNetworkFromFile(filepath, reader);
-        //}
 
         internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
         {
@@ -107,12 +86,6 @@ namespace Threadle.Core.Utilities
         private static Stream WrapIfCompressed(Stream stream, string filepath, FileFormat format, CompressionMode mode)
         {
             return format == FileFormat.BinGzip ? new GZipStream(stream, mode) : stream;
-            //if (!filepath.EndsWith(".lz4", StringComparison.OrdinalIgnoreCase))
-            //    return stream;
-            //if (mode == CompressionMode.Compress)
-            //    return LZ4Stream.Encode(stream);
-            //else
-            //    return LZ4Stream.Decode(stream);
         }
 
         private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader)
@@ -169,6 +142,7 @@ namespace Threadle.Core.Utilities
 
                     // Initialize the capacity of the Edgeset dictionary
                     layerOneMode._initSizeEdgesetDictionary(nbrEdgesets);
+
 
                     if (layerOneMode.IsBinary)
                     {

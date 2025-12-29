@@ -1,10 +1,11 @@
-﻿using Threadle.Core.Model.Enums;
-using Threadle.Core.Utilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -106,7 +107,7 @@ namespace Threadle.Core.Model
                 uint nbrConnections = 0;
                 foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
                     nbrConnections += edgeset.NbrEdges;
-                return (Directionality == EdgeDirectionality.Directed ? nbrConnections : nbrConnections / 2);
+                return Directionality == EdgeDirectionality.Directed ? nbrConnections : nbrConnections / 2;
             }
         }
 
@@ -270,29 +271,24 @@ namespace Threadle.Core.Model
             return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} (value={value}) in layer '{Name}'.");
         }
 
-        internal void AddEdgeNoValidations(uint node1id, uint node2id, int edgesetCapacity)
-        {
-            IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1id, edgesetCapacity);
-            IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2id, edgesetCapacity);
-            edgeSetNode1.AddOutboundEdge(node2id, 1);
-            edgeSetNode2.AddInboundEdge(node1id, 1);
-        }
-
         internal void _addBinaryEdges(uint nodeIdEgo, uint[] nodeIdsAlters)
         {
             IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo, nodeIdsAlters.Length);
+            //IEdgeset edgeSetEgo = Edgesets[nodeIdEgo];
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
             {
-                foreach (uint idAlter in nodeIdsAlters)
+                //foreach (uint idAlter in nodeIdsAlters)
+                for (int i=0; i<nodeIdsAlters.Length;i++)
                 {
-                    edgeSetEgo._addOutboundEdge(idAlter, 1);
-                    GetOrCreateEdgeset(idAlter, nodeIdsAlters.Length)._addInboundEdge(nodeIdEgo, 1);
+                    edgeSetEgo._addOutboundEdge(nodeIdsAlters[i], 1);
+                    //Edgesets[nodeIdsAlters[i]]._addInboundEdge(nodeIdEgo, 1);
+                    GetOrCreateEdgeset(nodeIdsAlters[i], nodeIdsAlters.Length)._addInboundEdge(nodeIdEgo, 1);
                 }
             }
             else
             {
                 foreach (uint idAlter in nodeIdsAlters)
-                    edgeSetEgo.AddOutboundEdge(idAlter, 1);
+                    edgeSetEgo._addOutboundEdge(idAlter, 1);
             }
         }
 
@@ -312,10 +308,7 @@ namespace Threadle.Core.Model
                 foreach ((uint alterId, float value) in nodeIdsAlters)
                     edgeSetEgo.AddOutboundEdge(alterId, value);
             }
-
         }
-
-
 
         /// <summary>
         /// Removes an (the) edge between node1id and node2id. Returns a fail if no such edge is found.
@@ -343,7 +336,7 @@ namespace Threadle.Core.Model
             if (Edgesets.TryGetValue(nodeId, out var edgeset))
                 return edgeset;
             IEdgeset newEdgeset = edgeSetFactory!();
-            newEdgeset._setCapacity(capacity);
+            //newEdgeset._setCapacity(capacity);
             Edgesets[nodeId] = newEdgeset;
             return newEdgeset;
         }
@@ -399,11 +392,24 @@ namespace Threadle.Core.Model
             _edgesets = new(nbrEdgesets);
         }
 
-        internal void _initEdgesetCapacity(int edgesetCapacity)
+        /// <summary>
+        /// Initialize the capacity of the _edgesets dictionary, also creating
+        /// ready-to-use, empty IEdgeset instances from the specific factory method for the
+        /// provided array of node ids.
+        /// Also sets the expected capacity for these IEdgeset containers.
+        /// Suitable when generating random networks such as Erdös-Renyi
+        /// </summary>
+        /// <param name="nodeIds">Array of node ids to initialize (using its length for _edgesets capacity)</param>
+        /// <param name="edgesetCapacity">The expected capacity of edge IEdgeset.</param>
+        internal void _initEdgesets(uint[] nodeIds, int edgesetCapacity)
         {
-
+            _edgesets = new(nodeIds.Length);
+            foreach (var id in nodeIds)
+            {
+                _edgesets[id] = edgeSetFactory!();
+                _edgesets[id]._setCapacity(edgesetCapacity);
+            }
         }
-
         #endregion
     }
 }

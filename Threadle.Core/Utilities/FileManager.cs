@@ -41,17 +41,6 @@ namespace Threadle.Core.Utilities
                     "network" => LoadNetwork(filepath),
                     _ => OperationResult<StructureResult>.Fail("LoadError", $"Load not implemented for type '{structureTypeString}'.")
                 };
-                //if (!_structureTypes.TryGetValue(structureTypeString, out var structureType))
-                //    return OperationResult<StructureResult>.Fail("TypeNotSupported", $"Loading type '{structureTypeString}' not supported.");
-                //if (structureType == typeof(Nodeset))
-                //{
-                //    return LoadNodeset(filepath);
-                //    //return OperationResult<StructureResult>.Ok(LoadNodeset(filepath));
-                //}
-                //else if (structureType == typeof(Network))
-                //    return OperationResult<StructureResult>.Ok(LoadNetwork(filepath, format));
-                //else
-                //    return OperationResult<StructureResult>.Fail("LoadError", $"Load not implemented for type '{structureType}'.");
             }
             catch (Exception e)
             {
@@ -102,22 +91,24 @@ namespace Threadle.Core.Utilities
         /// <returns>Returns an OperationResult informing how well this went.</returns>
         public static OperationResult ImportLayer(string filepath, Network network, ILayer layer, string format, string separator, bool addMissingNodes)
         {
-            try
-            {
-                OperationResult result = (layer, format.ToLower()) switch
-                {
-                    (LayerOneMode layerOneMode, "edgelist") => LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes),
-                    (LayerOneMode layerOneMode, "matrix") => LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes),
-                    (LayerTwoMode layerTwoMode, "edgelist") => LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes),
-                    (LayerTwoMode layerTwoMode, "matrix") => LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes),
-                    _ => OperationResult.Fail("UnsupportedOptions", "The specific layer/format combination for imports is not supported.")
-                };
-                return result;
-            }
-            catch (Exception e)
-            {
-                return OperationResult.Fail("LoadError", $"Unexpected error while loading: {e.Message}");
-            }
+            //try
+            //{
+            //    OperationResult result = (layer, format.ToLower()) switch
+            //    {
+            //        (LayerOneMode layerOneMode, "edgelist") => LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes),
+            //        (LayerOneMode layerOneMode, "matrix") => LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes),
+            //        (LayerTwoMode layerTwoMode, "edgelist") => LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes),
+            //        (LayerTwoMode layerTwoMode, "matrix") => LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes),
+            //        _ => OperationResult.Fail("UnsupportedOptions", "The specific layer/format combination for imports is not supported.")
+            //    };
+            //    return result;
+            //}
+            //catch (Exception e)
+            //{
+            //    return OperationResult.Fail("LoadError", $"Unexpected error while loading: {e.Message}");
+            //}
+
+            return OperationResult.Fail("NotYetImplemented", "Redoing importlayer");
         }
 
         /// <summary>
@@ -168,13 +159,17 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        /// <summary>
+        /// Loads a text file and returns it as a string[] array in an OperationResult.
+        /// </summary>
+        /// <param name="filepath">The filepath to the text file to read.</param>
+        /// <returns>An OperationResult, with a string[] array if all went well.</returns>
         public static OperationResult<string[]> LoadTextfile(string filepath)
         {
             try
             {
                 var lines = TextFileReader.LoadFile(filepath);
                 return OperationResult<string[]>.Ok(lines, $"Loaded {lines.Length} lines from file '{filepath}'.");
-
             }
             catch (Exception e)
             {
@@ -185,11 +180,11 @@ namespace Threadle.Core.Utilities
 
         #region Methods (private)
         /// <summary>
-        /// Internal method to save a Nodeset structure to file
+        /// Internal method to save a Nodeset to file.
+        /// The file format is derived from the filepath ending.
         /// </summary>
         /// <param name="nodeset">The Nodeset to save.</param>
         /// <param name="filepath">The filepath to save to.</param>
-        /// <param name="format">The file format to save to (only FileFormat.TsvGzip implemented so far).</param>
         /// <returns>Returns an OperationResult informing how well it went.</returns>
         private static OperationResult SaveNodeset(Nodeset nodeset, string filepath)
         {
@@ -220,13 +215,14 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Internal method to save a Network structure to file. Could potentially also save the Nodeset associated to this network.
+        /// Internal method to save a Network structure to file. If the Nodeset that the Network refers to is not yet saved,
+        /// the operation is aborted, informing that the Nodeset must be saved first. If the Nodeset has been modified since
+        /// last save, this method also saves the Nodeset.
+        /// Note that the file format is derived from the filepath ending.
         /// </summary>
         /// <param name="network">The Network to save.</param>
         /// <param name="filepath">The filepath to save to.</param>
-        /// <param name="format">The file format to save to (only FileFormat.TsvGzip implemented so far).</param>
-        /// <param name="nodesetFilepath">The filepath to save the Nodeset to (optional)</param>
-        /// <returns></returns>
+        /// <returns>An OperationResult informing how it went.</returns>
         private static OperationResult SaveNetwork(Network network, string filepath)
         {
             try
@@ -285,14 +281,11 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Internal method to load a Nodeset from file.
         /// Throws exceptions if something happens, though these are always caught by caller.
-        /// Returns an OperationResult wrapping a StructureResult - can't just return a Nodeset as this is
-        /// wrapped from FileManager method
+        /// Returns an OperationResult wrapping a StructureResult.
+        /// Note that the file format is derived from the filepath ending.
         /// </summary>
         /// <param name="filepath">The filepath to load from.</param>
-        /// <param name="format">The file format to save to (only FileFormat.TsvGzip implemented so far).</param>
-        /// <returns>A StructureResult containing the Nodeset object.</returns>
-        /// <exception cref="Exception">Thrown if there is an error loading the Nodeset.</exception>
-        /// <exception cref="NotImplementedException">Thrown if a non-implemented file format is used.</exception>
+        /// <returns>An OperationResult, with a StructureResult containing a Nodeset if all went well.</returns>
         private static OperationResult<StructureResult> LoadNodeset(string filepath)
         {
             try
@@ -314,21 +307,6 @@ namespace Threadle.Core.Utilities
                         return OperationResult<StructureResult>.Ok(new StructureResult(nodeset));
                 }
                 return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Nodeset.");
-                //if (format == FileFormat.TsvGzip)
-                //{
-                //    nodeset = FileSerializerTsv.LoadNodesetFromFile(filepath, format)
-                //        ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
-                //}
-                ////else if (format == FileFormat.BinGzip)
-                ////{
-                ////    //nodeset = FileSerializerBin.LoadNodesetFromFile(filepath)
-                ////    //    ?? throw new Exception($"Error: Failed to load Nodeset '{filepath}'.");
-                ////}
-                //else
-                //{
-                //    throw new NotImplementedException($"Error: File format '{format}' is not supported.");
-                //}
-                //return new StructureResult(nodeset);
             }
             catch (Exception e)
             {
@@ -337,15 +315,12 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Internal method to load a Network from file. If the file for the network refers to a Nodeset,
-        /// that Nodeset is also loaded.
+        /// Internal method to load a Network from file. Also loads the Nodeset that the Network refers to.
         /// Throws exceptions if something happens, though these are always caught by caller.
+        /// Note that the file format is derived from the filepath ending.
         /// </summary>
         /// <param name="filepath">The filepath to load from.</param>
-        /// <param name="format">The file format to save to (only FileFormat.TsvGzip implemented so far).</param>
-        /// <returns>Returns a StructureResult containing the network and, when applicable, the Nodeset.</returns>
-        /// <exception cref="Exception">Thrown if there is an error loading the Network.</exception>
-        /// <exception cref="NotImplementedException">Thrown if a non-implemented file format is used.</exception>
+        /// <returns>An OperationResult, with a StructureResult containing a Network and a Nodeset if all went well.</returns>
         private static OperationResult<StructureResult> LoadNetwork(string filepath)
         {
             try
@@ -372,20 +347,6 @@ namespace Threadle.Core.Utilities
             {
                 return OperationResult<StructureResult>.Fail("IOError", $"Unexpected error while loading network: {e.Message}");
             }
-            //StructureResult result;
-            //if (format == FileFormat.TsvGzip)
-            //{
-            //    result = FileSerializerTsv.LoadNetworkFromFile(filepath, format)
-            //        ?? throw new Exception($"Error: Failed to load Network '{filepath}'");
-            //}
-            //else
-            //{
-            //    throw new NotImplementedException($"File format '{format}' is not supported.");
-            //}
-            //return result;
-            //return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported.");
-            //return OperationResult<StructureResult>.Fail("NotYetImplemented", $"LoadNetwork not yet implemented.");
-
         }
         #endregion
     }

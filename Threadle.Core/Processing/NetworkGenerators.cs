@@ -20,10 +20,10 @@ namespace Threadle.Core.Processing
         /// proposed by Batagelj and Brandes (2005) in https://doi.org/10.1103/PhysRevE.71.036113
         /// </summary>
         /// <remarks>The Erdős–Rényi model generates a network by iterating over all possible edges
-        /// between nodes and including each edge with a probability of <paramref name="p"/>. The resulting network
+        /// between nodeIds and including each edge with a probability of <paramref name="p"/>. The resulting network
         /// structure depends on the specified edge directionality and whether self-loops are allowed.</remarks>
-        /// <param name="size">The number of nodes in the network. Must be greater than zero.</param>
-        /// <param name="p">The probability of an edge existing between any two nodes. Must be in the range [0, 1].</param>
+        /// <param name="size">The number of nodeIds in the network. Must be greater than zero.</param>
+        /// <param name="p">The probability of an edge existing between any two nodeIds. Must be in the range [0, 1].</param>
         /// <param name="directionality">Specifies whether the edges in the network are directed or undirected.</param>
         /// <param name="selfties">Indicates whether self-loops (edges from a node to itself) are allowed in the network.</param>
         /// <returns>A <see cref="Network"/> object representing the generated Erdős–Rényi random network.</returns>
@@ -32,18 +32,20 @@ namespace Threadle.Core.Processing
             Nodeset nodeset = new Nodeset("er_nodes", size);
             Network network = new Network("er", nodeset);
             string layername = $"er_{p}";
-            //network.AddLayerOneMode(layername, directionality, EdgeType.Binary, selfties);
-            
+
+            // Create 1-mode layer and add to the network            
             LayerOneMode layerOneMode = new LayerOneMode(layername,directionality, EdgeType.Binary, selfties);
             network.Layers.Add(layername, layerOneMode);
-            layerOneMode._initSizeEdgesetDictionary(size);
 
+            // Determine the expected degree (i.e. number of directed connections per node)
             int edgesetCapacity = (int)(p * size);
 
-            layerOneMode._initSizeEdgesetDictionary(size);
-            layerOneMode._initEdgesetCapacity(edgesetCapacity);
+            // Get an array of all node ids
+            uint[] nodeIds = nodeset.NodeIdArray;
 
-            uint[] nodes = nodeset.NodeIdArray;
+            // Initialize the capacity of the Edgesets dictionary as well as the number of connections for each IEdgeset
+            layerOneMode._initEdgesets(nodeIds, edgesetCapacity);
+
             uint n = (uint)nodeset.Count;
             ulong totalEdges = Misc.GetNbrPotentialEdges(n, directionality, selfties);
             ulong index = 0;
@@ -64,10 +66,12 @@ namespace Threadle.Core.Processing
                 }
                 uint offsetInRow = (uint)(index - rowStartindex);
                 uint col = GetCol(row, offsetInRow, n, directionality, selfties);
-                //network.AddEdge(layername, nodes[row], nodes[col]);
-                layerOneMode.AddEdgeNoValidations(nodes[row], nodes[col], edgesetCapacity);
 
-                //layerOneMode.
+                // To bypass validations etc, add binary ties directly on the pre-created IEdgeset instances,
+                // using the add functions that bypass validation.
+                // All this to speed up time.
+                layerOneMode.Edgesets[nodeIds[row]]._addOutboundEdge(nodeIds[col], 1);
+                layerOneMode.Edgesets[nodeIds[col]]._addInboundEdge(nodeIds[row], 1);
                 index++;
             }
             return new StructureResult(network, new Dictionary<string, IStructure>
@@ -101,7 +105,7 @@ namespace Threadle.Core.Processing
         /// </summary>
         /// <param name="row">The zero-based index of the row in the graph.</param>
         /// <param name="offsetInRow">The zero-based offset within the specified row.</param>
-        /// <param name="n">The total number of nodes in the graph. This parameter is not used in the calculation.</param>
+        /// <param name="n">The total number of nodeIds in the graph. This parameter is not used in the calculation.</param>
         /// <param name="directionality">Specifies whether the graph is directed or undirected. If directed, the calculation accounts for the
         /// direction of edges.</param>
         /// <param name="selfties">A value indicating whether self-loops (edges from a node to itself) are allowed. If <see langword="true"/>,
