@@ -31,7 +31,8 @@ namespace Threadle.Core.Utilities
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
-            using var reader = new BinaryReader(stream);
+            using var buffered = new BufferedStream(stream, 1 << 20);
+            using var reader = new BinaryReader(buffered);
             Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
             return nodeset;
         }
@@ -57,7 +58,8 @@ namespace Threadle.Core.Utilities
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
-            using var reader = new BinaryReader(stream);
+            using var buffered = new BufferedStream(stream, 1 << 20);
+            using var reader = new BinaryReader(buffered);
 
             return ReadNetworkFromFile(filepath, reader);
         }

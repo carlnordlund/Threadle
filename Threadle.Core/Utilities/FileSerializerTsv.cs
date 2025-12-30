@@ -34,12 +34,11 @@ namespace Threadle.Core.Utilities
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
-            using var reader = new StreamReader(stream, Utf8NoBom);
+            using var buffered = new BufferedStream(stream, 1 << 20);
+            using var reader = new StreamReader(buffered, Utf8NoBom);
 
-            // Passing filepath only to set the Filepath property for nodeset
+            // Purpose of passing filepath: to set the Filepath property for the nodeset
             Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
-            //nodeset.Filepath = filepath;
-            //nodeset.IsModified = false;
             return nodeset;
         }
 
@@ -70,7 +69,8 @@ namespace Threadle.Core.Utilities
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
-            using var reader = new StreamReader(stream, Utf8NoBom);
+            using var buffered = new BufferedStream(stream, 1 << 20);
+            using var reader = new StreamReader(buffered, Utf8NoBom);
 
             return ReadNetworkFromFile(filepath, reader);
         }

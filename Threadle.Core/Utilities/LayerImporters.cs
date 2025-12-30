@@ -16,27 +16,28 @@ namespace Threadle.Core.Utilities
     internal static class LayerImporters
     {
         #region Methods (internal)
+
         /// <summary>
-        /// Imports an edgelist file into a 1-mode network layer.
+        /// Imports a 1-mode edgelist from file, inserting it into the specified layer. Checks that the node exists
+        /// in the Nodeset of the network: will either ignore those lines or add these nodes, depending on the setting
+        /// of <paramref name="addMissingNodes"/>.
+        /// Note that any existing edges in the layer are not removed.
+        /// Note also that a deduplication cleanup is done after importing: as edges are added without checking for
+        /// multiedges, this will remove any would-be occurrences of multiedges.
+        /// This method separates into different code blocks depending on whether it is binary or valued, and whether
+        /// missing nodes should be added or not, i.e. a total of 4 different code blocks.
+        /// The edgelist file:
+        /// The first column contains the first nodeid, the second column contains the second node id.
+        /// The file might have a header: that will be ignored.
+        /// For valued layers, the edgelist must have a third column containing the edge value.
         /// </summary>
-        /// <remarks>The method expects the edgelist file to conform to the following format: <list
-        /// type="bullet"> <item> <description>For binary edges, the file must contain exactly two columns: the IDs of
-        /// the two nodes connected by each edge. For layers with directed edges, the first column contains the source
-        /// node ids, and the second column contains the destination node id.</description> </item> <item>
-        /// <description>For valued edges, the file must contain exactly three columns: the IDs of the two nodes and the
-        /// edge value.</description> </item> </list> If the file format does not match the expected structure for the
-        /// layer's edge type, the operation will fail with an appropriate error message.</remarks>
-        /// <param name="filepath">The path to the edgelist file to import. The file must be formatted with either two or three columns,
-        /// depending on the edge type.</param>
-        /// <param name="network">The network into which the edges will be imported.</param>
-        /// <param name="layerOneMode">The one-mode layer of the network where the edges will be added. The layer's edge type determines the
-        /// expected file format.</param>
-        /// <param name="separator">The character used to separate columns in the edgelist file.</param>
-        /// <param name="addMissingNodes">A value indicating whether nodes that are referenced in the matrix but do not exist in the network should be
-        /// automatically added. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
-        /// <returns>An <see cref="OperationResult"/> indicating the success or failure of the import operation.  If the
-        /// operation fails, the result contains an error code and message describing the issue.</returns>
-        /// 
+        /// <param name="filepath">The filepath to the edgelist</param>
+        /// <param name="network">The network (to obtain the Nodeset)</param>
+        /// <param name="layerOneMode">The 1-mode layer to import to.</param>
+        /// <param name="separator">Character that separates columns</param>
+        /// <param name="addMissingNodes">Set to true if nodes not in the Nodeset should be added to it.</param>
+        /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
+        /// <exception cref="Exception">Exceptions when something went wrong.</exception>
         internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, char separator, bool addMissingNodes)
         {
             if (!File.Exists(filepath))
@@ -44,14 +45,14 @@ namespace Threadle.Core.Utilities
             using var reader = new StreamReader(filepath);
             string? line;
             int lineNumber = 0;
-            int expectedColumns = layerOneMode.IsValued ? 3 : 2;
 
-            // Assume Binary, addMissingNodes
             uint node1id, node2id;
             if (layerOneMode.IsBinary)
             {
+                // Importing binary data
                 if (addMissingNodes)
                 {
+                    // Add nodes if missing from Nodeset
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
@@ -70,6 +71,7 @@ namespace Threadle.Core.Utilities
                 }
                 else
                 {
+                    // Ignore edges that refers to non-existing nodes
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
@@ -87,9 +89,11 @@ namespace Threadle.Core.Utilities
             }
             else if (layerOneMode.IsValued)
             {
+                // Importing valued data
                 float value = 1;
                 if (addMissingNodes)
                 {
+                    // Add nodes if missing from Nodeset
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
@@ -112,6 +116,7 @@ namespace Threadle.Core.Utilities
                 }
                 else
                 {
+                    // Ignore edges that refers to non-existing nodes
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
@@ -131,6 +136,7 @@ namespace Threadle.Core.Utilities
                     }
                 }
             }
+            // Deduplicate edges
             layerOneMode._deduplicateEdgesets();
         }
 
