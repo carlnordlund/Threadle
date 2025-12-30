@@ -116,6 +116,11 @@ namespace Threadle.Core.Model
             _connections.Add(partnerNodeId);
         }
 
+        public void _deduplicate()
+        {
+            Misc.DeduplicateUintList(_connections);
+        }
+
 
         /// <summary>
         /// Removes an (inbound) edge from this edgeset.

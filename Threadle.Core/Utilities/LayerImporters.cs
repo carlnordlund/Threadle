@@ -1,11 +1,12 @@
-﻿using Threadle.Core.Model;
-using Threadle.Core.Model.Enums;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Utilities
 {
@@ -35,38 +36,102 @@ namespace Threadle.Core.Utilities
         /// automatically added. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
         /// <returns>An <see cref="OperationResult"/> indicating the success or failure of the import operation.  If the
         /// operation fails, the result contains an error code and message describing the issue.</returns>
-        internal static OperationResult ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, string separator, bool addMissingNodes)
+        /// 
+        internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, char separator, bool addMissingNodes)
         {
-            try
+            if (!File.Exists(filepath))
+                throw new FileNotFoundException($"File not found: {filepath}");
+            using var reader = new StreamReader(filepath);
+            string? line;
+            int lineNumber = 0;
+            int expectedColumns = layerOneMode.IsValued ? 3 : 2;
+
+            // Assume Binary, addMissingNodes
+            uint node1id, node2id;
+            if (layerOneMode.IsBinary)
             {
-                string[,] cells = ReadCells(filepath, separator);
-                int nbrColumns = cells.GetLength(1);
-                EdgeType valueType = layerOneMode.EdgeValueType;
-                if (valueType == EdgeType.Binary && nbrColumns != 2)
-                    return OperationResult.Fail("FileColumnsError", $"Layer '{layerOneMode.Name}' is binary, so edgelist must have two columns.");
-                if ((valueType == EdgeType.Valued) && nbrColumns != 3)
-                    return OperationResult.Fail("FileColumnsError", $"Layer '{layerOneMode.Name}' is valued, so edgelist must have three columns.");
-                uint node1id, node2id;
-                float value = 1;
-                for (int r = 0; r < cells.GetLength(0); r++)
+                if (addMissingNodes)
                 {
-                    if (!uint.TryParse(cells[r, 0], out node1id) || !uint.TryParse(cells[r, 1], out node2id))
-                        continue;
-                    if (valueType == EdgeType.Binary)
-                        network.AddEdge(layerOneMode, node1id, node2id, 1, addMissingNodes);
-                    else
+                    while ((line = reader.ReadLine()) != null)
                     {
-                        if (!float.TryParse(cells[r, 2], out value))
-                            return OperationResult.Fail("FileFormatError", $"Could not parse value '{cells[r,2]}' in edgelist '{filepath}'.");
-                        network.AddEdge(layerOneMode, node1id, node2id, Misc.FixConnectionValue(value, valueType), addMissingNodes);
+                        lineNumber++;
+                        ReadOnlySpan<char> span = line.AsSpan();
+                        int sepIndex = span.IndexOf(separator);
+                        if (sepIndex < 0)
+                            throw new Exception($"Invalid column count at line {lineNumber}");
+                        if (!uint.TryParse(span.Slice(0, sepIndex), out node1id) || !uint.TryParse(span.Slice(sepIndex + 1), out node2id))
+                            continue;
+                        if (!network.Nodeset.CheckThatNodeExists(node1id))
+                            network.Nodeset._AddNodeWithoutAttribute(node1id);
+                        if (!network.Nodeset.CheckThatNodeExists(node2id))
+                            network.Nodeset._AddNodeWithoutAttribute(node2id);
+                        layerOneMode._addEdge(node1id, node2id);
                     }
                 }
-                return OperationResult.Ok();
+                else
+                {
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        lineNumber++;
+                        ReadOnlySpan<char> span = line.AsSpan();
+                        int sepIndex = span.IndexOf(separator);
+                        if (sepIndex < 0)
+                            throw new Exception($"Invalid column count at line {lineNumber}");
+                        if (!uint.TryParse(span.Slice(0, sepIndex), out node1id) || !uint.TryParse(span.Slice(sepIndex + 1), out node2id))
+                            continue;
+                        if (!network.Nodeset.CheckThatNodeExists(node1id) || !network.Nodeset.CheckThatNodeExists(node2id))
+                            continue;
+                        layerOneMode._addEdge(node1id, node2id);
+                    }
+                }
             }
-            catch (Exception e)
+            else if (layerOneMode.IsValued)
             {
-                return OperationResult.Fail("UnexpectedImportError", e.Message);
+                float value = 1;
+                if (addMissingNodes)
+                {
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        lineNumber++;
+                        ReadOnlySpan<char> span = line.AsSpan();
+                        int sepIndex1 = span.IndexOf(separator);
+                        int sepIndex2 = span.Slice(sepIndex1 + 1).IndexOf(separator);
+                        sepIndex2 += sepIndex1 + 1;
+                        if (sepIndex1 < 0 || sepIndex2 < 0)
+                            throw new Exception($"Invalid column count at line {lineNumber}");
+                        if (!uint.TryParse(span[..sepIndex1], out node1id)
+                            || !uint.TryParse(span[(sepIndex1+1)..sepIndex2], out node2id)
+                            || !float.TryParse(span[(sepIndex2+1)..], out value))
+                            continue;
+                        if (!network.Nodeset.CheckThatNodeExists(node1id))
+                            network.Nodeset._AddNodeWithoutAttribute(node1id);
+                        if (!network.Nodeset.CheckThatNodeExists(node2id))
+                            network.Nodeset._AddNodeWithoutAttribute(node2id);
+                        layerOneMode._addEdge(node1id, node2id, value);
+                    }
+                }
+                else
+                {
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        lineNumber++;
+                        ReadOnlySpan<char> span = line.AsSpan();
+                        int sepIndex1 = span.IndexOf(separator);
+                        int sepIndex2 = span.Slice(sepIndex1 + 1).IndexOf(separator);
+                        sepIndex2 += sepIndex1 + 1;
+                        if (sepIndex1 < 0 || sepIndex2 < 0)
+                            throw new Exception($"Invalid column count at line {lineNumber}");
+                        if (!uint.TryParse(span[..sepIndex1], out node1id)
+                            || !uint.TryParse(span[(sepIndex1 + 1)..sepIndex2], out node2id)
+                            || !float.TryParse(span[(sepIndex2 + 1)..], out value))
+                            continue;
+                        if (!network.Nodeset.CheckThatNodeExists(node1id) || !network.Nodeset.CheckThatNodeExists(node2id))
+                            continue;
+                        layerOneMode._addEdge(node1id, node2id, value);
+                    }
+                }
             }
+            layerOneMode._deduplicateEdgesets();
         }
 
         /// <summary>

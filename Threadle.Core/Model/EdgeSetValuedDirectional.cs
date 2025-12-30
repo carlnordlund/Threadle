@@ -112,6 +112,12 @@ namespace Threadle.Core.Model
             _outbound.Add(new Connection(partnerNodeId, value));
         }
 
+        public void _deduplicate()
+        {
+            Misc.DeduplicateConnectionList(_inbound);
+            Misc.DeduplicateConnectionList(_outbound);
+        }
+
 
         /// <summary>
         /// Removes an inbound edge (i.e. Connection struct) from this edgeset.

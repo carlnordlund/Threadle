@@ -344,10 +344,14 @@ namespace Threadle.Core.Utilities
                 attributeNames[i - 1] = parts[0];
                 nodeset.DefineNodeAttribute(parts[0], parts[1]);
             }
-            while (!reader.EndOfStream)
+            string? line;
+
+            //while (!reader.EndOfStream)
+            while ((line = reader.ReadLine()) != null)
             {
-                var line = reader.ReadLine();
-                if (string.IsNullOrWhiteSpace(line)) continue;
+                //var line = reader.ReadLine();
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
                 var parts = line.Split('\t');
                 uint nodeId = uint.Parse(parts[0]);
                 nodeset.AddNode(nodeId);

@@ -257,6 +257,41 @@ namespace Threadle.Core.Utilities
             };
         }
 
+        internal static void DeduplicateUintList(List<uint> list)
+        {
+            if (list.Count < 2)
+                return;
+            list.Sort();
+
+            int write = 1;
+            for (int read = 1; read < list.Count; read++)
+            {
+                uint v = list[read];
+                if (v != list[read - 1])
+                    list[write++] = v;
+            }
+
+            if (write < list.Count)
+                list.RemoveRange(write, list.Count - write);
+        }
+
+        internal static void DeduplicateConnectionList(List<Connection> list)
+        {
+            if (list.Count < 2)
+                return;
+            list.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
+
+            int write = 1;
+            for (int read=1; read<list.Count;read++)
+            {
+                uint v = list[read].partnerNodeId;
+                if (v != list[read - 1].partnerNodeId)
+                    list[write++] = list[read];
+            }
+            if (write < list.Count)
+                list.RemoveRange(write, list.Count - write);
+        }
+
         #endregion
     }
 }

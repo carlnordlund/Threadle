@@ -89,8 +89,36 @@ namespace Threadle.Core.Utilities
         /// <param name="separator">The value-separating character/string used in the data file.</param>
         /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not</param>
         /// <returns>Returns an OperationResult informing how well this went.</returns>
-        public static OperationResult ImportLayer(string filepath, Network network, ILayer layer, string format, string separator, bool addMissingNodes)
+        public static OperationResult ImportLayer(string filepath, Network network, ILayer layer, string format, char separator, bool addMissingNodes)
         {
+            try
+            {
+                switch (layer, format.ToLowerInvariant())
+                {
+                    case (LayerOneMode layerOneMode, "edgelist"):
+                        LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
+                        break;
+                    //case (LayerOneMode layerOneMode, "matrix"):
+                    //    LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
+                    //    break;
+                    //case (LayerTwoMode layerTwoMode, "edgelist"):
+                    //    LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
+                    //    break;
+                    //case (LayerTwoMode layerTwoMode, "matrix"):
+                    //    LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
+                    //    break;
+
+                    default:
+                        return OperationResult.Fail("UnsupportedOption", "The specific layer/format combination for importing is not supported.");
+
+                }
+                return OperationResult.Ok("");
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("ImportError", "Unexpected error when importing layer: " + ex.Message);
+
+            }
             //try
             //{
             //    OperationResult result = (layer, format.ToLower()) switch
@@ -108,7 +136,7 @@ namespace Threadle.Core.Utilities
             //    return OperationResult.Fail("LoadError", $"Unexpected error while loading: {e.Message}");
             //}
 
-            return OperationResult.Fail("NotYetImplemented", "Redoing importlayer");
+            //return OperationResult.Fail("NotYetImplemented", "Redoing importlayer");
         }
 
         /// <summary>

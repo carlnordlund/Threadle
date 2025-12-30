@@ -151,6 +151,11 @@ namespace Threadle.Core.Model
         /// <param name="value"></param>
         void _addOutboundEdge(uint partnerNodeId, float value);
 
+        /// <summary>
+        /// Goes through _inbound and _outbound (or _connections) and removes all duplicate edges, i.e. multiedges
+        /// </summary>
+        void _deduplicate();
+
         void _setCapacity(int capacity);
         #endregion
     }

@@ -87,6 +87,13 @@ namespace Threadle.Core.Model
             _outbound.Add(partnerNodeId);
         }
 
+        public void _deduplicate()
+        {
+            Misc.DeduplicateUintList(_outbound);
+            Misc.DeduplicateUintList(_inbound);
+
+        }
+
         /// <summary>
         /// Adds an outbound edge to this edgeset. If the BlockMultiedges setting is active,
         /// it is first checked if this edge exists: if so, a warning is returned.

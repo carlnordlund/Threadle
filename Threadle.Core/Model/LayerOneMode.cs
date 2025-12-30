@@ -271,17 +271,23 @@ namespace Threadle.Core.Model
             return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} (value={value}) in layer '{Name}'.");
         }
 
+        internal void _addBinaryEdge(uint node1id, uint node2id)
+        {
+            IEdgeset edgeset1 = GetOrCreateEdgeset(node1id);
+            IEdgeset edgeset2 = GetOrCreateEdgeset(node2id);
+            edgeset1._addOutboundEdge(node2id, 1);
+            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+                edgeset2._addInboundEdge(node1id, 1);
+        }
+
         internal void _addBinaryEdges(uint nodeIdEgo, uint[] nodeIdsAlters)
         {
             IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo, nodeIdsAlters.Length);
-            //IEdgeset edgeSetEgo = Edgesets[nodeIdEgo];
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
             {
-                //foreach (uint idAlter in nodeIdsAlters)
-                for (int i=0; i<nodeIdsAlters.Length;i++)
+                for (int i = 0; i < nodeIdsAlters.Length; i++)
                 {
                     edgeSetEgo._addOutboundEdge(nodeIdsAlters[i], 1);
-                    //Edgesets[nodeIdsAlters[i]]._addInboundEdge(nodeIdEgo, 1);
                     GetOrCreateEdgeset(nodeIdsAlters[i], nodeIdsAlters.Length)._addInboundEdge(nodeIdEgo, 1);
                 }
             }
@@ -290,6 +296,15 @@ namespace Threadle.Core.Model
                 foreach (uint idAlter in nodeIdsAlters)
                     edgeSetEgo._addOutboundEdge(idAlter, 1);
             }
+        }
+
+        internal void _addEdge(uint node1id, uint node2id, float value = 1)
+        {
+            IEdgeset edgeset1 = GetOrCreateEdgeset(node1id);
+            IEdgeset edgeset2 = GetOrCreateEdgeset(node2id);
+            edgeset1._addOutboundEdge(node2id, value);
+            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+                edgeset2._addInboundEdge(node1id, value);
         }
 
         internal void _addValuedEdges(uint nodeIdEgo, List<(uint alterId, float value)> nodeIdsAlters)
@@ -409,6 +424,12 @@ namespace Threadle.Core.Model
                 _edgesets[id] = edgeSetFactory!();
                 _edgesets[id]._setCapacity(edgesetCapacity);
             }
+        }
+
+        internal void _deduplicateEdgesets()
+        {
+            foreach (IEdgeset edgeset in Edgesets.Values)
+                edgeset._deduplicate();
         }
         #endregion
     }

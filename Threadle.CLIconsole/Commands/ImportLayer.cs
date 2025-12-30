@@ -46,7 +46,7 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg2");
             string format = command.GetArgumentThrowExceptionIfMissingOrNull("format", "arg3");
-            string separator = command.GetArgumentParseString("sep", "\t");
+            char separator = command.GetArgumentParseString("sep", "\t")[0];
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", false);
             if (!network.Layers.TryGetValue(layerName, out var layer))
                 return CommandResult.Fail("LayerNotFound", $"!Error: Layer '{layerName}' not found.");
