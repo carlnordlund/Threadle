@@ -22,12 +22,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Storage container for nodes WITH attributes
         /// </summary>
-        //private Dictionary<uint, Dictionary<uint, NodeAttributeValue>> _nodesWithAttributesOld = new();
-
         private Dictionary<uint, (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)> _nodesWithAttributes = new();
-
-        //private Dictionary<uint, (byte, NodeAttributeValue)[]> _nodesWithAttributesOld = new();
-        //private Dictionary<uint, NodeAttributeValue[]> _nodesWithAttributesValues = new();
 
         /// <summary>
         /// Storage container for nodes WITHOUT attributes
@@ -60,13 +55,12 @@ namespace Threadle.Core.Model
         /// <param name="createNodes">The number of nodes that are to be created from the start.</param>
         public Nodeset(string name, int createNodes = 0)
         {
-            _initSizeWithoutAttributes(createNodes);
+            InitSizeNodesWithoutAttributes(createNodes);
             Name = name;
             NodeAttributeDefinitionManager = new NodeAttributeDefinitionManager();
             if (createNodes > 0)
                 for (uint i = 0; i < createNodes; i++)
-                    _AddNodeWithoutAttribute(i);
-                    //AddNode(i);
+                    AddNodeWithoutAttribute(i);
             IsModified = false;
         }
 
@@ -165,38 +159,35 @@ namespace Threadle.Core.Model
         /// or if memory isn't critical, the nodecache can be active (its default). If memory is critical and if 
         /// picking random nodes isn't crucial, it can be turned off.
         /// </remarks>
-        internal uint[] NodeIdArray
+        public uint[] NodeIdArray
         {
             get
             {
                 if (UserSettings.NodeCache)
                 {
                     if (_nodeIdCache == null)
-                        _nodeIdCache = GetAllNodeIds();
+                        _nodeIdCache = _getAllNodeIds();
                     return _nodeIdCache;
                 }
-                return GetAllNodeIds();
+                return _getAllNodeIds();
             }
         }
 
         /// <summary>
         /// Returns an array of all NodeId uint values for nodes without node attributes.
-        /// Used by binary writer.
+        /// Used by binary writer as it separates between nodes with and without attributes.
         /// </summary>
         internal uint[] NodeIdArrayWithoutAttributes => _nodesWithoutAttributes.ToArray();
 
         /// <summary>
         /// Returns an array of all NodeId uint values for nodes with node attributes
-        /// Used by binary reader.
+        /// Used by binary reader as it separates between nodes with and without attributes.
         /// </summary>
-        //internal uint[] NodeIdArrayWithAttributes => _nodesWithAttributesOld.Keys.ToArray();
         internal uint[] NodeIdArrayWithAttributes => _nodesWithAttributes.Keys.ToArray();
-
 
         /// <summary>
         /// Returns the number of nodes in this Nodeset.
         /// </summary>
-        //public int Count { get { return _nodesWithAttributesOld.Count + _nodesWithoutAttributes.Count; } }
         public int Count { get { return _nodesWithAttributes.Count + _nodesWithoutAttributes.Count; } }
         #endregion
 
@@ -204,65 +195,28 @@ namespace Threadle.Core.Model
         #region Methods (public)
         /// <summary>
         /// Adds a node with the specified nodeid to this Nodeset.
+        /// Initially the node has no attributes.
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be added.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddNode(uint nodeId)
         {
-            if (CheckThatNodeExists(nodeId))
+            if (!_nodesWithoutAttributes.Add(nodeId))
                 return OperationResult.Fail("NodeAlreadyExists", $"Node with ID '{nodeId}' already exists in nodeset '{Name}'.");
-            _nodesWithoutAttributes.Add(nodeId);
-            Modified();
-            return OperationResult.Ok($"Node ID {nodeId} added to nodeset '{Name}'.");
+            _modified();
+            return OperationResult.Ok($"Node ID '{nodeId}' added to nodeset '{Name}'.");
         }
 
         /// <summary>
-        /// Adds a node with the specified nodeId to this Nodeset. Possible to provide an optional attribute tuple
-        /// where node attribute indices are mapped on <see cref="NodeAttributeValue"/> objects.
-        /// </summary>
-        /// <param name="nodeId">The id of the node.</param>
-        /// <param name="nodeAttrDict">An optional dictionary of node attributes for this node.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        /// 
-        internal void _AddNode(uint nodeId, (List<byte> attrIndexes, List<NodeAttributeValue> attrValues)? nodeAttributes)
-        {
-            if (nodeAttributes !=null)
-            {
-                _nodesWithAttributes[nodeId] = (nodeAttributes.Value.attrIndexes, nodeAttributes.Value.attrValues);
-                //_nodesWithAttributes[nodeId] = ((byte[] AttrIndexes, NodeAttributeValue[] Values))nodeAttributes;
-            }
-            else
-                _nodesWithoutAttributes.Add(nodeId);
-        }
-
-        //internal OperationResult AddNode(uint nodeId, Dictionary<uint, NodeAttributeValue>? nodeAttrDict)
-        //{
-        //    if (CheckThatNodeExists(nodeId))
-        //        return OperationResult.Fail("NodeAlreadyExists", $"Node with ID '{nodeId}' already exists in nodeset '{Name}'.");
-        //    if (nodeAttrDict != null && nodeAttrDict.Count > 0)
-        //    {
-        //        // This method is used by Filter and is basically providing another tuple thingie
-        //        //_nodesWithAttributesOld[nodeId] = nodeAttrDict;
-        //        _nodesWithAttributes[nodeId] = default;
-
-        //    }
-        //    else
-        //        _nodesWithoutAttributes.Add(nodeId);
-        //    Modified();
-        //    return OperationResult.Ok($"Node ID {nodeId} added to nodeset '{Name}'.");
-        //}
-
-        /// <summary>
-        /// Removes the specified node id from this Nodeset. Also clears the nodecache.
+        /// Removes the specified node id from this Nodeset, setting the Nodeset as being modified.
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be removed.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveNode(uint nodeId)
         {
-            //if (_nodesWithoutAttributes.Remove(nodeId) || _nodesWithAttributesOld.Remove(nodeId))
             if (_nodesWithoutAttributes.Remove(nodeId) || _nodesWithAttributes.Remove(nodeId))
             {
-                Modified();
+                _modified();
                 return OperationResult.Ok($"Node '{nodeId}' removed from nodeset '{Name}'.");
             }
             return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Name}'.");
@@ -270,7 +224,7 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Returns the node id specified by its index position in the NodeIdArray
-        /// Useful for traversing all nodes
+        /// Useful for traversing all nodes (when its better to have the nodecache active)
         /// </summary>
         /// <param name="index">The index position of the node.</param>
         /// <returns>The Node id or null if no node found at this index.</returns>
@@ -307,55 +261,22 @@ namespace Threadle.Core.Model
             if (!result.Success)
                 return result;
 
-            // Remove this attribute from all nodes
+            // Remove this attribute from all nodes and possibly move nodes to the collection for nodes without attributes
             byte oldAttributeIndex = result.Value;
-            List<uint> nodesToRemove = new();
+            List<uint> nodesNowWithoutAttributes = new();
             foreach (var nodeId in _nodesWithAttributes.Keys)
             {
-                if (!_removeNodeAttribute(nodeId, oldAttributeIndex))
+                if (!RemoveNodeAttribute(nodeId, oldAttributeIndex))
                     // The node has no more attributes left - mark it for moving to Hashset
-                    nodesToRemove.Add(nodeId);
+                    nodesNowWithoutAttributes.Add(nodeId);
             }
-            foreach (uint nodeId in nodesToRemove)
+            // Iterate through nodes that now lost all attributes: move them to the HashSet instead
+            foreach (uint nodeId in nodesNowWithoutAttributes)
             {
                 _nodesWithAttributes.Remove(nodeId);
                 _nodesWithoutAttributes.Add(nodeId);
             }
             return OperationResult.Ok($"Node attribute '{attributeName}' is no longer defined.");
-        }
-
-        /// <summary>
-        /// Removes the specified attribute from a node and shifts the lists.
-        /// </summary>
-        /// <param name="nodeId">The node id</param>
-        /// <param name="attributeIndex">The attribute index</param>
-        /// <returns>Returns true if it still has attributes left, false if all attributes are gone now.</returns>
-        private bool _removeNodeAttribute(uint nodeId, byte attributeIndex)
-        {
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                    return false;
-            return _removeAttribute(attributes, attributeIndex);
-        }
-
-        /// <summary>
-        /// Removes the specified attribute from a attribute tuple and shifts .
-        /// </summary>
-        /// <param name="nodeId">The node id</param>
-        /// <param name="attributeIndex">The attribute index</param>
-        /// <returns>Returns true if it still has attributes left, false if all attributes are gone now.</returns>
-        private bool _removeAttribute((List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues) attributes, byte attributeIndex)
-        {
-            int index = attributes.AttrIndexes.IndexOf(attributeIndex);
-            if (index >= 0)
-            {
-                int lastIndex = attributes.AttrIndexes.Count - 1;
-                attributes.AttrIndexes[index] = attributes.AttrIndexes[lastIndex];
-                attributes.AttrValues[index] = attributes.AttrValues[lastIndex];
-
-                attributes.AttrIndexes.RemoveAt(lastIndex);
-                attributes.AttrValues.RemoveAt(lastIndex);
-            }
-            return (attributes.AttrIndexes.Count > 0);
         }
 
         /// <summary>
@@ -397,10 +318,9 @@ namespace Threadle.Core.Model
             ////    _nodesWithAttributesOld.Add(nodeId, attrDict);
             ////}
             ////attrDict[attrIndex] = attrValue;
-            //Modified();
+            //_modified();
             return OperationResult.Ok($"Attribute '{attributeName}' for node {nodeId} set to {attrValue}.");
         }
-
 
         /// <summary>
         /// Gets the specific value for the node attribute of the selected node id.
@@ -414,29 +334,17 @@ namespace Threadle.Core.Model
                 return OperationResult<NodeAttributeValue>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attributeName, out byte attrIndex))
                 return OperationResult<NodeAttributeValue>.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attributeName}' not set for node '{nodeId}' in nodeset '{Name}'.");
-            
-            if (!(_getNodeAttribute(nodeId,attributes,attrIndex) is NodeAttributeValue nodeAttributeValue))
+            if (!(GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue nodeAttributeValue))
                 return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attributeName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             return OperationResult<NodeAttributeValue>.Ok(nodeAttributeValue);
         }
 
-        private NodeAttributeValue? _getNodeAttribute(uint nodeId, (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues) attributes, byte attrIndex)
-        {
-            int index = attributes.AttrIndexes.IndexOf(attrIndex);
-            if (index >= 0)
-                return attributes.AttrValues[index];
-            return null;
-        }
-
-
-
         /// <summary>
-        /// Remove the specific node attribute of the selected node id.
+        /// Remove specific node attribute from the selected node id.
+        /// If the node has no more attributes left, move it to the container for nodes without attributes
         /// </summary>
-        /// <param name="nodeId"></param>
-        /// <param name="attributeName"></param>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="attributeName">The name of the node attribute.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveNodeAttribute(uint nodeId, string attributeName)
         {
@@ -446,22 +354,11 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
                 return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attributeName}' not set for node '{nodeId}' in nodeset '{Name}'.");
-            if (!_removeAttribute(attributes, attrIndex))
+            if (!_removeAttributeFromTuple(attributes, attrIndex))
             {
                 _nodesWithAttributes.Remove(nodeId);
                 _nodesWithoutAttributes.Add(nodeId);
             }
-
-
-            //if (!_nodesWithAttributesOld.TryGetValue(nodeId, out var attrDict) || !attrDict.ContainsKey(attrIndex))
-            //    return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attributeName}' not set for node '{nodeId}' in nodeset '{Name}'.");
-            //attrDict.Remove(attrIndex);
-            //Modified();
-            //if (attrDict.Count == 0)
-            //{
-            //    _nodesWithAttributesOld.Remove(nodeId);
-            //    _nodesWithoutAttributes.Add(nodeId);
-            //}
             return OperationResult.Ok($"Attribute '{attributeName}' removed for node {nodeId}.");
         }
         #endregion
@@ -469,39 +366,8 @@ namespace Threadle.Core.Model
 
         #region Method (internal)
         /// <summary>
-        /// Adds a Node to the collection of nodes without attributes.
-        /// No verification is done: to be used with loaders.
-        /// </summary>
-        /// <param name="nodeId">The node id to add</param>
-        internal void _AddNodeWithoutAttribute(uint nodeId)
-        {
-            _nodesWithoutAttributes.Add(nodeId);
-        }
-
-        /// <summary>
-        /// Adds a Node to the collection of nodes with attributes.
-        /// No verification is done: to be used with loaders.
-        /// </summary>
-        /// <param name="nodeId"></param>
-        internal void _AddNodeWithAttribute(uint nodeId)
-        {
-            //_nodesWithAttributesOld.Add(nodeId, new Dictionary<uint, NodeAttributeValue>());
-            _nodesWithAttributes.Add(nodeId, (new(), new()));
-        }
-
-        /// <summary>
-        /// Checks if the Nodeset contains a node object with the specified id.
-        /// </summary>
-        /// <param name="nodeId">The id of the node that is to be checked.</param>
-        /// <returns>True if the node id exists, false otherwise.</returns>
-        internal bool CheckThatNodeExists(uint nodeId)
-        {
-            //return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributesOld.ContainsKey(nodeId);
-            return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
-        }
-
-        /// <summary>
         /// Checks if the Nodeset contains the two nodes with the specified ids.
+        /// This one returns a proper OperationResult informing which, or if both, were missing.
         /// </summary>
         /// <param name="node1id">The id of the first node that is to be checked.</param>
         /// <param name="node2id">The id of the second node that is to be checked.</param>
@@ -520,178 +386,23 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Clones the current Nodeset, creating a new NodeAttributeDefinitionManager and copying its
-        /// content. Copies the node ids
-        /// </summary>
-        /// <param name="newName"></param>
-        /// <param name="cloneNodes"></param>
-        /// <returns></returns>
-        internal Nodeset Clone(string? newName = null, bool cloneNodes = true)
-        {
-            Nodeset clone = new Nodeset(newName != null ? newName : Name + "_clone") { NodeAttributeDefinitionManager = NodeAttributeDefinitionManager.Clone() };
-            if (cloneNodes)
-            {
-                clone._nodesWithAttributes.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => (
-                        AttrIndixes: new List<byte>(kvp.Value.AttrIndexes),
-                        AttrValues: new List<NodeAttributeValue>(kvp.Value.AttrValues)
-                        )
-                    );
-
-
-                //foreach (var (nodeId, attrDict) in _nodesWithAttributesOld)
-                //    clone._nodesWithAttributesOld[nodeId] = new Dictionary<uint, NodeAttributeValue>(attrDict);
-                //foreach (uint nodeId in _nodesWithoutAttributes)
-                //    clone._nodesWithoutAttributes.Add(nodeId);
-            }
-            return clone;
-        }
-
-        /// <summary>
         /// Defines a new node attribute for this Nodeset with the given name and
         /// <see cref="NodeAttributeType"/>. Each node attribute in a <see cref="Nodeset"> must have a unique name.
+        /// Whereas <see cref="DefineNodeAttribute(string, string)"/> provides the node attribute as a string, this
+        /// method provides it as a <see cref="NodeAttributeType"/> enum.
+        /// Returns the attribute index of the created node attribute if successful.
         /// </summary>
         /// <param name="attributeName">The name of the nodal attribute (must be unique in this Nodeset).</param>
         /// <param name="attributeType">The type (using the <see cref="NodeAttributeType"/> enum) of this attribute.</param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, including the internal attribute index of the
+        /// added attribute.</returns>
         internal OperationResult<byte> DefineNodeAttribute(string attributeName, NodeAttributeType attributeType)
         {
             OperationResult<byte> result = NodeAttributeDefinitionManager.DefineNewNodeAttribute(attributeName, attributeType);
             if (result.Success)
-                Modified();
+                _modified();
             return result;
         }
-
-        /// <summary>
-        /// Sets a node attribute directly, without any validation anywhere.
-        /// To use with loaders.
-        /// </summary>
-        /// <param name="nodeId">The node id.</param>
-        /// <param name="attrIndex">The attribute index in NodeAttributeDefinitionManager</param>
-        /// <param name="value">The NodeAttributeValue value</param>
-        internal void _setNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue value)
-        {
-            //_nodesWithAttributesOld[nodeId].Add(attrIndex, value);
-            //_nodesWithAttributes[nodeId].
-            _nodesWithAttributes[nodeId].AttrIndexes.Add(attrIndex);
-            _nodesWithAttributes[nodeId].AttrValues.Add(value);
-        }
-
-        //internal OperationResult SetNodeAttribute(uint nodeId, string attributeName, NodeAttributeValue value)
-        //{
-        //    try
-        //    {
-        //        if (!CheckThatNodeExists(nodeId))
-        //            return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
-        //        if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attributeName, out uint attrIndex))
-        //            return OperationResult.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
-        //        if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
-        //            return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attributeName}' in nodeset '{Name}': possibly corrupted.");
-        //        if (attrType != value.Type)
-        //            return OperationResult.Fail("AttributeTypeMismatch", $"The provided data type ({value.Type}) does not match the value type for attribute '{attributeName}': ({attrType})");
-        //        SetNodeAttribute(nodeId, attrIndex, value);
-        //        return OperationResult.Ok();
-                
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        return OperationResult.Fail("NodeAttributeError", $"Error setting node attribute '{attributeName}' for node '{nodeId}' to '{value.ToString()}': {e.Message}");
-        //    }
-        //}
-
-        private void SetNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue attrValue)
-        {
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-            {
-                // Node has no attributes (as it is not stored in _nodesWithAttributes), so first remove it from
-                // the hashset for no attribute nodes, and then add it to the dict and initialize a new tuple with this value
-                _nodesWithoutAttributes.Remove(nodeId);
-                _nodesWithAttributes.Add(nodeId, (new() { attrIndex }, new() { attrValue }));
-                //_nodesWithAttributes.Add(nodeId, (new List<byte> { attrind}, new NodeAttributeValue[] { attrValue }));
-            }
-            else
-            {
-                // The node has attributes: check if it has THIS attribute
-                int index = attributes.AttrIndexes.IndexOf(attrIndex);
-                if (index >=0)
-                    // It has this attribute - so just update it
-                    attributes.AttrValues[index] = attrValue;
-                else
-                {
-                    // It doesn't have it, so add it to the end of both the index list and the values list
-                    attributes.AttrIndexes.Add(attrIndex);
-                    attributes.AttrValues.Add(attrValue);
-                }
-            }
-
-
-            //if (!_nodesWithAttributesOld.TryGetValue(nodeId, out var attrDict))
-            //{
-            //    _nodesWithoutAttributes.Remove(nodeId);
-            //    attrDict = new Dictionary<uint, NodeAttributeValue>();
-            //    _nodesWithAttributesOld.Add(nodeId, attrDict);
-            //}
-            //attrDict[attrIndex] = attrValue;
-        }
-
-
-        /// <summary>
-        /// Clones the internal attribute dictionary for a particular node. If it doesn't have attributes, return null
-        /// </summary>
-        /// <param name="nodeId">Id of the node.</param>
-        /// <returns>Returns a dictionary with byte=>NodeAttributeValues.</byte></returns>
-        //internal Dictionary<uint, NodeAttributeValue>? CloneNodeAttributeDictionary(uint nodeId)
-        //{
-        //    if (_nodesWithAttributesOld.TryGetValue(nodeId, out var attrDict))
-        //        return new Dictionary<uint, NodeAttributeValue>(attrDict);
-        //    return null;
-        //}
-
-        internal (List<byte>, List<NodeAttributeValue>)? CloneNodeAttributeTuple(uint nodeId)
-        {
-            if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-            {
-                return (new List<byte>(attributes.AttrIndexes), new List<NodeAttributeValue>(attributes.AttrValues));
-            }
-            return null;
-        }
-
-        internal (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)? GetNodeAttributes(uint nodeId)
-        {
-            if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return attributes;
-            return null;
-        }
-
-        //internal Dictionary<string, NodeAttributeValue> GetNodeAttributeValues(uint nodeId)
-        //{
-        //    Dictionary<string, NodeAttributeValue> nodeAttributeValues = [];
-        //    if (_nodesWithAttributesOld.TryGetValue(nodeId, out var nodeAttrDict))
-        //    {
-        //        foreach (var nodeAttr in nodeAttrDict)
-        //        {
-        //            if (NodeAttributeDefinitionManager.TryGetAttributeName(nodeAttr.Key, out var attrName))
-        //                nodeAttributeValues.Add(attrName, nodeAttr.Value);
-        //        }
-        //    }
-        //    return nodeAttributeValues;
-        //}
-
-        //internal string[] GetExistingAttributeNamesForNode(uint nodeId)
-        //{
-        //    List<string> existingNodeAttributeNames = [];
-        //    if (_nodesWithAttributesOld.TryGetValue(nodeId, out var attrDict))
-        //    {
-        //        uint[] keys = attrDict.Keys.ToArray();
-        //    }
-                
-
-        //    return existingNodeAttributeNames.ToArray();
-        //}
-
-
-
 
         /// <summary>
         /// Defines and sets node attribute values for multiple nodes based on the provided dictionary of nodeId=>attributeValueStr.
@@ -718,8 +429,153 @@ namespace Threadle.Core.Model
             }
             foreach ((uint nodeId, string attrValueStr) in attrDict)
                 SetNodeAttribute(nodeId, attrName, attrValueStr);
-            Modified();
+            _modified();
             return OperationResult.Ok($"Node attribute '{attrName}' set for {attrDict.Count} nodes in nodeset '{Name}'.");
+        }
+
+        /// <summary>
+        /// Adds a Node to the collection of nodes without attributes.
+        /// No verification is done: to be used with loaders.
+        /// </summary>
+        /// <param name="nodeId">The node id to add.</param>
+        internal void AddNodeWithoutAttribute(uint nodeId)
+        {
+            _nodesWithoutAttributes.Add(nodeId);
+        }
+
+        /// <summary>
+        /// Adds a node with the specified nodeId to this Nodeset. Possible to provide an optional attribute tuple
+        /// where node attribute indices are mapped on <see cref="NodeAttributeValue"/> objects.
+        /// </summary>
+        /// <param name="nodeId">The node id to add.</param>
+        /// <param name="nodeAttributes">A tuple with index and value lists for attributes.</param>
+        internal void AddNode(uint nodeId, (List<byte> attrIndexes, List<NodeAttributeValue> attrValues)? nodeAttributes)
+        {
+            if (nodeAttributes != null)
+                _nodesWithAttributes[nodeId] = (nodeAttributes.Value.attrIndexes, nodeAttributes.Value.attrValues);
+            else
+                _nodesWithoutAttributes.Add(nodeId);
+        }
+
+        /// <summary>
+        /// Adds a Node to the collection of nodes with attributes, though with no attributes yet.
+        /// To be used with loader where it is known that attributes will be added.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        internal void AddNodeWithAttribute(uint nodeId)
+        {
+            _nodesWithAttributes.Add(nodeId, ([], []));
+        }
+
+        /// <summary>
+        /// Checks if the Nodeset contains a node object with the specified id.
+        /// </summary>
+        /// <param name="nodeId">The id of the node that is to be checked.</param>
+        /// <returns>True if the node id exists, false otherwise.</returns>
+        internal bool CheckThatNodeExists(uint nodeId)
+        {
+            return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
+        }
+
+        /// <summary>
+        /// Adds a node attribute directly, without any validation whatsoever.
+        /// Note that this does not check if the attribute index already exists.
+        /// Only to use with loaders where it is assumed that data is already validated.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="attrIndex">The attribute index (as specified in NodeAttributeDefinitionManager).</param>
+        /// <param name="value">The NodeAttributeValue value</param>
+        internal void AddNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue value)
+        {
+            _nodesWithAttributes[nodeId].AttrIndexes.Add(attrIndex);
+            _nodesWithAttributes[nodeId].AttrValues.Add(value);
+        }
+
+        /// <summary>
+        /// Sets a node attribute for a specific node, given the attribute index and attribute value.
+        /// If node lacks attributes, it is moved to the dictionary for attributes and the new attribute is installed.
+        /// If the node has attributes, it first checks if this attribute exists: if so, it overwrites the existing value.
+        /// Otherwise: it adds this as a new attribute.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="attrIndex">The attribute index.</param>
+        /// <param name="attrValue">The <see cref="NodeAttributeValue"/> to set the attribute to.</param>
+        internal void SetNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue attrValue)
+        {
+            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
+            {
+                _nodesWithoutAttributes.Remove(nodeId);
+                _nodesWithAttributes.Add(nodeId, (new() { attrIndex }, new() { attrValue }));
+            }
+            else
+            {
+                int index = attributes.AttrIndexes.IndexOf(attrIndex);
+                if (index >= 0)
+                    attributes.AttrValues[index] = attrValue;
+                else
+                {
+                    attributes.AttrIndexes.Add(attrIndex);
+                    attributes.AttrValues.Add(attrValue);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the specified attribute from a specific node id based on the attribute index.
+        /// Returns null if the node does not have this attribute (or no attributes whatsoever)
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="attrIndex">The attribute index.</param>
+        /// <returns>Returns a <see cref="NodeAttributeValue"/>, or null if attribute is missing.</returns>
+        internal NodeAttributeValue? GetNodeAttribute(uint nodeId, byte attrIndex)
+        {
+            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
+                return null;
+            int index = attributes.AttrIndexes.IndexOf(attrIndex);
+            if (index >= 0)
+                return attributes.AttrValues[index];
+            return null;
+        }
+
+        /// <summary>
+        /// Removes the specified attribute from a node and shifts its lists of attribute indexes and attribute values.
+        /// Returns false if it doesn't have any attributes before or after removal. Returns true if it has attributes
+        /// left after removal.
+        /// </summary>
+        /// <param name="nodeId">The node id</param>
+        /// <param name="attributeIndex">The attribute index</param>
+        /// <returns>Returns true if it still has attributes left, false if it has no attributes before or after removal.</returns>
+        internal bool RemoveNodeAttribute(uint nodeId, byte attributeIndex)
+        {
+            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
+                return false;
+            return _removeAttributeFromTuple(attributes, attributeIndex);
+        }
+
+        /// <summary>
+        /// Clones the attribute tuple for a specific node. Returns null if the node lacks attributes.
+        /// </summary>
+        /// <param name="nodeId">The node id</param>
+        /// <returns>The attribute tuple, or null if missing.</returns>
+        internal (List<byte>, List<NodeAttributeValue>)? CloneNodeAttributeTuple(uint nodeId)
+        {
+            if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
+            {
+                return (new List<byte>(attributes.AttrIndexes), new List<NodeAttributeValue>(attributes.AttrValues));
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Gets the node attribute tuple for a specific node id. Returns null if it lacks attributes.
+        /// </summary>
+        /// <param name="nodeId">The node id</param>
+        /// <returns>The attribute tuple, or null if missing.</returns>
+        internal (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)? GetNodeAttributeTuple(uint nodeId)
+        {
+            if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
+                return attributes;
+            return null;
         }
 
         /// <summary>
@@ -736,6 +592,24 @@ namespace Threadle.Core.Model
                     existing.Add(nodeId);
             return existing.ToArray();
         }
+
+        /// <summary>
+        /// Initialize the capacity of the Hashset storing nodes without attributes
+        /// </summary>
+        /// <param name="nbrNodesWithoutAttributes">Upper range of number of nodes</param>
+        internal void InitSizeNodesWithoutAttributes(int nbrNodesWithoutAttributes)
+        {
+            _nodesWithoutAttributes = new(nbrNodesWithoutAttributes);
+        }
+
+        /// <summary>
+        /// Initialize the capacity of the Díctionary storing nodes wit attributes
+        /// </summary>
+        /// <param name="nbrNodesWithAttributes">Upper range of number of nodes</param>
+        internal void InitSizeNodesWithAttributes(int nbrNodesWithAttributes)
+        {
+            _nodesWithAttributes = new(nbrNodesWithAttributes);
+        }
         #endregion
 
 
@@ -744,7 +618,7 @@ namespace Threadle.Core.Model
         /// Support function for new nodeCache to get all uints
         /// </summary>
         /// <returns></returns>
-        private uint[] GetAllNodeIds()
+        private uint[] _getAllNodeIds()
         {
             int totalNbrNodes = _nodesWithAttributes.Count + _nodesWithoutAttributes.Count;
             uint[] allNodes = new uint[totalNbrNodes];
@@ -758,7 +632,7 @@ namespace Threadle.Core.Model
         /// Methods that flags the Nodeset as being modified since last load/save, also
         /// clearing the _nodeIdCache
         /// </summary>
-        private void Modified()
+        private void _modified()
         {
             IsModified = true;
             _nodeIdCache = null;
@@ -766,25 +640,25 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Initialize the capacity of the Hashset storing nodes without attributes
+        /// Removes the specified attribute from a attribute tuple and shifts .
         /// </summary>
-        /// <param name="nbrNodesWithoutAttributes">Upper range of number of nodes</param>
-        internal void _initSizeWithoutAttributes(int nbrNodesWithoutAttributes)
+        /// <param name="nodeId">The node id</param>
+        /// <param name="attributeIndex">The attribute index</param>
+        /// <returns>Returns true if it still has attributes left, false if all attributes are gone now.</returns>
+        private bool _removeAttributeFromTuple((List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues) attributes, byte attributeIndex)
         {
-            _nodesWithoutAttributes = new(nbrNodesWithoutAttributes);
+            int index = attributes.AttrIndexes.IndexOf(attributeIndex);
+            if (index >= 0)
+            {
+                int lastIndex = attributes.AttrIndexes.Count - 1;
+                attributes.AttrIndexes[index] = attributes.AttrIndexes[lastIndex];
+                attributes.AttrValues[index] = attributes.AttrValues[lastIndex];
+
+                attributes.AttrIndexes.RemoveAt(lastIndex);
+                attributes.AttrValues.RemoveAt(lastIndex);
+            }
+            return (attributes.AttrIndexes.Count > 0);
         }
-
-        /// <summary>
-        /// Initialize the capacity of the Díctionary storing nodes wit attributes
-        /// </summary>
-        /// <param name="nbrNodesWithAttributes">Upper range of number of nodes</param>
-        internal void _initSizeWithAttributes(int nbrNodesWithAttributes)
-        {
-            //_nodesWithAttributesOld = new(nbrNodesWithAttributes);
-            _nodesWithAttributes = new(nbrNodesWithAttributes);
-        }
-
-
         #endregion
     }
 }

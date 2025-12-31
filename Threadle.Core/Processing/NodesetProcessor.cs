@@ -1,10 +1,11 @@
-﻿using Threadle.Core.Model;
-using Threadle.Core.Utilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using Threadle.Core.Model;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Processing
 {
@@ -38,7 +39,12 @@ namespace Threadle.Core.Processing
                 return OperationResult<Nodeset>.Fail("AttributeNotFound", $"Attribute '{attrName}' not found in nodeset '{sourceNodeset.Name}'.");
             if ((attrValue == null || attrValue.Length == 0) && condition != ConditionType.notnull && condition != ConditionType.isnull)
                 return OperationResult<Nodeset>.Fail("AttributeValueNotFound", $"Attribute value must be set for '{condition}' condition.");
-            Nodeset filtered = sourceNodeset.Clone(sourceNodeset.Name + "_filtered", false);
+            //Nodeset filtered = sourceNodeset.Clone(sourceNodeset.Name + "_filtered");
+
+            //Nodeset clone = new Nodeset(newName != null ? newName : Name + "_clone") { NodeAttributeDefinitionManager = NodeAttributeDefinitionManager.Clone() };
+
+            Nodeset filtered = new Nodeset(sourceNodeset.Name + "_clone") { NodeAttributeDefinitionManager = sourceNodeset.NodeAttributeDefinitionManager.Clone() };
+
             foreach (uint nodeId in sourceNodeset.NodeIdArray)
             {
                 var result = sourceNodeset.GetNodeAttribute(nodeId, attrName);
@@ -58,7 +64,7 @@ namespace Threadle.Core.Processing
                     }
                 };
                 if (matches)
-                    filtered._AddNode(nodeId, sourceNodeset.CloneNodeAttributeTuple(nodeId));
+                    filtered.AddNode(nodeId, sourceNodeset.CloneNodeAttributeTuple(nodeId));
             }
             return OperationResult<Nodeset>.Ok(filtered);
         }

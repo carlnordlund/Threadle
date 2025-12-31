@@ -282,7 +282,7 @@ namespace Threadle.Core.Utilities
             int nbrNodesWithoutAttributes = reader.ReadInt32();
 
             // I should prepare size of this hashset now!
-            nodeset._initSizeWithoutAttributes(nbrNodesWithoutAttributes);
+            nodeset.InitSizeNodesWithoutAttributes(nbrNodesWithoutAttributes);
 
             // Iterate through all nodes without attributes
             for (int i=0;  i < nbrNodesWithoutAttributes; i++)
@@ -291,20 +291,20 @@ namespace Threadle.Core.Utilities
                 uint nodeId = reader.ReadUInt32();
 
                 // Add node without any validation checks etc.
-                nodeset._AddNodeWithoutAttribute(nodeId);
+                nodeset.AddNodeWithoutAttribute(nodeId);
             }
 
             // Get nbr of nodes WITH attributes
             int nbrNodesWithAttributes = reader.ReadInt32();
 
-            nodeset._initSizeWithAttributes(nbrNodesWithAttributes);
+            nodeset.InitSizeNodesWithAttributes(nbrNodesWithAttributes);
 
             for (int i = 0; i < nbrNodesWithAttributes; i++)
             {
                 // Read nodeId
                 uint nodeId = reader.ReadUInt32();
                 // Add node without any validation checks etc.
-                nodeset._AddNodeWithAttribute(nodeId);
+                nodeset.AddNodeWithAttribute(nodeId);
 
                 // Get nbr attributes for this node
                 byte nodeAttrCount = reader.ReadByte();
@@ -325,7 +325,7 @@ namespace Threadle.Core.Utilities
 
                     // Set node attribute
                     //nodeset.SetNodeAttribute(nodeId, def.name, value);
-                    nodeset._setNodeAttribute(nodeId, attrIndex, value);
+                    nodeset.AddNodeAttribute(nodeId, attrIndex, value);
 
                     //nodeset.SetNodeAttribute(nodeId, def.name, value.ToString());
                     //nodeset.SetNodeAttribute(nodeId, def.name, value);
@@ -398,7 +398,7 @@ namespace Threadle.Core.Utilities
                 // Get node attributes for this node
                 //Dictionary<string, NodeAttributeValue> nodeAttrValues = nodeset.GetNodeAttributeValues(nodeId);
 
-                var attributes = nodeset.GetNodeAttributes(nodeId)!;
+                var attributes = nodeset.GetNodeAttributeTuple(nodeId)!;
 
 
                 // Nbr of node attributes

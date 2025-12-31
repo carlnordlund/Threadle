@@ -63,9 +63,9 @@ namespace Threadle.Core.Utilities
                         if (!uint.TryParse(span.Slice(0, sepIndex), out node1id) || !uint.TryParse(span.Slice(sepIndex + 1), out node2id))
                             continue;
                         if (!network.Nodeset.CheckThatNodeExists(node1id))
-                            network.Nodeset._AddNodeWithoutAttribute(node1id);
+                            network.Nodeset.AddNodeWithoutAttribute(node1id);
                         if (!network.Nodeset.CheckThatNodeExists(node2id))
-                            network.Nodeset._AddNodeWithoutAttribute(node2id);
+                            network.Nodeset.AddNodeWithoutAttribute(node2id);
                         layerOneMode._addEdge(node1id, node2id);
                     }
                 }
@@ -108,9 +108,9 @@ namespace Threadle.Core.Utilities
                             || !float.TryParse(span[(sepIndex2+1)..], out value))
                             continue;
                         if (!network.Nodeset.CheckThatNodeExists(node1id))
-                            network.Nodeset._AddNodeWithoutAttribute(node1id);
+                            network.Nodeset.AddNodeWithoutAttribute(node1id);
                         if (!network.Nodeset.CheckThatNodeExists(node2id))
-                            network.Nodeset._AddNodeWithoutAttribute(node2id);
+                            network.Nodeset.AddNodeWithoutAttribute(node2id);
                         layerOneMode._addEdge(node1id, node2id, value);
                     }
                 }

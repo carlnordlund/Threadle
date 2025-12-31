@@ -32,14 +32,13 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Network"/> class
-        /// with the specified name and optionally creating the specified number of nodes.
+        /// with the specified name. Also creating a nodeset. Used by TSV loader.
         /// </summary>
         /// <param name="name">The internal name of the network.</param>
-        /// <param name="n">Optional number of nodes to create (defaults to zero).</param>
-        public Network(string name, int n = 0)
+        public Network(string name)
         {
             Name = name;
-            Nodeset = new Nodeset(name + "_nodeset", n);
+            Nodeset = new Nodeset(name + "_nodeset");
         }
         #endregion
 

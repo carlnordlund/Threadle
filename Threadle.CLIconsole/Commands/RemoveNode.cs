@@ -41,19 +41,16 @@ namespace Threadle.CLIconsole.Commands
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
 
-            //Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             OperationResult result = nodeset!.RemoveNode(nodeId);
-            //ConsoleOutput.WriteLines(result.ToString());
             if (!result.Success)
-                return CommandResult.Fail(result.Code, result.Message);
+                return CommandResult.FromOperationResult(result);
 
             List<string> affectedNetworks = [];
             foreach (Network network in context.GetNetworksUsingNodeset(nodeset))
             {
                 network.RemoveNodeEdges(nodeId);
                 affectedNetworks.Add(network.Name);
-                //ConsoleOutput.WriteLines($"Also removing edges involving node '{nodeId}' from network '{network.Name}'.");
             }
 
             return CommandResult.Ok(

@@ -39,8 +39,6 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-
-            //Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             uint index = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("index", "arg1");
             if (!(nodeset!.GetNodeIdByIndex(index) is uint nodeId))
                 return CommandResult.Fail("IndexOutOfRange", $"Node index '{index}' out of range");
