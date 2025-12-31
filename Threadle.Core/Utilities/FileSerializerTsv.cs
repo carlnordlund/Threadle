@@ -332,7 +332,8 @@ namespace Threadle.Core.Utilities
         /// <returns>A Nodeset object.</returns>
         private static Nodeset ReadNodesetFromFile(string filepath, StreamReader reader)
         {
-            var header = reader.ReadLine() ?? throw new InvalidDataException("Missing header line.");
+            var header = reader.ReadLine() ??
+                throw new InvalidDataException("Missing header line.");
             var columns = header.Split('\t');
             var nodeset = new Nodeset { Name = columns[0], Filepath = filepath, IsModified = false };
             int nbrCols = columns.Length;

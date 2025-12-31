@@ -359,15 +359,19 @@ namespace Threadle.Core.Utilities
             // Nbr of node attributes (4)
             writer.Write((byte)attributeDefs.Count);
 
-            Dictionary<string, int> nameToIndex = [];
+            //Dictionary<string, byte> nameToIndex = [];
+            // The "internal" index is the attrIndex, as stored in NodeAttributeDefinitionManager
+            // The "here" is the order in which the attribute is stored here.
+            // So when I later write the attribute index, I will be using the index as presented here.
+            // This means that saving and loading a bin will also compress the indexes
+            Dictionary<byte, byte> internalToHere = [];
 
-            for (int i = 0; i < attributeDefs.Count; i++)
+            for (byte i = 0; i < attributeDefs.Count; i++)
             {
-                // Node attribute name (length + string)
                 WriteString(writer, attributeDefs[i].Name);
-                // Node attribute type (1)
                 writer.Write((byte)attributeDefs[i].Type);
-                nameToIndex[attributeDefs[i].Name] = i;
+                //nameToIndex[attributeDefs[i].Name] = i;
+                internalToHere[attributeDefs[i].Index] = i;
             }
 
             // Get array of nodes without attributes
@@ -392,20 +396,32 @@ namespace Threadle.Core.Utilities
                 writer.Write(nodeId);
 
                 // Get node attributes for this node
-                Dictionary<string, NodeAttributeValue> nodeAttrValues = nodeset.GetNodeAttributeValues(nodeId);
+                //Dictionary<string, NodeAttributeValue> nodeAttrValues = nodeset.GetNodeAttributeValues(nodeId);
+
+                var attributes = nodeset.GetNodeAttributes(nodeId)!;
+
 
                 // Nbr of node attributes
-                writer.Write((byte)nodeAttrValues.Count);
+                //writer.Write((byte)nodeAttrValues.Count);
+                writer.Write((byte)attributes.Value.AttrIndexes.Count);
 
                 // Loop through the node attributes for this node and write
-                foreach (var nodeAttrValue in nodeAttrValues)
+                for (int i = 0; i < attributes.Value.AttrIndexes.Count; i++)
                 {
-                    // Node attribute index (mapping from node attribute name to the index it got above) [4]
-                    writer.Write((byte)nameToIndex[nodeAttrValue.Key]);
+                    // Map from the real internal attrIndex value to the one used here
+                    writer.Write((byte)internalToHere[attributes.Value.AttrIndexes[i]]);
 
-                    //Node attribute value
-                    writer.Write(nodeAttrValue.Value.RawValueAsInt());
+                    // Write out the node attribute value in raw format
+                    writer.Write(attributes.Value.AttrValues[i].RawValueAsInt());
                 }
+                //foreach (var nodeAttrValue in nodeAttrValues)
+                //{
+                //    // Node attribute index (mapping from node attribute name to the index it got above) [4]
+                //    writer.Write((byte)nameToIndex[nodeAttrValue.Key]);
+
+                //    //Node attribute value
+                //    writer.Write(nodeAttrValue.Value.RawValueAsInt());
+                //}
             }
         }
 

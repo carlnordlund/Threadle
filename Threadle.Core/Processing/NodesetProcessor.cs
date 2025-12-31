@@ -58,7 +58,7 @@ namespace Threadle.Core.Processing
                     }
                 };
                 if (matches)
-                    filtered.AddNode(nodeId, sourceNodeset.CloneNodeAttributeDictionary(nodeId));
+                    filtered._AddNode(nodeId, sourceNodeset.CloneNodeAttributeTuple(nodeId));
             }
             return OperationResult<Nodeset>.Ok(filtered);
         }

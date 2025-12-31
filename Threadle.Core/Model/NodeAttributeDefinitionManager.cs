@@ -26,22 +26,22 @@ namespace Threadle.Core.Model
         /// Collection of internal node attribute index numbers for recycling.
         /// Strictly a memory-optimizing feature.
         /// </summary>
-        private readonly Stack<uint> _recycledIndices = new();
+        private readonly Stack<byte> _recycledIndices = new();
 
         /// <summary>
         /// Dictionary to map node attribute names to their indices.
         /// </summary>
-        private readonly Dictionary<string, uint> _nameToIndex = new();
+        private readonly Dictionary<string, byte> _nameToIndex = new();
 
         /// <summary>
         /// Dictionary to map node attribute indices to their names.
         /// </summary>
-        private readonly Dictionary<uint, string> _indexToName = new();
+        private readonly Dictionary<byte, string> _indexToName = new();
 
         /// <summary>
         /// Dictionary to map node attribute indices to their node attribyte types.
         /// </summary>
-        private readonly Dictionary<uint, NodeAttributeType> _indexToType = new();
+        private readonly Dictionary<byte, NodeAttributeType> _indexToType = new();
         #endregion
 
 
@@ -49,12 +49,12 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns the dictionary mapping node attribute indices to node attribute names.
         /// </summary>
-        internal IReadOnlyDictionary<uint, string> IndexToName => _indexToName;
+        internal IReadOnlyDictionary<byte, string> IndexToName => _indexToName;
 
         /// <summary>
         /// Returns the dictionary mapping node attribute indices to node attribute types.
         /// </summary>
-        internal IReadOnlyDictionary<uint, NodeAttributeType> IndexToType => _indexToType;
+        internal IReadOnlyDictionary<byte, NodeAttributeType> IndexToType => _indexToType;
         #endregion
 
 
@@ -65,17 +65,17 @@ namespace Threadle.Core.Model
         /// <param name="attributeName">The name of the node attribute.</param>
         /// <param name="attributeType">The <see cref="NodeAttributeType"/> of the node attribute.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, including the node attribute index if successful.</returns>
-        internal OperationResult<uint> DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
+        internal OperationResult<byte> DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
         {
             if (attributeName.Length < 1)
-                return OperationResult<uint>.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
+                return OperationResult<byte>.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
             if (_nameToIndex.ContainsKey(attributeName))
-                return OperationResult<uint>.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
-            uint index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
+                return OperationResult<byte>.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
+            byte index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
             _nameToIndex[attributeName] = index;
             _indexToType[index] = attributeType;
             _indexToName[index] = attributeName;
-            return OperationResult<uint>.Ok(index, $"Node attribute '{attributeName}' of type {attributeType} defined.");
+            return OperationResult<byte>.Ok(index, $"Node attribute '{attributeName}' of type {attributeType} defined.");
         }
 
         /// <summary>
@@ -84,7 +84,7 @@ namespace Threadle.Core.Model
         /// <param name="name">The name of the node attribute.</param>
         /// <param name="index">The (outbound) index of the attribute.</param>
         /// <returns>Returns true if the node attribute was found, false otherwise.</returns>
-        internal bool TryGetAttributeIndex(string name, out uint index) => _nameToIndex.TryGetValue(name, out index);
+        internal bool TryGetAttributeIndex(string name, out byte index) => _nameToIndex.TryGetValue(name, out index);
 
         /// <summary>
         /// Tries to get the node attribute type of the node attribute at the specified node attribute index.
@@ -92,15 +92,15 @@ namespace Threadle.Core.Model
         /// <param name="index">The node attribute index.</param>
         /// <param name="type">The (outbound) <see cref="NodeAttributeType"/> of the node attribute.</param>
         /// <returns>Returns true if the node attribute was found, false otherwise.</returns>
-        internal bool TryGetAttributeType(uint index, out NodeAttributeType type) => _indexToType.TryGetValue(index, out type);
+        internal bool TryGetAttributeType(byte index, out NodeAttributeType type) => _indexToType.TryGetValue(index, out type);
 
-        internal bool TryGetAttributeName(uint index, out string name) => _indexToName.TryGetValue(index, out name!);
+        internal bool TryGetAttributeName(byte index, out string name) => _indexToName.TryGetValue(index, out name!);
 
         /// <summary>
         /// Returns a collection of tuples of node attribute names and <see cref="NodeAttributeType"/> values for all defined node attributes.
         /// </summary>
         /// <returns></returns>
-        internal IEnumerable<(string Name, NodeAttributeType Type)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Key, _indexToType[kvp.Value]));
+        internal IEnumerable<(byte Index, string Name, NodeAttributeType Type)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Value, kvp.Key, _indexToType[kvp.Value]));
         
         /// <summary>
         /// Returns a (deep) clone of this <see cref="NodeAttributeDefinitionManager"/> object.
@@ -125,15 +125,15 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="attributeName">The name of the node attribute to discard (undefine).</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, including the index of the node attribute that was now removed.</returns>
-        internal OperationResult<uint> UndefineNodeAttribute(string attributeName)
+        internal OperationResult<byte> UndefineNodeAttribute(string attributeName)
         {
-            if (!_nameToIndex.TryGetValue(attributeName, out var attributeIndex))
-                return OperationResult<uint>.Fail("AttributeNotFound", $"Node attribute '{attributeName}' not found.");
+            if (!_nameToIndex.TryGetValue(attributeName, out byte attributeIndex))
+                return OperationResult<byte>.Fail("AttributeNotFound", $"Node attribute '{attributeName}' not found.");
             _nameToIndex.Remove(attributeName);
             _indexToName.Remove(attributeIndex);
             _indexToType.Remove(attributeIndex);
             _recycledIndices.Push(attributeIndex);
-            return OperationResult<uint>.Ok(attributeIndex, $"Node attribute '{attributeName}' is no longer defined.");
+            return OperationResult<byte>.Ok(attributeIndex, $"Node attribute '{attributeName}' is no longer defined.");
         }
 
         /// <summary>
