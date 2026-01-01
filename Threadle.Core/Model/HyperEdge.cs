@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -78,7 +79,7 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Sets the node ids that the hyperedge is connected to (replacing any that it might
-        /// be connected to prior)
+        /// be connected to prior). Assumes that nodeIds does not contain duplicates
         /// </summary>
         /// <param name="nodeIds">List of node ids that the hyperedge should connect.</param>
         internal void SetNodeIds(List<uint> nodeIds)

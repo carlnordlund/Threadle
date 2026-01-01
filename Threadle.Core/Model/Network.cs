@@ -456,7 +456,8 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an hyperedge to the specified 2-mode layer.
+        /// Adds an hyperedge to the specified 2-mode layer. If provided with array of node ids to add to
+        /// this hyperedge, validates that these exist in the Nodeset and that there are no duplicates.
         /// </summary>
         /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> layer.</param>
         /// <param name="hyperName">The (unique) name of the hyperedge.</param>
@@ -479,6 +480,8 @@ namespace Threadle.Core.Model
                     }
                     existingNodeIds.Add(id);
                 }
+                // Filter out any duplicates that might exist in the list.
+                Misc.DeduplicateUintList(existingNodeIds);
                 nodeIds = existingNodeIds.ToArray();
             }
             return layerTwoMode.AddHyperedge(hyperName, nodeIds);

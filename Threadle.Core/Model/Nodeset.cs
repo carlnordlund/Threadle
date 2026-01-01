@@ -60,7 +60,7 @@ namespace Threadle.Core.Model
             NodeAttributeDefinitionManager = new NodeAttributeDefinitionManager();
             if (createNodes > 0)
                 for (uint i = 0; i < createNodes; i++)
-                    AddNodeWithoutAttribute(i);
+                    _addNodeWithoutAttribute(i);
             IsModified = false;
         }
 
@@ -194,15 +194,16 @@ namespace Threadle.Core.Model
 
         #region Methods (public)
         /// <summary>
-        /// Adds a node with the specified nodeid to this Nodeset.
+        /// Adds a node with the specified nodeid to this Nodeset. Checks that it doesn't already exist.
         /// Initially the node has no attributes.
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be added.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddNode(uint nodeId)
         {
-            if (!_nodesWithoutAttributes.Add(nodeId))
+            if (CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeAlreadyExists", $"Node with ID '{nodeId}' already exists in nodeset '{Name}'.");
+            _nodesWithoutAttributes.Add(nodeId);
             _modified();
             return OperationResult.Ok($"Node ID '{nodeId}' added to nodeset '{Name}'.");
         }
@@ -297,28 +298,6 @@ namespace Threadle.Core.Model
             if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, valueStr) is NodeAttributeValue attrValue))
                 return OperationResult.Fail("StringConversionError", $"Could not convert string '{valueStr}' to type '{attrType}'.");
             SetNodeAttribute(nodeId, attrIndex, attrValue);
-
-
-
-            //if (!CheckThatNodeExists(nodeId))
-            //    return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
-            //if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attributeName, out uint attrIndex))
-            //    return OperationResult.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
-            //if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
-            //    return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attributeName}' in nodeset '{Name}': possibly corrupted.");
-            //if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, valueStr) is NodeAttributeValue attrValue))
-            //    return OperationResult.Fail("StringConversionError", $"Could not convert string '{valueStr}' to type '{attrType}'.");
-
-            //SetNodeAttribute(nodeId, attrIndex, attrValue);
-
-            ////if (!_nodesWithAttributesOld.TryGetValue(nodeId, out var attrDict))
-            ////{
-            ////    _nodesWithoutAttributes.Remove(nodeId);
-            ////    attrDict = new Dictionary<uint, NodeAttributeValue>();
-            ////    _nodesWithAttributesOld.Add(nodeId, attrDict);
-            ////}
-            ////attrDict[attrIndex] = attrValue;
-            //_modified();
             return OperationResult.Ok($"Attribute '{attributeName}' for node {nodeId} set to {attrValue}.");
         }
 
@@ -438,7 +417,7 @@ namespace Threadle.Core.Model
         /// No verification is done: to be used with loaders.
         /// </summary>
         /// <param name="nodeId">The node id to add.</param>
-        internal void AddNodeWithoutAttribute(uint nodeId)
+        internal void _addNodeWithoutAttribute(uint nodeId)
         {
             _nodesWithoutAttributes.Add(nodeId);
         }
@@ -449,9 +428,9 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id to add.</param>
         /// <param name="nodeAttributes">A tuple with index and value lists for attributes.</param>
-        internal void AddNode(uint nodeId, (List<byte> attrIndexes, List<NodeAttributeValue> attrValues)? nodeAttributes)
+        internal void _addNodeWithAttributes(uint nodeId, (List<byte> attrIndexes, List<NodeAttributeValue> attrValues)? nodeAttributes)
         {
-            if (nodeAttributes != null)
+            if (nodeAttributes != null && nodeAttributes.Value.attrIndexes.Count > 0)
                 _nodesWithAttributes[nodeId] = (nodeAttributes.Value.attrIndexes, nodeAttributes.Value.attrValues);
             else
                 _nodesWithoutAttributes.Add(nodeId);
@@ -462,7 +441,7 @@ namespace Threadle.Core.Model
         /// To be used with loader where it is known that attributes will be added.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
-        internal void AddNodeWithAttribute(uint nodeId)
+        internal void _addNodeWithAttribute(uint nodeId)
         {
             _nodesWithAttributes.Add(nodeId, ([], []));
         }

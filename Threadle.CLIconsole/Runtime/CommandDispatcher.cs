@@ -78,7 +78,7 @@ namespace Threadle.CLIconsole.Runtime
         //    _commands["addedge"] = new AddEdge();
         //    _commands["addhyper"] = new AddHyper();
         //    _commands["addlayer"] = new AddLayer();
-        //    _commands["addnode"] = new AddNode();
+        //    _commands["addnode"] = new _addNodeWithAttributes();
         //    _commands["checkedge"] = new CheckEdge();
         //    _commands["clearlayer"] = new ClearLayer();
         //    _commands["createnetwork"] = new CreateNetwork();

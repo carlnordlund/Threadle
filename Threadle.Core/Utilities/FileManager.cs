@@ -101,9 +101,9 @@ namespace Threadle.Core.Utilities
                     //case (LayerOneMode layerOneMode, "matrix"):
                     //    LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
                     //    break;
-                    //case (LayerTwoMode layerTwoMode, "edgelist"):
-                    //    LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
-                    //    break;
+                    case (LayerTwoMode layerTwoMode, "edgelist"):
+                        LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
+                        break;
                     //case (LayerTwoMode layerTwoMode, "matrix"):
                     //    LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
                     //    break;

@@ -257,6 +257,11 @@ namespace Threadle.Core.Utilities
             };
         }
 
+        /// <summary>
+        /// Goes through a list and removes duplicates - also sorts it.
+        /// Sorts list, then iterates through, rewriting and skipping duplicates in order
+        /// </summary>
+        /// <param name="list">Ths list with uint to be sorted</param>
         internal static void DeduplicateUintList(List<uint> list)
         {
             if (list.Count < 2)

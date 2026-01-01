@@ -266,9 +266,11 @@ namespace Threadle.Core.Utilities
                         continue;
                     string hyperName = parts[0];
                     if (parts.Length > 1)
-                        layerTwoMode.AddHyperedge(hyperName, Misc.NodesIdsStringToArray(parts[1], '\t'));
+                        layerTwoMode._addHyperedge(hyperName, Misc.NodesIdsStringToArray(parts[1], '\t'));
+                    //layerTwoMode.AddHyperedge(hyperName, Misc.NodesIdsStringToArray(parts[1], '\t'));
                     else
-                        layerTwoMode.AddHyperedge(hyperName, null);
+                        layerTwoMode._addHyperedge(hyperName);
+                        //layerTwoMode.AddHyperedge(hyperName, null);
                 }
             }
             if (currentLayer != null)

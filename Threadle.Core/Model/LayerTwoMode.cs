@@ -83,7 +83,8 @@ namespace Threadle.Core.Model
         #region Methods (public)
         /// <summary>
         /// Removes all Hyperedge references for a nodeId. Also goes through all existing Hyperedge objects
-        /// and removes the references to this node ids. Used when a node is deleted.
+        /// and removes the references to this node ids. Used when a node is deleted and all edges must be
+        /// remove.
         /// </summary>
         /// <param name="nodeId">The node id that is to be removed from Hyperedge references.</param>
         public void RemoveNodeEdges(uint nodeId)
@@ -237,6 +238,31 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Adds a hyperedge with the provided node ids. No validation: assumes that the named hyperedge
+        /// does not exist, that nodeIds are proper etc. Used by FileSerializers
+        /// </summary>
+        /// <param name="hyperName">The name of the hyperedge to create and add</param>
+        /// <param name="nodeIds">An array with node ids to the hyperedge</param>
+        internal void _addHyperedge(string hyperName, uint[] nodeIds)
+        {
+            Hyperedge hyperedge = new Hyperedge(nodeIds);
+            AllHyperEdges[hyperName] = hyperedge;
+            foreach (uint nodeId in nodeIds)
+                AddHyperEdgeToNode(nodeId, hyperedge);
+        }
+
+        /// <summary>
+        /// Adds an empty hyperedge, i.e. a hyperedge with no nodeids (yet) connected to it.
+        /// Assumes that the named hyperedge does not exist. Used by FileSerializers in case an empty
+        /// Hyperedge is provided (which indeed could also be part of a 2-mode network)
+        /// </summary>
+        /// <param name="hyperName"></param>
+        internal void _addHyperedge(string hyperName)
+        {
+            AllHyperEdges[hyperName] = new Hyperedge();
+        }
+
+        /// <summary>
         /// Add an affiliation between a specific node and a hyperedge. If the hyperedge does not exist, it is created
         /// if the addMissingHyperedge setting is true. Adding affiliation both means that the hyperedge gets a reference
         /// to the nodeId, and the HyperedgeCollection belong to that nodeId gets a reference to the hyperedge.
@@ -258,6 +284,23 @@ namespace Threadle.Core.Model
             if (!hyperedge.NodeIds.Contains(nodeId))
                 hyperedge.AddNode(nodeId);
             return OperationResult.Ok($"Node '{nodeId}' affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
+        }
+
+
+        /// <summary>
+        /// Adds an affiliation to a hyperedge. If the hyperedge does not exist, it is created.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="hyperedgeName">The name of the affiliation.</param>
+        internal void _addAffiliation(uint nodeId, string hyperedgeName)
+        {
+            if (!AllHyperEdges.TryGetValue(hyperedgeName, out var hyperedge))
+            {
+                hyperedge = new Hyperedge();
+                AllHyperEdges[hyperedgeName] = hyperedge;
+            }
+            AddHyperEdgeToNode(nodeId, hyperedge);
+            hyperedge.AddNode(nodeId);
         }
 
         /// <summary>

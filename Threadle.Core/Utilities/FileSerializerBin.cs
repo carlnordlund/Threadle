@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -228,12 +229,10 @@ namespace Threadle.Core.Utilities
 
                             for (uint k = 0; k < nbrAlters; k++)
                             {
+                                // Read both the partner node id and the float value and put into the List of tuples
                                 nodeIdsAlters.Add((reader.ReadUInt32(), reader.ReadSingle()));
-                                //nodeIdsAlters[k]=reader.ReadUInt32();
-                                ////uint nodeIdAlter = reader.ReadUInt32();
-                                //float edgeValue = reader.ReadSingle();
-                                //layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter, edgeValue);
                             }
+                            // Add all valued edges connected with the ego
                             layerOneMode._addValuedEdges(nodeIdEgo, nodeIdsAlters);
                         }
                     }
@@ -264,9 +263,7 @@ namespace Threadle.Core.Utilities
                             nodeIds[k] = reader.ReadUInt32();
 
                         // Create and add hyperedge to this layer
-
-                        // Replace with faster method for creating hyperedge (that bypasses validation; we can assume files are ok)
-                        layerTwoMode.AddHyperedge(hyperedgeName, nodeIds);
+                        layerTwoMode._addHyperedge(hyperedgeName, nodeIds);
                     }
                 }
                 else
@@ -336,23 +333,26 @@ namespace Threadle.Core.Utilities
                 uint nodeId = reader.ReadUInt32();
 
                 // Add node without any validation checks etc.
-                nodeset.AddNodeWithoutAttribute(nodeId);
+                nodeset._addNodeWithoutAttribute(nodeId);
             }
 
             // Get nbr of nodes WITH attributes
             int nbrNodesWithAttributes = reader.ReadInt32();
 
+            // Prepare capacity of collection of nodes with attributes
             nodeset.InitSizeNodesWithAttributes(nbrNodesWithAttributes);
 
             for (int i = 0; i < nbrNodesWithAttributes; i++)
             {
                 // Read nodeId
                 uint nodeId = reader.ReadUInt32();
-                // Add node without any validation checks etc.
-                nodeset.AddNodeWithAttribute(nodeId);
 
                 // Get nbr attributes for this node
                 byte nodeAttrCount = reader.ReadByte();
+
+                // Prepare storage for these node attributes
+                List<byte> attrIndexes =new(nodeAttrCount);
+                List<NodeAttributeValue> attrValues = new(nodeAttrCount);
 
                 // Loop through the attributes of this node
                 for (int a = 0; a < nodeAttrCount; a++)
@@ -367,14 +367,13 @@ namespace Threadle.Core.Utilities
                     //NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, def.type);
                     NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, attrDefs[attrIndex]);
 
-
-                    // Set node attribute
-                    //nodeset.SetNodeAttribute(nodeId, def.name, value);
-                    nodeset.AddNodeAttribute(nodeId, attrIndex, value);
-
-                    //nodeset.SetNodeAttribute(nodeId, def.name, value.ToString());
-                    //nodeset.SetNodeAttribute(nodeId, def.name, value);
+                    // Build up the attribute storage
+                    attrIndexes.Add(attrIndex);
+                    attrValues.Add(value);
                 }
+
+                // Add this node along with the attribute storage (tuple)
+                nodeset._addNodeWithAttributes(nodeId, (attrIndexes, attrValues));
             }
             nodeset.Filepath = filepath;
             nodeset.IsModified = false;
@@ -447,7 +446,6 @@ namespace Threadle.Core.Utilities
 
 
                 // Nbr of node attributes
-                //writer.Write((byte)nodeAttrValues.Count);
                 writer.Write((byte)attributes.Value.AttrIndexes.Count);
 
                 // Loop through the node attributes for this node and write
@@ -459,17 +457,14 @@ namespace Threadle.Core.Utilities
                     // Write out the node attribute value in raw format
                     writer.Write(attributes.Value.AttrValues[i].RawValueAsInt());
                 }
-                //foreach (var nodeAttrValue in nodeAttrValues)
-                //{
-                //    // Node attribute index (mapping from node attribute name to the index it got above) [4]
-                //    writer.Write((byte)nameToIndex[nodeAttrValue.Key]);
-
-                //    //Node attribute value
-                //    writer.Write(nodeAttrValue.Value.RawValueAsInt());
-                //}
             }
         }
 
+        /// <summary>
+        /// Support method to write a network to file
+        /// </summary>
+        /// <param name="network">The Network to write</param>
+        /// <param name="writer">The binary writer to write to</param>
         private static void WriteNetworkToFile(Network network, BinaryWriter writer)
         {
             // MagicNodeset bytes (4)
@@ -496,7 +491,6 @@ namespace Threadle.Core.Utilities
                 if (layer.Value is LayerOneMode layerOneMode)
                 {
                     // LAYER IS 1-MODE
-                    ///////////
 
                     // Write mode (1)
                     writer.Write((byte)1);
@@ -596,7 +590,13 @@ namespace Threadle.Core.Utilities
             }
         }
 
-
+        /// <summary>
+        /// Support method for writing a string to the binary writer.
+        /// First byte is length of string, remaining bytes are the actual
+        /// string
+        /// </summary>
+        /// <param name="writer">The binarywriter to write to</param>
+        /// <param name="value">The string to write</param>
         private static void WriteString(BinaryWriter writer, string? value)
         {
             if (value == null)
@@ -610,6 +610,12 @@ namespace Threadle.Core.Utilities
             writer.Write(bytes);
         }
 
+        /// <summary>
+        /// Support method for reading a string from the binary reader.
+        /// First byte is length of string, remaining bytes are the actual string.
+        /// </summary>
+        /// <param name="reader">The binary reader to read from.</param>
+        /// <returns>The ASCII string.</returns>
         private static string ReadString(BinaryReader reader)
         {
             byte len = reader.ReadByte();
@@ -618,6 +624,7 @@ namespace Threadle.Core.Utilities
             byte[] bytes = reader.ReadBytes(len);
             return Encoding.ASCII.GetString(bytes);
         }
+        #endregion
 
     }
 }

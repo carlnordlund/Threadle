@@ -63,9 +63,9 @@ namespace Threadle.Core.Utilities
                         if (!uint.TryParse(span.Slice(0, sepIndex), out node1id) || !uint.TryParse(span.Slice(sepIndex + 1), out node2id))
                             continue;
                         if (!network.Nodeset.CheckThatNodeExists(node1id))
-                            network.Nodeset.AddNodeWithoutAttribute(node1id);
+                            network.Nodeset._addNodeWithoutAttribute(node1id);
                         if (!network.Nodeset.CheckThatNodeExists(node2id))
-                            network.Nodeset.AddNodeWithoutAttribute(node2id);
+                            network.Nodeset._addNodeWithoutAttribute(node2id);
                         layerOneMode._addEdge(node1id, node2id);
                     }
                 }
@@ -108,9 +108,9 @@ namespace Threadle.Core.Utilities
                             || !float.TryParse(span[(sepIndex2+1)..], out value))
                             continue;
                         if (!network.Nodeset.CheckThatNodeExists(node1id))
-                            network.Nodeset.AddNodeWithoutAttribute(node1id);
+                            network.Nodeset._addNodeWithoutAttribute(node1id);
                         if (!network.Nodeset.CheckThatNodeExists(node2id))
-                            network.Nodeset.AddNodeWithoutAttribute(node2id);
+                            network.Nodeset._addNodeWithoutAttribute(node2id);
                         layerOneMode._addEdge(node1id, node2id, value);
                     }
                 }
@@ -213,35 +213,53 @@ namespace Threadle.Core.Utilities
         /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
         /// <returns>An <see cref="OperationResult"/> indicating the success or failure of the import operation.  If the
         /// operation fails, the result contains an error code and message describing the issue.</returns>
-        internal static OperationResult ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, string separator, bool addMissingNodes)
+        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, char separator, bool addMissingNodes)
         {
-            try
+            if (!File.Exists(filepath))
+                throw new FileNotFoundException($"File not found: {filepath}");
+            using var reader = new StreamReader(filepath);
+            string? line;
+            int lineNumber = 0;
+            uint nodeId;
+            string hyperedgeName;
+            // Distinguish between whether unknown nodes should be added or ignored: to speed up loading
+            if (addMissingNodes)
             {
-                string[,] cells = ReadCells(filepath, separator);
-                if (cells.GetLength(1) != 2)
-                    return OperationResult.Fail("FileFormatError", $"Edgelist must have two columns (separated by '{separator}').");
-                uint nodeid;
-                string affcode;
-                Dictionary<string, List<uint>> affiliations = [];
-                for (int r = 0; r < cells.GetLength(0); r++)
+                while ((line = reader.ReadLine()) != null)
                 {
-                    if (!uint.TryParse(cells[r, 0], out nodeid))
+                    lineNumber++;
+                    ReadOnlySpan<char> span = line.AsSpan();
+                    int sepIndex = span.IndexOf(separator);
+                    if (sepIndex < 0)
+                        throw new Exception($"Invalid column count at line {lineNumber}");
+                    if (!uint.TryParse(span.Slice(0, sepIndex), out nodeId))
                         continue;
-                    affcode = cells[r, 1];
-                    if (affcode.Length == 0 || affcode == string.Empty)
+                    hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
+                    if (hyperedgeName.Length < 1)
                         continue;
-                    if (affiliations.ContainsKey(affcode))
-                        affiliations[affcode].Add(nodeid);
-                    else
-                        affiliations.Add(affcode, new List<uint>() { nodeid });
+                    if (!network.Nodeset.CheckThatNodeExists(nodeId))
+                        network.Nodeset._addNodeWithoutAttribute(nodeId);
+                    layerTwoMode._addAffiliation(nodeId, hyperedgeName);
                 }
-                foreach ((string hypername, List<uint> nodeids) in affiliations)
-                    network.AddHyperedge(layerTwoMode, hypername, nodeids.ToArray(), addMissingNodes);
-                return OperationResult.Ok();
             }
-            catch (Exception e)
+            else
             {
-                return OperationResult.Fail("UnexpectedImportError", e.Message);
+                while ((line = reader.ReadLine()) != null)
+                {
+                    lineNumber++;
+                    ReadOnlySpan<char> span = line.AsSpan();
+                    int sepIndex = span.IndexOf(separator);
+                    if (sepIndex < 0)
+                        throw new Exception($"Invalid column count at line {lineNumber}");
+                    if (!uint.TryParse(span.Slice(0, sepIndex), out nodeId))
+                        continue;
+                    if (!network.Nodeset.CheckThatNodeExists(nodeId))
+                        continue;
+                    hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
+                    if (hyperedgeName.Length < 1)
+                        continue;
+                    layerTwoMode._addAffiliation(nodeId, hyperedgeName);
+                }
             }
         }
 
