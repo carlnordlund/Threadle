@@ -11,6 +11,12 @@ namespace Threadle.Core.Model
     /// </summary>
     public interface IEdgesetBinary : IEdgeset
     {
-        List<uint> GetNodelistAlterUints(uint nodeId);
+        /// <summary>
+        /// Gets a list of all partner node ids. For symmetric edgesets, edges should only be stored once
+        /// so I pass along egoNodeId to make sure I only get partner node ids that are larger than ego node id
+        /// </summary>
+        /// <param name="egoNodeId">The node id of ego</param>
+        /// <returns>A List of partner node ids.</returns>
+        List<uint> GetNodelistAlterUints(uint egoNodeId);
     }
 }

@@ -11,7 +11,12 @@ using System.Threading.Tasks;
 namespace Threadle.Core.Utilities
 {
     /// <summary>
-    /// Class for loading/saving structures in Tab-separated values (TSV) format
+    /// Class for loading/saving structures in Tab-separated values (TSV) format.
+    /// These readers use more verbose/responsive methods than the binaryreader: as this is human-readable
+    /// files, it is more likely that a human would be in there messing things up compared to binary files.
+    /// Thus, it is better to use the methods that return OperationResult objects, for possible bug-checking.
+    /// Also: as TSV files preferably are for smaller networks, the extra time incurred by these validating methods
+    /// for adding nodes, edges etc. are called less compared to the presumedly larger binary files.
     /// </summary>
     internal static class FileSerializerTsv
     {
@@ -25,29 +30,30 @@ namespace Threadle.Core.Utilities
 
         #region Methods (internal)
         /// <summary>
-        /// Method for loading a nodeset from file (TSV format).
+        /// Method for loading a nodeset from file (TSV format), potentially attaching a gzip
+        /// decompressor (see <see cref="WrapIfCompressed(Stream, string, FileFormat, CompressionMode)"/>).
         /// Could throw exceptions that must be caught.
         /// </summary>
         /// <param name="filepath">The filepath to the file.</param>
-        /// <returns>A Nodeset object.</returns>
+        /// <param name="format">The <see cref="FileFormat"/> of the file</param>
+        /// <returns>A <see cref="Nodeset"/> object.</returns>
         internal static Nodeset LoadNodesetFromFile(string filepath, FileFormat format)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new StreamReader(buffered, Utf8NoBom);
-
-            // Purpose of passing filepath: to set the Filepath property for the nodeset
-            Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
-            return nodeset;
+            return ReadNodesetFromFile(filepath, reader);
         }
 
         /// <summary>
-        /// Method for saving a nodeset to file (TSV format).
+        /// Method for saving a nodeset to file (TSV format), potentially attaching a gzip compressor
+        /// (see <see cref="WrapIfCompressed(Stream, string, FileFormat, CompressionMode)"/>).
         /// Could throw exceptions that must be caught.
         /// </summary>
         /// <param name="nodeset">The Nodeset to save to file.</param>
         /// <param name="filepath">The filepath to save to.</param>
+        /// <param name="format">The <see cref="FileFormat"/> of the file</param>
         internal static void SaveNodesetToFile(Nodeset nodeset, string filepath, FileFormat format)
         {
             using var fileStream = File.Create(filepath);
@@ -61,6 +67,7 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Method for loading a Network from file (TSV format). Could possibly also
         /// load a Nodeset object if that is specified in the file.
+        /// Always attaches a buffered reader with the size 1 MB (1<<20).
         /// Could throw exceptions that must be caught.
         /// </summary>
         /// <param name="filepath">The filepath to the file.</param>
@@ -71,7 +78,6 @@ namespace Threadle.Core.Utilities
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new StreamReader(buffered, Utf8NoBom);
-
             return ReadNetworkFromFile(filepath, reader);
         }
 
@@ -87,7 +93,6 @@ namespace Threadle.Core.Utilities
             using var fileStream = File.Create(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
             using var writer = new StreamWriter(stream, Utf8NoBom);
-
             WriteNetworkToFile(network, writer, network.Nodeset.Filepath);
             network.Filepath = filepath;
             network.IsModified = false;
@@ -107,10 +112,6 @@ namespace Threadle.Core.Utilities
         private static Stream WrapIfCompressed(Stream stream, string filepath, FileFormat format, CompressionMode mode)
         {
             return format == FileFormat.TsvGzip ? new GZipStream(stream, mode) : stream;
-
-            //return filepath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-            //    ? new GZipStream(stream, mode)
-            //    : stream;
         }
 
         /// <summary>
@@ -123,7 +124,6 @@ namespace Threadle.Core.Utilities
         {
             writer.WriteLine("# Network Metadata");
             writer.WriteLine($"Name: {network.Name}");
-            //if (!string.IsNullOrEmpty(nodesetFileReference))
                 
             writer.WriteLine($"NodesetFile: {network.Nodeset.Filepath}");
             var sb = new StringBuilder();
@@ -325,7 +325,7 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Support method to read a Nodeset object from file.
+        /// Support method to read a Nodeset object from file in the TSV format.
         /// </summary>
         /// <param name="filepath">Filepath to the file.</param>
         /// <param name="reader">The StreamReader object</param>
@@ -347,10 +347,8 @@ namespace Threadle.Core.Utilities
             }
             string? line;
 
-            //while (!reader.EndOfStream)
             while ((line = reader.ReadLine()) != null)
             {
-                //var line = reader.ReadLine();
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
                 var parts = line.Split('\t');

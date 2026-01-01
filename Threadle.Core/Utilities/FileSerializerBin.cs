@@ -9,41 +9,59 @@ using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Utilities
 {
+    /// <summary>
+    /// Class for loading/saving structures in Threadle's binary formats.
+    /// These readers use less verbose and more direct methods for adding edges etc. As the binary files are
+    /// not human-readable, it is less likely that a human would be in there messing things up compared to
+    /// tsv files. Therefore, it is assumed here that all data in the binary files is correct and does not need
+    /// validation.
+    /// </summary>
+
     internal static class FileSerializerBin
     {
-
+        #region Fields
+        /// <summary>
+        /// Magic bytes for Threadle's binary files for Nodesets vs Networks.
+        /// </summary>
         private static readonly string MagicNodeset = "TNDS";
         private static readonly string MagicNetwork = "TNTW";
+
+        /// <summary>
+        /// Future-looking: if we ever were to change the file format later on, this is format version 1.
+        /// Then additional readers can be implemented for would-be future format versions.
+        /// </summary>
         private const byte FormatVersion = 1;
+        #endregion
 
 
-        
+        #region Methods (internal)
         /// <summary>
         /// Method for loading a nodeset from file (binary format).
-        /// If the file format is not <see cref="FileFormat.BinGzip"/>, it is assumed to be
-        /// <see cref="FileFormat.Bin"/>.
+        /// Always attached a buffered reader, set to 1 MB. If the FileFormat is BinGzip,
+        /// the <see cref="WrapIfCompressed(Stream, string, FileFormat, CompressionMode)"/> attaches
+        /// a Gzip decompressor.
         /// Could throw exceptions that has to be caught.
         /// </summary>
         /// <param name="filepath">The file to load the Nodeset from.</param>
         /// <param name="format">The <see cref="FileFormat"/> to use.</param>
-        /// <returns></returns>
+        /// <returns>A <see cref="Nodeset"/> object.</returns>
         internal static Nodeset LoadNodesetFromFile(string filepath, FileFormat format)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new BinaryReader(buffered);
-            Nodeset nodeset = ReadNodesetFromFile(filepath, reader);
-            return nodeset;
+            return ReadNodesetFromFile(filepath, reader);
         }
 
-
         /// <summary>
-        /// Method for saving a nodeset to file (binary format).
+        /// Method for saving a nodeset to binary file (binary format). If format is <see cref="FileFormat.BinGzip"/>,
+        /// a gzip decompressor is attaced.
         /// Could throw exceptions that must be caught.
         /// </summary>
         /// <param name="nodeset">The Nodeset to save to file.</param>
         /// <param name="filepath">The filepath to save to.</param>
+        /// <param name="format">The <see cref="FileFormat"/> to use.</param>
         internal static void SaveNodesetToFile(Nodeset nodeset, string filepath, FileFormat format)
         {
             using var fileStream = File.Create(filepath);
@@ -54,16 +72,34 @@ namespace Threadle.Core.Utilities
             nodeset.IsModified = false;
         }
 
+        /// <summary>
+        /// Method for loading a Network from file (binary format). Will also load the Nodeset that this
+        /// network relates to.
+        /// Always attached a buffered reader, set to 1 MB. If the FileFormat is BinGzip,
+        /// the <see cref="WrapIfCompressed(Stream, string, FileFormat, CompressionMode)"/> attaches
+        /// a Gzip decompressor.
+        /// Could throw exceptions that has to be caught.
+        /// </summary>
+        /// <param name="filepath">The file to load the Nodeset from.</param>
+        /// <param name="format">The <see cref="FileFormat"/> to use.</param>
+        /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset objects.</returns>
         internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new BinaryReader(buffered);
-
             return ReadNetworkFromFile(filepath, reader);
         }
 
+        /// <summary>
+        /// Method for saving a Network to binary file (binary format). If format is <see cref="FileFormat.BinGzip"/>,
+        /// a gzip compressor is attaced. If the related Nodeset is modified, that will also be saved.
+        /// Could throw exceptions that must be caught.
+        /// </summary>
+        /// <param name="nodeset">The Nodeset to save to file.</param>
+        /// <param name="filepath">The filepath to save to.</param>
+        /// <param name="format">The <see cref="FileFormat"/> to use.</param>
         internal static void SaveNetworkToFile(Network network, string filepath, FileFormat format)
         {
             using var fileStream = File.Create(filepath);
@@ -73,16 +109,19 @@ namespace Threadle.Core.Utilities
             network.Filepath = filepath;
             network.IsModified = false;
         }
+        #endregion
 
 
-
-
+        #region Methods (private)
         /// <summary>
         /// Support method to potentially attach a GZipStream around the existing stream.
-        /// Checks the filepath: if it ends with .gz, then the GZip is attached.
+        /// If the provided format is <see cref="FileFormat.BinGzip"/>, it attaches a Gzip
+        /// compressor/decompressor as stated by the <see cref="CompressionMode"/>. Any other fileformat
+        /// will return the standard stream.
         /// </summary>
         /// <param name="stream">The file stream.</param>
         /// <param name="filepath">The filepath.</param>
+        /// <param name="format">The <see cref="FileFormat"/>.</param>
         /// <param name="mode">The used CompressionMode</param>
         /// <returns>The original stream or the GZip stream.</returns>
         private static Stream WrapIfCompressed(Stream stream, string filepath, FileFormat format, CompressionMode mode)
@@ -90,9 +129,16 @@ namespace Threadle.Core.Utilities
             return format == FileFormat.BinGzip ? new GZipStream(stream, mode) : stream;
         }
 
+        /// <summary>
+        /// Internal method to read a Network (and its Nodeset) from a binary file. Note that the Nodeset is alays loaded.
+        /// Will throw exceptions that must be caught.
+        /// </summary>
+        /// <param name="filepath">The filepath to the binary file (only used to set the <see cref="Network.Filepath"/> property).</param>
+        /// <param name="reader">The binary reader to read from.</param>
+        /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset.</returns>
+        /// <exception cref="InvalidDataException">Thrown if the binary file isn't a Threadle Network file or if it is the wrong version.</exception>
         private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader)
-        {
-            
+        {            
             // Check magic bytes - should be the MagicNetwork characters (TNTW)
             var magicBytes = reader.ReadBytes(4);
             string magic = Encoding.ASCII.GetString(magicBytes);
@@ -145,7 +191,6 @@ namespace Threadle.Core.Utilities
                     // Initialize the capacity of the Edgeset dictionary
                     layerOneMode._initSizeEdgesetDictionary(nbrEdgesets);
 
-
                     if (layerOneMode.IsBinary)
                     {
                         // Looping for binary nodelist rows
@@ -163,8 +208,6 @@ namespace Threadle.Core.Utilities
                             for (uint k = 0; k < nbrAlters; k++)
                             {
                                 nodeIdsAlters[k] = reader.ReadUInt32();
-                                //uint nodeIdAlter = reader.ReadUInt32();
-                                //layerOneMode.AddEdge(nodeIdEgo, nodeIdAlter);
                             }
                             layerOneMode._addBinaryEdges(nodeIdEgo, nodeIdsAlters);
                         }
@@ -221,6 +264,8 @@ namespace Threadle.Core.Utilities
                             nodeIds[k] = reader.ReadUInt32();
 
                         // Create and add hyperedge to this layer
+
+                        // Replace with faster method for creating hyperedge (that bypasses validation; we can assume files are ok)
                         layerTwoMode.AddHyperedge(hyperedgeName, nodeIds);
                     }
                 }
@@ -481,16 +526,16 @@ namespace Threadle.Core.Utilities
                                 // Write ego node id
                                 writer.Write(nodeId);
 
-                                // Get outbound (upper triangle for symmetric data)
-                                IReadOnlyList<Connection> outbound = edgesetValued.GetNodelistAlterConnections(nodeId);
+                                // Get partnerNodeIds (upper triangle for symmetric data)
+                                IReadOnlyList<Connection> partnerConnections = edgesetValued.GetNodelistAlterConnections(nodeId);
 
-                                // Note: need to include all nodeId even for those with empty outbound: this is because it has to fit nbrEdgesets above
+                                // Note: need to include all nodeId even for those with empty partnerNodeIds: this is because it has to fit nbrEdgesets above
 
                                 // Write nbr of alters this node id has
-                                writer.Write(outbound.Count);
+                                writer.Write(partnerConnections.Count);
 
                                 // Iterate through alters and write partnerNodeId and float value
-                                foreach (Connection conn in outbound)
+                                foreach (Connection conn in partnerConnections)
                                 {
                                     // Writes the partner node id
                                     writer.Write(conn.partnerNodeId);
@@ -511,13 +556,15 @@ namespace Threadle.Core.Utilities
                                 // Ego node id
                                 writer.Write(nodeId);
 
-                                List<uint> outbound = edgesetBinary.GetNodelistAlterUints(nodeId);
+                                // Get List of alter nodeids. As symmetric should only be stored once, pass along the
+                                // current nodeId to only get alter node ids that are larger than the ego nodeid
+                                List<uint> partnerNodeIds = edgesetBinary.GetNodelistAlterUints(nodeId);
 
                                 // Write nbr of alters this node id has
-                                writer.Write(outbound.Count);
+                                writer.Write(partnerNodeIds.Count);
 
                                 // Iterate through alters and write partnerNodeId
-                                foreach (uint partnerNodeId in outbound)
+                                foreach (uint partnerNodeId in partnerNodeIds)
                                     writer.Write(partnerNodeId);
                             }
                         }

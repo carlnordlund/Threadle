@@ -19,7 +19,7 @@ namespace Threadle.Core.Model
     {
         #region Fields
         /// <summary>
-        /// The collection of Edgesets associated by unique node id.
+        /// The collection of Edgesets associated by unique node nodeIdAlter.
         /// </summary>
         private Dictionary<uint, IEdgeset> _edgesets = [];
 
@@ -125,7 +125,7 @@ namespace Threadle.Core.Model
         };
 
         /// <summary>
-        /// Returns the dictionary of Edgeset objects by node id.
+        /// Returns the dictionary of Edgeset objects by node nodeIdAlter.
         /// </summary>
         public Dictionary<uint, IEdgeset> Edgesets => _edgesets;
         #endregion
@@ -133,10 +133,10 @@ namespace Threadle.Core.Model
 
         #region Methods (public)
         /// <summary>
-        /// Removes any edge in the Edgeset that includes this node id.
+        /// Removes any edge in the Edgeset that includes this node nodeIdAlter.
         /// Used for cleaning up relational layers for invalid edges after a node has been removed.
         /// </summary>
-        /// <param name="nodeId">The node id whose edges are to be removed.</param>
+        /// <param name="nodeId">The node nodeIdAlter whose edges are to be removed.</param>
         public void RemoveNodeEdges(uint nodeId)
         {
             Edgesets.Remove(nodeId);
@@ -147,8 +147,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Gets the edge value between node1id and node2id if this exists (from node1id to node2id for directed layers).
         /// </summary>
-        /// <param name="node1id">The first (source) node id.</param>
-        /// <param name="node2id">The second (destination) node id.</param>
+        /// <param name="node1id">The first (source) node nodeIdAlter.</param>
+        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
         /// <returns>The value of the edge if it exists, otherwise zero.</returns>
         public float GetEdgeValue(uint node1id, uint node2id)
         {
@@ -160,8 +160,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Checks if an edge exists between node1id and node2id (from node1id to node2id for directed layers).
         /// </summary>
-        /// <param name="node1id">The first (source) node id.</param>
-        /// <param name="node2id">The second (destination) node id.</param>
+        /// <param name="node1id">The first (source) node nodeIdAlter.</param>
+        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
         /// <returns>Returns true if there is an edge, false otherwise.</returns>
         public bool CheckEdgeExists(uint node1id, uint node2id)
         {
@@ -171,7 +171,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Returns an array of node ids in the edgeset for a particular node id, i.e. the set of alters.
+        /// Returns an array of node ids in the edgeset for a particular node nodeIdAlter, i.e. the set of alters.
         /// For directional data, this could either be outbound, inbound, or both, as dictated by
         /// the <paramref name="edgeTraversal"/> parameter.
         /// </summary>
@@ -206,10 +206,13 @@ namespace Threadle.Core.Model
             return ids;
         }
 
+
         /// <summary>
-        /// Create a new empty copy of this ILayer
+        /// Create a filtered copy of this Layer that only keeps edges whose nodes are present in
+        /// the provided Nodeset.
         /// </summary>
-        /// <returns>A copy of the current <see cref="ILayer"/> object.</returns>
+        /// <param name="nodeset">The Nodeset whose nodes to include</param>
+        /// <returns>A copy of this Layer keeping the nodes that are in the Nodeset.</returns>
         public ILayer CreateFilteredCopy(Nodeset nodeset)
         {
             HashSet<uint> nodeIds = [.. nodeset.NodeIdArray];
@@ -253,8 +256,8 @@ namespace Threadle.Core.Model
         /// If Directional and UserSetting is set to only add outbound edges, no inbound edge is stored at the destination node.
         /// Returns an OperationResult informing how it all went.
         /// </summary>
-        /// <param name="node1id">The first (source) bode id.</param>
-        /// <param name="node2id">The second (destination) node id.</param>
+        /// <param name="node1id">The first (source) bode nodeIdAlter.</param>
+        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
         /// <param name="value">The value of the edge (defaults to 1; moot for binary layers).</param>
         /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
         internal OperationResult AddEdge(uint node1id, uint node2id, float value = 1)
@@ -271,66 +274,86 @@ namespace Threadle.Core.Model
             return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} (value={value}) in layer '{Name}'.");
         }
 
-        internal void _addBinaryEdge(uint node1id, uint node2id)
-        {
-            IEdgeset edgeset1 = GetOrCreateEdgeset(node1id);
-            IEdgeset edgeset2 = GetOrCreateEdgeset(node2id);
-            edgeset1._addOutboundEdge(node2id, 1);
-            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
-                edgeset2._addInboundEdge(node1id, 1);
-        }
-
+        /// <summary>
+        /// Add edges between an ego node and array of alter nodes without any validation.
+        /// Used by binary reader.
+        /// Note that it is quite cleverly constructed: read extensive comments.
+        /// </summary>
+        /// <param name="nodeIdEgo">The id of ego node.</param>
+        /// <param name="nodeIdsAlters">Array of id to alter nodes that ego is connected to.</param>
         internal void _addBinaryEdges(uint nodeIdEgo, uint[] nodeIdsAlters)
         {
-            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo, nodeIdsAlters.Length);
+            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
             {
-                for (int i = 0; i < nodeIdsAlters.Length; i++)
+                // So two reasons to be here:
+                // Layer is symmetric: we should then add references to the other node in both nodes. As it is
+                // symmetric, it doesn't matter if we use _addOutbound... or _addInbound...: both will add partnerNodeId
+                // to the undirectional _connection.
+                // If it is NOT symmetric, we are here because it is directional (not symmetric) and the UserSetting to
+                // only store outbound directional edges is turned off (False). So it is now directional, and we should
+                // add an outgoing edge from ego to alter, and an ingoing edge to alter from ego.
+                // Which we do with the same methods as we used for the symmetric case, but this time they do differ!
+                foreach (uint nodeIdAlter in nodeIdsAlters)
                 {
-                    edgeSetEgo._addOutboundEdge(nodeIdsAlters[i], 1);
-                    GetOrCreateEdgeset(nodeIdsAlters[i], nodeIdsAlters.Length)._addInboundEdge(nodeIdEgo, 1);
+                    edgeSetEgo._addOutboundEdge(nodeIdAlter, 1);
+                    GetOrCreateEdgeset(nodeIdAlter)._addInboundEdge(nodeIdEgo, 1);
                 }
             }
             else
             {
+                // So we are here because the layer is directional and UserSetting to only store outbound is turned on (true)
+                // I.e. neither symmetric or not only-outbound triggered above. This means: directional, and only store outbound
+                // ties. Which we do:
                 foreach (uint idAlter in nodeIdsAlters)
                     edgeSetEgo._addOutboundEdge(idAlter, 1);
             }
         }
 
+        /// <summary>
+        /// Add an edge between two nodes - by default a binary value but can be specified.
+        /// Always add an outbound from node1 to node2. Add an inbound to node2 from node1
+        /// as long as we don't have OnlyOutboundEdges activated - or if it is symmetric
+        /// </summary>
+        /// <param name="node1id">The first node id.</param>
+        /// <param name="node2id">The second node id.</param>
+        /// <param name="value">The value of the edge (defaults to 1)</param>
         internal void _addEdge(uint node1id, uint node2id, float value = 1)
         {
-            IEdgeset edgeset1 = GetOrCreateEdgeset(node1id);
-            IEdgeset edgeset2 = GetOrCreateEdgeset(node2id);
-            edgeset1._addOutboundEdge(node2id, value);
+            GetOrCreateEdgeset(node1id)._addOutboundEdge(node2id, value);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
-                edgeset2._addInboundEdge(node1id, value);
+                GetOrCreateEdgeset(node2id)._addInboundEdge(node1id, value);
         }
 
+        /// <summary>
+        /// Add valued edges between an ego node and alter nodes without any validation.
+        /// Used by binaryreader.
+        /// See <see cref="_addBinaryEdges(uint, uint[])"/> for details on how it works!
+        /// </summary>
+        /// <param name="nodeIdEgo">The id of ego node.</param>
+        /// <param name="nodeIdsAlters">A List of tuples containing node alter ids and edge values</param>
         internal void _addValuedEdges(uint nodeIdEgo, List<(uint alterId, float value)> nodeIdsAlters)
         {
-            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo, nodeIdsAlters.Count);
+            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
             {
                 foreach ((uint alterId, float value) in nodeIdsAlters)
                 {
-                    edgeSetEgo.AddOutboundEdge(alterId, value);
-                    GetOrCreateEdgeset(alterId, nodeIdsAlters.Count)._addInboundEdge(nodeIdEgo, value);
+                    edgeSetEgo._addOutboundEdge(alterId, value);
+                    GetOrCreateEdgeset(alterId)._addInboundEdge(nodeIdEgo, value);
                 }
             }
             else
-            {
                 foreach ((uint alterId, float value) in nodeIdsAlters)
                     edgeSetEgo.AddOutboundEdge(alterId, value);
-            }
         }
 
         /// <summary>
         /// Removes an (the) edge between node1id and node2id. Returns a fail if no such edge is found.
         /// (First checks if there indeed are any Edgeset recorded for these, then checks if there are any corresponding edges recorded)
         /// </summary>
-        /// <param name="node1id">The first (source) node id.</param>
-        /// <param name="node2id">The second (destination) node id.</param>
+        /// <param name="node1id">The first (source) node nodeIdAlter.</param>
+        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
         /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
         internal OperationResult RemoveEdge(uint node1id, uint node2id)
         {
@@ -342,16 +365,15 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets an existing Edgeset object for a node id, or creates it first if not existing.
+        /// Gets an existing Edgeset object for a node nodeIdAlter, or creates it first if not existing.
         /// </summary>
-        /// <param name="nodeId">The node id whose Edgeset is to be obtained.</param>
+        /// <param name="nodeId">The node nodeIdAlter whose Edgeset is to be obtained.</param>
         /// <returns></returns>
-        private IEdgeset GetOrCreateEdgeset(uint nodeId, int capacity = 1)
+        internal IEdgeset GetOrCreateEdgeset(uint nodeId)
         {
             if (Edgesets.TryGetValue(nodeId, out var edgeset))
                 return edgeset;
             IEdgeset newEdgeset = edgeSetFactory!();
-            //newEdgeset._setCapacity(capacity);
             Edgesets[nodeId] = newEdgeset;
             return newEdgeset;
         }
@@ -365,10 +387,10 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the outdegree (i.e. number of outbound edges) for a node id.
+        /// Gets the outdegree (i.e. number of outbound edges) for a node nodeIdAlter.
         /// </summary>
-        /// <param name="nodeId">The node id.</param>
-        /// <returns>The number of outbound edges this node id has.</returns>
+        /// <param name="nodeId">The node nodeIdAlter.</param>
+        /// <returns>The number of outbound edges this node nodeIdAlter has.</returns>
         internal uint GetOutDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
@@ -377,10 +399,10 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the indegree (i.e. number of inbound edges) for a node id.
+        /// Gets the indegree (i.e. number of inbound edges) for a node nodeIdAlter.
         /// </summary>
-        /// <param name="nodeId">The node id.</param>
-        /// <returns>The number of inbound edges this node id has.</returns>
+        /// <param name="nodeId">The node nodeIdAlter.</param>
+        /// <returns>The number of inbound edges this node nodeIdAlter has.</returns>
         internal uint GetInDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
@@ -426,6 +448,11 @@ namespace Threadle.Core.Model
             }
         }
 
+        /// <summary>
+        /// Goes through all Edgesets in the layer and removes any duplicate edges (i.e. multiedges)
+        /// Used after the LayerImporter is finished, where it is more likely to encounter duplicate edges
+        /// E.g. if a directional edgelist is imported to a symmetric layer
+        /// </summary>
         internal void _deduplicateEdgesets()
         {
             foreach (IEdgeset edgeset in Edgesets.Values)

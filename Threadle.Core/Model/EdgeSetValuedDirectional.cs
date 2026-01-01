@@ -207,6 +207,12 @@ namespace Threadle.Core.Model
             return ret;
         }
 
+        /// <summary>
+        /// Gets a list of all partner Connection structs. As this is a directional Edgeset, just return the outbound Connection structs.
+        /// The egoNodeId is thus moot here.
+        /// </summary>
+        /// <param name="nodeId">The node id of ego (moot)</param>
+        /// <returns>A List of Connection structs.</returns>
         public IReadOnlyList<Connection> GetNodelistAlterConnections(uint egoNodeId)
         {
             return _outbound;

@@ -24,7 +24,13 @@ namespace Threadle.Core.Model
         /// </summary>
         IReadOnlyList<Connection> GetInboundConnections { get; }
 
-        IReadOnlyList<Connection> GetNodelistAlterConnections(uint nodeId);
+        /// <summary>
+        /// Gets a list of all partner Connection structs. For symmetric edgesets, edges should only be stored once
+        /// so I pass along egoNodeId to make sure I only get Connection structs for partner ids that are larger than ego node id
+        /// </summary>
+        /// <param name="egoNodeId">The node id of ego</param>
+        /// <returns>A List of Connection structs.</returns>
+        IReadOnlyList<Connection> GetNodelistAlterConnections(uint egoNodeId);
         #endregion
     }
 }

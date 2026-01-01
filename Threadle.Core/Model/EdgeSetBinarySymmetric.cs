@@ -161,7 +161,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes all edges in this edgeset with the specified nodeId.
+        /// Removes all edges in this edgeset with the specified egoNodeId.
         /// Used for cleaning up edgesets after a node has been removed from a nodeset.
         /// </summary>
         /// <param name="nodeId">The node id that should be searched for and eradicated.</param>
@@ -209,12 +209,18 @@ namespace Threadle.Core.Model
             return ret;
         }
 
-        public List<uint> GetNodelistAlterUints(uint nodeId)
+        /// <summary>
+        /// Returns a list of partner node ids where partner node id is larger than ego node id.
+        /// Used in binary serializer for writing nodelist-style
+        /// </summary>
+        /// <param name="egoNodeId">The ego node id.</param>
+        /// <returns>A List of partner node ids that are greater than ego node id.</returns>
+        public List<uint> GetNodelistAlterUints(uint egoNodeId)
         {
             List<uint> ret = [];
             foreach (uint alterNodeId in _connections)
             {
-                if (alterNodeId > nodeId)
+                if (alterNodeId > egoNodeId)
                     ret.Add(alterNodeId);                
             }
             return ret;

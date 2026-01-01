@@ -134,7 +134,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes all inbound and outbound edges in this edgeset with the specified nodeId.
+        /// Removes all inbound and outbound edges in this edgeset with the specified egoNodeId.
         /// Used for cleaning up edgesets after a node has been removed from a nodeset.
         /// </summary>
         /// <param name="nodeId">The node id that should be searched for and eradicated.</param>
@@ -183,7 +183,13 @@ namespace Threadle.Core.Model
             return ret;
         }
 
-        public List<uint> GetNodelistAlterUints(uint nodeId)
+        /// <summary>
+        /// Returns a list of partner node ids. As this is a directional Edgeset, return all edge. The ego node id is thus moot.
+        /// Used in binary serializer for writing nodelist-style
+        /// </summary>
+        /// <param name="egoNodeId">The ego node id.</param>
+        /// <returns>A List of outbound partner node ids.</returns>
+        public List<uint> GetNodelistAlterUints(uint egoNodeId)
         {
             return GetOutboundNodeIds;
         }
