@@ -37,6 +37,8 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
+            if (command.GetArgument("file") is string filepath)
+                return CommandDispatcher.DumpHelpToFile(filepath);
             if (!(command.GetArgument("arg0") is string commandName))
                 return CommandDispatcher.GetHelpForAll();
             return CommandDispatcher.GetHelpFor(commandName);

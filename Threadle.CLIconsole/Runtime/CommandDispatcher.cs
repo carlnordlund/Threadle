@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
+using System.Text.RegularExpressions;
 
 namespace Threadle.CLIconsole.Runtime
 {
@@ -29,8 +30,6 @@ namespace Threadle.CLIconsole.Runtime
             ["createnodeset"] = new CreateNodeset(),
             ["defineattr"] = new DefineAttr(),
             ["degree"] = new Degree(),
-            ["delete"] = new Remove(),
-            ["deleteall"] = new RemoveAll(),
             ["density"] = new Density(),
             ["dichotomize"] = new Dichotomize(),
             ["filter"] = new Filter(),
@@ -51,7 +50,9 @@ namespace Threadle.CLIconsole.Runtime
             ["loadfile"] = new LoadFile(),
             ["preview"] = new Preview(),
             ["randomseed"] = new RandomSeed(),
+            ["remove"] = new Remove(),
             ["removeaff"] = new RemoveAffiliation(),
+            ["removeall"] = new RemoveAll(),
             ["removeattr"] = new RemoveAttr(),
             ["removeedge"] = new RemoveEdge(),
             ["removehyper"] = new RemoveHyper(),
@@ -191,6 +192,22 @@ namespace Threadle.CLIconsole.Runtime
                 helpTexts
             );
         }
+
+        internal static CommandResult DumpHelpToFile(string filepath)
+        {
+            var pattern = @"^(?:\s*(\[[^\]]+\])\s*=\s*)?([a-zA-Z_]\w*)\s*\(\s*(.*?)\s*\)\s*$";
+            List<string> lines = [];
+            foreach (var kvp in _commands)
+            {
+                var match = Regex.Match(kvp.Value.Syntax, pattern);
+                lines.Add(match.Groups[1].Value + "\t" + match.Groups[2].Value + "\t" + match.Groups[3].Value + "\t" + kvp.Value.Description);
+            }
+            File.WriteAllLines(filepath, lines.ToArray());
+
+            return CommandResult.Ok($"Saved syntax details to file '{filepath}'");
+        }
+
+
         #endregion
     }
 }
