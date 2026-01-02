@@ -74,6 +74,13 @@ addaff(net,clubs,19,"bromma_fc")
 addaff(net,clubs,22,"bromma_fc")
 addaff(net,clubs,17,"chalmers_fc")
 
+# Create density
+density(net, friends)
+
+i
+
+density(net, friends)
+
 #########
 ## Validating created data
 #########
