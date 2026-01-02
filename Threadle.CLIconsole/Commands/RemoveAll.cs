@@ -37,7 +37,6 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             return context.RemoveAllStructures();
-            //return CommandResult.Ok("Removed all structures.");
         }
     }
 }

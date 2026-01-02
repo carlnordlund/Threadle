@@ -38,7 +38,6 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string file = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
-
             return ScriptExecutor.LoadAndExecuteScript(file, context);
         }
     }

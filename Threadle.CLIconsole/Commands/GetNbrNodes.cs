@@ -40,7 +40,6 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-            //Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             int nbrNodes = nodeset!.Count;
             return CommandResult.Ok(
                 message: $"Number of nodes in '{nodeset.Name}': {nbrNodes}",

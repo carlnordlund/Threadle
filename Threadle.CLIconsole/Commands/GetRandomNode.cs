@@ -43,13 +43,8 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-
-            //Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             OperationResult<uint> result = Analyses.GetRandomNode(nodeset!);
             return CommandResult.FromOperationResult(result, result.Value);
-            //if (!result.Success)
-            //    return CommandResult.Fail(result.Code, result.Message);
-            //return CommandResult.Ok(result.Message, result.Value);
         }
     }
 }

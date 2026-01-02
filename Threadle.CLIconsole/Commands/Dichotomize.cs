@@ -42,16 +42,13 @@ namespace Threadle.CLIconsole.Commands
             string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-
-            //Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
             ConditionType conditionType = command.GetArgumentParseEnum<ConditionType>("cond", ConditionType.ge);
             float threshold = command.GetArgumentParseFloat("threshold", 1);
             float trueValue = command.GetArgument("truevalue") == "keep" ? float.NaN : command.GetArgumentParseFloat("truevalue", 1);
             float falseValue = command.GetArgument("falsevalue") == "keep" ? float.NaN : command.GetArgumentParseFloat("falsevalue", 0);
             string newLayerName = network.GetNextAvailableLayerName(command.GetArgumentParseString("newlayername", layerName + "-dichotomized").ToLowerInvariant());
-            OperationResult result = NetworkProcessor.DichotomizeLayer(network, layerName, conditionType, threshold, trueValue, falseValue, newLayerName);
-            return CommandResult.FromOperationResult(result);
+            return CommandResult.FromOperationResult(NetworkProcessor.DichotomizeLayer(network, layerName, conditionType, threshold, trueValue, falseValue, newLayerName));
         }
     }
 }

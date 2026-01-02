@@ -35,33 +35,21 @@ namespace Threadle.CLIconsole.Commands
         /// Executes the command.
         /// </summary>
         /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
-        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console variable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             OperationResult result = nodeset!.RemoveNode(nodeId);
             if (!result.Success)
                 return CommandResult.FromOperationResult(result);
 
-            List<string> affectedNetworks = [];
+            // Iterate through existing networks stored in Threadle that use this nodeset: for those, remove the edges related to this
+            // now deleted node
             foreach (Network network in context.GetNetworksUsingNodeset(nodeset))
-            {
                 network.RemoveNodeEdges(nodeId);
-                affectedNetworks.Add(network.Name);
-            }
-
-            return CommandResult.Ok(
-                message: $"Node {nodeId} removed from nodeset '{nodeset.Name}'.",
-                payload: new
-                {
-                    RemovedNodeId = nodeId,
-                    Nodeset = nodeset.Name,
-                    AffectedNetworks = affectedNetworks
-                }
-                );
+            return CommandResult.Ok($"Node {nodeId} removed from nodeset '{nodeset.Name}'.");
         }
     }
 }

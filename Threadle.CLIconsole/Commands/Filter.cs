@@ -41,8 +41,6 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
-
-            //string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0");
             if (CommandHelpers.TryGetVariable<Nodeset>(context, command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
@@ -58,13 +56,6 @@ namespace Threadle.CLIconsole.Commands
                 payload: null,
                 assignments: CommandResult.Assigning(variableName, typeof(Nodeset))
                 );
-
-            //if (!result.Success)
-            //    return CommandResult.Fail(result.Code,result.Message);
-            //return CommandResult.Ok(
-            //    message: result.Message,
-            //    assignments: CommandResult.Assigning(variableName, typeof(Nodeset))
-            //    );
         }
     }
 }

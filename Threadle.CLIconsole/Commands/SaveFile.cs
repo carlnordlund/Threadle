@@ -38,14 +38,9 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            //string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
             if (CommandHelpers.TryGetVariable<IStructure>(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var structure) is CommandResult commandResult)
                 return commandResult;
-
-
-            //IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             string filepath = command.GetArgumentParseString("file", structure.Filepath);
-            //OperationResult result = FileManager.Save(structure, filepath);
             return CommandResult.FromOperationResult(FileManager.Save(structure, filepath));
         }
     }

@@ -13,13 +13,6 @@ namespace Threadle.Core.Utilities
     /// </summary>
     public static class FileManager
     {
-        #region Fields
-        static readonly Dictionary<string, Type> _structureTypes = new()
-        {
-            { "nodeset", typeof(Nodeset) },
-            { "network", typeof(Network) }
-        };
-        #endregion
 
         #region Methods (public)
         /// <summary>
@@ -98,21 +91,21 @@ namespace Threadle.Core.Utilities
                     case (LayerOneMode layerOneMode, "edgelist"):
                         LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
                         break;
-                    //case (LayerOneMode layerOneMode, "matrix"):
-                    //    LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
-                    //    break;
+                    case (LayerOneMode layerOneMode, "matrix"):
+                        LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
+                        break;
                     case (LayerTwoMode layerTwoMode, "edgelist"):
                         LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
                         break;
-                    //case (LayerTwoMode layerTwoMode, "matrix"):
-                    //    LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
-                    //    break;
+                    case (LayerTwoMode layerTwoMode, "matrix"):
+                        LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
+                        break;
 
                     default:
                         return OperationResult.Fail("UnsupportedOption", "The specific layer/format combination for importing is not supported.");
 
                 }
-                return OperationResult.Ok("");
+                return OperationResult.Ok($"Imported data to layer '{layer.Name}' from file '{filepath}'.");
             }
             catch (Exception ex)
             {

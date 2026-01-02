@@ -39,9 +39,6 @@ namespace Threadle.CLIconsole.Commands
         {
             var result = FileManager.GetCurrentDirectory();
             return CommandResult.FromOperationResult(result, result.Value);
-            //if (!result.Success)
-            //    return CommandResult.Fail(result.Code, result.Message);
-            //return CommandResult.Ok(result.Message, result.Value);
         }
     }
 }

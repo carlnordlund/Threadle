@@ -37,18 +37,11 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
-            //string networkName = command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0");
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResultNetwork)
                 return commandResultNetwork;
-
-            //Network network = context.GetVariableThrowExceptionIfMissing<Network>(command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"));
-
             string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg1");
             if (CommandHelpers.TryGetVariable<Nodeset>(context, nodesetName, out var nodeset) is CommandResult commandResultNodeset)
                 return commandResultNodeset;
-
-            //Nodeset nodeset = context.GetVariableThrowExceptionIfMissing<Nodeset>(command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg1"));
-
             OperationResult<Network> result = NetworkProcessor.Subnet(network, nodeset);
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);

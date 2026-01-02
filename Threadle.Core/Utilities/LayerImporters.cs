@@ -141,12 +141,14 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Imports a one-mode matrix file into a 1-mode network layer.
+        /// Imports a one-mode matrix file into a 1-mode network layer, with node ids given on first row and first column.
+        /// Will add new nodes if addMissingNodes is true. Note that the order of rows and column nodes can be different:
+        /// it keeps track of these separately. Uses the normal Network.AddEdge() method: that will take care of the addMissingNodes.
         /// </summary>
         /// <remarks>The file must contain a square matrix where the first row and column represent
         /// unsigned integer node IDs. The matrix values represent edge weights between the nodes. If the matrix is not
         /// square, or if the headers are not valid unsigned integers, the operation will fail. For directed networks, the
-        /// first column contains the source node ids, and the first row contains the destinat5ion node ids. For symmetric
+        /// first column contains the source node ids, and the first row contains the destination node ids. For symmetric
         /// networks, only the upper triangle of the matrix is checked for ties.</remarks>
         /// <param name="filepath">The path to the file containing the one-mode matrix. The file must be in a square matrix format with
         /// unsigned integer row and column headers.</param>
@@ -155,47 +157,79 @@ namespace Threadle.Core.Utilities
         /// <param name="separator">The character used to separate values in the file</param>
         /// <param name="addMissingNodes">A value indicating whether nodes that are referenced in the matrix but do not exist in the network should be
         /// automatically added. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
-        /// <returns>An <see cref="OperationResult"/> indicating the success or failure of the import operation.  If the
-        /// operation fails, the result contains an error code and message describing the issue.</returns>
-        internal static OperationResult ImportOneModeMatrix(string filepath, Network network, LayerOneMode layerOneMode, string separator, bool addMissingNodes)
+        /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
+        /// <exception cref="Exception">Exceptions when something went wrong.</exception>
+        internal static void ImportOneModeMatrix(string filepath, Network network, LayerOneMode layerOneMode, char separator, bool addMissingNodes)
         {
-            try
+            if (!File.Exists(filepath))
+                throw new FileNotFoundException($"File not found: {filepath}");
+            string[,] cells = ReadCells(filepath, separator);
+            int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
+            if (nbrRows != nbrCols)
+                throw new Exception($"Number of rows ({nbrRows}) different than number of columns ({nbrCols}) in file '{filepath}'");
+            uint[] rowIds = new uint[nbrRows - 1];
+            uint[] colIds = new uint[nbrCols - 1];
+            for (int i=1; i<nbrCols;i++)
             {
-                string[,] cells = ReadCells(filepath, separator);
-                int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
-                if (nbrRows != nbrCols)
-                    return OperationResult.Fail("FileFormatError", $"Matrix '{filepath}' not square-shaped.");
-                uint[] rowIds = new uint[nbrRows - 1];
-                uint[] colIds = new uint[nbrCols - 1];
-                for (int i = 1; i < nbrCols; i++)
-                {
-                    if (!uint.TryParse(cells[0, i], out colIds[i - 1]))
-                        return OperationResult.Fail("FileFormatError", $"Column header '{cells[0, i]}' in file '{filepath}' not an unsigned integer.");
-                    if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
-                        return OperationResult.Fail("FileFormatError", $"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
-                }
-                float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
-                bool hasSelfties = layerOneMode.Selfties;
-                if (layerOneMode.Directionality == EdgeDirectionality.Directed)
-                {
-                    for (int r = 1; r < nbrRows; r++)
-                        for (int c = 1; c < nbrCols; c++)
-                            if (data[r - 1, c - 1] != 0)
-                                network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
-                }
-                else
-                {
-                    for (int r = 1; r < nbrRows; r++)
-                        for (int c = r; c < nbrCols; c++)
-                            if (data[r - 1, c - 1] != 0)
-                                network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
-                }
-                return OperationResult.Ok();
+                if (!uint.TryParse(cells[0, i], out colIds[i - 1]))
+                    throw new Exception($"Column header '{cells[0, i]}' in file '{filepath}' not an unsigned integer.");
+                if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
+                    throw new Exception($"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
             }
-            catch (Exception e)
+            float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
+            if (layerOneMode.Directionality == EdgeDirectionality.Directed)
             {
-                return OperationResult.Fail("UnexpectedImportError", e.Message);
+                for (int r = 1; r < nbrRows; r++)
+                    for (int c = 1; c < nbrCols; c++)
+                        if (data[r - 1, c - 1] != 0)
+                            network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
             }
+            else
+            {
+                for (int r = 1; r < nbrRows; r++)
+                    for (int c = r; c < nbrCols; c++)
+                        if (data[r - 1, c - 1] != 0)
+                            network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
+            }
+
+
+            //try
+            //{
+            //    string[,] cells = ReadCells(filepath, separator);
+            //    int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
+            //    if (nbrRows != nbrCols)
+            //        return OperationResult.Fail("FileFormatError", $"Matrix '{filepath}' not square-shaped.");
+            //    uint[] rowIds = new uint[nbrRows - 1];
+            //    uint[] colIds = new uint[nbrCols - 1];
+            //    for (int i = 1; i < nbrCols; i++)
+            //    {
+            //        if (!uint.TryParse(cells[0, i], out colIds[i - 1]))
+            //            return OperationResult.Fail("FileFormatError", $"Column header '{cells[0, i]}' in file '{filepath}' not an unsigned integer.");
+            //        if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
+            //            return OperationResult.Fail("FileFormatError", $"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
+            //    }
+            //    float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
+            //    bool hasSelfties = layerOneMode.Selfties;
+            //    if (layerOneMode.Directionality == EdgeDirectionality.Directed)
+            //    {
+            //        for (int r = 1; r < nbrRows; r++)
+            //            for (int c = 1; c < nbrCols; c++)
+            //                if (data[r - 1, c - 1] != 0)
+            //                    network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
+            //    }
+            //    else
+            //    {
+            //        for (int r = 1; r < nbrRows; r++)
+            //            for (int c = r; c < nbrCols; c++)
+            //                if (data[r - 1, c - 1] != 0)
+            //                    network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
+            //    }
+            //    return OperationResult.Ok();
+            //}
+            //catch (Exception e)
+            //{
+            //    return OperationResult.Fail("UnexpectedImportError", e.Message);
+            //}
         }
 
         /// <summary>
@@ -211,8 +245,8 @@ namespace Threadle.Core.Utilities
         /// <param name="separator">The character used to separate columns in the edgelist file.</param>
         /// <param name="addMissingNodes">A value indicating whether nodes that are referenced in the edgelist but do not exist in the network should
         /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
-        /// <returns>An <see cref="OperationResult"/> indicating the success or failure of the import operation.  If the
-        /// operation fails, the result contains an error code and message describing the issue.</returns>
+        /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
+        /// <exception cref="Exception">Exceptions when something went wrong.</exception>
         internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, char separator, bool addMissingNodes)
         {
             if (!File.Exists(filepath))
@@ -264,7 +298,9 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Imports a two-mode matrix file into a 2-mode network layer.
+        /// Imports a two-mode matrix file into a two-mode network layer, with node ids given on first column and affiliation
+        /// (hyperedge) names given on first row. Will add new nodes if addMissingNodes is true. Uses the normal
+        /// Network.AddHyperedge() method: that will take care of validation and the addMissingNodes option.
         /// </summary>
         /// <remarks>The file must have a specific format: <list type="bullet"> <item>The first row
         /// contains column headers representing the names of the hyperedges. Note that these
@@ -280,36 +316,56 @@ namespace Threadle.Core.Utilities
         /// <param name="separator">The character used to separate values in the file</param>
         /// <param name="addMissingNodes">A value indicating whether nodes that are referenced in the edgelist but do not exist in the network should
         /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
-        /// <returns>An <see cref="OperationResult"/> indicating the success or failure of the import operation.  If the
-        /// operation fails, the result contains an error code and message describing the issue.</returns>
-        internal static OperationResult ImportTwoModeMatrix(string filepath, Network network, LayerTwoMode layerTwoMode, string separator, bool addMissingNodes)
+        /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
+        /// <exception cref="Exception">Exceptions when something went wrong.</exception>
+        internal static void ImportTwoModeMatrix(string filepath, Network network, LayerTwoMode layerTwoMode, char separator, bool addMissingNodes)
         {
-            try
+            if (!File.Exists(filepath))
+                throw new FileNotFoundException($"File not found: {filepath}");
+            string[,] cells = ReadCells(filepath, separator);
+            int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
+            uint[] rowIds = new uint[nbrRows - 1];
+            string[] colNames = new string[nbrCols - 1];
+            for (int i = 1; i < nbrRows; i++)
+                if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
+                    throw new Exception($"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
+            for (int i = 1; i < nbrCols; i++)
+                colNames[i - 1] = cells[0, i].Trim();
+            float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
+            for (int c = 0; c < colNames.Length; c++)
             {
-                string[,] cells = ReadCells(filepath, separator);
-                int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
-                uint[] rowIds = new uint[nbrRows - 1];
-                string[] colNames = new string[nbrCols - 1];
-                for (int i = 1; i < nbrRows; i++)
-                    if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
-                        return OperationResult.Fail("FileFormatError", $"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
-                for (int i = 1; i < nbrCols; i++)
-                    colNames[i - 1] = cells[0, i];
-                float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
-                for (int c = 0; c < colNames.Length; c++)
-                {
-                    List<uint> nodeIds = [];
-                    for (int r = 0; r < rowIds.Length; r++)
-                        if (data[r, c] > 0)
-                            nodeIds.Add(rowIds[r]);
-                    network.AddHyperedge(layerTwoMode, colNames[c], nodeIds.ToArray(), addMissingNodes);
-                }
-                return OperationResult.Ok();
+                List<uint> nodeIds = [];
+                for (int r = 0; r < rowIds.Length; r++)
+                    if (data[r, c] > 0)
+                        network.AddAffiliation(layerTwoMode, colNames[c], rowIds[r], addMissingNodes, true);
             }
-            catch (Exception e)
-            {
-                return OperationResult.Fail("UnexpectedImportError", e.Message);
-            }
+
+            //try
+            //{
+            //    string[,] cells = ReadCells(filepath, separator);
+            //    int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
+            //    uint[] rowIds = new uint[nbrRows - 1];
+            //    string[] colNames = new string[nbrCols - 1];
+            //    for (int i = 1; i < nbrRows; i++)
+            //        if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
+            //            return OperationResult.Fail("FileFormatError", $"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
+            //    for (int i = 1; i < nbrCols; i++)
+            //        colNames[i - 1] = cells[0, i];
+            //    float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
+            //    for (int c = 0; c < colNames.Length; c++)
+            //    {
+            //        List<uint> nodeIds = [];
+            //        for (int r = 0; r < rowIds.Length; r++)
+            //            if (data[r, c] > 0)
+            //                nodeIds.Add(rowIds[r]);
+            //        network.AddHyperedge(layerTwoMode, colNames[c], nodeIds.ToArray(), addMissingNodes);
+            //    }
+            //    return OperationResult.Ok();
+            //}
+            //catch (Exception e)
+            //{
+            //    return OperationResult.Fail("UnexpectedImportError", e.Message);
+            //}
         }
         #endregion
 
@@ -327,7 +383,7 @@ namespace Threadle.Core.Utilities
         /// corresponds to a value separated by the specified <paramref name="separator"/>. Empty cells are represented
         /// as empty strings.</returns>
         /// <exception cref="Exception">Thrown if the file at <paramref name="filepath"/> cannot be loaded.</exception>
-        private static string[,] ReadCells(string filepath, string separator)
+        private static string[,] ReadCells(string filepath, char separator)
         {
             string[] lines = File.ReadAllLines(filepath) ??
                 throw new Exception($"Error: Could not load file '{filepath}'");

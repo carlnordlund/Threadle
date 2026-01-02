@@ -39,25 +39,11 @@ namespace Threadle.CLIconsole.Commands
         {
             string param = command.GetArgumentThrowExceptionIfMissingOrNull("name", "arg0").ToLowerInvariant();
             bool value = command.GetArgumentParseBoolThrowExceptionIfMissingOrNull("value", "arg1");
-
             if (param == "verbose")
             {
                 ConsoleOutput.Verbose = value;
-                return CommandResult.Ok(
-                    $"Setting 'verbose' set to {value}."//,
-                    //payload: new { Setting = "verbose", Value = value }
-                );
+                return CommandResult.Ok($"Setting 'verbose' set to {value}.");
             }
-
-            //if (param == "endmarker")
-            //{
-            //    ConsoleOutput.EndMarker = value;
-            //    return CommandResult.Ok(
-            //        $"Setting 'endmarker' set to {value}.",
-            //        payload: new { Setting = "endmarker", Value = value }
-            //    );
-            //}
-
             // Delegate to shared settings manager
             OperationResult result = UserSettings.Set(param, value);
             return CommandResult.FromOperationResult(

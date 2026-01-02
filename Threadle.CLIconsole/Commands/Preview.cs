@@ -40,11 +40,7 @@ namespace Threadle.CLIconsole.Commands
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
             if (CommandHelpers.TryGetVariable<IStructure>(context, structureName, out var structure) is CommandResult commandResult)
                 return commandResult;
-
-
-            //IStructure structure = context.GetVariableThrowExceptionIfMissing<IStructure>(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             int maxLines = command.GetArgumentParseInt("maxlines", 50);
-            //ConsoleOutput.WriteLines(structure.Content, true);
             return CommandResult.Ok(
                 message: $"Preview of {nameof(IStructure)} '{structure.Name}'",
                 payload: structure.Content
