@@ -1,16 +1,10 @@
 To-do
 =====
 
-tsv, tsv.gz:
-reader/writer for nodeset/network done
-nodeset writer: bin, bin.gz: done
-network bin writer: done! ?
+generate(): perhaps provide a network and layer name and let it generate data in that layer. Then it must be 1-mode and binaryedgesets and the layer must already exist.
 
+First: clean out that layer etc. Much better!
 
-To-do:
-bin, bin.gz
-nodeset reader
-network reader, writer
 
 
 
