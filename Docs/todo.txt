@@ -1,17 +1,18 @@
 To-do
 =====
 
-generate(): perhaps provide a network and layer name and let it generate data in that layer. Then it must be 1-mode and binaryedgesets and the layer must already exist.
-
-First: clean out that layer etc. Much better!
-
-
-
-
-
 
 CLI command and Core methods for importing attributes from file? 'importattr()'? Given a file with attribute data, supplement existing Nodeset with this.
 Pre-define attributes prior to import? Need to think a bit about this. Could also do this programmatically from R.
+
+
+
+
+
+
+
+Modified generate() so that it now creates a random network in an existing binary layer in an existing network. Thus not creating a new network etc.
+
 
 Modify how savefile and loadfile works? Idea for 'savefile()': make 'file' optional! Instead, always save to the IStructure.Filepath property by default, which is
 set to something if 1) the structure has previously been loaded from file, or 2) if it has already been saved. I could thus do this:

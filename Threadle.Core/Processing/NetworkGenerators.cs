@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,43 +16,49 @@ namespace Threadle.Core.Processing
     public static class NetworkGenerators
     {
         #region Methods (public)
-        /// <summary>
-        /// Generates a random network using the Erdős–Rényi model. This approach utilizes the very clever solution
-        /// proposed by Batagelj and Brandes (2005) in https://doi.org/10.1103/PhysRevE.71.036113
-        /// </summary>
-        /// <remarks>The Erdős–Rényi model generates a network by iterating over all possible edges
-        /// between nodeIds and including each edge with a probability of <paramref name="p"/>. The resulting network
-        /// structure depends on the specified edge directionality and whether self-loops are allowed.</remarks>
-        /// <param name="size">The number of nodeIds in the network. Must be greater than zero.</param>
-        /// <param name="p">The probability of an edge existing between any two nodeIds. Must be in the range [0, 1].</param>
-        /// <param name="directionality">Specifies whether the edges in the network are directed or undirected.</param>
-        /// <param name="selfties">Indicates whether self-loops (edges from a node to itself) are allowed in the network.</param>
-        /// <returns>A <see cref="Network"/> object representing the generated Erdős–Rényi random network.</returns>
-        public static StructureResult ErdosRenyi(int size, double p, EdgeDirectionality directionality, bool selfties)
-        {
-            Nodeset nodeset = new Nodeset("er_nodes", size);
-            Network network = new Network("er", nodeset);
-            string layername = $"er_{p}";
 
-            // Create 1-mode layer and add to the network            
-            LayerOneMode layerOneMode = new LayerOneMode(layername,directionality, EdgeType.Binary, selfties);
-            network.Layers.Add(layername, layerOneMode);
+        /// <summary>
+        /// Generates an Erdös-Renyi network in the provided network and layer name. The layer must alread exist and be binary.
+        /// Any would-be existing ties in that layer will first be deleted. The generator will then follow the properties of the
+        /// layer, i.e. whether directional or symmetric, whether selfties or not.
+        /// This approach utilizes the very clever solution proposed by Batagelj and Brandes (2005)
+        /// in https://doi.org/10.1103/PhysRevE.71.036113
+        /// </summary>
+        /// <param name="network">The network to generate this data in,</param>
+        /// <param name="layerName">The name of the layer to create it in.</param>
+        /// <param name="p">The tie probability.</param>
+        /// <returns></returns>
+        public static OperationResult ErdosRenyiLayer(Network network, string layerName, double p)
+        {
+            var layerResult = network.GetLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            if (!(layerResult.Value is LayerOneMode layer))
+                return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
+            if (!layer.IsBinary)
+                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' is not for binary edges.");
+
+            // Clear the layer
+            layer.ClearLayer();
+
+            // Get reference to nodeset
+            Nodeset nodeset = network.Nodeset;
+            uint n = (uint)nodeset.Count;
 
             // Determine the expected degree (i.e. number of directed connections per node)
-            int edgesetCapacity = (int)(p * size);
+            int edgesetCapacity = (int)(p * n);
 
             // Get an array of all node ids
             uint[] nodeIds = nodeset.NodeIdArray;
 
             // Initialize the capacity of the Edgesets dictionary as well as the number of connections for each IEdgeset
-            layerOneMode._initEdgesets(nodeIds, edgesetCapacity);
+            layer._initEdgesets(nodeIds, edgesetCapacity);
 
-            uint n = (uint)nodeset.Count;
-            ulong totalEdges = Misc.GetNbrPotentialEdges(n, directionality, selfties);
+            ulong totalEdges = Misc.GetNbrPotentialEdges(n, layer.Directionality, layer.Selfties);
             ulong index = 0;
             uint row = 0;
             ulong rowStartindex = 0;
-            uint rowLength = GetRowLength(row, n, directionality, selfties);
+            uint rowLength = GetRowLength(row, n, layer.Directionality, layer.Selfties);
             while (index < totalEdges)
             {
                 ulong skip = Misc.SampleGeometric(p);
@@ -62,22 +69,17 @@ namespace Threadle.Core.Processing
                 {
                     rowStartindex += rowLength;
                     row++;
-                    rowLength = GetRowLength(row, n, directionality, selfties);
+                    rowLength = GetRowLength(row, n, layer.Directionality, layer.Selfties);
                 }
                 uint offsetInRow = (uint)(index - rowStartindex);
-                uint col = GetCol(row, offsetInRow, n, directionality, selfties);
+                uint col = GetCol(row, offsetInRow, n, layer.Directionality, layer.Selfties);
 
-                // To bypass validations etc, add binary ties directly on the pre-created IEdgeset instances,
-                // using the add functions that bypass validation.
-                // All this to speed up time.
-                layerOneMode.Edgesets[nodeIds[row]]._addOutboundEdge(nodeIds[col], 1);
-                layerOneMode.Edgesets[nodeIds[col]]._addInboundEdge(nodeIds[row], 1);
+                // Bypass validation when creating edges
+                layer.Edgesets[nodeIds[row]]._addOutboundEdge(nodeIds[col], 1);
+                layer.Edgesets[nodeIds[col]]._addInboundEdge(nodeIds[row], 1);
                 index++;
             }
-            return new StructureResult(network, new Dictionary<string, IStructure>
-            {
-                { "nodeset", nodeset }
-            });
+            return OperationResult.Ok($"Erdös-Renyi network with p={p} generated in layer '{layerName}' in network '{network.Name}'.");
         }
         #endregion
 
@@ -123,6 +125,7 @@ namespace Threadle.Core.Processing
             else
                 return (uint)(row + offsetInRow + (selfties ? 0 : 1));
         }
+
         #endregion
     }
 }
