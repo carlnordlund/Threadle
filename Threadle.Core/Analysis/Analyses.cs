@@ -16,20 +16,22 @@ namespace Threadle.Core.Analysis
     {
         #region Methods (public)
         /// <summary>
-        /// Calculates the density of the specified one-mode layer in the network.
+        /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
+        /// Using different methods for 1- resp 2-mode layers.
         /// </summary>
         /// <param name="network">The network containing the layer.</param>
-        /// <param name="layerName">The name of the one-mode layer.</param>
+        /// <param name="layerName">The name of the layer.</param>
         /// <returns>An OperationResult containing the density value if successful; otherwise, an error message.</returns>
         public static OperationResult<double> Density(Network network, string layerName)
         {
-            var layerResult = network.GetOneModeLayer(layerName);
+            var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<double>.Fail(layerResult);
-
-            double density = Functions.Density(network, layerResult.Value!);
-
-            return OperationResult<double>.Ok(density);
+            if (layerResult.Value is LayerOneMode layerOneMode)
+                return OperationResult<double>.Ok(Functions.Density(network, layerOneMode));
+            if (layerResult.Value is LayerTwoMode layerTwoMode)
+                return OperationResult<double>.Ok(Functions.Density(network, layerTwoMode));
+            return OperationResult<double>.Fail("UnexpectedError", $"Error calculating density of layer '{layerName}'");
         }
 
         /// <summary>

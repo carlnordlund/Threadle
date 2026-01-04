@@ -59,6 +59,25 @@ namespace Threadle.Core.Analysis
             ulong nbrExistingEdges = layer.NbrEdges;
             return (double)nbrExistingEdges / nbrPotentialEdges;
         }
+
+        /// <summary>
+        /// Calculates the density of a specific 2-mode layer in a specific network.
+        /// Does this by obtaining the number of node alters for each node.
+        /// Can take time for very large networks.
+        /// </summary>
+        /// <param name="network">The Network structure.</param>
+        /// <param name="layer">The 2-mode layer object.</param>
+        /// <returns>Density (as a double value)</returns>
+        internal static double Density(Network network, LayerTwoMode layer)
+        {
+            int nbrNodes = network.Nodeset.Count;
+            ulong nbrPotentialEdges = (ulong)(nbrNodes * (nbrNodes - 1));
+
+            ulong nbrExistingEdges = 0;
+            foreach (uint nodeid in network.Nodeset.NodeIdArray)
+                nbrExistingEdges += (ulong)layer.GetAlterIds(nodeid).Length;
+            return (double)nbrExistingEdges / nbrPotentialEdges;
+        }
         #endregion
 
 

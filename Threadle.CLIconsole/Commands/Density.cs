@@ -25,7 +25,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates and returns the density of 1-mode layer 'layername' of the specified network. Treats all existing ties as binary ties. Note that this is only implemented for 1-mode networks.";
+        public string Description => "Calculates and returns the density of the layer 'layername' of the specified network. Treats all existing ties as binary ties. Works for both 1-mode and 2-mode networks: the 2-mode version uses a routine that might take a bit longer.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
