@@ -136,14 +136,10 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveLayer(string layerName)
         {
-            if (!(GetLayer(layerName) is ILayer layer))
-                return OperationResult.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-
-            //var layerResult = GetLayer(layerName);
-            //if (!layerResult.Success)
-            //    return layerResult;
-            //layerResult.Value!.ClearLayer();
-            layer.ClearLayer();
+            var layerResult = GetLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            layerResult.Value!.ClearLayer();
             Layers.Remove(layerName);
             IsModified = true;
             return OperationResult.Ok($"Layer '{layerName}' removed from network '{Name}'.");
