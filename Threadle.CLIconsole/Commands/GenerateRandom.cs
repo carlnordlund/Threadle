@@ -21,12 +21,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "generate(network = [var:network], layername = [str], type = ['er','ws'], +p = [double], +k = [int], +beta = [double])";
+        public string Syntax => "generate(network = [var:network], layername = [str], type = ['er','ws','ba'], +p = [double], +k = [int], +beta = [double], +m = [int])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates a random network of the specified type in the specified layer of the specified network. The layer must already exist and be binary: any would-be ties that exist in that layer will first be removed. Erdös-Renyi (type to 'er'): layer can be either directional or symmetric, with or without selfties; set p to the edge probability (which is also the overall network density). For Watts-Strogatz (type to 'ws'): layer must be symmetric; set k to mean degree (must be even), and beta to rewiring probability (0-1 range). Note that the arguments marked with (+) are compulsory arguments for each type and must be named; arguments for types not used can be ignored.";
+        public string Description => "Creates a random network of the specified type in the specified layer of the specified network. The layer must already exist and be binary: any would-be ties that exist in that layer will first be removed. Erdös-Renyi (type to 'er'): layer can be either directional or symmetric, with or without selfties; set p to the edge probability (which is also the overall network density). For Watts-Strogatz (type to 'ws'): layer must be symmetric without selfties; set k to mean degree (must be even), and beta to rewiring probability (0-1 range). For Barabasi-Albert (type to 'ba'): layer must be symmetric without selfties; set m to the degree/attachment parameter (i.e. edges per new node). Note that the arguments marked with (+) are compulsory arguments for each type and must be named; arguments for types not used can be ignored.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -52,6 +52,9 @@ namespace Threadle.CLIconsole.Commands
                     int k = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("k", null);
                     double beta = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("beta", null);
                     return CommandResult.FromOperationResult(NetworkGenerators.WattsStrogatzLayer(network, layerName, k, beta));
+                case "ba":
+                    int m = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("m", null);
+                    return CommandResult.FromOperationResult(NetworkGenerators.BarabasiAlbertLayer(network, layerName, m));
                 default:
                     return CommandResult.Fail("TypeNotFound", $"Random network type '{type}' not recognized.");
 

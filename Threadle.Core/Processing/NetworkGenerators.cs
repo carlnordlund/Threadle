@@ -17,6 +17,67 @@ namespace Threadle.Core.Processing
     {
         #region Methods (public)
 
+        public static OperationResult BarabasiAlbertLayer(Network network, string layerName, int m)
+        {
+            var layerResult = network.GetLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            if (!(layerResult.Value is LayerOneMode layer))
+                return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
+            if (!layer.IsBinary)
+                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for binary edges.");
+            if (!layer.IsSymmetric)
+                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for symmetric edges.");
+            if (layer.Selfties)
+                return OperationResult.Fail("LayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
+
+            Nodeset nodeset = network.Nodeset;
+
+            // Get an array of all node ids
+            uint[] nodeIds = nodeset.NodeIdArray;
+            int n = nodeIds.Length;
+
+            if (m < 0 || m > n)
+                return OperationResult.Fail("InvalidArgument", $"The attachment parameter (m) is {m}: it must be between 2 and the size of the network.");
+
+            int totalEdges = (m * (m + 1)) / 2 + m * (n - m - 1);
+
+            List<uint> edgeEndpoints = new List<uint>(2 * totalEdges);
+
+            // Create initial clique with first m+1 nodes
+            for (int i = 0; i <= m; i++)
+            {
+                for (int j = i + 1; j <= m; j++)
+                {
+                    layer._addEdge(nodeIds[i], nodeIds[j]);
+                    edgeEndpoints.Add(nodeIds[i]);
+                    edgeEndpoints.Add(nodeIds[j]);
+                }
+            }
+
+            // Attach remaining nodes sequentially
+            uint newNode, candidate;
+            HashSet<uint> targets = new HashSet<uint>(m);
+            for (int i = m + 1; i < n; i++)
+            {
+                newNode = nodeIds[i];
+                targets.Clear();
+                while (targets.Count<m) {
+                    candidate = edgeEndpoints[Misc.Random.Next(edgeEndpoints.Count)];
+                    if (candidate != newNode)
+                        targets.Add(candidate);
+                }
+                foreach (uint target in targets)
+                {
+                    layer._addEdge(newNode, target);
+                    edgeEndpoints.Add(newNode);
+                    edgeEndpoints.Add(target);
+                }
+            }
+            return OperationResult.Ok($"Barabasi-Albert network with m={m} generated in layer '{layerName}' in network '{network.Name}'.");
+        }
+
+
         public static OperationResult WattsStrogatzLayer(Network network, string layerName, int k, double beta)
         {
             if (k % 2 != 0)
@@ -32,6 +93,8 @@ namespace Threadle.Core.Processing
                 return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for binary edges.");
             if (!layer.IsSymmetric)
                 return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for symmetric edges.");
+            if (layer.Selfties)
+                return OperationResult.Fail("LayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
 
 
 
@@ -71,7 +134,6 @@ namespace Threadle.Core.Processing
             }
 
             return OperationResult.Ok($"Watts-Strogatz network with k={k} and beta={beta} generated in layer '{layerName}' in network '{network.Name}'.");
-            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -182,6 +244,7 @@ namespace Threadle.Core.Processing
             else
                 return (uint)(row + offsetInRow + (selfties ? 0 : 1));
         }
+
 
 
         #endregion
