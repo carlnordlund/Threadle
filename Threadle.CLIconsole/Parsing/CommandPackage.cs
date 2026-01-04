@@ -79,9 +79,9 @@ namespace Threadle.CLIconsole.Parsing
         /// <param name="altKey">The second argument name to look for.</param>
         /// <returns>The value of the argument (as a string).</returns>
         /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
-        internal string GetArgumentThrowExceptionIfMissingOrNull(string key, string altKey)
+        internal string GetArgumentThrowExceptionIfMissingOrNull(string key, string? altKey = null)
         {
-            if (!NamedArgs.TryGetValue(key, out var value) && !NamedArgs.TryGetValue(altKey, out value))
+            if (!NamedArgs.TryGetValue(key, out var value) && altKey is not null && !NamedArgs.TryGetValue(altKey, out value))
                 throw new Exception($"!Error: Argument '{key}' missing.");
             if (string.IsNullOrEmpty(value))
                 throw new Exception($"!Error: Argument '{key}' missing or empty.");
@@ -102,7 +102,7 @@ namespace Threadle.CLIconsole.Parsing
         }
 
         /// <summary>
-        /// Gets the integer value of argument 'key'. If not found, the provided default string value is returned.
+        /// Gets the integer value of argument 'key'. If not found, the provided default integer value is returned.
         /// </summary>
         /// <param name="key">The argument name to look for.</param>
         /// <param name="defaultValue">The default integer value if the argument name is not found.</param>
@@ -115,6 +115,19 @@ namespace Threadle.CLIconsole.Parsing
         }
 
         /// <summary>
+        /// Gets the double value of argument 'key'. If not found, the provided default double value is returned.
+        /// </summary>
+        /// <param name="key">The argument name to look for.</param>
+        /// <param name="defaultValue">The default double value if the argument name is not found.</param>
+        /// <returns>The double value of the argument, or the default value if the argument is not found.</returns>
+        internal double GetArgumentParseDouble(string key, double defaultValue)
+        {
+            if (double.TryParse(GetArgument(key), out double value))
+                return value;
+            return defaultValue;
+        }
+
+        /// <summary>
         /// Gets the integer value of argument 'key' (or 'altkey' if 'key' is missing). Throws an
         /// exception if neither is found.
         /// </summary>
@@ -122,7 +135,7 @@ namespace Threadle.CLIconsole.Parsing
         /// <param name="altKey">The second argument name to look for.</param>
         /// <returns>The value of the argument (as an integer).</returns>
         /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
-        internal int GetArgumentParseIntThrowExceptionIfMissingOrNull(string key, string altKey)
+        internal int GetArgumentParseIntThrowExceptionIfMissingOrNull(string key, string? altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
             if (!int.TryParse(valueString, out var value))
@@ -138,7 +151,7 @@ namespace Threadle.CLIconsole.Parsing
         /// <param name="altKey">The second argument name to look for.</param>
         /// <returns>The value of the argument (as an unsigned integer).</returns>
         /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
-        internal uint GetArgumentParseUintThrowExceptionIfMissingOrNull(string key, string altKey)
+        internal uint GetArgumentParseUintThrowExceptionIfMissingOrNull(string key, string? altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
             if (!uint.TryParse(valueString, out var value))
@@ -167,7 +180,7 @@ namespace Threadle.CLIconsole.Parsing
         /// <param name="altKey">The second argument name to look for.</param>
         /// <returns>The value of the argument (as a double).</returns>
         /// <exception cref="Exception">Throws an exception if the argument is not found.</exception>
-        internal double GetArgumentParseDoubleThrowExceptionIfMissingOrNull(string key, string altKey)
+        internal double GetArgumentParseDoubleThrowExceptionIfMissingOrNull(string key, string? altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
             if (!double.TryParse(valueString, out var value))

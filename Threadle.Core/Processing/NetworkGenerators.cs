@@ -17,6 +17,63 @@ namespace Threadle.Core.Processing
     {
         #region Methods (public)
 
+        public static OperationResult WattsStrogatzLayer(Network network, string layerName, int k, double beta)
+        {
+            if (k % 2 != 0)
+                return OperationResult.Fail("InvalidArgument", $"The node degree (k) is {k}; it must be an even number.");
+            if (beta<0 || beta>1)
+                return OperationResult.Fail("InvalidArgument", $"The rewiring probability (beta) is {beta}; it must be between 0 and 1.");
+            var layerResult = network.GetLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            if (!(layerResult.Value is LayerOneMode layer))
+                return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
+            if (!layer.IsBinary)
+                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for binary edges.");
+            if (!layer.IsSymmetric)
+                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for symmetric edges.");
+
+
+
+            layer.ClearLayer();
+
+            Nodeset nodeset = network.Nodeset;
+
+            // Get an array of all node ids
+            uint[] nodeIds = nodeset.NodeIdArray;
+            uint n = (uint)nodeIds.Length;
+
+            // Create ring lattice
+            for (int i = 0; i < n; i++)
+                for (int j = 1; j <= k / 2; j++)
+                    layer._addEdge(nodeIds[i], nodeIds[(i + j) % n]);
+
+            // Then: rewiring - but return for now to check how it looks
+            uint source, oldTarget, newTarget;
+            for (int i = 0; i < n; i++)
+            {
+                source = nodeIds[i];
+                for (int j = 1; j <= k / 2; j++)
+                {
+                    if (Misc.Random.NextDouble() < beta)
+                    {
+                        oldTarget = nodeIds[(i + j) % n];
+                        do
+                        {
+                            newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length - 1)];
+
+                        }
+                        while (newTarget == i || layer.CheckEdgeExists(source, newTarget));
+                        layer.RemoveEdge(source, oldTarget);
+                        layer.AddEdge(source, newTarget);
+                    }
+                }
+            }
+
+            return OperationResult.Ok($"Watts-Strogatz network with k={k} and beta={beta} generated in layer '{layerName}' in network '{network.Name}'.");
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Generates an Erdös-Renyi network in the provided network and layer name. The layer must alread exist and be binary.
         /// Any would-be existing ties in that layer will first be deleted. The generator will then follow the properties of the
@@ -125,6 +182,7 @@ namespace Threadle.Core.Processing
             else
                 return (uint)(row + offsetInRow + (selfties ? 0 : 1));
         }
+
 
         #endregion
     }

@@ -1,5 +1,4 @@
-﻿using Threadle.Core.Model;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,19 +10,19 @@ using Threadle.CLIconsole.Runtime;
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'remove' CLI command.
+    /// Class representing the 'removeall' CLI command.
     /// </summary>
-    public class Remove : ICommand
+    public class DeleteAll : ICommand
     {
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "remove(structure = [var:structure])";
+        public string Syntax => "deleteall()";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Removes (deletes) the structure with the variable name [var:structure]. A Nodeset can not be deleted if it is currently used by another structure: first delete those structures. If deleting a network, the nodeset that it uses will remain.";
+        public string Description => "Deletes (removes) all current structures stored in the variable space. Use with caution!";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -37,7 +36,7 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            return context.RemoveStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
+            return context.DeleteAllStructures();
         }
     }
 }

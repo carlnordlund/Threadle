@@ -59,8 +59,8 @@ namespace Threadle.CLIconsole.Runtime
         /// </summary>
         /// <param name="name">The variable´name.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        //internal OperationResult RemoveStructure(string name)
-        internal CommandResult RemoveStructure(string name)
+        //internal OperationResult DeleteStructure(string name)
+        internal CommandResult DeleteStructure(string name)
         {
             if (!Variables.TryGetValue(name, out var structure))
                 return CommandResult.Fail("StructureNotFound", $"Structure {name} not found.");
@@ -81,7 +81,7 @@ namespace Threadle.CLIconsole.Runtime
         /// <summary>
         /// Removes all variables and structures from the console variable memory.
         /// </summary>
-        internal CommandResult RemoveAllStructures()
+        internal CommandResult DeleteAllStructures()
         {
             Variables.Clear();
             return CommandResult.Ok("All structures removed.");
