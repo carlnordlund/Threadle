@@ -177,7 +177,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="edgeTraversal"><see cref="EdgeTraversal"/>Declares whether alters should be inbound, outbound, or both.</param>
         /// <returns>An array of node ids.</returns>
-        public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal)
+        public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal)
         {
             if (!(Edgesets.TryGetValue(nodeId, out var edgeset)))
                 return [];

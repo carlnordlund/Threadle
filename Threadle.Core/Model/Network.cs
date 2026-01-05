@@ -322,22 +322,39 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Returns an array of node ids for the alter of a specified ego node in a specified layer.
+        /// If layername is empty or null, use all layers.
         /// </summary>
-        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="layerName">The name of the layer (can be null or empty).</param>
         /// <param name="nodeId">The node id.</param>
         /// <param name="edgeTraversal">A <see cref="EdgeTraversal"/> value indicating which alters should be included.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="uint"/> array.</returns>
-        public OperationResult<uint[]> GetNodeAlters(string layerName, uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+        public OperationResult<uint[]> GetNodeAlters(string? layerName, uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
             if (!Nodeset.CheckThatNodeExists(nodeId))
                 return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
-            var layerResult = GetLayer(layerName);
-            if (!layerResult.Success)
-                return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
-            //uint[] alterIds = Nodeset.FilterOutNonExistingNodeIds(layerResult.Value!.GetAlterIds(nodeId, edgeTraversal));
-            uint[] alterIds = layerResult.Value!.GetAlterIds(nodeId, edgeTraversal);
+            uint[] alterIds;
+            if (layerName != null && layerName.Length > 0)
+            {
+                var layerResult = GetLayer(layerName);
+                if (!layerResult.Success)
+                    return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
+                alterIds = layerResult.Value!.GetNodeAlters(nodeId, edgeTraversal);
+            }
+            else
+                alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
             Array.Sort(alterIds);
             return OperationResult<uint[]>.Ok(alterIds);
+        }
+
+        public OperationResult<uint[]> GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+        {
+            if (!Nodeset.CheckThatNodeExists(nodeId))
+                return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+            uint[] alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
+            Array.Sort(alterIds);
+
+            return OperationResult<uint[]>.Ok(alterIds);
+           
         }
 
 
@@ -575,18 +592,18 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Returns all alters to a node in all layers. For single layer alters,
-        /// use the GetAlterIds() method. Neither of these do validation of nodes.
+        /// use the GetNodeAlters() method. Neither of these do validation of nodes.
         /// </summary>
         /// <param name="nodeId">The id of the node</param>
         /// <param name="edgeTraversal">The direction of traversal</param>
         /// <returns>Returns a list with alter node ids</returns>
-        internal List<uint> _getNodeAltersAllLayers(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+        internal uint[] _getNodeAltersAllLayers(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
             // Get node alters for all layers
             HashSet<uint> alterIds = [];
             foreach (var layer in Layers.Values)
-                alterIds.UnionWith(layer.GetAlterIds(nodeId, edgeTraversal));
-            return alterIds.ToList();
+                alterIds.UnionWith(layer.GetNodeAlters(nodeId, edgeTraversal));
+            return alterIds.ToArray();
         }
         #endregion
     }

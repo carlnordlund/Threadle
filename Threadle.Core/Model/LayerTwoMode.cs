@@ -140,7 +140,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="edgeTraversal">As this is a 2-mode network, this is moot here.</param>
         /// <returns>An array of node ids.</returns>
-        public uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+        public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
             if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperEdgeCollection) || hyperEdgeCollection.HyperEdges.Count == 0)
                 return [];

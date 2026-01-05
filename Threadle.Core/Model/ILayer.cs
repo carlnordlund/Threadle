@@ -58,7 +58,7 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The ego node id.</param>
         /// <param name="edgeTraversal">An <see cref="EdgeTraversal"/> value specifying whether in- or outbound edges should be included (or both).</param>
         /// <returns></returns>
-        uint[] GetAlterIds(uint nodeId, EdgeTraversal edgeTraversal);
+        uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal);
 
         /// <summary>
         /// Removes all edges for a particular node id.

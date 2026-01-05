@@ -53,7 +53,7 @@ namespace Threadle.Core.Analysis
                     while (queue.Count > 0)
                     {
                         current = queue.Dequeue();
-                        foreach (uint neighborId in layer.GetAlterIds(current,EdgeTraversal.Out))
+                        foreach (uint neighborId in layer.GetNodeAlters(current,EdgeTraversal.Out))
                         {
                             if (!visited.Contains(neighborId))
                             {
@@ -193,12 +193,7 @@ namespace Threadle.Core.Analysis
 
                     foreach (var layer in network.Layers.Values)
                     {
-                        uint[] alters = layer.GetAlterIds(nodeid, edgeTraversal);
-                        //var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
-                        //if (!altersResult.Success)
-                        //    return OperationResult<uint>.Fail(altersResult);
-
-                        //var alters = altersResult.Value!;
+                        uint[] alters = layer.GetNodeAlters(nodeid, edgeTraversal);
                         if (alters.Length > 0)
                             layerAlterslist.Add(alters);
                     }
@@ -211,10 +206,7 @@ namespace Threadle.Core.Analysis
                 {
                     foreach (var layer in network.Layers.Values)
                     {
-                        uint[] alters = layer.GetAlterIds(nodeid, edgeTraversal);
-                        //var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
-                        //if (!altersResult.Success)
-                        //    return OperationResult<uint>.Fail(altersResult);
+                        uint[] alters = layer.GetNodeAlters(nodeid, edgeTraversal);
                         alterIds.AddRange(alters);
                     }
                 }

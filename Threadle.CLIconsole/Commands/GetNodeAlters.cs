@@ -21,12 +21,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[array:uint] = getnodealters(network = [var:network], layername = [str], nodeid = [uint], *direction = ['both'(default),'in','out'])";
+        public string Syntax => "[array:uint] = getnodealters(network = [var:network], nodeid = [uint], *layername = [str], *direction = ['both'(default),'in','out'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the id of the alters to a specific node in a specific layer in the Network with the variable name [var:network]. Output is in standard JSON array format. By default, both in- and outbound ties are included in the set of alters, but this can be adjusted with the optional direction argument.";
+        public string Description => "Get the id of the alters to a specific node in the Network with the variable name [var:network]. Will either return the node alters for a specified layer (as given by layername) or return alters in all layers. Output is in standard JSON array format. By default, both in- and outbound ties are included in the set of alters, but this can be adjusted with the optional direction argument.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -42,8 +42,10 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-            uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg2");
+            uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
+            string layerName = command.GetArgumentParseString("layername", "");
+
+            //string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
             OperationResult<uint[]> result = network.GetNodeAlters(layerName, nodeid, edgeTraversal);
             return CommandResult.FromOperationResult(result, result.Value);

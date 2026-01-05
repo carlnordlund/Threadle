@@ -43,7 +43,7 @@ namespace Threadle.Core.Analysis
         {
             Dictionary<uint, uint> degreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
-                degreeCentrality[nodeId] = (uint)layerTwoMode.GetAlterIds(nodeId).Length;
+                degreeCentrality[nodeId] = (uint)layerTwoMode.GetNodeAlters(nodeId).Length;
             return degreeCentrality;
         }
 
@@ -75,7 +75,7 @@ namespace Threadle.Core.Analysis
 
             ulong nbrExistingEdges = 0;
             foreach (uint nodeid in network.Nodeset.NodeIdArray)
-                nbrExistingEdges += (ulong)layer.GetAlterIds(nodeid).Length;
+                nbrExistingEdges += (ulong)layer.GetNodeAlters(nodeid).Length;
             return (double)nbrExistingEdges / nbrPotentialEdges;
         }
         #endregion
