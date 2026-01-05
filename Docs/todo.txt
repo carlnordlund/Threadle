@@ -1,6 +1,13 @@
 To-do
 =====
 
+Fix getnodealters so that it is either for all layers, or for individual layer.
+Removed filteroutnonexistingnodes - might not need it in Nodeset anymore.
+
+Modified GetRandomAlter: check that it works
+
+Implementing shortest path (for individual layers)
+
 
 CLI command and Core methods for importing attributes from file? 'importattr()'? Given a file with attribute data, supplement existing Nodeset with this.
 Pre-define attributes prior to import? Need to think a bit about this. Could also do this programmatically from R.

@@ -16,6 +16,84 @@ namespace Threadle.Core.Analysis
     {
         #region Methods (public)
         /// <summary>
+        /// Calculates the shortest path between two nodes, either for a particular layer or for all layers.
+        /// To work with all layers, set layerName to an empty string. Note that the shortest path takes edge
+        /// directionality into account: if a layer has directional edges, this matters. For layers that are symmetric,
+        /// the directionality is moot.
+        /// If there is no path between the nodes, a distance of -1 is returned: note that this is also
+        /// wrapped in a OperationResult.Success.
+        /// </summary>
+        /// <param name="network">The network.</param>
+        /// <param name="layerName">The name of the layer (or an empty/null string if all layers should be used)</param>
+        /// <param name="nodeIdFrom">The source node id.</param>
+        /// <param name="nodeIdTo">The destination node id.</param>
+        /// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
+        public static OperationResult<int> ShortestPath(Network network, string? layerName, uint nodeIdFrom, uint nodeIdTo)
+        {
+            if (nodeIdFrom == nodeIdTo)
+                return OperationResult<int>.Ok(0);
+            else
+            {
+                Queue<uint> queue = [];
+                HashSet<uint> visited = [];
+                Dictionary<uint,int> distances = [];
+                uint current;
+
+                if (layerName != null && layerName.Length > 0)
+                {
+                    var layerResult = network.GetLayer(layerName);
+                    if (!layerResult.Success)
+                        return OperationResult<int>.Fail(layerResult);
+                    var layer = layerResult.Value!;
+
+                    queue.Enqueue(nodeIdFrom);
+                    visited.Add(nodeIdFrom);
+                    distances[nodeIdFrom] = 0;
+
+                    while (queue.Count > 0)
+                    {
+                        current = queue.Dequeue();
+                        foreach (uint neighborId in layer.GetAlterIds(current,EdgeTraversal.Out))
+                        {
+                            if (!visited.Contains(neighborId))
+                            {
+                                visited.Add(neighborId);
+                                distances[neighborId] = distances[current] + 1;
+                                if (neighborId == nodeIdTo)
+                                    return OperationResult<int>.Ok(distances[neighborId]);
+                                queue.Enqueue(neighborId);
+                            }
+                        }
+                    }
+                    return OperationResult<int>.Ok(-1);
+                }
+                else
+                {
+                    queue.Enqueue(nodeIdFrom);
+                    visited.Add(nodeIdFrom);
+                    distances[nodeIdFrom] = 0;
+                    while (queue.Count>0)
+                    {
+                        current = queue.Dequeue();
+                        foreach (uint neighborId in network._getNodeAltersAllLayers(current, EdgeTraversal.Out))
+                        {
+                            if (!visited.Contains(neighborId))
+                            {
+                                visited.Add(neighborId);
+                                distances[neighborId] = distances[current] + 1;
+                                if (neighborId == nodeIdTo)
+                                    return OperationResult<int>.Ok(distances[neighborId]);
+                                queue.Enqueue(neighborId);
+                            }
+                        }
+                    }
+                    return OperationResult<int>.Ok(-1);
+                }
+            }
+        }
+
+
+        /// <summary>
         /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
         /// Using different methods for 1- resp 2-mode layers.
         /// </summary>
@@ -115,11 +193,12 @@ namespace Threadle.Core.Analysis
 
                     foreach (var layer in network.Layers.Values)
                     {
-                        var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
-                        if (!altersResult.Success)
-                            return OperationResult<uint>.Fail(altersResult);
+                        uint[] alters = layer.GetAlterIds(nodeid, edgeTraversal);
+                        //var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
+                        //if (!altersResult.Success)
+                        //    return OperationResult<uint>.Fail(altersResult);
 
-                        var alters = altersResult.Value!;
+                        //var alters = altersResult.Value!;
                         if (alters.Length > 0)
                             layerAlterslist.Add(alters);
                     }
@@ -132,10 +211,11 @@ namespace Threadle.Core.Analysis
                 {
                     foreach (var layer in network.Layers.Values)
                     {
-                        var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
-                        if (!altersResult.Success)
-                            return OperationResult<uint>.Fail(altersResult);
-                        alterIds.AddRange(altersResult.Value!);
+                        uint[] alters = layer.GetAlterIds(nodeid, edgeTraversal);
+                        //var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
+                        //if (!altersResult.Success)
+                        //    return OperationResult<uint>.Fail(altersResult);
+                        alterIds.AddRange(alters);
                     }
                 }
             }

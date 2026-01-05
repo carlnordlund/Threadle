@@ -62,6 +62,7 @@ namespace Threadle.CLIconsole.Runtime
             ["setattr"] = new SetAttr(),
             ["setting"] = new Setting(),
             ["setwd"] = new SetWorkingDirectory(),
+            ["shortestpath"] = new ShortestPath(),
             ["subnet"] = new Subnet(),
             ["undefineattr"] = new UndefineAttr()
         };
