@@ -64,6 +64,7 @@ namespace Threadle.CLIconsole.Runtime
             ["setwd"] = new SetWorkingDirectory(),
             ["shortestpath"] = new ShortestPath(),
             ["subnet"] = new Subnet(),
+            ["symmetrize"] = new Symmetrize(),
             ["undefineattr"] = new UndefineAttr()
         };
         #endregion

@@ -126,6 +126,12 @@ namespace Threadle.Core.Model
             Misc.DeduplicateConnectionList(_connections);
         }
 
+        public void _sort()
+        {
+            _connections.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
+        }
+
+
         /// <summary>
         /// Removes an (inbound) edge from this edgeset.
         /// </summary>

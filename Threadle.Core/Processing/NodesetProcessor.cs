@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Threadle.Core.Model;
+using Threadle.Core.Processing.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Processing

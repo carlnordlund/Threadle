@@ -94,6 +94,12 @@ namespace Threadle.Core.Model
 
         }
 
+        public void _sort()
+        {
+            _outbound.Sort();
+            _inbound.Sort();
+        }
+
         /// <summary>
         /// Adds an outbound edge to this edgeset. If the BlockMultiedges setting is active,
         /// it is first checked if this edge exists: if so, a warning is returned.

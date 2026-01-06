@@ -1,12 +1,12 @@
 ﻿using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
-using Threadle.Core.Processing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using Threadle.Core.Processing.Enums;
 
 namespace Threadle.Core.Utilities
 {
