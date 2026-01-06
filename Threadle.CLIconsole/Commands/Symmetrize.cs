@@ -25,7 +25,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "[Description of what the command does].";
+        public string Description => "Symmetrize the specified layer in the specific network. The layer must be 1-mode and preferably directional. A new, symmetrized version of the layer will be created: the original layer will remain as it is. An optional name for the new layer can be specified: otherwise, it will be automatically named.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -45,9 +45,6 @@ namespace Threadle.CLIconsole.Commands
             SymmetrizeMethod method = command.GetArgumentParseEnum<SymmetrizeMethod>("method", SymmetrizeMethod.max);
             string newLayerName = network.GetNextAvailableLayerName(command.GetArgumentParseString("newlayername", layerName + "-symmetrized").ToLowerInvariant());
             return CommandResult.FromOperationResult(NetworkProcessor.SymmetrizeLayer(network, layerName, method, newLayerName));
-
-
-            return CommandResult.Fail("NotYetImplemented", "This command is not yet implemented");
         }
     }
 }
