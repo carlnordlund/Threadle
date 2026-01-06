@@ -45,6 +45,9 @@ namespace Threadle.CLIconsole.Commands
             SymmetrizeMethod method = command.GetArgumentParseEnum<SymmetrizeMethod>("method", SymmetrizeMethod.max);
             string newLayerName = network.GetNextAvailableLayerName(command.GetArgumentParseString("newlayername", layerName + "-symmetrized").ToLowerInvariant());
             return CommandResult.FromOperationResult(NetworkProcessor.SymmetrizeLayer(network, layerName, method, newLayerName));
+
+
+            return CommandResult.Fail("NotYetImplemented", "This command is not yet implemented");
         }
     }
 }
