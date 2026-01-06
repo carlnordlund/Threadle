@@ -4,21 +4,19 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Threadle.Core.Processing
+namespace Threadle.Core.Processing.Enums
 {
     /// <summary>
     /// Enum to handle various comparisons that can be done
     /// Used by the filter command
     /// </summary>
-    public enum ConditionType
+    public enum SymmetrizeMethod
     {
-        eq,
-        ne,
-        gt,
-        lt,
-        ge,
-        le,
-        isnull,
-        notnull
+        max,
+        min,
+        minnonzero,
+        average,
+        sum,
+        product
     }
 }

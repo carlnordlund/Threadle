@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Processing
@@ -24,6 +26,88 @@ namespace Threadle.Core.Processing
 
 
         #region Methods (public)
+        /// Dichotomizes the valued edges in a 1-mode layer by the provided condition type and threshold, storing these
+        /// new dichotomized edges in a new binary 1-mode layer with the same directionality with the provided name.
+        /// The comparison condition, threshold, values-if-true and values-if-false are all customizable.
+        /// Note that dichotomization creates a new layer, without modifying anything in the layer that is being dichotomized.
+
+
+
+        /// <summary>
+        /// Symmetrizes the directed edges in a 1-mode layer by the provided method, storing these new symmetrized
+        /// edges in a new symmetric 1-mode layer with the same value type with the provided name.
+        /// Note that symmetrization creates a new layer, without modifying anything in the layer that was symmetrized.
+        /// </summary>
+        /// <param name="network">The Network object.</param>
+        /// <param name="layerName">The name of the 1-mode valued layer to dichotomize.</param>
+        /// <param name="method">The <see cref="SymmetrizeMethod"/> to use when symmetrizing.</param>
+        /// <param name="newLayerName">The name of the new 1-mode binary layer to store the dichotomized data in.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public static OperationResult SymmetrizeLayer(Network network, string layerName, SymmetrizeMethod method, string newLayerName)
+        {
+            if (!network.Layers.TryGetValue(layerName, out var layer))
+                return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
+            if (!(layer is LayerOneMode originalLayer))
+                return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 1-mode layer.");
+            if (originalLayer.IsSymmetric)
+                return OperationResult.Ok($"Layer '{layerName}' is already symmetric.");
+
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, originalLayer.EdgeValueType, originalLayer.Selfties);
+
+            Func<float, float, float> SymmetrizeFunction = method switch
+            {
+                SymmetrizeMethod.max => (a, b) => Math.Max(a, b),
+                SymmetrizeMethod.minnonzero => (a, b) =>
+                {
+                    if (a == 0) return b;
+                    if (b == 0) return a;
+                    return Math.Min(a, b);
+                },
+                SymmetrizeMethod.sum => (a, b) => a + b,
+                SymmetrizeMethod.average => (a, b) => (a + b) / 2,
+                SymmetrizeMethod.product => (a, b) => a * b,
+                _ => (a,b) => Math.Min(a,b)
+            };
+
+            if (originalLayer.IsBinary)
+            {
+                // Edges are binary
+                foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
+                {
+                    if (!(edgeset is EdgesetBinaryDirectional edgesetBinaryDirectional))
+                        return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a binary directional edgeset.");
+                    foreach (uint partnerNodeId in edgesetBinaryDirectional.GetOutboundNodeIds)
+                    {
+                        if (!newLayer.CheckEdgeExists(nodeId, partnerNodeId) && SymmetrizeFunction(1, originalLayer.GetEdgeValue(partnerNodeId, nodeId)) > 0)
+                            newLayer._addEdge(nodeId, partnerNodeId);
+                    }
+                }
+            }
+            else
+            {
+                // Edges are valued
+                foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
+                {
+                    if (!(edgeset is EdgesetValuedDirectional edgesetValuedDirectional))
+                        return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a valued directional edgeset.");
+                    foreach (var connection in edgesetValuedDirectional.GetOutboundConnections)
+                    {
+                        if (newLayer.CheckEdgeExists(nodeId, connection.partnerNodeId))
+                            continue;
+                        float val = SymmetrizeFunction(connection.value, originalLayer.GetEdgeValue(connection.partnerNodeId, nodeId));
+                        if (val > 0)
+                            newLayer._addEdge(nodeId, connection.partnerNodeId, val);
+                    }
+                }
+            }
+            // Sort all partner NodeIds in the Edgesets - mostly cosmetics, but looks better when writing to tsv and when
+            // getting node alters.
+            newLayer._sortEdgesets();
+            network.AddLayer(newLayerName, newLayer);
+            return OperationResult.Ok($"Symmetrized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
+        }
+
+
         /// <summary>
         /// Dichotomizes the valued edges in a 1-mode layer by the provided condition type and threshold, storing these
         /// new dichotomized edges in a new binary 1-mode layer with the same directionality with the provided name.

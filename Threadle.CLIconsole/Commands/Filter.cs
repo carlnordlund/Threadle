@@ -9,6 +9,7 @@ using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Model;
 using Threadle.Core.Processing;
+using Threadle.Core.Processing.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands

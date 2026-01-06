@@ -118,6 +118,12 @@ namespace Threadle.Core.Model
             Misc.DeduplicateConnectionList(_outbound);
         }
 
+        public void _sort()
+        {
+            _inbound.Sort((a,b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
+            _outbound.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
+        }
+
 
         /// <summary>
         /// Removes an inbound edge (i.e. Connection struct) from this edgeset.

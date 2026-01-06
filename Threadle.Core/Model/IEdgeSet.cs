@@ -156,6 +156,8 @@ namespace Threadle.Core.Model
         /// </summary>
         void _deduplicate();
 
+        void _sort();
+
         void _setCapacity(int capacity);
         #endregion
     }

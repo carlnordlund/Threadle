@@ -458,6 +458,17 @@ namespace Threadle.Core.Model
             foreach (IEdgeset edgeset in Edgesets.Values)
                 edgeset._deduplicate();
         }
+
+        /// <summary>
+        /// Goes through all Edgesets in the layer and sorts the partnerNodeIds by id
+        /// Used after having symmetrized, as that could result in the order of node Ids being
+        /// non-incremental
+        /// </summary>
+        internal void _sortEdgesets()
+        {
+            foreach (IEdgeset edgeset in Edgesets.Values)
+                edgeset._sort();
+        }
         #endregion
     }
 }

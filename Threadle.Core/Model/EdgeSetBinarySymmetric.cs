@@ -121,6 +121,12 @@ namespace Threadle.Core.Model
             Misc.DeduplicateUintList(_connections);
         }
 
+        public void _sort()
+        {
+            _connections.Sort();
+        }
+
+
 
         /// <summary>
         /// Removes an (inbound) edge from this edgeset.
