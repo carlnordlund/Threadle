@@ -1,6 +1,29 @@
 To-do
 =====
 
+Possible extra functions:
+Merge nodesets - combine different nodesets
+Extract ego networks - get N-hop neighborhoods for sampled nodes
+Layer operations - merge/intersect layers across domains
+Sample N random nodes - so like getrandomnode
+Stratified sampling? - by attribute value
+Component analysis - nbr of components, subsets?
+Attribute cross-tabulations?
+
+Get node's layers?
+Cross-layer queries: are two nodes connected in any domains? Like checkedge, getedge but for all layers (but could be iterated)
+Layer-specific ego networks - already got, with getnodealters(), possible specify layername
+Getalter attributes - get set of attributevalues of alters
+Attribute summaries - on ego networks
+
+
+
+
+
+
+
+
+
 Merge layers?
 
 Get alter attributes

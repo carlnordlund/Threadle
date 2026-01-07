@@ -30,6 +30,9 @@ namespace Threadle.Core.Analysis
         /// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
         public static OperationResult<int> ShortestPath(Network network, string? layerName, uint nodeIdFrom, uint nodeIdTo)
         {
+            OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
+            if (!nodeCheckResult.Success)
+                return OperationResult<int>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
             if (nodeIdFrom == nodeIdTo)
                 return OperationResult<int>.Ok(0);
             else
