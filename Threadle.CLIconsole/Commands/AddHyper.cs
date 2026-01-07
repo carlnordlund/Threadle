@@ -44,8 +44,9 @@ namespace Threadle.CLIconsole.Commands
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
             if (command.GetArgument("nodes") is string nodesString)
             {
-                uint[] nodeIds = Misc.NodesIdsStringToArray(nodesString)
-                    ?? throw new Exception($"!Error: Couldn't parse semicolon-separated list with nodes.");
+                uint[]? nodeIds = Misc.NodesIdsStringToArray(nodesString);
+                if (nodeIds == null)
+                    return CommandResult.Fail("ParseError", "Could not parse semicolon-separated list with nodes.");
                 bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", true);
                 return CommandResult.FromOperationResult(network.AddHyperedge(layerName, hyperName, nodeIds, addMissingNodes));
             }

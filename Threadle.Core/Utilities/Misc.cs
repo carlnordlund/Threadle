@@ -200,9 +200,9 @@ namespace Threadle.Core.Utilities
         /// <param name="nodesString">A string with char-separated integer values.</param>
         /// <param name="sep">The separator character that should be used (default is semicolon ;)</param>
         /// <returns>Returns an array of unsigned integers.</returns>
-        public static uint[] NodesIdsStringToArray(string nodesString, char sep = ';')
+        public static uint[]? NodesIdsStringToArray(string nodesString, char sep = ';')
         {
-            return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
+            return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray() ?? null;
         }
 
         /// <summary>

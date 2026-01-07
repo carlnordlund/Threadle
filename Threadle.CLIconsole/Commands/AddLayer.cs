@@ -43,7 +43,7 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             if (!command.TrimNameAndCheckValidity(layerName, out string layerNameVerified))
-                throw new Exception($"!Error: Layer name '{layerName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
+                return CommandResult.Fail("InvalidLayerName", $"Layer name '{layerName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
             char mode = command.GetArgumentThrowExceptionIfMissingOrNull("mode", "arg2")[0];
             OperationResult result;
             if (mode == '1')
@@ -56,7 +56,7 @@ namespace Threadle.CLIconsole.Commands
             else if (mode == '2')
                 result = network.AddLayerTwoMode(layerNameVerified);
             else
-                return CommandResult.Fail("UnknownMode", $"Error: Unknown mode ('{mode}') - must be either '1' or '2'.");
+                return CommandResult.Fail("UnknownMode", $"Unknown mode ('{mode}') - must be either '1' or '2'.");
             return CommandResult.FromOperationResult(result);
         }
     }

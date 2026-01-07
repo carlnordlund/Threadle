@@ -42,7 +42,7 @@ namespace Threadle.CLIconsole.Commands
             string name = command.GetArgumentParseString("name", variableName);
             int createNodes = command.GetArgumentParseInt("createnodes", 0);
             if (createNodes < 0)
-                throw new ArgumentException("Number of created nodes can not be less than zero");
+                return CommandResult.Fail("InvalidArgument", "Number of created nodes can not be less than zero.");
             Nodeset nodeset = new Nodeset(name, createNodes);
             context.SetVariable(variableName, nodeset);
             return CommandResult.Ok(

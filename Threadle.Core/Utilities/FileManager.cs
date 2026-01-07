@@ -9,7 +9,7 @@ using System.Reflection.Metadata.Ecma335;
 namespace Threadle.Core.Utilities
 {
     /// <summary>
-    /// Public-facing class for loading and saving data in Threadle
+    /// Public-facing class for loading and saving data in Threadle.
     /// </summary>
     public static class FileManager
     {
@@ -19,6 +19,7 @@ namespace Threadle.Core.Utilities
         /// Public-facing method for loading a data structure from file. Returns an OperationResult that holds
         /// a StructureResult, which in turn can hold one or more IStructure objects.
         /// Catches all exceptions, converts to OperationResults.
+        /// Note that file import methods use internal methods that bypass validation for performance.
         /// </summary>
         /// <param name="filepath">The filepath to the file to load.</param>param>
         /// <param name="structureTypeString">The type of structure to load ('network' or 'nodeset')</param>
@@ -74,6 +75,8 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Public-facing method to import relational data to a 1-mode or 2-mode layer from a data file.
         /// The file can be either as an edgelist or a matrix/table.
+        /// Note that file import methods use internal methods that bypass validation for performance.
+        /// When addMissingNodes is set to false, invalid edges are silenty skipped (not error-reporting)
         /// </summary>
         /// <param name="filepath">The filepath to the file to import.</param>
         /// <param name="network">The Network object to import the data to.</param>
