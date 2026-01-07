@@ -227,6 +227,75 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
+        /// Generates the cumulative distribution function for the discrete Poisson distribution for the specified
+        /// lambda and maxValue. Normalizes the probabilities so they sum up to 1.
+        /// Used with the function for sampling from a given CDF.
+        /// </summary>
+        /// <param name="lambda">The lambda value (i.e. expected value)</param>
+        /// <param name="maxValue">The max value that can be generated.</param>
+        /// <returns>A double[] array of probabilities.</returns>
+        internal static double[] BuildPoissonCDF(double lambda, int maxValue)
+        {
+            if (lambda < 0 || maxValue < 0)
+                return [];
+            double[] cdf = new double[maxValue + 1];
+            double pmf = Math.Exp(-lambda);
+            cdf[0] = pmf;
+            for (int k = 1; k <= maxValue; k++)
+            {
+                pmf = pmf * lambda / k;
+                cdf[k] = cdf[k - 1] + pmf;
+            }
+            double totalProb = cdf[maxValue];
+            for (int k = 0; k <= maxValue; k++)
+                cdf[k] /= totalProb;
+            return cdf;
+        }
+
+        /// <summary>
+        /// Sample from a precomputed cumulative distribution function (CDF).
+        /// Uses binary search for speed. Returns the discrete random variable.
+        /// </summary>
+        /// <param name="cdf">The Cumulative distribution function, i.e. array of cumulative probabilities</param>
+        /// <returns>Sampled integer value</returns>
+        internal static int SampleFromCDF(double[] cdf)
+        {
+            double u = Random.NextDouble();
+            int left = 0;
+            int right = cdf.Length - 1;
+            while (left<right)
+            {
+                int mid = left + (right - left) / 2;
+                if (u <= cdf[mid])
+                    right = mid;
+                else left = mid + 1;
+            }
+            return left;
+        }
+
+        /// <summary>
+        /// Partial Fisher-Yates for sampling k from an array: randomly reshuffling but only
+        /// the first k entries in an array. Returns false if something went wrong.
+        /// </summary>
+        /// <typeparam name="T">Type of value that the array is about</typeparam>
+        /// <param name="array">The array (by reference)</param>
+        /// <param name="k">Number to randomize (i.e. k first)</param>
+        /// <returns>True if successful, false if an error.</returns>
+        internal static bool SampleWithoutReplacementInPlace<T>(T[] array, int k)
+        {
+            if (k > array.Length)
+                return false;
+            for (int i = 0; i < k; i++)
+            {
+                int j = Random.Next(i, array.Length);
+                T temp = array[i];
+                array[i] = array[j];
+                array[j] = temp;
+            }
+            return true;
+        }
+
+        /// <summary>
         /// Convenience function for expressing an edge with or without directional connotations.
         /// </summary>
         /// <param name="directionality">Directionality of the edge specified by a <see cref="EdgeDirectionality"/> value.</param>

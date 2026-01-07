@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -16,6 +17,48 @@ namespace Threadle.Core.Processing
     public static class NetworkGenerators
     {
         #region Methods (public)
+
+        public static OperationResult TwoModeRandomLayer(Network network, string layerName, int h, int averageNbrAffiliations)
+        {
+            var layerResult = network.GetLayer(layerName);
+            if (!layerResult.Success)
+                return layerResult;
+            if (!(layerResult.Value is LayerTwoMode layer))
+                return OperationResult.Fail("InvalidLayerMode", $"Layer '{layerName}' in network '{network.Name}' is not 2-mode.");
+
+
+            if (h < 2)
+                return OperationResult.Fail("InvalidArgument", "The number of hyperedges (h) must be at least 2.");
+            if (averageNbrAffiliations < 1 || averageNbrAffiliations > h)
+                return OperationResult.Fail("InvalidArgument", "The average number of node affiliations (a) must be at least 1 and no more than the number of hyperedges (h).");
+
+            double[] cdf = Misc.BuildPoissonCDF(averageNbrAffiliations, h);
+
+            Nodeset nodeset = network.Nodeset;
+
+            uint[] nodeIds = nodeset.NodeIdArray;
+            int n = nodeIds.Length;
+
+            string[] hyperNames= new string[h];
+            for (int j = 0; j < h; j++)
+            {
+                hyperNames[j] = $"aff_{j}";
+                layer.AddHyperedge(hyperNames[j], null);
+            }
+
+
+            for (int i = 0; i < n; i++)
+            {
+                int nbrAffs = Misc.SampleFromCDF(cdf);
+                Misc.SampleWithoutReplacementInPlace<string>(hyperNames, nbrAffs);
+                for (int j = 0; j < nbrAffs; j++)
+                    layer._addAffiliation(nodeIds[i], hyperNames[j]);
+            }
+            //return OperationResult.Ok();
+            return OperationResult.Ok($"Randomized 2-mode network with h={h} hyperedges and a={averageNbrAffiliations} average number of affiliations per node generated in layer '{layerName}' in network '{network.Name}'.");
+        }
+
+
 
         public static OperationResult BarabasiAlbertLayer(Network network, string layerName, int m)
         {
@@ -244,6 +287,7 @@ namespace Threadle.Core.Processing
             else
                 return (uint)(row + offsetInRow + (selfties ? 0 : 1));
         }
+
 
 
 
