@@ -41,7 +41,7 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             uint index = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("index", "arg1");
             if (!(nodeset!.GetNodeIdByIndex(index) is uint nodeId))
-                return CommandResult.Fail("IndexOutOfRange", $"Node index '{index}' out of range");
+                return CommandResult.Fail("InvalidNodeIndex", $"Node index '{index}' out of range");
             return CommandResult.Ok(
                 message: $"Node id (index={index}): {nodeId}",
                 payload: nodeId

@@ -23,13 +23,13 @@ namespace Threadle.Core.Processing
             if (!layerResult.Success)
                 return layerResult;
             if (!(layerResult.Value is LayerOneMode layer))
-                return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
+                return OperationResult.Fail("InvalidLayerMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
             if (!layer.IsBinary)
-                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for binary edges.");
+                return OperationResult.Fail("InvalidLayerValueType", $"Layer '{layerName}' in network '{network.Name}' must be for binary edges.");
             if (!layer.IsSymmetric)
-                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for symmetric edges.");
+                return OperationResult.Fail("InvalidLayerEdgeDirection", $"Layer '{layerName}' in network '{network.Name}' must be for symmetric edges.");
             if (layer.Selfties)
-                return OperationResult.Fail("LayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
+                return OperationResult.Fail("ConstraintLayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
 
             Nodeset nodeset = network.Nodeset;
 
@@ -88,13 +88,13 @@ namespace Threadle.Core.Processing
             if (!layerResult.Success)
                 return layerResult;
             if (!(layerResult.Value is LayerOneMode layer))
-                return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
+                return OperationResult.Fail("InvalidLayerMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
             if (!layer.IsBinary)
-                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for binary edges.");
+                return OperationResult.Fail("InvalidLayerValueType", $"Layer '{layerName}' in network '{network.Name}' must be for binary edges.");
             if (!layer.IsSymmetric)
-                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' must be for symmetric edges.");
+                return OperationResult.Fail("InvalidLayerEdgeDirection", $"Layer '{layerName}' in network '{network.Name}' must be for symmetric edges.");
             if (layer.Selfties)
-                return OperationResult.Fail("LayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
+                return OperationResult.Fail("ConstraintLayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
 
 
 
@@ -153,9 +153,9 @@ namespace Threadle.Core.Processing
             if (!layerResult.Success)
                 return layerResult;
             if (!(layerResult.Value is LayerOneMode layer))
-                return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
+                return OperationResult.Fail("InvalidLayerMode", $"Layer '{layerName}' in network '{network.Name}' is not 1-mode.");
             if (!layer.IsBinary)
-                return OperationResult.Fail("LayerNotBinary", $"Layer '{layerName}' in network '{network.Name}' is not for binary edges.");
+                return OperationResult.Fail("InvalidLayerValueType", $"Layer '{layerName}' in network '{network.Name}' is not for binary edges.");
 
             // Clear the layer
             layer.ClearLayer();

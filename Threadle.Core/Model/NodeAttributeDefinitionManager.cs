@@ -68,9 +68,9 @@ namespace Threadle.Core.Model
         internal OperationResult<byte> DefineNewNodeAttribute(string attributeName, NodeAttributeType attributeType)
         {
             if (attributeName.Length < 1)
-                return OperationResult<byte>.Fail("AttributeNameMissing", "Name of attribute must be at least one character.");
+                return OperationResult<byte>.Fail("MissingAttributeName", "Name of attribute must be at least one character.");
             if (_nameToIndex.ContainsKey(attributeName))
-                return OperationResult<byte>.Fail("AttributeNameExists", $"Node attribute named '{attributeName}' already defined");
+                return OperationResult<byte>.Fail("AttributeAlreadyExists", $"Node attribute named '{attributeName}' already defined");
             byte index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
             _nameToIndex[attributeName] = index;
             _indexToType[index] = attributeType;

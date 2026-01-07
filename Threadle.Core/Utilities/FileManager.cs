@@ -33,12 +33,12 @@ namespace Threadle.Core.Utilities
                 {
                     "nodeset" => LoadNodeset(filepath),
                     "network" => LoadNetwork(filepath),
-                    _ => OperationResult<StructureResult>.Fail("LoadError", $"Load not implemented for type '{structureTypeString}'.")
+                    _ => OperationResult<StructureResult>.Fail("IOLoadError", $"Load not implemented for type '{structureTypeString}'.")
                 };
             }
             catch (Exception e)
             {
-                return OperationResult<StructureResult>.Fail("LoadError", $"Unexpected error while loading: {e.Message}");
+                return OperationResult<StructureResult>.Fail("IOLoadError", $"Unexpected error while loading: {e.Message}");
             }
         }
 
@@ -63,12 +63,12 @@ namespace Threadle.Core.Utilities
                 {
                     Nodeset nodeset => SaveNodeset(nodeset, filepath),
                     Network network => SaveNetwork(network, filepath),
-                    _ => OperationResult.Fail("UnsupportedType", $"Save not implemented for type '{structure.GetType().Name}'.")
+                    _ => OperationResult.Fail("UnsupportedStructureType", $"Save not implemented for type '{structure.GetType().Name}'.")
                 };
             }
             catch (Exception e)
             {
-                return OperationResult.Fail("SaveError", $"Unexpected error while saving: {e.Message}");
+                return OperationResult.Fail("IOSaveError", $"Unexpected error while saving: {e.Message}");
             }
         }
 
@@ -103,36 +103,15 @@ namespace Threadle.Core.Utilities
                     case (LayerTwoMode layerTwoMode, "matrix"):
                         LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
                         break;
-
                     default:
-                        return OperationResult.Fail("UnsupportedOption", "The specific layer/format combination for importing is not supported.");
-
+                        return OperationResult.Fail("UnsupportedImportFormat", "The specific layer/format combination for importing is not supported.");
                 }
                 return OperationResult.Ok($"Imported data to layer '{layer.Name}' from file '{filepath}'.");
             }
             catch (Exception ex)
             {
-                return OperationResult.Fail("ImportError", "Unexpected error when importing layer: " + ex.Message);
-
+                return OperationResult.Fail("IOImportError", "Unexpected error when importing layer: " + ex.Message);
             }
-            //try
-            //{
-            //    OperationResult result = (layer, format.ToLower()) switch
-            //    {
-            //        (LayerOneMode layerOneMode, "edgelist") => LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes),
-            //        (LayerOneMode layerOneMode, "matrix") => LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes),
-            //        (LayerTwoMode layerTwoMode, "edgelist") => LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes),
-            //        (LayerTwoMode layerTwoMode, "matrix") => LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes),
-            //        _ => OperationResult.Fail("UnsupportedOptions", "The specific layer/format combination for imports is not supported.")
-            //    };
-            //    return result;
-            //}
-            //catch (Exception e)
-            //{
-            //    return OperationResult.Fail("LoadError", $"Unexpected error while loading: {e.Message}");
-            //}
-
-            //return OperationResult.Fail("NotYetImplemented", "Redoing importlayer");
         }
 
         /// <summary>
@@ -146,7 +125,7 @@ namespace Threadle.Core.Utilities
             try
             {
                 if (string.IsNullOrWhiteSpace(path))
-                    return OperationResult.Fail("MissingFilePath", "Path cannot be null or whitespace.");
+                    return OperationResult.Fail("MissingFilepath", "Path cannot be null or whitespace.");
                 string fullPath = baseDirectory == null ? Path.GetFullPath(path) : Path.GetFullPath(path, baseDirectory);
                 if (baseDirectory != null)
                 {
@@ -155,14 +134,14 @@ namespace Threadle.Core.Utilities
                         return OperationResult.Fail("UnauthorizedFilepath", $"Path '{fullPath}' is outside the allowed base directory '{fullBase}'.");
                 }
                 if (!Directory.Exists(fullPath))
-                    return OperationResult.Fail("FilepathNotFound", $"Directory does not exist: '{fullPath}'.");
+                    return OperationResult.Fail("FileNotFound", $"Directory does not exist: '{fullPath}'.");
                 Directory.SetCurrentDirectory(fullPath);
                 return OperationResult.Ok($"Set current working directory to '{fullPath}'.");
 
             }
             catch (Exception e)
             {
-                return OperationResult.Fail("SetWorkingDirectoryError", $"Unexpected error while setting working directory: {e.Message}");
+                return OperationResult.Fail("IOSetDirectoryError", $"Unexpected error while setting working directory: {e.Message}");
             }
         }
 
@@ -197,7 +176,7 @@ namespace Threadle.Core.Utilities
             }
             catch (Exception e)
             {
-                return OperationResult<string[]>.Fail("LoadError", $"Unexpected error while loading: {e.Message}");
+                return OperationResult<string[]>.Fail("IOLoadError", $"Unexpected error while loading: {e.Message}");
             }
         }
         #endregion
@@ -216,7 +195,7 @@ namespace Threadle.Core.Utilities
             {
                 FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
                 if (format == FileFormat.None)
-                    return OperationResult.Fail("UnsupportedFormat", $"Save format not supported.");
+                    return OperationResult.Fail("UnsupportedFileFormat", $"Save format not supported.");
 
                 switch (format)
                 {
@@ -229,7 +208,7 @@ namespace Threadle.Core.Utilities
                         FileSerializerBin.SaveNodesetToFile(nodeset, filepath, format);
                         return OperationResult.Ok($"Saved nodeset '{nodeset.Name}' to file: {filepath}");
                     default:
-                        return OperationResult.Fail("UnsupportedFormat", $"Save format '{format}' not supported.");
+                        return OperationResult.Fail("UnsupportedFileFormat", $"Save format '{format}' not supported.");
                 }
             }
             catch (Exception e)
@@ -257,7 +236,7 @@ namespace Threadle.Core.Utilities
                 // Imperative that this Nodeset is first stored on file (separately, so that it has a Filepath property).
                 // If not: throw back a Fail
                 if (nodeset.Filepath is null || nodeset.Filepath.Length == 0)
-                    return OperationResult.Fail("UnsavedNodeset",$"Network '{network.Name}' uses nodeset '{nodeset.Name}' which is not yet saved to file. Save that first!");
+                    return OperationResult.Fail("ConstraintUnsavedNodeset",$"Network '{network.Name}' uses nodeset '{nodeset.Name}' which is not yet saved to file. Save that first!");
                 
                 // Get fileformat of the network based on the filepath
                 FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
@@ -293,7 +272,7 @@ namespace Threadle.Core.Utilities
                         FileSerializerBin.SaveNetworkToFile(network, filepath, format);
                         return OperationResult.Ok($"Saved network '{network.Name}' to file: {filepath}");
                     default:
-                        return OperationResult.Fail("UnsupportedFormat", $"Save format '{format}' not supported.");
+                        return OperationResult.Fail("UnsupportedFileFormat", $"Save format '{format}' not supported.");
                 }
             }
             catch (Exception e)
@@ -316,7 +295,7 @@ namespace Threadle.Core.Utilities
             {
                 FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
                 if (format == FileFormat.None)
-                    return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Nodeset.");
+                    return OperationResult<StructureResult>.Fail("UnsupportedFileFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Nodeset.");
 
                 Nodeset nodeset;
                 switch (format)
@@ -330,7 +309,7 @@ namespace Threadle.Core.Utilities
                         nodeset = FileSerializerBin.LoadNodesetFromFile(filepath, format);
                         return OperationResult<StructureResult>.Ok(new StructureResult(nodeset));
                 }
-                return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Nodeset.");
+                return OperationResult<StructureResult>.Fail("UnsupportedFileFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Nodeset.");
             }
             catch (Exception e)
             {
@@ -351,7 +330,7 @@ namespace Threadle.Core.Utilities
             {
                 FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
                 if (format == FileFormat.None)
-                    return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Network.");
+                    return OperationResult<StructureResult>.Fail("UnsupportedFileFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Network.");
 
                 StructureResult structureResult;
                 switch (format)
@@ -365,7 +344,7 @@ namespace Threadle.Core.Utilities
                         structureResult = FileSerializerBin.LoadNetworkFromFile(filepath, format);
                         return OperationResult<StructureResult>.Ok(structureResult);
                 }
-                return OperationResult<StructureResult>.Fail("UnsupportedFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Network.");
+                return OperationResult<StructureResult>.Fail("UnsupportedFileFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Network.");
             }
             catch (Exception e)
             {

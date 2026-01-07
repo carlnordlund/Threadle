@@ -71,10 +71,6 @@ namespace Threadle.Core.Model
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
         {
             return AddEdge(partnerNodeId);
-            //if (UserSettings.BlockMultiedges && _connections.Contains(partnerNodeId))
-            //    return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
-            //_connections.Add(partnerNodeId);
-            //return OperationResult.Ok();
         }
 
         /// <summary>
@@ -87,10 +83,6 @@ namespace Threadle.Core.Model
         public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
         {
             return AddEdge(partnerNodeId);
-            //if (UserSettings.BlockMultiedges && _connections.Contains(partnerNodeId))
-            //    return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
-            //_connections.Add(partnerNodeId);                
-            //return OperationResult.Ok();
         }
 
         /// <summary>
@@ -101,7 +93,7 @@ namespace Threadle.Core.Model
         private OperationResult AddEdge(uint partnerNodeId)
         {
             if (UserSettings.BlockMultiedges && _connections.Contains(partnerNodeId))
-                return OperationResult.Fail("EdgeExists", "Edge already exists (blocked)");
+                return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _connections.Add(partnerNodeId);
             return OperationResult.Ok();
         }

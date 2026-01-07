@@ -43,7 +43,7 @@ namespace Threadle.CLIconsole.Commands
             //Nodeset nodeset = context.GetNodesetFromIStructure(command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"));
             string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             if (!command.TrimNameAndCheckValidity(attributeName, out string attributeNameVerified))
-                return CommandResult.Fail("AttributeNameFormatError", $"Error: Attribute name '{attributeName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
+                return CommandResult.Fail("InvalidAttributeName", $"Error: Attribute name '{attributeName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
             string attributeType = command.GetArgumentThrowExceptionIfMissingOrNull("attrtype", "arg2");
             return CommandResult.FromOperationResult(nodeset!.DefineNodeAttribute(attributeName, attributeType));
         }

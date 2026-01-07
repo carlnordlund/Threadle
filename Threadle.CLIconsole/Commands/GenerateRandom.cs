@@ -56,16 +56,9 @@ namespace Threadle.CLIconsole.Commands
                     int m = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("m", null);
                     return CommandResult.FromOperationResult(NetworkGenerators.BarabasiAlbertLayer(network, layerName, m));
                 default:
-                    return CommandResult.Fail("TypeNotFound", $"Random network type '{type}' not recognized.");
+                    return CommandResult.Fail("NetworkTypeNotFound", $"Random network type '{type}' not recognized.");
 
             }
-            //double p = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("p", "arg3");
-            //if (type.Equals("er"))
-            //    return CommandResult.FromOperationResult(NetworkGenerators.ErdosRenyiLayer(network, layerName, p));
-            //else if (type.Equals("ws"))
-            //    return CommandResult.FromOperationResult(NetworkGenerators.ErdosRenyiLayer(network, layerName, p));
-            //else
-            //    return CommandResult.Fail("TypeNotFound", $"Random network type '{type}' not recognized.");
         }
     }
 }

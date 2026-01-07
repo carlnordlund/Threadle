@@ -36,7 +36,7 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            return CommandResult.Fail("NotYetImplemented", "This command is not yet implemented");
+            return CommandResult.Fail("NotImplemented", "This command is not yet implemented");
         }
     }
 }

@@ -263,14 +263,14 @@ namespace Threadle.Core.Model
         internal OperationResult AddEdge(uint node1id, uint node2id, float value = 1)
         {
             if (node1id == node2id && !Selfties)
-                return OperationResult.Fail("SelftiesNotAllowed",$"Layer {Name} does not allow for selfties.");
+                return OperationResult.Fail("ConstraintSelftiesNotAllowed",$"Layer {Name} does not allow for selfties.");
             IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1id);
             IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2id);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
                 if (!edgeSetNode2.AddInboundEdge(node1id, value).Success)
-                    return OperationResult.Fail("EdgeAlreadyExist", $"Inbound edge to {node2id} from {node1id} already exists.");
+                    return OperationResult.Fail("EdgeAlreadyExists", $"Inbound edge to {node2id} from {node1id} already exists.");
             if (!edgeSetNode1.AddOutboundEdge(node2id, value).Success)
-                return OperationResult.Fail("EdgeAlreadyExist", $"Outbound edge from {node1id} to {node2id} already exists.");
+                return OperationResult.Fail("EdgeAlreadyExists", $"Outbound edge from {node1id} to {node2id} already exists.");
             return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} (value={value}) in layer '{Name}'.");
         }
 

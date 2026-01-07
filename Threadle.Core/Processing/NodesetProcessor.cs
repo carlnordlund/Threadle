@@ -39,7 +39,7 @@ namespace Threadle.Core.Processing
             if (!sourceNodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out var attrIndex))
                 return OperationResult<Nodeset>.Fail("AttributeNotFound", $"Attribute '{attrName}' not found in nodeset '{sourceNodeset.Name}'.");
             if ((attrValue == null || attrValue.Length == 0) && condition != ConditionType.notnull && condition != ConditionType.isnull)
-                return OperationResult<Nodeset>.Fail("AttributeValueNotFound", $"Attribute value must be set for '{condition}' condition.");
+                return OperationResult<Nodeset>.Fail("MissingAttributeValue", $"Attribute value must be set for '{condition}' condition.");
             //Nodeset filtered = sourceNodeset.Clone(sourceNodeset.Name + "_filtered");
 
             //Nodeset clone = new Nodeset(newName != null ? newName : Name + "_clone") { NodeAttributeDefinitionManager = NodeAttributeDefinitionManager.Clone() };

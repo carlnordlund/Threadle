@@ -247,7 +247,7 @@ namespace Threadle.Core.Model
         public OperationResult DefineNodeAttribute(string attributeName, string attributeTypeStr)
         {
             if (!(Misc.GetAttributeType(attributeTypeStr) is NodeAttributeType attributeType))
-                return OperationResult.Fail("AttributeTypeUnknown", $"Attribute type '{attributeTypeStr}' not recognized.");
+                return OperationResult.Fail("InvalidAttributeType", $"Attribute type '{attributeTypeStr}' not recognized.");
             return DefineNodeAttribute(attributeName, attributeType);
         }
 
@@ -292,11 +292,11 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attributeName, out byte attrIndex))
-                return OperationResult.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
+                return OperationResult.Fail("AttributeNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
                 return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attributeName}' in nodeset '{Name}': possibly corrupted.");
             if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, valueStr) is NodeAttributeValue attrValue))
-                return OperationResult.Fail("StringConversionError", $"Could not convert string '{valueStr}' to type '{attrType}'.");
+                return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{valueStr}' to type '{attrType}'.");
             SetNodeAttribute(nodeId, attrIndex, attrValue);
             return OperationResult.Ok($"Attribute '{attributeName}' for node {nodeId} set to {attrValue}.");
         }
@@ -312,7 +312,7 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult<NodeAttributeValue>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attributeName, out byte attrIndex))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
             if (!(GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue nodeAttributeValue))
                 return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attributeName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             return OperationResult<NodeAttributeValue>.Ok(nodeAttributeValue);
@@ -330,7 +330,7 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attributeName, out byte attrIndex))
-                return OperationResult.Fail("AttributeNameNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
+                return OperationResult.Fail("AttributeNotFound", $"Unknown attribute '{attributeName}' in nodeset '{Name}'.");
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
                 return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attributeName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             if (!_removeAttributeFromTuple(attributes, attrIndex))
@@ -404,7 +404,7 @@ namespace Threadle.Core.Model
             else
             {
                 if (NodeAttributeDefinitionManager.IndexToType[attrIndex] != nodeAttributeType)
-                    return OperationResult.Fail("AttributeTypeMismatch", $"Attribute '{attrName}' already defined with type '{NodeAttributeDefinitionManager.IndexToType[attrIndex]}', cannot set values of type '{nodeAttributeType}'.");
+                    return OperationResult.Fail("ConstraintAttributeTypeMismatch", $"Attribute '{attrName}' already defined with type '{NodeAttributeDefinitionManager.IndexToType[attrIndex]}', cannot set values of type '{nodeAttributeType}'.");
             }
             foreach ((uint nodeId, string attrValueStr) in attrDict)
                 SetNodeAttribute(nodeId, attrName, attrValueStr);

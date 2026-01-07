@@ -34,7 +34,7 @@ namespace Threadle.CLIconsole.Runtime
             var lines = result.Value;
 
             if (lines == null || lines.Length == 0)
-                return CommandResult.Fail("FileEmptyOrNull", $"File '{filePath}' is null or empty.");
+                return CommandResult.Fail("MissingFileContent", $"File '{filePath}' is null or empty.");
 
             var parser = new TextCommandParser();
             Dictionary<string, object> payloads = [];

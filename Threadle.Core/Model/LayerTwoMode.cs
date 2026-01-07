@@ -318,7 +318,7 @@ namespace Threadle.Core.Model
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
                 collection.HyperEdges.Remove(hyperedge);
             if (!hyperedge.RemoveNode(nodeId))
-                return OperationResult.Fail("NodeNotAffiliated", $"Node '{nodeId}' not affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
+                return OperationResult.Fail("ConstraintNodeNotAffiliated", $"Node '{nodeId}' not affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
             return OperationResult.Ok($"Node '{nodeId}' no longer affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
         }
 

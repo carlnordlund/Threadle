@@ -129,7 +129,7 @@ namespace Threadle.Core.Processing
             if (!(network.Layers[layerName] is LayerOneMode originalLayer))
                 return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 1-mode layer.");
             if (originalLayer.IsBinary)
-                return OperationResult.Fail("LayerAlreadyBinary", $"Layer '{layerName}' is already binary, dichotomization is not applicable.");
+                return OperationResult.Fail("ConstraintLayerAlreadyBinary", $"Layer '{layerName}' is already binary, dichotomization is not applicable.");
             if (conditionType == ConditionType.isnull || conditionType == ConditionType.notnull)
                 return OperationResult.Fail("InvalidCondition", $"Condition '{conditionType}' is invalid for dichotomization.");
             if (network.Layers.ContainsKey(newLayerName))

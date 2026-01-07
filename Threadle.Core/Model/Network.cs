@@ -405,7 +405,7 @@ namespace Threadle.Core.Model
             if (!Layers.TryGetValue(layerName, out var layer))
                 return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
             if (!(layer is LayerOneMode layerOneMode))
-                return OperationResult<LayerOneMode>.Fail("LayerNotOneMode", $"Layer '{layerName}' is not a 1-mode layer.");
+                return OperationResult<LayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
             return OperationResult<LayerOneMode>.Ok(layerOneMode);
         }
 
@@ -419,7 +419,7 @@ namespace Threadle.Core.Model
             if (!Layers.TryGetValue(layerName, out var layer))
                 return OperationResult<LayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
             if (!(layer is LayerTwoMode layerTwoMode))
-                return OperationResult<LayerTwoMode>.Fail("LayerNotTwoMode", $"Layer '{layerName}' is not a 2-mode layer.");
+                return OperationResult<LayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");
             return OperationResult<LayerTwoMode>.Ok(layerTwoMode);
         }
 

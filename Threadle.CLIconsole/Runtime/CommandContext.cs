@@ -69,8 +69,7 @@ namespace Threadle.CLIconsole.Runtime
             {
                 foreach (var kvp in Variables)
                     if (kvp.Value is Network network && network.Nodeset == nodeset)
-                        return CommandResult.Fail("NodesetInUse", $"Can not delete nodeset '{name}': used by network '{kvp.Key}'.");
-                        //return OperationResult.Fail("NodesetInUse", $"Can not delete nodeset '{name}': used by network '{kvp.Key}'.");
+                        return CommandResult.Fail("ConstraintNodesetInUse", $"Can not delete nodeset '{name}': used by network '{kvp.Key}'.");
             }
             Variables.Remove(name);
             return CommandResult.Ok($"Structure '{name}' removed.");

@@ -60,7 +60,7 @@ namespace Threadle.CLIconsole.Runtime
             }
             nodeset = structure is Nodeset ? (Nodeset)structure : structure is Network ? ((Network)structure).Nodeset : null;
             if (nodeset == null)
-                return CommandResult.Fail("NoNodeset", $"No Nodeset found in structure named '{name}'.");
+                return CommandResult.Fail("ConstraintNoNodeset", $"No Nodeset found in structure named '{name}'.");
             return null;
         }
     }

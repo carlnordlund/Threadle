@@ -56,7 +56,7 @@ namespace Threadle.CLIconsole.Commands
             else if (mode == '2')
                 result = network.AddLayerTwoMode(layerNameVerified);
             else
-                return CommandResult.Fail("UnknownMode", $"Unknown mode ('{mode}') - must be either '1' or '2'.");
+                return CommandResult.Fail("InvalidMode", $"Unknown mode ('{mode}') - must be either '1' or '2'.");
             return CommandResult.FromOperationResult(result);
         }
     }
