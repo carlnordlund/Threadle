@@ -243,12 +243,13 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="hyperName">The name of the hyperedge to create and add</param>
         /// <param name="nodeIds">An array with node ids to the hyperedge</param>
-        internal void _addHyperedge(string hyperName, uint[] nodeIds)
+        internal void _addHyperedge(string hyperName, uint[]? nodeIds)
         {
-            Hyperedge hyperedge = new Hyperedge(nodeIds);
+            Hyperedge hyperedge = nodeIds == null ? new Hyperedge() : new Hyperedge(nodeIds);
             AllHyperEdges[hyperName] = hyperedge;
-            foreach (uint nodeId in nodeIds)
-                AddHyperEdgeToNode(nodeId, hyperedge);
+            if (nodeIds != null)
+                foreach (uint nodeId in nodeIds)
+                    AddHyperEdgeToNode(nodeId, hyperedge);
         }
 
         /// <summary>
