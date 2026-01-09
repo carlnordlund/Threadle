@@ -69,7 +69,7 @@ namespace Threadle.Core.Model
         {
             if (attributeName.Length < 1)
                 return OperationResult<byte>.Fail("MissingAttributeName", "Name of attribute must be at least one character.");
-            if (_nameToIndex.ContainsKey(attributeName))
+            if (CheckIfAttributeNameExists(attributeName))
                 return OperationResult<byte>.Fail("AttributeAlreadyExists", $"Node attribute named '{attributeName}' already defined");
             byte index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
             _nameToIndex[attributeName] = index;
@@ -147,6 +147,16 @@ namespace Threadle.Core.Model
                 ["Name"] = kvp.Key,
                 ["Type"] = _indexToType[kvp.Value].ToString()
             }).ToList();
+        }
+
+        /// <summary>
+        /// Support method to check if there is an attribute with this name
+        /// </summary>
+        /// <param name="attributeName">The attribute name to test.</param>
+        /// <returns>Returns true if there is an attribute with this name, false otherwise.</returns>
+        internal bool CheckIfAttributeNameExists(string attributeName)
+        {
+            return _nameToIndex.ContainsKey(attributeName);
         }
         #endregion
     }

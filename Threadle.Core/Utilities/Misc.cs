@@ -366,6 +366,22 @@ namespace Threadle.Core.Utilities
                 list.RemoveRange(write, list.Count - write);
         }
 
+        internal static char[]? CharStringToChars(string charstring, char sep = ';')
+        {
+            if (string.IsNullOrWhiteSpace(charstring))
+                return null;
+            string[] parts = charstring.Split(sep);
+            List<char> chars = [];
+            for (int i=0;i<parts.Length;i++)
+            {
+                string trimmed = parts[i].Trim();
+                if (trimmed.Length != 1)
+                    return null;
+                chars.Add(trimmed[0]);
+            }
+            return chars.ToArray();
+        }
+
         #endregion
     }
 }

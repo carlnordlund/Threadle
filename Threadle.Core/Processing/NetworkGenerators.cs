@@ -18,7 +18,65 @@ namespace Threadle.Core.Processing
     {
         #region Methods (public)
 
-        public static OperationResult TwoModeRandomLayer(Network network, string layerName, int h, int averageNbrAffiliations)
+        public static OperationResult GenerateIntAttr(Nodeset nodeset, string attrName, int minValue, int maxValue)
+        {
+            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Int);
+            if (!attrDefineResult.Success)
+                return attrDefineResult;
+            byte attrIndex = attrDefineResult.Value;
+            uint[] nodeIdArray = nodeset.NodeIdArray;
+            for (int i = 0; i < nodeIdArray.Length; i++)
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(Misc.Random.Next(minValue, maxValue + 1)));
+            return OperationResult.Ok($"Node attribute '{attrName}' (integer) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
+        }
+
+        public static OperationResult GenerateFloatAttr(Nodeset nodeset, string attrName, float minValue, float maxValue)
+        {
+            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Float);
+            if (!attrDefineResult.Success)
+                return attrDefineResult;
+            byte attrIndex = attrDefineResult.Value;
+            uint[] nodeIdArray = nodeset.NodeIdArray;
+            for (int i = 0; i < nodeIdArray.Length; i++)
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(minValue + (float)(Misc.Random.NextDouble() * (maxValue - minValue))));
+            return OperationResult.Ok($"Node attribute '{attrName}' (float) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
+        }
+
+        public static OperationResult GenerateBoolAttr(Nodeset nodeset, string attrName, double p)
+        {
+            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Bool);
+            if (!attrDefineResult.Success)
+                return attrDefineResult;
+            byte attrIndex = attrDefineResult.Value;
+            uint[] nodeIdArray = nodeset.NodeIdArray;
+            for (int i = 0; i < nodeIdArray.Length; i++)
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(Misc.Random.NextDouble() < p));
+            return OperationResult.Ok($"Node attribute '{attrName}' (bool) defined and true assigned to all nodes by probability {p}.");
+        }
+
+        public static OperationResult GenerateCharAttr(Nodeset nodeset, string attrName, string charstring)
+        {
+            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Char);
+            if (!attrDefineResult.Success)
+                return attrDefineResult;
+            byte attrIndex = attrDefineResult.Value;
+
+            char[]? chars = Misc.CharStringToChars(charstring, ';');
+            if (chars == null || chars.Length == 0)
+                return OperationResult.Fail("InvalidArgument", $"The '{charstring}' is either empty or does not contain a semicolon-separated series of individual characters.");
+            int nbrChars = chars.Length;
+
+            uint[] nodeIdArray = nodeset.NodeIdArray;
+
+            for (int i = 0; i < nodeIdArray.Length; i++)
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(chars[Misc.Random.Next(0, nbrChars)]));
+            return OperationResult.Ok($"Node attribute '{attrName}' (char) defined and specified random characters assigned to all nodes.");
+        }
+
+
+
+
+        public static OperationResult GenerateRandomTwoModeLayer(Network network, string layerName, int h, int averageNbrAffiliations)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
@@ -60,7 +118,7 @@ namespace Threadle.Core.Processing
 
 
 
-        public static OperationResult BarabasiAlbertLayer(Network network, string layerName, int m)
+        public static OperationResult GenerateBarabasiAlbertLayer(Network network, string layerName, int m)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
@@ -121,7 +179,7 @@ namespace Threadle.Core.Processing
         }
 
 
-        public static OperationResult WattsStrogatzLayer(Network network, string layerName, int k, double beta)
+        public static OperationResult GenerateWattsStrogatzLayer(Network network, string layerName, int k, double beta)
         {
             if (k % 2 != 0)
                 return OperationResult.Fail("InvalidArgument", $"The node degree (k) is {k}; it must be an even number.");
@@ -190,7 +248,7 @@ namespace Threadle.Core.Processing
         /// <param name="layerName">The name of the layer to create it in.</param>
         /// <param name="p">The tie probability.</param>
         /// <returns></returns>
-        public static OperationResult ErdosRenyiLayer(Network network, string layerName, double p)
+        public static OperationResult GenerateErdosRenyiLayer(Network network, string layerName, double p)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
@@ -287,6 +345,10 @@ namespace Threadle.Core.Processing
             else
                 return (uint)(row + offsetInRow + (selfties ? 0 : 1));
         }
+
+
+
+
 
 
 

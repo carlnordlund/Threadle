@@ -16,7 +16,7 @@ namespace Threadle.CLIconsole.Commands
     /// <summary>
     /// Class representing the 'generate' CLI command.
     /// </summary>
-    public class GenerateRandom : ICommand
+    public class Generate : ICommand
     {
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
@@ -47,18 +47,18 @@ namespace Threadle.CLIconsole.Commands
             switch (type) {
                 case "er":
                     double p = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("p", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.ErdosRenyiLayer(network, layerName, p));
+                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateErdosRenyiLayer(network, layerName, p));
                 case "ws":
                     int k = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("k", null);
                     double beta = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("beta", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.WattsStrogatzLayer(network, layerName, k, beta));
+                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateWattsStrogatzLayer(network, layerName, k, beta));
                 case "ba":
                     int m = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("m", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.BarabasiAlbertLayer(network, layerName, m));
+                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateBarabasiAlbertLayer(network, layerName, m));
                 case "2mode":
                     int h = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("h", null);
                     int a = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("a", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.TwoModeRandomLayer(network, layerName, h, a));
+                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateRandomTwoModeLayer(network, layerName, h, a));
                 default:
                     return CommandResult.Fail("NetworkTypeNotFound", $"Random network type '{type}' not recognized.");
 
