@@ -11,7 +11,7 @@ using Threadle.Core.Utilities;
 namespace Threadle.Core.Model
 {
     /// <summary>
-    /// Describes a Network object, consisting of a Nodeset object and a set of layers.
+    /// Describes a Network object, consisting of a Nodeset object and a set of layerNames.
     /// Implements IStructure.
     /// Constructors with or without provided Nodeset.
     /// </summary>
@@ -99,7 +99,7 @@ namespace Threadle.Core.Model
         public Nodeset Nodeset { get; private set; }
 
         /// <summary>
-        /// A dictionary of relational layers (ILayer), accessible by their unique names.
+        /// A dictionary of relational layerNames (ILayer), accessible by their unique names.
         /// </summary>
         public Dictionary<string, ILayer> Layers { get; set; } = [];
         #endregion
@@ -164,7 +164,7 @@ namespace Threadle.Core.Model
         /// Generates the next available layer name based on the specified base name.
         /// </summary>
         /// <param name="baseName">The base name to use for generating the layer name. Defaults to <c>"layer-"</c> if not specified.</param>
-        /// <returns>A unique layer name that does not already exist in the collection of layers.</returns>
+        /// <returns>A unique layer name that does not already exist in the collection of layerNames.</returns>
         public string GetNextAvailableLayerName(string baseName = "layer")
         {
             if (!Layers.ContainsKey(baseName))
@@ -182,7 +182,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Adds an edge between <paramref name="node1id"/> and <paramref name="node2id"/>, in the specified (1-mode) layer.
         /// The edge is either directional or symmetric depending on the properties of the layer.
-        /// The default edge value is 1, but this can be set for valued layers.
+        /// The default edge value is 1, but this can be set for valued layerNames.
         /// An optional flag allows for creating and adding nodes to the nodeset in case they are missing.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
@@ -215,7 +215,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes all edges for a node id in all layers.
+        /// Removes all edges for a node id in all layerNames.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         public void RemoveNodeEdges(uint nodeId)
@@ -279,12 +279,10 @@ namespace Threadle.Core.Model
             if (!layerResult.Success)
                 return layerResult;
             return RemoveAffiliation(layerResult.Value!, hyperName, nodeId);
-
         }
 
-
         /// <summary>
-        /// Check if an edge exists between two nodes in a particular layer. Works for both 1- and 2-mode layers.
+        /// Check if an edge exists between two nodes in a particular layer. Works for both 1- and 2-mode layerNames.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
         /// <param name="node1id">Id of the first node.</param>
@@ -322,7 +320,7 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Returns an array of node ids for the alter of a specified ego node in a specified layer.
-        /// If layername is empty or null, use all layers.
+        /// If layername is empty or null, use all layerNames.
         /// </summary>
         /// <param name="layerName">The name of the layer (can be null or empty).</param>
         /// <param name="nodeId">The node id.</param>
@@ -330,20 +328,74 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="uint"/> array.</returns>
         public OperationResult<uint[]> GetNodeAlters(string? layerName, uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
+            string[]? layers = (layerName == null || layerName.Length == 0) ? null : [layerName];
+            return GetNodeAlters(layers, nodeId, edgeTraversal, false);
+
+            //if (!Nodeset.CheckThatNodeExists(nodeId))
+            //    return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+            //uint[] alterIds;
+            //if (layerName != null && layerName.Length > 0)
+            //{
+            //    var layerResult = GetLayer(layerName);
+            //    if (!layerResult.Success)
+            //        return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
+            //    alterIds = layerResult.Value!.GetNodeAlters(nodeId, edgeTraversal);
+            //}
+            //else
+            //    alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
+            //Array.Sort(alterIds);
+            //return OperationResult<uint[]>.Ok(alterIds);
+        }
+
+        /// <summary>
+        /// Returns an array of node ids for alter of a specified ego node in either all or a selection of layerNames.
+        /// if the string array <paramref name="layerNames"/> is null, alters from all layerNames will be returned. If
+        /// <paramref name="layerNames"/> contain the names of one or more layerNames, alters from those will be used. If
+        /// <paramref name="layerNames"/> is null, alters from all layerNames will be used. By default, alters that appear in
+        /// multiple layerNames will also appear multiple times in the returned array. However, by setting <paramref name="unique"/>
+        /// to 'true', the array of alter ids will be deduplicated before returned.
+        /// </summary>
+        /// <param name="layerNames">A string array with the names of the layers to include. If null, all layers will be included.</param>
+        /// <param name="nodeId">The id of the ego node.</param>
+        /// <param name="edgeTraversal">Whether outbound <see cref="EdgeTraversal.Out"/>, inbound <see cref="EdgeTraversal.In"/>,
+        /// or both <see cref="EdgeTraversal.Both"/></param> outbound and inbound edges from ego will be included.
+        /// <param name="unique">By default, node alters in multiple layers will be included once per layer. By setting this to true,
+        /// each alter node will only be included once, irrespective of how many layers it is an alter to ego on.</param>
+        /// <returns>Returns an OperationResult object with the array of uint of alter ids.</returns>
+        public OperationResult<uint[]> GetNodeAlters(string[]? layerNames, uint nodeId, EdgeTraversal edgeTraversal, bool unique)
+        {
             if (!Nodeset.CheckThatNodeExists(nodeId))
                 return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
-            uint[] alterIds;
-            if (layerName != null && layerName.Length > 0)
-            {
-                var layerResult = GetLayer(layerName);
-                if (!layerResult.Success)
-                    return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
-                alterIds = layerResult.Value!.GetNodeAlters(nodeId, edgeTraversal);
-            }
+
+            List<ILayer> layerList = [];
+            // At least one layer has been specified
+            if (layerNames !=null && layerNames.Length > 0)
+                foreach (var layerName in layerNames)
+                {
+                    if (_getLayer(layerName) is not ILayer layer)
+                        return OperationResult<uint[]>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+                    layerList.Add(layer);
+                }
             else
-                alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
-            Array.Sort(alterIds);
-            return OperationResult<uint[]>.Ok(alterIds);
+                // No layers have been specified: use all
+                layerList = Layers.Values.ToList();
+
+            // Build up list with all alter ids from all layers (or just the single one)
+            List<uint> alterIds = [];
+            foreach (var layer in layerList)
+                alterIds.AddRange(layer.GetNodeAlters(nodeId, edgeTraversal));
+            // Deduplicate if that is requested
+            if (unique)
+                Misc.DeduplicateUintList(alterIds);
+            return OperationResult<uint[]>.Ok(alterIds.ToArray());
+        }
+
+
+        private ILayer? _getLayer(string layername)
+        {
+            if (Layers.TryGetValue(layername, out var layer))
+                return layer;
+            return null;
         }
 
         public OperationResult<uint[]> GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
@@ -591,7 +643,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Returns all alters to a node in all layers. For single layer alters,
+        /// Returns all alters to a node in all layerNames. For single layer alters,
         /// use the GetNodeAlters() method. Neither of these do validation of nodes.
         /// </summary>
         /// <param name="nodeId">The id of the node</param>
@@ -599,7 +651,7 @@ namespace Threadle.Core.Model
         /// <returns>Returns a list with alter node ids</returns>
         internal uint[] _getNodeAltersAllLayers(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
-            // Get node alters for all layers
+            // Get node alters for all layerNames
             HashSet<uint> alterIds = [];
             foreach (var layer in Layers.Values)
                 alterIds.UnionWith(layer.GetNodeAlters(nodeId, edgeTraversal));

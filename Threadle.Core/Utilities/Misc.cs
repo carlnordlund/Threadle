@@ -23,8 +23,17 @@ namespace Threadle.Core.Utilities
         /// </summary>
         private static Random _random = new Random();
 
-
-
+        /// <summary>
+        /// Collection of characters that could pop up in value quoting in csv files
+        /// </summary>
+        private static char[] _quoteChars = new char[] {
+            '"',
+            '\'',
+            '\u201C',   // Left double quotes
+            '\u201D',   // Right double quote
+            '\u2018',   // Left single quote
+            '\u2019'    // Right single quote
+        };
         #endregion
 
 
@@ -35,22 +44,14 @@ namespace Threadle.Core.Utilities
         public static Random Random => _random;
         #endregion
 
-        /// <summary>
-        /// Collection of characters that could pop up in value quoting in csv files
-        /// </summary>
-        public static char[] quoteChars = new char[] {
-            '"',
-            '\'',
-            '\u201C',   // Left double quotes
-            '\u201D',   // Right double quote
-            '\u2018',   // Left single quote
-            '\u2019'    // Right single quote
-        };
 
 
         #region Methods (public)
-
-
+        /// <summary>
+        /// Method to set the random seed of the RNG used here in Misc and Threadle at large.
+        /// Used for replication purposes.
+        /// </summary>
+        /// <param name="seed">The seed to set the random number generator to</param>
         public static void SetRandomSeed(int seed)
         {
             _random = new Random(seed);
@@ -215,7 +216,7 @@ namespace Threadle.Core.Utilities
         /// <param name="nodesString">A string with char-separated integer values.</param>
         /// <param name="sep">The separator character that should be used (default is semicolon ;)</param>
         /// <returns>Returns an array of unsigned integers.</returns>
-        public static uint[]? NodesIdsStringToArray(string nodesString, char sep = ';')
+        public static uint[]? SplitStringToUintArray(string nodesString, char sep = ';')
         {
             return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray() ?? null;
         }
@@ -345,7 +346,7 @@ namespace Threadle.Core.Utilities
         /// Goes through a list and removes duplicates - also sorts it.
         /// Sorts list, then iterates through, rewriting and skipping duplicates in order
         /// </summary>
-        /// <param name="list">Ths list with uint to be sorted</param>
+        /// <param name="list">The list with uint to be sorted and deduplicated</param>
         internal static void DeduplicateUintList(List<uint> list)
         {
             if (list.Count < 2)
@@ -364,6 +365,11 @@ namespace Threadle.Core.Utilities
                 list.RemoveRange(write, list.Count - write);
         }
 
+        /// <summary>
+        /// Deduplicates a list of Connection struct (on the basis of their partnerNodeId properties).
+        /// Also sorts it by partnerNodeId.
+        /// </summary>
+        /// <param name="list">The list with Connection structs to be sorted and deduplicated by partnerNodeId</param>
         internal static void DeduplicateConnectionList(List<Connection> list)
         {
             if (list.Count < 2)
@@ -381,6 +387,13 @@ namespace Threadle.Core.Utilities
                 list.RemoveRange(write, list.Count - write);
         }
 
+        /// <summary>
+        /// Takes a string and split it into a char[] array, using the optional separator
+        /// character provided (defaults to semicolon). Returns null if something went wrong.
+        /// </summary>
+        /// <param name="charstring">The string consisting of semicolon-separated single characters.</param>
+        /// <param name="sep">The separator character.</param>
+        /// <returns>Returns a char array or null if something went wrong.</returns>
         internal static char[]? CharStringToChars(string charstring, char sep = ';')
         {
             if (string.IsNullOrWhiteSpace(charstring))
@@ -397,9 +410,15 @@ namespace Threadle.Core.Utilities
             return chars.ToArray();
         }
 
+        /// <summary>
+        /// Method to trim quotes from a string, returning the trimmed string.
+        /// Uses the constant array of quote characters as specified here as a Misc field.
+        /// </summary>
+        /// <param name="text"></param>
+        /// <returns></returns>
         internal static string TrimQuotes(string text)
         {
-            return text.Trim(quoteChars);
+            return text.Trim(_quoteChars);
         }
 
         #endregion

@@ -44,7 +44,7 @@ namespace Threadle.CLIconsole.Commands
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
             if (command.GetArgument("nodes") is string nodesString)
             {
-                uint[]? nodeIds = Misc.NodesIdsStringToArray(nodesString);
+                uint[]? nodeIds = Misc.SplitStringToUintArray(nodesString);
                 if (nodeIds == null)
                     return CommandResult.Fail("ParseError", "Could not parse semicolon-separated list with nodes.");
                 bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", true);
