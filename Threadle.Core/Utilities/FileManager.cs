@@ -73,6 +73,106 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
+        /// Public-facing method for importing an edgelist from file to a 1-mode layer.
+        /// </summary>
+        /// <param name="filepath">The filepath to the file to import.</param>
+        /// <param name="network">The Network object to import the data to.</param>
+        /// <param name="layer">The <see cref="LayerOneMode"/> to install the data to.</param>
+        /// <param name="node1col">The column index where the first node ids are.</param>
+        /// <param name="node2col">The column index where the second node ids are.</param>
+        /// <param name="valueCol">The column index where edge values are (for layers with valued edges).</param>
+        /// <param name="hasHeader">Boolean to indicate whether the first line has headers (that should be ignored).</param>
+        /// <param name="separator">The value-separating character/string used in the data file.</param>
+        /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
+        public static OperationResult ImportOneModeEdgeList(string filepath, Network network, LayerOneMode layer, int node1col, int node2col, int valueCol, bool hasHeader, char separator, bool addMissingNodes)
+        {
+            try
+            {
+                LayerImporters.ImportOneModeEdgelist(filepath, network, layer, node1col, node2col, valueCol, hasHeader, separator, addMissingNodes);
+                return OperationResult.Ok($"Imported edgelist to 1-mode layer '{layer.Name}'");
+
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOImportError", "Unexpected error when importing edgelist to 1-mode layer: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Public-facing method for importing a matrix from file to a 1-mode layer.
+        /// </summary>
+        /// <param name="filepath">The filepath to the file to import.</param>
+        /// <param name="network">The Network object to import the data to.</param>
+        /// <param name="layer">The <see cref="LayerOneMode"/> to install the data to.</param>
+        /// <param name="separator">The value-separating character/string used in the data file.</param>
+        /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
+        public static OperationResult ImportOneModeMatrix(string filepath, Network network, LayerOneMode layer, char separator, bool addMissingNodes)
+        {
+            try
+            {
+                LayerImporters.ImportOneModeMatrix(filepath, network, layer, separator, addMissingNodes);
+                return OperationResult.Ok($"Imported matrix to 1-mode layer '{layer.Name}'");
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOImportError", "Unexpected error when importing matrix to 1-mode layer: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Public-facing method for importing an edgelist to a 2-mode layer.
+        /// Whereas unknown nodes would be included or excluded, unknown affiliation/hyperedges are always added.
+        /// </summary>
+        /// <param name="filepath">The filepath to the file to import.</param>
+        /// <param name="network">The Network object to import the data to.</param>
+        /// <param name="layer">The <see cref="LayerTwoMode"/> to install the data to.</param>
+        /// <param name="nodeCol">The column index where the node ids are.</param>
+        /// <param name="affCol">The column index where the affiliation (hyerpedge) name is.</param>
+        /// <param name="hasHeader">Boolean to indicate whether the first line has headers (that should be ignored).</param>
+        /// <param name="separator">The value-separating character/string used in the data file.</param>
+        /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
+        public static OperationResult ImportTwoModeEdgeList(string filepath, Network network, LayerTwoMode layer, int nodeCol, int affCol, bool hasHeader, char separator, bool addMissingNodes)
+        {
+            try
+            {
+                LayerImporters.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, addMissingNodes);
+                return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOImportError", "Unexpected error when importing edgelist to 2-mode layer: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Public-facing method for importing a matrix/table to a 2-mode layer.
+        /// The first column must contain node ids, the first row must contain affiliation/hyperedge names.
+        /// Whereas unknown nodes would be included or excluded, unknown affiliation/hyperedges are always added.
+        /// </summary>
+        /// <param name="filepath">The filepath to the file to import.</param>
+        /// <param name="network">The Network object to import the data to.</param>
+        /// <param name="layer">The <see cref="LayerTwoMode"/> to install the data to.</param>
+        /// <param name="separator">The value-separating character/string used in the data file.</param>
+        /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <returns>An OperationResult informing how well it went.</param>
+        public static OperationResult ImportTwoModeMatrix(string filepath, Network network, LayerTwoMode layer, char separator, bool addMissingNodes)
+        {
+            try
+            {
+                //LayerImporters.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, addMissingNodes);
+                LayerImporters.ImportTwoModeMatrix(filepath, network, layer, separator, addMissingNodes);
+                return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOImportError", "Unexpected error when importing matrix/table to 2-mode layer: " + ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Public-facing method to import relational data to a 1-mode or 2-mode layer from a data file.
         /// The file can be either as an edgelist or a matrix/table.
         /// Note that file import methods use internal methods that bypass validation for performance.
@@ -85,34 +185,34 @@ namespace Threadle.Core.Utilities
         /// <param name="separator">The value-separating character/string used in the data file.</param>
         /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not</param>
         /// <returns>Returns an OperationResult informing how well this went.</returns>
-        public static OperationResult ImportLayer(string filepath, Network network, ILayer layer, string format, char separator, bool addMissingNodes)
-        {
-            try
-            {
-                switch (layer, format.ToLowerInvariant())
-                {
-                    case (LayerOneMode layerOneMode, "edgelist"):
-                        LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
-                        break;
-                    case (LayerOneMode layerOneMode, "matrix"):
-                        LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
-                        break;
-                    case (LayerTwoMode layerTwoMode, "edgelist"):
-                        LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
-                        break;
-                    case (LayerTwoMode layerTwoMode, "matrix"):
-                        LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
-                        break;
-                    default:
-                        return OperationResult.Fail("UnsupportedImportFormat", "The specific layer/format combination for importing is not supported.");
-                }
-                return OperationResult.Ok($"Imported data to layer '{layer.Name}' from file '{filepath}'.");
-            }
-            catch (Exception ex)
-            {
-                return OperationResult.Fail("IOImportError", "Unexpected error when importing layer: " + ex.Message);
-            }
-        }
+        //public static OperationResult ImportLayer(string filepath, Network network, ILayer layer, string format, char separator, bool addMissingNodes)
+        //{
+        //    try
+        //    {
+        //        switch (layer, format.ToLowerInvariant())
+        //        {
+        //            case (LayerOneMode layerOneMode, "edgelist"):
+        //                //LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
+        //                break;
+        //            case (LayerOneMode layerOneMode, "matrix"):
+        //                LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
+        //                break;
+        //            case (LayerTwoMode layerTwoMode, "edgelist"):
+        //                //LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
+        //                break;
+        //            case (LayerTwoMode layerTwoMode, "matrix"):
+        //                LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
+        //                break;
+        //            default:
+        //                return OperationResult.Fail("UnsupportedImportFormat", "The specific layer/format combination for importing is not supported.");
+        //        }
+        //        return OperationResult.Ok($"Imported data to layer '{layer.Name}' from file '{filepath}'.");
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return OperationResult.Fail("IOImportError", "Unexpected error when importing layer: " + ex.Message);
+        //    }
+        //}
 
         /// <summary>
         /// Sets the current working directory as safe as possible.

@@ -15,6 +15,7 @@ namespace Threadle.Core.Utilities
     /// </summary>
     internal static class LayerImporters
     {
+
         #region Methods (internal)
 
         /// <summary>
@@ -38,7 +39,7 @@ namespace Threadle.Core.Utilities
         /// <param name="addMissingNodes">Set to true if nodes not in the Nodeset should be added to it.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, char separator, bool addMissingNodes)
+        internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, int node1col, int node2col, int valueCol, bool hasHeader, char separator, bool addMissingNodes)
         {
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");
@@ -46,22 +47,36 @@ namespace Threadle.Core.Utilities
             string? line;
             int lineNumber = 0;
 
+            int maxColIndex = Math.Max(node1col, node2col);
+
             uint node1id, node2id;
             if (layerOneMode.IsBinary)
             {
-                // Importing binary data
+                // Importing binary datac
                 if (addMissingNodes)
                 {
                     // Add nodes if missing from Nodeset
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
-                        ReadOnlySpan<char> span = line.AsSpan();
-                        int sepIndex = span.IndexOf(separator);
-                        if (sepIndex < 0)
-                            throw new Exception($"Invalid column count at line {lineNumber}");
-                        if (!uint.TryParse(span.Slice(0, sepIndex), out node1id) || !uint.TryParse(span.Slice(sepIndex + 1), out node2id))
+
+                        if (lineNumber == 1 && hasHeader)
                             continue;
+
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        string[] columns = line.Split(separator);
+
+                        // Skip rows that don't have enough columns
+                        if (columns.Length <= maxColIndex)
+                            continue;
+
+                        // Skip rows where we can't parse node ids
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id))
+                            continue;
+
+                        // Add nodes that are missing
                         if (!network.Nodeset.CheckThatNodeExists(node1id))
                             network.Nodeset._addNodeWithoutAttribute(node1id);
                         if (!network.Nodeset.CheckThatNodeExists(node2id))
@@ -75,12 +90,24 @@ namespace Threadle.Core.Utilities
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
-                        ReadOnlySpan<char> span = line.AsSpan();
-                        int sepIndex = span.IndexOf(separator);
-                        if (sepIndex < 0)
-                            throw new Exception($"Invalid column count at line {lineNumber}");
-                        if (!uint.TryParse(span.Slice(0, sepIndex), out node1id) || !uint.TryParse(span.Slice(sepIndex + 1), out node2id))
+
+                        if (lineNumber == 1 && hasHeader)
                             continue;
+
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        string[] columns = line.Split(separator);
+
+                        // Skip rows that don't have enough columns
+                        if (columns.Length <= maxColIndex)
+                            continue;
+
+                        // Skip rows where we can't parse node ids
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id))
+                            continue;
+                        
+                        // Skip edges with nodes that are missing
                         if (!network.Nodeset.CheckThatNodeExists(node1id) || !network.Nodeset.CheckThatNodeExists(node2id))
                             continue;
                         layerOneMode._addEdge(node1id, node2id);
@@ -89,6 +116,9 @@ namespace Threadle.Core.Utilities
             }
             else if (layerOneMode.IsValued)
             {
+                // Now also include the valueCol in the minCol check
+                maxColIndex = Math.Max(maxColIndex, valueCol);
+
                 // Importing valued data
                 float value = 1;
                 if (addMissingNodes)
@@ -97,16 +127,24 @@ namespace Threadle.Core.Utilities
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
-                        ReadOnlySpan<char> span = line.AsSpan();
-                        int sepIndex1 = span.IndexOf(separator);
-                        int sepIndex2 = span.Slice(sepIndex1 + 1).IndexOf(separator);
-                        sepIndex2 += sepIndex1 + 1;
-                        if (sepIndex1 < 0 || sepIndex2 < 0)
-                            throw new Exception($"Invalid column count at line {lineNumber}");
-                        if (!uint.TryParse(span[..sepIndex1], out node1id)
-                            || !uint.TryParse(span[(sepIndex1+1)..sepIndex2], out node2id)
-                            || !float.TryParse(span[(sepIndex2+1)..], out value))
+
+                        if (lineNumber == 1 && hasHeader)
                             continue;
+
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        string[] columns = line.Split(separator);
+
+                        // Skip rows that don't have enough columns
+                        if (columns.Length <= maxColIndex)
+                            continue;
+
+                        // Skip rows where we can't parse node ids or float value
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
+                            continue;
+
+                        // Add nodes that are missing                        
                         if (!network.Nodeset.CheckThatNodeExists(node1id))
                             network.Nodeset._addNodeWithoutAttribute(node1id);
                         if (!network.Nodeset.CheckThatNodeExists(node2id))
@@ -120,16 +158,23 @@ namespace Threadle.Core.Utilities
                     while ((line = reader.ReadLine()) != null)
                     {
                         lineNumber++;
-                        ReadOnlySpan<char> span = line.AsSpan();
-                        int sepIndex1 = span.IndexOf(separator);
-                        int sepIndex2 = span.Slice(sepIndex1 + 1).IndexOf(separator);
-                        sepIndex2 += sepIndex1 + 1;
-                        if (sepIndex1 < 0 || sepIndex2 < 0)
-                            throw new Exception($"Invalid column count at line {lineNumber}");
-                        if (!uint.TryParse(span[..sepIndex1], out node1id)
-                            || !uint.TryParse(span[(sepIndex1 + 1)..sepIndex2], out node2id)
-                            || !float.TryParse(span[(sepIndex2 + 1)..], out value))
+                        if (lineNumber == 1 && hasHeader)
                             continue;
+
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        string[] columns = line.Split(separator);
+
+                        // Skip rows that don't have enough columns
+                        if (columns.Length <= maxColIndex)
+                            continue;
+
+                        // Skip rows where we can't parse node ids or float value
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
+                            continue;
+
+                        // Skip edges that have missing nodes
                         if (!network.Nodeset.CheckThatNodeExists(node1id) || !network.Nodeset.CheckThatNodeExists(node2id))
                             continue;
                         layerOneMode._addEdge(node1id, node2id, value);
@@ -247,7 +292,7 @@ namespace Threadle.Core.Utilities
         /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, char separator, bool addMissingNodes)
+        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, char separator, bool addMissingNodes)
         {
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");

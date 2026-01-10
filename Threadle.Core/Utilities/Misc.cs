@@ -22,6 +22,9 @@ namespace Threadle.Core.Utilities
         /// Provides an instance of the random number generator.
         /// </summary>
         private static Random _random = new Random();
+
+
+
         #endregion
 
 
@@ -31,6 +34,18 @@ namespace Threadle.Core.Utilities
         /// </summary>
         public static Random Random => _random;
         #endregion
+
+        /// <summary>
+        /// Collection of characters that could pop up in value quoting in csv files
+        /// </summary>
+        public static char[] quoteChars = new char[] {
+            '"',
+            '\'',
+            '\u201C',   // Left double quotes
+            '\u201D',   // Right double quote
+            '\u2018',   // Left single quote
+            '\u2019'    // Right single quote
+        };
 
 
         #region Methods (public)
@@ -380,6 +395,11 @@ namespace Threadle.Core.Utilities
                 chars.Add(trimmed[0]);
             }
             return chars.ToArray();
+        }
+
+        internal static string TrimQuotes(string text)
+        {
+            return text.Trim(quoteChars);
         }
 
         #endregion
