@@ -23,7 +23,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Gets the content of the current directory.";
+        public string Description => "Gets the content of the current directory, or the directory specified by the optional 'dir' argument.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
