@@ -32,7 +32,7 @@ namespace Threadle.Core.Analysis
                 ["AttributeType"] = attrType.ToString()
             };
 
-            Dictionary<string, object?> stats = [];
+            Dictionary<string, object> stats = [];
 
             switch (attrType)
             {
@@ -58,7 +58,7 @@ namespace Threadle.Core.Analysis
             //return OperationResult<Dictionary<string, object>>.Fail("NotYetImplemented", "not yet implemented");
         }
 
-        private static Dictionary<string, object?> CalculateCharStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValues)
+        private static Dictionary<string, object> CalculateCharStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValues)
         {
             Dictionary<char, int> frequency = [];
             foreach (uint nodeId in nodeset.NodeIdArray)
@@ -75,7 +75,7 @@ namespace Threadle.Core.Analysis
             }
 
             countWithValues = frequency.Values.Sum();
-            Dictionary<string, object?> stats = new()
+            Dictionary<string, object> stats = new()
             {
                 ["Frequency"] = frequency,
                 ["Unique_Values"] = frequency.Count
@@ -89,13 +89,13 @@ namespace Threadle.Core.Analysis
             }
             else
             {
-                stats["Mode"] = null;
+                //stats["Mode"] = null;
                 stats["Mode_Count"] = 0;
             }
             return stats;
         }
 
-        private static Dictionary<string, object?> CalculateBoolStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValue)
+        private static Dictionary<string, object> CalculateBoolStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValue)
         {
             int countTrue = 0, countFalse = 0;
             foreach (uint nodeId in nodeset.NodeIdArray)
@@ -112,7 +112,7 @@ namespace Threadle.Core.Analysis
 
             countWithValue = countTrue + countFalse;
 
-            Dictionary<string, object?> stats = new()
+            Dictionary<string, object> stats = new()
             {
                 ["Count_True"] = countTrue,
                 ["Count_False"] = countFalse,
@@ -121,7 +121,7 @@ namespace Threadle.Core.Analysis
             return stats;
         }
 
-        private static Dictionary<string, object?> CalculateFloatStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValue)
+        private static Dictionary<string, object> CalculateFloatStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValue)
         {
             List<float> values = [];
 
@@ -132,17 +132,17 @@ namespace Threadle.Core.Analysis
                     values.Add((float)attrValue.Value.GetValue()!);
             }
             countWithValue = values.Count;
-            Dictionary<string, object?> stats = [];
+            Dictionary<string, object> stats = [];
 
             if (values.Count == 0)
             {
-                stats["Mean"] = null;
-                stats["Median"] = null;
-                stats["StdDev"] = null;
-                stats["Min"] = null;
-                stats["Max"] = null;
-                stats["Q1"] = null;
-                stats["Q3"] = null;
+                //stats["Mean"] = null;
+                //stats["Median"] = null;
+                //stats["StdDev"] = null;
+                //stats["Min"] = null;
+                //stats["Max"] = null;
+                //stats["Q1"] = null;
+                //stats["Q3"] = null;
                 return stats;
             }
 
@@ -163,7 +163,7 @@ namespace Threadle.Core.Analysis
             return stats;
         }
 
-        private static Dictionary<string, object?> CalculateIntStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValues)
+        private static Dictionary<string, object> CalculateIntStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValues)
         {
             List<int> values = [];
             foreach (uint nodeId in nodeset.NodeIdArray)
@@ -173,16 +173,16 @@ namespace Threadle.Core.Analysis
                     values.Add((int)attrValue.Value.GetValue()!);
             }
             countWithValues = values.Count;
-            Dictionary<string, object?> stats = [];
+            Dictionary<string, object> stats = [];
             if (values.Count == 0)
             {
-                stats["Mean"] = null;
-                stats["Median"] = null;
-                stats["StdDev"] = null;
-                stats["Min"] = null;
-                stats["Max"] = null;
-                stats["Q1"] = null;
-                stats["Q3"] = null;
+                //stats["Mean"] = default;
+                //stats["Median"] = null;
+                //stats["StdDev"] = null;
+                //stats["Min"] = null;
+                //stats["Max"] = null;
+                //stats["Q1"] = null;
+                //stats["Q3"] = null;
                 return stats;
             }
 
