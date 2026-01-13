@@ -16,7 +16,13 @@ namespace Threadle.Core.Analysis
     public static class Analyses
     {
         #region Methods (public)
-
+        /// <summary>
+        /// Generates summary info about an attribute in a nodeset. The specific info that is returned depends on the type
+        /// of node attribute.
+        /// </summary>
+        /// <param name="nodeset">The Nodeset structure.</param>
+        /// <param name="attrName">The attribute name.</param>
+        /// <returns>Returns a potentially nested string-object dictionary with summary statistics about the attribute.</returns>
         public static OperationResult<Dictionary<string,object>> GetAttributeSummary(Nodeset nodeset, string attrName)
         {
             if (!nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
@@ -37,16 +43,16 @@ namespace Threadle.Core.Analysis
             switch (attrType)
             {
                 case NodeAttributeType.Int:
-                    stats = CalculateIntStatistics(nodeset, attrIndex, totalNodes, out countWithValues);
+                    stats = Functions.CalculateIntStatistics(nodeset, attrIndex,  out countWithValues);
                     break;
                 case NodeAttributeType.Float:
-                    stats = CalculateFloatStatistics(nodeset, attrIndex, totalNodes, out countWithValues);
+                    stats = Functions.CalculateFloatStatistics(nodeset, attrIndex, out countWithValues);
                     break;
                 case NodeAttributeType.Bool:
-                    stats = CalculateBoolStatistics(nodeset, attrIndex, totalNodes, out countWithValues);
+                    stats = Functions.CalculateBoolStatistics(nodeset, attrIndex, out countWithValues);
                     break;
                 case NodeAttributeType.Char:
-                    stats = CalculateCharStatistics(nodeset, attrIndex, totalNodes, out countWithValues);
+                    stats = Functions.CalculateCharStatistics(nodeset, attrIndex, out countWithValues);
                     break;
             }
 
@@ -55,181 +61,7 @@ namespace Threadle.Core.Analysis
             stats["PercentageWithValue"] = totalNodes > 0 ? (double)countWithValues / totalNodes * 100.0 : 0.0;
             results["Statistics"] = stats;
             return OperationResult<Dictionary<string, object>>.Ok(results);
-            //return OperationResult<Dictionary<string, object>>.Fail("NotYetImplemented", "not yet implemented");
         }
-
-        private static Dictionary<string, object> CalculateCharStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValues)
-        {
-            Dictionary<char, int> frequency = [];
-            foreach (uint nodeId in nodeset.NodeIdArray)
-            {
-                var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue!=null && attrValue.Value.Type == NodeAttributeType.Char)
-                {
-                    char charValue = (char)attrValue.Value.GetValue()!;
-                    if (frequency.TryGetValue(charValue, out int count))
-                        frequency[charValue] = count + 1;
-                    else
-                        frequency[charValue] = 1;
-                }
-            }
-
-            countWithValues = frequency.Values.Sum();
-            Dictionary<string, object> stats = new()
-            {
-                ["Frequency"] = frequency,
-                ["Unique_Values"] = frequency.Count
-            };
-
-            if (frequency.Count > 0)
-            {
-                var mode = frequency.OrderByDescending(kvp => kvp.Value).First();
-                stats["Mode"] = mode.Key;
-                stats["Mode_Count"] = mode.Value;
-            }
-            else
-            {
-                //stats["Mode"] = null;
-                stats["Mode_Count"] = 0;
-            }
-            return stats;
-        }
-
-        private static Dictionary<string, object> CalculateBoolStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValue)
-        {
-            int countTrue = 0, countFalse = 0;
-            foreach (uint nodeId in nodeset.NodeIdArray)
-            {
-                var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue!=null && attrValue.Value.Type == NodeAttributeType.Bool)
-                {
-                    if ((bool)attrValue.Value.GetValue()!)
-                        countTrue++;
-                    else
-                        countFalse++;
-                }
-            }
-
-            countWithValue = countTrue + countFalse;
-
-            Dictionary<string, object> stats = new()
-            {
-                ["Count_True"] = countTrue,
-                ["Count_False"] = countFalse,
-                ["Ratio_True"] = countWithValue > 0 ? (double)countTrue / countWithValue * 100.0 : 0.0
-            };
-            return stats;
-        }
-
-        private static Dictionary<string, object> CalculateFloatStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValue)
-        {
-            List<float> values = [];
-
-            foreach (uint nodeId in nodeset.NodeIdArray)
-            {
-                var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Float)
-                    values.Add((float)attrValue.Value.GetValue()!);
-            }
-            countWithValue = values.Count;
-            Dictionary<string, object> stats = [];
-
-            if (values.Count == 0)
-            {
-                //stats["Mean"] = null;
-                //stats["Median"] = null;
-                //stats["StdDev"] = null;
-                //stats["Min"] = null;
-                //stats["Max"] = null;
-                //stats["Q1"] = null;
-                //stats["Q3"] = null;
-                return stats;
-            }
-
-            double mean = values.Average();
-            double variance = values.Sum(v => Math.Pow(v - mean, 2)) / values.Count;
-            double stdDev = Math.Sqrt(variance);
-
-            float[] sorted = [.. values];
-            Array.Sort(sorted);
-
-            stats["Mean"] = mean;
-            stats["Median"] = GetPercentile(sorted,50);
-            stats["StdDev"] = stdDev;
-            stats["Min"] = sorted[0];
-            stats["Max"] = sorted[^1];
-            stats["Q1"] = GetPercentile(sorted, 25);
-            stats["Q3"] = GetPercentile(sorted, 75);
-            return stats;
-        }
-
-        private static Dictionary<string, object> CalculateIntStatistics(Nodeset nodeset, byte attrIndex, int totalNodes, out int countWithValues)
-        {
-            List<int> values = [];
-            foreach (uint nodeId in nodeset.NodeIdArray)
-            {
-                var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Int)
-                    values.Add((int)attrValue.Value.GetValue()!);
-            }
-            countWithValues = values.Count;
-            Dictionary<string, object> stats = [];
-            if (values.Count == 0)
-            {
-                //stats["Mean"] = default;
-                //stats["Median"] = null;
-                //stats["StdDev"] = null;
-                //stats["Min"] = null;
-                //stats["Max"] = null;
-                //stats["Q1"] = null;
-                //stats["Q3"] = null;
-                return stats;
-            }
-
-            double mean = values.Average();
-            double variance = values.Sum(v => Math.Pow(v - mean, 2)) / values.Count;
-            double stdDev = Math.Sqrt(variance);
-            int[] sorted = [.. values];
-            Array.Sort(sorted);
-
-            stats["Mean"] = mean;
-            stats["Median"] = GetPercentile(sorted, 50);
-            stats["StdDev"] = stdDev;
-            stats["Min"] = sorted[0];
-            stats["Max"] = sorted[^1];
-            stats["Q1"] = GetPercentile(sorted, 25);
-            stats["Q3"] = GetPercentile(sorted, 75);
-            return stats;
-        }
-
-        private static double GetPercentile(int[] sortedValues, double percentile)
-        {
-            if (sortedValues.Length == 0)
-                return 0;
-            double n = sortedValues.Length;
-            double index = (percentile / 100.0) * (n - 1);
-            int lower = (int)Math.Floor(index);
-            int upper = (int)Math.Ceiling(index);
-            if (lower == upper)
-                return sortedValues[lower];
-            double fraction = index - lower;
-            return sortedValues[lower] * (1 - fraction) + sortedValues[upper] * fraction;
-        }
-
-        private static double GetPercentile(float[] sortedValues, double percentile)
-        {
-            if (sortedValues.Length == 0)
-                return 0;
-            double n = sortedValues.Length;
-            double index = (percentile / 100.0) * (n - 1);
-            int lower = (int)Math.Floor(index);
-            int upper = (int)Math.Ceiling(index);
-            if (lower == upper)
-                return sortedValues[lower];
-            double fraction = index - lower;
-            return sortedValues[lower] * (1 - fraction) + sortedValues[upper] * fraction;
-        }
-
 
         /// <summary>
         /// Calculates the shortest path between two nodes, either for a particular layer or for all layers.
@@ -310,7 +142,6 @@ namespace Threadle.Core.Analysis
                 }
             }
         }
-
 
         /// <summary>
         /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
