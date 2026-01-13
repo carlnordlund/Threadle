@@ -38,6 +38,7 @@ namespace Threadle.CLIconsole.Runtime
             ["generate"] = new Generate(),
             ["generateattr"] = new GenerateAttr(),
             ["getattr"] = new GetAttr(),
+            ["getattrsummary"] = new GetAttrSummary(),
             ["getedge"] = new GetEdge(),
             ["getnbrnodes"] = new GetNbrNodes(),
             ["getnodealters"] = new GetNodeAlters(),

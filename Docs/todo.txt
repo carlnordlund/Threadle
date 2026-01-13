@@ -1,6 +1,14 @@
 To-do
 =====
 
+Export layer: export edgelists for chosen layers, for import/handling elsewhere.
+
+Get summaries of attributes. Given a Nodeset and a variable, produce statistics on its values.
+
+For int and float: min, max, mean median, stdev, Q1, Q3.
+
+
+
 Possible extra functions:
 Merge nodesets - combine different nodesets
 Extract ego networks - get N-hop neighborhoods for sampled nodes
