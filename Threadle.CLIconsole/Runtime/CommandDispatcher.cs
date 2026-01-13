@@ -34,6 +34,7 @@ namespace Threadle.CLIconsole.Runtime
             ["deleteall"] = new DeleteAll(),
             ["density"] = new Density(),
             ["dichotomize"] = new Dichotomize(),
+            ["dir"] = new Dir(),
             ["filter"] = new Filter(),
             ["generate"] = new Generate(),
             ["generateattr"] = new GenerateAttr(),

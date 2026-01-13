@@ -173,48 +173,6 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Public-facing method to import relational data to a 1-mode or 2-mode layer from a data file.
-        /// The file can be either as an edgelist or a matrix/table.
-        /// Note that file import methods use internal methods that bypass validation for performance.
-        /// When addMissingNodes is set to false, invalid edges are silenty skipped (not error-reporting)
-        /// </summary>
-        /// <param name="filepath">The filepath to the file to import.</param>
-        /// <param name="network">The Network object to import the data to.</param>
-        /// <param name="layer">The ILayer to install the data to.</param>
-        /// <param name="format">A string describing the file format (either 'edgelist' or 'matrix')</param>
-        /// <param name="separator">The value-separating character/string used in the data file.</param>
-        /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not</param>
-        /// <returns>Returns an OperationResult informing how well this went.</returns>
-        //public static OperationResult ImportLayer(string filepath, Network network, ILayer layer, string format, char separator, bool addMissingNodes)
-        //{
-        //    try
-        //    {
-        //        switch (layer, format.ToLowerInvariant())
-        //        {
-        //            case (LayerOneMode layerOneMode, "edgelist"):
-        //                //LayerImporters.ImportOneModeEdgelist(filepath, network, layerOneMode, separator, addMissingNodes);
-        //                break;
-        //            case (LayerOneMode layerOneMode, "matrix"):
-        //                LayerImporters.ImportOneModeMatrix(filepath, network, layerOneMode, separator, addMissingNodes);
-        //                break;
-        //            case (LayerTwoMode layerTwoMode, "edgelist"):
-        //                //LayerImporters.ImportTwoModeEdgelist(filepath, network, layerTwoMode, separator, addMissingNodes);
-        //                break;
-        //            case (LayerTwoMode layerTwoMode, "matrix"):
-        //                LayerImporters.ImportTwoModeMatrix(filepath, network, layerTwoMode, separator, addMissingNodes);
-        //                break;
-        //            default:
-        //                return OperationResult.Fail("UnsupportedImportFormat", "The specific layer/format combination for importing is not supported.");
-        //        }
-        //        return OperationResult.Ok($"Imported data to layer '{layer.Name}' from file '{filepath}'.");
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return OperationResult.Fail("IOImportError", "Unexpected error when importing layer: " + ex.Message);
-        //    }
-        //}
-
-        /// <summary>
         /// Sets the current working directory as safe as possible.
         /// </summary>
         /// <param name="path">The path to the new working directory.</param>
@@ -259,6 +217,63 @@ namespace Threadle.Core.Utilities
             catch (Exception e)
             {
                 return OperationResult<string>.Fail("IOError", $"An unexpected error when getting current directory: {e.Message}.");
+            }
+        }
+
+        /// <summary>
+        /// Gets the content (directories and files) of the current working directory, wrapped as a potentially nested 
+        /// string-object dictionary. Note that more information can be obtained: I have commented out that info below.
+        /// </summary>
+        /// <param name="path">Optional filepath: if null, the current working will be used.</param>
+        /// <returns>Returns a string-object dictionary with info about the directories and files.</returns>
+        public static OperationResult<Dictionary<string,object>> GetDirectoryListing(string? path = null)
+        {
+            try
+            {
+                string targetPath = string.IsNullOrEmpty(path) ? Directory.GetCurrentDirectory() : path;
+                if (!Directory.Exists(targetPath))
+                    return OperationResult<Dictionary<string, object>>.Fail("DirectoryNotFound", $"Directory not found: {targetPath}");
+                var directories = Directory.GetDirectories(targetPath)
+                    .Select(d => new DirectoryInfo(d))
+                    .OrderBy(d => d.Name)
+                    .Select(d => new Dictionary<string,object>
+                    {
+                        ["Name"] = d.Name//,
+                        //["Type"] ="Directory",
+                        //["Modified"] = d.LastWriteTime
+                    }
+                    )
+                    .ToList();
+                var files = Directory.GetFiles(targetPath)
+                    .Select(f => new FileInfo(f))
+                    .OrderBy(f => f.Name)
+                    .Select(f => new Dictionary<string, object>
+                    {
+                        ["Name"] = f.Name//,
+                        //["Type"] = "File",
+                        //["Size"] = f.Length,
+                        //["Modified"] = f.LastWriteTime
+                    }
+                    )
+                    .ToList();
+
+                var result = new Dictionary<string, object>
+                {
+                    ["Path"] = targetPath,
+                    ["Directories"] = directories,
+                    ["Files"] = files,
+                    ["TotalDirectories"] = directories.Count,
+                    ["TotalFiles"] = files.Count
+                };
+                return OperationResult<Dictionary<string, object>>.Ok(result, $"Listed {directories.Count} directories and {files.Count} files.");
+            }
+            catch (UnauthorizedAccessException uaex)
+            {
+                return OperationResult<Dictionary<string, object>>.Fail("AccessDenied", "Access denied to directory: " + uaex.Message);
+            }
+            catch (Exception ex)
+            {
+                return OperationResult<Dictionary<string, object>>.Fail("DirectoryError", $"Error listing directory: {ex.Message}");
             }
         }
 

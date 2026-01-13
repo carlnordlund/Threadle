@@ -54,13 +54,11 @@
   </ItemGroup>
 
   <!-- Include example files in output for testing -->
-  <!--
   <ItemGroup>
     <None Update="Examples\*.tsv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  -->
   
   <!-- Ensure Core is always built before CLI -->
   <Target Name="AlwaysBuildCore" BeforeTargets="Build">

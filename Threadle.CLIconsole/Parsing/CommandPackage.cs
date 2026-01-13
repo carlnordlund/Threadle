@@ -72,6 +72,22 @@ namespace Threadle.CLIconsole.Parsing
         }
 
         /// <summary>
+        /// Returns the value of an argument as a string if it exists; if not, checks an alternative key.
+        /// If that doesn't exist either, return null
+        /// </summary>
+        /// <param name="key">The first argument name to check.</param>
+        /// <param name="altkey">The alternative argument name to check.</param>
+        /// <returns>The string value of this argument, or null if missing.</returns>
+        internal string? GetArgument(string key, string altkey)
+        {
+            if (NamedArgs.TryGetValue(key, out var value))
+                return value;
+            else if (NamedArgs.TryGetValue(altkey, out var value2))
+                return value2;
+            return null;
+        }
+
+        /// <summary>
         /// Gets the value of argument 'key' (or 'altkey' if 'key' is missing). Throws an
         /// exception if neither is found, or if it is found but where the argument value is empty or null.
         /// </summary>
