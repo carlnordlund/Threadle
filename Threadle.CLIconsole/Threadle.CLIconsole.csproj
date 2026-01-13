@@ -1,66 +1,68 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- Application Metadata -->
     <Version>1.0.0</Version>
+    <AssemblyName>threadle</AssemblyName>
+    <Product>Threadle</Product>
+    <Description>Threadle CLI - High-performance network data management</Description>
+    <Copyright>Copyright © 2026 Carl Nordlund</Copyright>
+    <Authors>Carl Nordlund</Authors>
+
+    <!-- Build Configuration -->
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Supported Runtime Identifiers -->
     <RuntimeIdentifiers>win-x64;win-x86;win-arm64;linux-x64;linux-arm;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
     <PublishTrimmed>false</PublishTrimmed>
-    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    
+<!--    
+    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>-->
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="CLIUtilities\**" />
-    <Compile Remove="R\Lib\**" />
+    <Compile Remove="R\**" />
+    <Compile Remove="threadleR\**" />
     <EmbeddedResource Remove="CLIUtilities\**" />
-    <EmbeddedResource Remove="R\Lib\**" />
+    <EmbeddedResource Remove="R\**" />
+    <EmbeddedResource Remove="threadleR\**" />
     <None Remove="CLIUtilities\**" />
-    <None Remove="R\Lib\**" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <None Remove="R\**" />
+    <None Remove="threadleR\**" />
     <None Remove=".Rhistory" />
-    <None Remove="R\.Rhistory" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="threadleR\" />
-    <Folder Include="Properties\PublishProfiles\" />
-  </ItemGroup>
-
+  <!-- Reference Threadle.Core project -->
   <ItemGroup>
     <ProjectReference Include="..\Threadle.Core\Threadle.Core.csproj" />
   </ItemGroup>
 
+  <!-- Include example files in output for testing -->
+  <!--
   <ItemGroup>
-    <None Update="Examples\dscw.tsv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Examples\dscw_nodeset.tsv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Examples\lazega.tsv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Examples\lazega_nodes.tsv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Examples\mynet.tsv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Examples\mynet_nodesetfile.tsv">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="R\test_threadle_client.R">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <None Update="Examples\*.tsv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  -->
   
+  <!-- Ensure Core is always built before CLI -->
   <Target Name="AlwaysBuildCore" BeforeTargets="Build">
     <MSBuild Projects="..\Threadle.Core\Threadle.Core.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
   </Target>

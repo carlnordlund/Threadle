@@ -1,5 +1,4 @@
-﻿using K4os.Compression.LZ4.Streams.Frames;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
