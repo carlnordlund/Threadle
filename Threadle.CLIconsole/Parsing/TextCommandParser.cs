@@ -28,7 +28,7 @@ namespace Threadle.CLIconsole.Parsing
             if (!match.Success)
                 return null;
             string? assignedVar = match.Groups[1].Value;
-            string cmdName = match.Groups[2].Value;
+            string cmdName = match.Groups[2].Value.ToLowerInvariant();
             string argString = match.Groups[3].Value;
 
             var cmd = new CommandPackage();
@@ -40,7 +40,7 @@ namespace Threadle.CLIconsole.Parsing
             {
                 if (argMatch.Groups[1].Success)
                 {
-                    string key = argMatch.Groups[1].Value.Trim();
+                    string key = argMatch.Groups[1].Value.Trim().ToLowerInvariant();
                     string val = argMatch.Groups[2].Success ? argMatch.Groups[2].Value :
                         argMatch.Groups[3].Success ? argMatch.Groups[3].Value :
                         argMatch.Groups[4].Value;

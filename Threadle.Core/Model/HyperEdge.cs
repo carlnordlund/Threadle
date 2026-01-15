@@ -20,6 +20,11 @@ namespace Threadle.Core.Model
         /// List of node id that the Hyperedge connects.
         /// </summary>
         private List<uint> _nodeIds = [];
+
+        /// <summary>
+        /// Name of hyperedge (same as in AllHyperedges in LayerTwoMode)
+        /// </summary>
+        private string _name = string.Empty;
         #endregion
 
 
@@ -41,6 +46,17 @@ namespace Threadle.Core.Model
         {
             _nodeIds = [.. nodeIds];
         }
+
+        public Hyperedge(string name)
+        {
+            _name = name;
+        }
+
+        public Hyperedge(string name, uint[] nodeIds)
+        {
+            _name = name;
+            _nodeIds = [.. nodeIds];
+        }
         #endregion
 
 
@@ -54,10 +70,17 @@ namespace Threadle.Core.Model
         /// Returns the number of nodes connected by the hyperedge.
         /// </summary>
         public int NbrNodes => _nodeIds.Count;
+
+        public string Name => _name;
         #endregion
 
 
         #region Methods
+        /// <summary>
+        /// Internal setter when adding via LayerTwoMode
+        /// </summary>
+        /// <param name="name"></param>
+        internal void SetName(string name) => _name = name;
 
         internal void AddNode(uint nodeId)
         {

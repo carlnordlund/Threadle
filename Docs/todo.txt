@@ -1,7 +1,25 @@
 To-do
 =====
+Implemented these:
+#Given a net, 2-mode layer and hyperedge/affiliation name, get the collection of nodes connected to this hyperedge:
+[array:uint] = gethyperedgenodes(network = [var:network], layername = [str], hypername = [str])
+
+#Given a net, 2-mode layer and node, get the collection of hyperedges (as names) that this node is connected to
+[array:str] = getnodehyperedges(network = [var:network], layername = [str], nodeid = [uint])
+
+Fixed upper/lower case argument names (commands and argument names are case-insensitive, the rest are not)
+
+Removed the setwd(dir=examples) - only keeping ~ (user) and ~documents
+
+Express argument names in camel notation in syntax strings? Easier to read - but could give impression that it is compulsory
+
+Should addnode() use id=[uint] or nodeid=[uint] ? :)
 
 
+
+getnbrnodes: what about: getnbredges, getnbrhyperedges, gethyperedgebyindex
+
+When importing a 2-mode edgelist, it might be difficult to know much about what hyperedges that exist in there. 
 
 
 Export layer: export edgelists for chosen layers, for import/handling elsewhere.

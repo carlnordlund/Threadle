@@ -42,7 +42,7 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-            uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeId", "arg1");
+            uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string layerNames = command.GetArgumentParseString("layernames", "");
             bool uniqueAlters = command.GetArgumentParseBool("unique", false);
 

@@ -390,25 +390,41 @@ namespace Threadle.Core.Model
             return OperationResult<uint[]>.Ok(alterIds.ToArray());
         }
 
+        //public OperationResult<uint[]> GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+        //{
+        //    if (!Nodeset.CheckThatNodeExists(nodeId))
+        //        return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+        //    uint[] alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
+        //    Array.Sort(alterIds);
 
-        private ILayer? _getLayer(string layername)
+        //    return OperationResult<uint[]>.Ok(alterIds);
+           
+        //}
+
+        public OperationResult<uint[]> GetHyperedgeNodes(string layerName, string hyperName)
         {
-            if (Layers.TryGetValue(layername, out var layer))
-                return layer;
-            return null;
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<uint[]>.Fail(layerResult);
+            var layerTwoMode = layerResult.Value!;
+            if (layerTwoMode.GetHyperedge(hyperName) is not Hyperedge hyperedge)
+                return OperationResult<uint[]>.Fail("HyperedgeNotFound", $"Could not find hyperedge named '{hyperName}' in layer '{layerName}' of network {Name}.");
+            uint[] nodeIds = hyperedge.NodeIds.ToArray();
+            Array.Sort(nodeIds);
+            return OperationResult<uint[]>.Ok(nodeIds, $"Hyperedge '{hyperName}' connects the following nodes in layer '{layerName}':");
         }
 
-        public OperationResult<uint[]> GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+        public OperationResult<string[]> GetNodeHyperedges(string layerName, uint nodeId)
         {
             if (!Nodeset.CheckThatNodeExists(nodeId))
-                return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
-            uint[] alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
-            Array.Sort(alterIds);
-
-            return OperationResult<uint[]>.Ok(alterIds);
-           
+                return OperationResult<string[]>.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'");
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<string[]>.Fail(layerResult);
+            var layerTwoMode = layerResult.Value!;
+            string[] hyperedgeNames = layerTwoMode.GetHyperedgeNames(nodeId);
+            return OperationResult<string[]>.Ok(hyperedgeNames, $"Node '{nodeId}' is affiliated to the following hyperedges in layer '{layerName}':");
         }
-
 
 
         #endregion
@@ -657,6 +673,16 @@ namespace Threadle.Core.Model
                 alterIds.UnionWith(layer.GetNodeAlters(nodeId, edgeTraversal));
             return alterIds.ToArray();
         }
+
+        internal ILayer? _getLayer(string layername)
+        {
+            if (Layers.TryGetValue(layername, out var layer))
+                return layer;
+            return null;
+        }
+
+
+
         #endregion
     }
 }

@@ -199,6 +199,15 @@ namespace Threadle.Core.Model
 
 
         #region Methods (private, internal)
+
+        internal Hyperedge? GetHyperedge(string hyperName)
+        {
+            if (AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
+                return hyperedge;
+            return null;
+        }
+
+
         /// <summary>
         /// Adds a Hyperedge with the specified name and optional array of node id members.
         /// Makes sure to filter out duplicate node ids for the Hyperedge.
@@ -212,7 +221,7 @@ namespace Threadle.Core.Model
         {
             if (AllHyperEdges.ContainsKey(hyperName))
                 RemoveHyperedge(hyperName);
-            Hyperedge hyperedge = new();
+            Hyperedge hyperedge = new Hyperedge(hyperName);
             AllHyperEdges.Add(hyperName, hyperedge);
             if (nodeIds != null && nodeIds.Length > 0)
             {
@@ -245,7 +254,7 @@ namespace Threadle.Core.Model
         /// <param name="nodeIds">An array with node ids to the hyperedge</param>
         internal void _addHyperedge(string hyperName, uint[]? nodeIds)
         {
-            Hyperedge hyperedge = nodeIds == null ? new Hyperedge() : new Hyperedge(nodeIds);
+            Hyperedge hyperedge = nodeIds == null ? new Hyperedge(hyperName) : new Hyperedge(hyperName, nodeIds);
             AllHyperEdges[hyperName] = hyperedge;
             if (nodeIds != null)
                 foreach (uint nodeId in nodeIds)
@@ -260,7 +269,7 @@ namespace Threadle.Core.Model
         /// <param name="hyperName"></param>
         internal void _addHyperedge(string hyperName)
         {
-            AllHyperEdges[hyperName] = new Hyperedge();
+            AllHyperEdges[hyperName] = new Hyperedge(hyperName);
         }
 
         /// <summary>
@@ -278,7 +287,7 @@ namespace Threadle.Core.Model
             {
                 if (!addMissingHyperedge)
                     return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in layer '{Name}'.");
-                hyperedge = new Hyperedge();
+                hyperedge = new Hyperedge(hyperName);
                 AllHyperEdges.Add(hyperName, hyperedge);
             }
             AddHyperEdgeToNode(nodeId, hyperedge);
@@ -297,7 +306,7 @@ namespace Threadle.Core.Model
         {
             if (!AllHyperEdges.TryGetValue(hyperedgeName, out var hyperedge))
             {
-                hyperedge = new Hyperedge();
+                hyperedge = new Hyperedge(hyperedgeName);
                 AllHyperEdges[hyperedgeName] = hyperedge;
             }
             AddHyperEdgeToNode(nodeId, hyperedge);
@@ -355,6 +364,14 @@ namespace Threadle.Core.Model
                 collection.HyperEdges.Remove(hyperEdge);
         }
 
+        internal string[] GetHyperedgeNames(uint nodeId)
+        {
+            if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperedgeCollection))
+                return [];
+            return hyperedgeCollection.HyperEdges.Select(he => he.Name).ToArray();
+        }
+
+
         /// <summary>
         /// Creates and returns an empty copy of this layer.
         /// </summary>
@@ -363,6 +380,7 @@ namespace Threadle.Core.Model
         {
             return new LayerTwoMode(this.Name);
         }
+
         #endregion
     }
 }

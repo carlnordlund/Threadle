@@ -23,7 +23,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Sets the current working directory for Threadle to the relative or absolute path specified by 'dir'. There are three special options for this argument, options that work for all architectures. If set to '~', i.e. just the tilde character, the working directory will be set to the root user directory/folder. If set to '~documents', the working directory will be set to the user's documents folder (like the 'My Documents' folder in Windows). If set to '~examples', the working directory will be set to '[user's document folder]/Threadle/Examples/', i.e. the default location where example files should be installed. If this folder does not exist, an error is given.";
+        public string Description => "Sets the current working directory for Threadle to the relative or absolute path specified by 'dir'. There are three special options for this argument, options that work for all architectures. If set to '~', i.e. just the tilde character, the working directory will be set to the root user directory/folder. If set to '~documents', the working directory will be set to the user's documents folder (like the 'My Documents' folder in Windows). If a folder does not exist, an error is given.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -42,13 +42,6 @@ namespace Threadle.CLIconsole.Commands
                 dir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             else if (dir.Equals("~documents", StringComparison.OrdinalIgnoreCase))
                 dir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            else if (dir.Equals("~examples", StringComparison.OrdinalIgnoreCase))
-            {
-                string userdocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                dir = Path.Combine(userdocs, "Threadle", "Examples");
-                if (!Directory.Exists(dir))
-                    return CommandResult.Fail("DirectoryNotFound", $"Directory 'Examples' not found at expected location: {dir}");
-            }                
             return CommandResult.FromOperationResult(FileManager.SafeSetCurrentDirectory(dir));
         }
     }
