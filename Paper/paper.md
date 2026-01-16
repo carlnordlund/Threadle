@@ -72,6 +72,16 @@ Threadle stores 2-mode data as collections of hyperedges rather than projecting 
 - **7.	Cross-platform availability**
   Threadle is written in C#/.NET using standard NET8.0 libraries and provides precompiled,self-contained binaries for Windows, Linux, and macOS. Being open source, Threadle can also be compiled directly from source, using the build instructions available on its github repository.
 
+# Research impact
+(Mention how we intend to use this to work with full-population register data: opens up brand new possibilities to address all of the research questions we have set up to do. Traversal-based analyses: random walkers, sampling, domain overlap etc.)
+(As of now: not used; novel product. Due to the sensitivity of data intended to work with, located on secure servers, provide it as open source with full transparency)
+(Spread to other similar full-population research groups around Europe)
+
+# Usage Example
+(Exemplify network handling, e.g. generate network with multiple layers and two types of random networks. Explore shortest paths: singular layer, or all. Calculate degree centrality and density.)
+(Generate layer for 2-mode data, mention how many 1-mode edges this would correspond to: explore shortest paths there as well)
+(Exemplify use patterns in threadleR: importing example network, building a simple traversal engine, saving in binary format)
+
 # Software Design
 (Rewrite: describe software architecture/design more thoroughly. Mention where extensions should go.)
 (First: describe Core. Start with data types: Network and Nodeset objects: fundamental types. Explain from there: e.g. node attributes, layers etc.)
