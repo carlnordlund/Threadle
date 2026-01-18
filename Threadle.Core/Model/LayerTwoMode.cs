@@ -371,6 +371,14 @@ namespace Threadle.Core.Model
             return hyperedgeCollection.HyperEdges.Select(he => he.Name).ToArray();
         }
 
+        internal string[] GetAllHyperedgeNames(int offset, int limit)
+        {
+            offset = (offset < 0) ? 0 : offset;
+            limit = (limit < 0) ? 0 : limit;
+            return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
+        }
+
+
 
         /// <summary>
         /// Creates and returns an empty copy of this layer.
@@ -380,7 +388,6 @@ namespace Threadle.Core.Model
         {
             return new LayerTwoMode(this.Name);
         }
-
         #endregion
     }
 }

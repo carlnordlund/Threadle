@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -320,7 +322,8 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Returns an array of node ids for the alter of a specified ego node in a specified layer.
-        /// If layername is empty or null, use all layerNames.
+        /// Convenience function for doing this for a singular or all layers: calls the method
+        /// that deals with a selection of layers.
         /// </summary>
         /// <param name="layerName">The name of the layer (can be null or empty).</param>
         /// <param name="nodeId">The node id.</param>
@@ -330,21 +333,6 @@ namespace Threadle.Core.Model
         {
             string[]? layers = (layerName == null || layerName.Length == 0) ? null : [layerName];
             return GetNodeAlters(layers, nodeId, edgeTraversal, false);
-
-            //if (!Nodeset.CheckThatNodeExists(nodeId))
-            //    return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
-            //uint[] alterIds;
-            //if (layerName != null && layerName.Length > 0)
-            //{
-            //    var layerResult = GetLayer(layerName);
-            //    if (!layerResult.Success)
-            //        return OperationResult<uint[]>.Fail(layerResult.Code, layerResult.Message);
-            //    alterIds = layerResult.Value!.GetNodeAlters(nodeId, edgeTraversal);
-            //}
-            //else
-            //    alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
-            //Array.Sort(alterIds);
-            //return OperationResult<uint[]>.Ok(alterIds);
         }
 
         /// <summary>
@@ -390,17 +378,12 @@ namespace Threadle.Core.Model
             return OperationResult<uint[]>.Ok(alterIds.ToArray());
         }
 
-        //public OperationResult<uint[]> GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
-        //{
-        //    if (!Nodeset.CheckThatNodeExists(nodeId))
-        //        return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
-        //    uint[] alterIds = _getNodeAltersAllLayers(nodeId, edgeTraversal);
-        //    Array.Sort(alterIds);
-
-        //    return OperationResult<uint[]>.Ok(alterIds);
-           
-        //}
-
+        /// <summary>
+        /// Returns an array of node ids affiliated to the specified hyperedge in the specified 2-mode layer.
+        /// </summary>
+        /// <param name="layerName">The name of the 2-mode layer.</param>
+        /// <param name="hyperName">The name of the hyperedge.</param>
+        /// <returns>Returns an OperationResult object with the array of uint affiliated to this hyperedge.</returns>
         public OperationResult<uint[]> GetHyperedgeNodes(string layerName, string hyperName)
         {
             var layerResult = GetTwoModeLayer(layerName);
@@ -414,6 +397,12 @@ namespace Threadle.Core.Model
             return OperationResult<uint[]>.Ok(nodeIds, $"Hyperedge '{hyperName}' connects the following nodes in layer '{layerName}':");
         }
 
+        /// <summary>
+        /// Returns an array with the hyperedge names that a node is connected to in a specific 2-mode layer.
+        /// </summary>
+        /// <param name="layerName">The name of the 2-mode layer.</param>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names that this node is affiliated to.</returns></returns>
         public OperationResult<string[]> GetNodeHyperedges(string layerName, uint nodeId)
         {
             if (!Nodeset.CheckThatNodeExists(nodeId))
@@ -424,6 +413,37 @@ namespace Threadle.Core.Model
             var layerTwoMode = layerResult.Value!;
             string[] hyperedgeNames = layerTwoMode.GetHyperedgeNames(nodeId);
             return OperationResult<string[]>.Ok(hyperedgeNames, $"Node '{nodeId}' is affiliated to the following hyperedges in layer '{layerName}':");
+        }
+
+        /// <summary>
+        /// Returns an array with the names of all hyperedges in a specific layer.
+        /// Returns a maximum of 1000 hyperedge names starting with the first one in the set of all hyperedges,
+        /// but this can be adjusted.
+        /// </summary>
+        /// <param name="layerName">The name of the 2-mode layer.</param>
+        /// <param name="offset">The index of the hyperedge to start with (defaults to 0).</param>
+        /// <param name="limit">The maximum number of hyperedge names to return.</param>
+        /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names in this layer (given the offset and limit).</returns></returns>
+        public OperationResult<string[]> GetAllHyperedges(string layerName, int offset = 0, int limit = 1000)
+        {
+            offset = (offset < 0) ? 0 : offset;
+            limit = (limit < 0) ? 0 : limit;
+            var layerResult = GetTwoModeLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<string[]>.Fail(layerResult);
+            var layerTwoMode = layerResult.Value!;
+            string[] hyperedgeNames = layerTwoMode.GetAllHyperedgeNames(offset, limit);
+            uint total = layerTwoMode.NbrHyperedges;
+            string message;
+            if (total == 0)
+                message = $"Layer '{layerName}' has no hyperedges.";
+            else if (hyperedgeNames.Length == 0)
+                message = $"Offset { offset} is beyond the available hyperedges in layer '{layerName}'(total: { total}).";
+            else if (offset == 0 && hyperedgeNames.Length == total)
+                message = $"Returning all {total} hyperedge(s) in layer '{layerName}':";
+            else
+                message = $"Returning hyperedges {offset + 1} - {offset + hyperedgeNames.Length} of {total} in layer '{layerName}':";
+            return OperationResult<string[]>.Ok(hyperedgeNames, message);
         }
 
 
@@ -680,6 +700,7 @@ namespace Threadle.Core.Model
                 return layer;
             return null;
         }
+
 
 
 

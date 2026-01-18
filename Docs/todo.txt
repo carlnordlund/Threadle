@@ -1,5 +1,10 @@
 To-do
 =====
+
+Getallhyperedges(network, layername,)
+
+
+
 Implemented these:
 #Given a net, 2-mode layer and hyperedge/affiliation name, get the collection of nodes connected to this hyperedge:
 [array:uint] = gethyperedgenodes(network = [var:network], layername = [str], hypername = [str])
