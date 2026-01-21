@@ -26,6 +26,7 @@ namespace Threadle.CLIconsole.Runtime
             ["addnode"] = new AddNode(),
             ["checkedge"] = new CheckEdge(),
             ["clearlayer"] = new ClearLayer(),
+            ["components"] = new Components(),
             ["createnetwork"] = new CreateNetwork(),
             ["createnodeset"] = new CreateNodeset(),
             ["defineattr"] = new DefineAttr(),

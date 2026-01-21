@@ -163,14 +163,36 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Calculates connected components for a layer in the specified network, storing the component index as a new
+        /// node attribute.
+        /// </summary>
+        /// <param name="network">The network containing the layer.</param>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="attrName">The name of the node attribute where to store the component index.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        public static OperationResult ConnectedComponents(Network network, string layerName, string? attrName = null)
+        {
+            var layerResult = network.GetLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<string>.Fail(layerResult);
+            ILayer layer = layerResult.Value!;
+            Dictionary<uint, int> degreeMapping = Functions.ConnectedComponents(network, layer);
+            var attrDict = degreeMapping.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+            attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_componentId";
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+        }
+
+
+
+        /// <summary>
         /// Calculates the degree centrality for each node in the specified one- or two-mode layer and stores the results
         /// as a node attribute in the network's nodeset.
         /// </summary>
         /// <param name="network">The network containing the layer.</param>
-        /// <param name="layerName"></param>
-        /// <param name="attrName"></param>
-        /// <param name="edgeTraversal"></param>
-        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="attrName">The name of the node attribute where to store the degree centrality.</param>
+        /// <param name="edgeTraversal">Whether to use inbound- and/or outbound edges.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult DegreeCentralities(Network network, string layerName, string? attrName = null, EdgeTraversal edgeTraversal = EdgeTraversal.Out)
         {
             var layerResult = network.GetLayer(layerName);
@@ -279,6 +301,7 @@ namespace Threadle.Core.Analysis
             uint randomNodeId = nodeset.NodeIdArray[Misc.Random.Next(nodeset.Count)];
             return OperationResult<uint>.Ok(randomNodeId);
         }
+
         #endregion
     }
 }

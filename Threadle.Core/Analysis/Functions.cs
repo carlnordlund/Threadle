@@ -323,6 +323,38 @@ namespace Threadle.Core.Analysis
                 outDegreeCentrality[nodeId] = layerOneMode.GetOutDegree(nodeId);
             return outDegreeCentrality;
         }
+
+        internal static Dictionary<uint, int> ConnectedComponents(Network network, ILayer layer)
+        {
+            Dictionary<uint, int> componentIds = [];
+            int currentComponentId = 0;
+            HashSet<uint> visited = [];
+
+            foreach (uint nodeId in network.Nodeset.NodeIdArray)
+            {
+                if (!visited.Contains(nodeId))
+                {
+                    Queue<uint> queue = [];
+                    queue.Enqueue(nodeId);
+                    visited.Add(nodeId);
+                    while (queue.Count>0)
+                    {
+                        uint current = queue.Dequeue();
+                        componentIds[current] = currentComponentId;
+                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Both))
+                        {
+                            if (!visited.Contains(neighborId))
+                            {
+                                visited.Add(neighborId);
+                                queue.Enqueue(neighborId);
+                            }
+                        }
+                    }
+                    currentComponentId++;
+                }
+            }
+            return componentIds;
+        }
         #endregion
     }
 }
