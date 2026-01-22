@@ -28,7 +28,7 @@ namespace Threadle.CLIconsole.Runtime
         #region Methods (public)
         /// <summary>
         /// Writes a line to STDOUT.
-        /// Respects verbosity setting unless overridden.
+        /// Respects verbosity setting unless overridden. Overriding done by JSON specifically.
         /// </summary>
         /// <param name="message">Line to write to STDOUT</param>
         /// <param name="overrideVerbose">Set to true to override the verbosity setting.</param>
