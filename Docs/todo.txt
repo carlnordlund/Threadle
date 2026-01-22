@@ -1,6 +1,9 @@
 To-do
 =====
 
+Need to redo preview([network]) - it should display actual relational data, not just metadata (which info([Network]) does already)
+
+
 GetNodesWithAttribute() : returns a list of node ids that have a specific node attribute. Then again: this could be
 done with filter(), where the copying of node attributes is optional. Ok - for now, wait with this. Add bool to filter() instead.
 Or just be ok with attributes being copied over as well
