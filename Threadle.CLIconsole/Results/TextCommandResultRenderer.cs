@@ -67,6 +67,10 @@ namespace Threadle.CLIconsole.Results
                     RenderUintList(uints);
                     break;
 
+                case IEnumerable<int> ints:
+                    RenderIntList(ints);
+                    break;
+
                 case IEnumerable<string> lines:
                     RenderLines(lines);
                     break;
@@ -115,6 +119,11 @@ namespace Threadle.CLIconsole.Results
             Console.Out.WriteLine($"[{string.Join(", ", values)}]");
         }
 
+        private static void RenderIntList(IEnumerable<int> values)
+        {
+            Console.Out.WriteLine($"[{string.Join(", ", values)}]");
+        }
+
         private static void RenderLines(IEnumerable<string> lines)
         {
             foreach (var line in lines)
@@ -127,9 +136,7 @@ namespace Threadle.CLIconsole.Results
                 Console.Out.WriteLine(item);
         }
 
-        private static void RenderDictionary(
-    IDictionary<string, object> dict,
-    int indent = 0)
+        private static void RenderDictionary(IDictionary<string, object> dict, int indent = 0)
         {
             string pad = new string(' ', indent * 2);
 
@@ -148,6 +155,10 @@ namespace Threadle.CLIconsole.Results
                 {
                     Console.Out.WriteLine($"{pad}{kvp.Key}:");
                     RenderDictionary(nested, indent + 1);
+                }
+                else if (kvp.Value is ICollection<int> intList)
+                {
+                    Console.Out.WriteLine($"{pad}{kvp.Key}:[{string.Join(", ", intList)}]");
                 }
                 else
                 {

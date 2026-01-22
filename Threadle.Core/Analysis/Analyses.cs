@@ -22,7 +22,7 @@ namespace Threadle.Core.Analysis
         /// </summary>
         /// <param name="nodeset">The Nodeset structure.</param>
         /// <param name="attrName">The attribute name.</param>
-        /// <returns>Returns a potentially nested string-object dictionary with summary statistics about the attribute.</returns>
+        /// <returns>An <see cref="OperationResult"/> with a potentially nested string-object dictionary with summary statistics about the attribute.</returns>
         public static OperationResult<Dictionary<string,object>> GetAttributeSummary(Nodeset nodeset, string attrName)
         {
             if (!nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
@@ -169,17 +169,30 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The network containing the layer.</param>
         /// <param name="layerName">The name of the layer.</param>
         /// <param name="attrName">The name of the node attribute where to store the component index.</param>
-        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
-        public static OperationResult ConnectedComponents(Network network, string layerName, string? attrName = null)
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went, with a string-object dictionary with additional information.</returns>
+        public static OperationResult<Dictionary<string,object>> ConnectedComponents(Network network, string layerName, string? attrName = null)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
-                return OperationResult<string>.Fail(layerResult);
+                return OperationResult<Dictionary<string,object>>.Fail(layerResult);
             ILayer layer = layerResult.Value!;
-            Dictionary<uint, int> degreeMapping = Functions.ConnectedComponents(network, layer);
-            var attrDict = degreeMapping.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
-            attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_componentId";
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            Dictionary<uint, int> componentIndexMapping = Functions.ConnectedComponents(network, layer);
+            var attrDict = componentIndexMapping.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+            attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_componentIndex";
+            var setAttrResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            if (!setAttrResult.Success)
+                return OperationResult<Dictionary<string,object>>.Fail(setAttrResult);
+            
+            Dictionary<string, object> componentInfo = [];
+            int nbrComponents = componentIndexMapping.Values.Max() + 1;
+            int[] componentSizes = new int[nbrComponents];
+            foreach (int compId in componentIndexMapping.Values)
+                componentSizes[compId]++;
+            componentInfo["NbrComponents"] = nbrComponents;
+            componentInfo["ComponentSizes"] = componentSizes.OrderByDescending(c => c).ToList();
+            return OperationResult<Dictionary<string,object>>.Ok(componentInfo);
+
+            //return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
         }
 
 

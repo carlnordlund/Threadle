@@ -42,7 +42,8 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string? attrname = command.GetArgument("attrname");
-            return CommandResult.FromOperationResult(Analyses.ConnectedComponents(network, layerName, attrname));
+            var componentsResult = Analyses.ConnectedComponents(network, layerName, attrname);
+            return CommandResult.FromOperationResult(componentsResult, componentsResult.Value);
         }
     }
 }
