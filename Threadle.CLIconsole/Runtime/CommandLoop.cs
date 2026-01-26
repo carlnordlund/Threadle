@@ -87,14 +87,18 @@ namespace Threadle.CLIconsole.Runtime
             {
                 if (!jsonMode)
                     ConsoleOutput.Write("> ");
-                var input = Console.ReadLine()?.Trim();
+                
+                var line = Console.ReadLine();
+                if (line == null)
+                    break;
+                var input = line.Trim();
 
                 if (string.IsNullOrWhiteSpace(input) || input[0].Equals('#'))
                     continue;
                 if (input.ToLower() == "exit")
                     break;
                 var command = parser.Parse(input);
-                //var command = CommandParser.Parse(input);
+
                 if (command == null)
                 {
                     ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
