@@ -257,6 +257,27 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Returns a list of strings that represent edges in the edgeset, up to a maximum of maxCount.
+        /// Used by the GetFirstNEdges() in LayerOneMode, which in turn is used by the 'preview(network)'
+        /// CLI command.
+        /// </summary>
+        /// <param name="egoNodeId">The first node id (for display purpose).</param>
+        /// <param name="maxCount">Maximum number of edges to display.</param>
+        /// <returns>Returns a list of strings representing individual edges.</returns>
+        public List<string> FormatEdges(uint egoNodeId, int maxCount)
+        {
+            List<string> lines = new(maxCount);
+            int count = 0;
+            foreach (var conn in _connections)
+            {
+                if (count >= maxCount)
+                    break;
+                lines.Add($"{egoNodeId} <-> {conn.partnerNodeId} ({conn.value})");
+            }
+            return lines;
+        }
+
+        /// <summary>
         /// Removes all edges in the edgeset.
         /// </summary>
         public void ClearEdges()

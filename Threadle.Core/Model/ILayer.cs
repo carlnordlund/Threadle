@@ -22,6 +22,11 @@ namespace Threadle.Core.Model
         /// Returns a dictionary (possibly nested) with information about the layer.
         /// </summary>
         Dictionary<string, object> GetMetadata { get; }
+
+        /// <summary>
+        /// Returns a string with metadata info about the layer
+        /// </summary>
+        string GetLayerInfo { get; }
         #endregion
 
 
@@ -77,6 +82,13 @@ namespace Threadle.Core.Model
         /// <param name="nodeset">The <see cref="Nodeset"/> to filter on (only include edges with these node ids).</param>
         /// <returns>A copy of the current <see cref="ILayer"/> object with relevant edges.</returns>
         ILayer CreateFilteredCopy(Nodeset nodeset);
+
+        /// <summary>
+        /// Returns a list with the first n edges in the Layer. Used by the preview() CLI command.
+        /// </summary>
+        /// <param name="n">Number of edges to return (defaults to 10)</param>
+        /// <returns>A list of strings</returns>
+        List<string> GetNFirstEdges(int n = 10);
         #endregion
     }
 }

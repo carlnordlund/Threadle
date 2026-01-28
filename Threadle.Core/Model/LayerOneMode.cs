@@ -128,6 +128,11 @@ namespace Threadle.Core.Model
         /// Returns the dictionary of Edgeset objects by node nodeIdAlter.
         /// </summary>
         public Dictionary<uint, IEdgeset> Edgesets => _edgesets;
+
+        /// <summary>
+        /// Returns a string with metadata info about the layer
+        /// </summary>
+        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
         #endregion
 
 
@@ -225,6 +230,28 @@ namespace Threadle.Core.Model
                 layerCopy.Edgesets.Add(nodeId, edgeset.CreateFilteredCopy(nodeIds));
             }
             return layerCopy;
+        }
+
+        /// <summary>
+        /// Returns a list of strings with the first n edges in the Layer. Used by the preview() CLI command.
+        /// </summary>
+        /// <param name="n">Number of edges to return (defaults to 10)</param>
+        /// <returns>A list of strings</returns>
+        public List<string> GetNFirstEdges(int n = 10)
+        {
+            List<string> edges = new(n);
+            foreach (var kvp in _edgesets)
+            {
+                uint egoNodeId = kvp.Key;
+                IEdgeset edgeset = kvp.Value;
+                int remaining = n - edges.Count;
+                if (remaining <= 0)
+                    break;
+                List<string> edgeLines = edgeset.FormatEdges(egoNodeId, remaining);
+                edges.AddRange(edgeLines);
+            }
+
+            return edges;
         }
         #endregion
 

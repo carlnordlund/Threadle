@@ -54,19 +54,17 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns content info about this structure as a list of strings
         /// </summary>
-        public List<string> Content
+        public List<string> Preview
         {
             get
             {
                 List<string> lines = [$"Network: {Name}", $"Nodeset: {Nodeset.Name}"];
-                foreach ((string layerName, ILayer layer) in Layers)
+                // Let's iterate through some lines instead: it is a preview, not info!
+
+                foreach (ILayer layer in Layers.Values)
                 {
-                    if (layer is LayerOneMode layerOneMode)
-                        lines.Add($" {layerOneMode.Name} (1-mode: {layerOneMode.EdgeValueType},{layerOneMode.Directionality},{layerOneMode.Selfties}); Nbr edges:{layerOneMode.NbrEdges}");
-                    else if (layer is LayerTwoMode layerTwoMode)
-                    {
-                        lines.Add($" {layerTwoMode.Name} (2-mode); Nbr hyperedges: {layerTwoMode.NbrHyperedges}");
-                    }
+                    lines.Add(layer.GetLayerInfo);
+                    lines.AddRange(layer.GetNFirstEdges());
                 }
                 return lines;
             }
@@ -92,7 +90,7 @@ namespace Threadle.Core.Model
                 ["Filepath"] = Filepath,
                 ["isModified"] = IsModified,
                 ["Nodeset"] = Nodeset.Name,
-                ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata).ToList()
+                ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata)
             };
 
         /// <summary>

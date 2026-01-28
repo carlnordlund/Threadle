@@ -30,9 +30,9 @@ namespace Threadle.Core.Model
         bool IsModified { get; set; }
 
         /// <summary>
-        /// Returns the content of the structure (e.g. used by the View CLI command)
+        /// Returns a preview of the content of this structure (used by the preview() CLI command)
         /// </summary>
-        List<string> Content { get; }
+        List<string> Preview { get; }
 
         /// <summary>
         /// Returns a dictionary of information about the structure (e.g. used by the Info CLI command)

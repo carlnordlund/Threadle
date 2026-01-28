@@ -18,12 +18,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[str] = preview(structure = [var:structure], *maxlines = [int(default:50)])";
+        public string Syntax => "[str] = preview(structure = [var:structure])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Previews the content of the structure with the variable name [var:structure]. Caps the number of outputted lines to 50 by default, which can be changed with the optional maxlines argument.";
+        public string Description => "Previews the content of the structure with the variable name [var:structure]. Caps the number of outputted lines: max 10 nodes (with attributes) for nodesets, max 10 edges per 1-mode layer, and max 10 node-hyperedge affiliations per 2-mode layer.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -40,10 +40,9 @@ namespace Threadle.CLIconsole.Commands
             string structureName = command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0");
             if (CommandHelpers.TryGetVariable<IStructure>(context, structureName, out var structure) is CommandResult commandResult)
                 return commandResult;
-            int maxLines = command.GetArgumentParseInt("maxlines", 50);
             return CommandResult.Ok(
                 message: $"Preview of {nameof(IStructure)} '{structure.Name}'",
-                payload: structure.Content
+                payload: structure.Preview
                 );
         }
     }

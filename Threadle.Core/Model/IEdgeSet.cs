@@ -124,6 +124,16 @@ namespace Threadle.Core.Model
         uint[] GetAlterIds(EdgeTraversal edgeTraversal);
 
         /// <summary>
+        /// Returns a list of strings that represent edges in the edgeset, up to a maximum of maxCount.
+        /// Used by the GetFirstNEdges() in LayerOneMode, which in turn is used by the 'preview(network)'
+        /// CLI command.
+        /// </summary>
+        /// <param name="egoNodeId">The first node id (for display purpose).</param>
+        /// <param name="maxCount">Maximum number of edges to display.</param>
+        /// <returns>Returns a list of strings representing individual edges.</returns>
+        List<string> FormatEdges(uint egoNodeId, int maxCount);
+
+        /// <summary>
         /// Removes all edges in the edgeset.
         /// </summary>
         void ClearEdges();

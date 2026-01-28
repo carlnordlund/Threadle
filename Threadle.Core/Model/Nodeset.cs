@@ -90,27 +90,21 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns content info about this structure as a list of strings
         /// </summary>
-        public List<string> Content
+        public List<string> Preview
         {
             get
             {
                 List<string> lines = [$"Nodeset: {Name}"];
+                int count = 10;
                 foreach (uint nodeId in NodeIdArray)
                 {
+                    if (count <= 0)
+                        break;
                     lines.Add($"Node {nodeId}");
                     if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                    {
-                        for (int i=0; i<attributes.AttrIndexes.Count;i++)
-                        {
+                        for (int i = 0; i < attributes.AttrIndexes.Count; i++)
                             lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attributes.AttrIndexes[i]]}: {attributes.AttrValues[i]}");
-                        }
-                    }
-
-                    //if (_nodesWithAttributesOld.TryGetValue(nodeId, out var attrDict))
-                    //{
-                    //    foreach (var kvp in attrDict)
-                    //        lines.Add($" {NodeAttributeDefinitionManager.IndexToName[kvp.Key]}: {kvp.Value}");                            
-                    //}
+                    count--;
                 }
                 return lines;
             }

@@ -77,6 +77,11 @@ namespace Threadle.Core.Model
             ["Mode"] = 2,
             ["NbrHyperedges"] = NbrHyperedges
         };
+
+        /// <summary>
+        /// Returns a string with metadata info about the layer
+        /// </summary>
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {NbrHyperedges}]";
         #endregion
 
 
@@ -194,6 +199,31 @@ namespace Threadle.Core.Model
                     layerCopy.AddHyperEdgeToNode(nodeId, hyperedge_filtered);
             }
             return layerCopy;
+        }
+
+        /// <summary>
+        /// Returns a list of strings with the first n node-to-hyperedge affiliations Layer.
+        /// Used by the preview() CLI command.
+        /// </summary>
+        /// <param name="n">Number of edges to return (defaults to 10)</param>
+        /// <returns>A list of strings</returns>
+        public List<string> GetNFirstEdges(int n = 10)
+        {
+            List<string> lines = new(n);
+            foreach (var kvp in _hyperedgeCollections)
+            {
+                if (lines.Count >= n)
+                    break;
+                uint nodeId = kvp.Key;
+                HyperedgeCollection collection = kvp.Value;
+                foreach (var hyperedge in collection.HyperEdges)
+                {
+                    if (lines.Count >= n)
+                        break;
+                    lines.Add($"{nodeId} -> {hyperedge.Name}");
+                }
+            }
+            return lines;
         }
         #endregion
 
