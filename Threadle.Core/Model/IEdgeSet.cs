@@ -124,6 +124,21 @@ namespace Threadle.Core.Model
         uint[] GetAlterIds(EdgeTraversal edgeTraversal);
 
         /// <summary>
+        /// </summary>
+
+
+        /// <summary>
+        /// Returns a collection of tuples containing the node ids of the alters along with the values for those
+        /// edges. For binary layers, the value is thus 1.
+        /// As symmetric edges should only be stored once in this format, I thus have to pass along
+        /// the node id that 'owns' this edgeset, where I only store edges when the id of the source node
+        /// is less than the id of the target node.
+        /// </summary>
+        /// <param name="egoNodeId">Reference node id.</param>
+        /// <returns>A collection of (uint,float) tuples, representing outbound edges with edge values</returns>
+        IEnumerable<(uint nodeId, float value)> GetOutboundEdgesWithValues(uint egoNodeId);
+
+        /// <summary>
         /// Returns a list of strings that represent edges in the edgeset, up to a maximum of maxCount.
         /// Used by the GetFirstNEdges() in LayerOneMode, which in turn is used by the 'preview(network)'
         /// CLI command.

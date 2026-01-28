@@ -257,6 +257,19 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Returns a collection of tuples containing the node ids of the alters along with the values for those
+        /// edges. For binary layers, the value is thus 1.
+        /// </summary>
+        /// <param name="egoNodeId">Reference node id.</param>
+        /// <returns>A collection of (uint,float) tuples, representing outbound edges with edge values</returns>
+        public IEnumerable<(uint nodeId, float value)> GetOutboundEdgesWithValues(uint egoNodeId)
+        {
+            foreach (var conn in _connections)
+                if (conn.partnerNodeId > egoNodeId)
+                    yield return (conn.partnerNodeId, conn.value);
+        }
+
+        /// <summary>
         /// Returns a list of strings that represent edges in the edgeset, up to a maximum of maxCount.
         /// Used by the GetFirstNEdges() in LayerOneMode, which in turn is used by the 'preview(network)'
         /// CLI command.

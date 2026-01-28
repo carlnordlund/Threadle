@@ -39,6 +39,7 @@ namespace Threadle.CLIconsole.Runtime
             ["filter"] = new Filter(),
             ["generate"] = new Generate(),
             ["generateattr"] = new GenerateAttr(),
+            ["getalledges"] = new GetAllEdges(),
             ["getallhyperedges"] = new GetAllHyperedges(),
             ["getattr"] = new GetAttr(),
             ["getattrsummary"] = new GetAttrSummary(),

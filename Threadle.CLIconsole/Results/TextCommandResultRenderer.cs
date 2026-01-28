@@ -112,6 +112,10 @@ namespace Threadle.CLIconsole.Results
                     RenderHelpLines(helpTexts, indent);
                     break;
 
+                case IEnumerable<Dictionary<string, object>> dictList:
+                    RenderDictionaryList(dictList, indent);
+                    break;
+
                 case IEnumerable<object> objects:
                     RenderObjectList(objects, indent);
                     break;
@@ -190,6 +194,17 @@ namespace Threadle.CLIconsole.Results
             string pad = new string(' ', indent * 2);
             foreach (var line in lines)
                 Console.Out.WriteLine($"{pad}{line}");
+        }
+
+        private static void RenderDictionaryList(IEnumerable<Dictionary<string, object>> items, int indent =0)
+        {
+            string pad = new string(' ', indent * 2);
+
+            foreach (var dict in items)
+            {
+                var pairs = dict.Select(kvp => $"{kvp.Key}={kvp.Value}");
+                Console.Out.WriteLine($"{pad}[{string.Join(", ", pairs)}]");
+            }
         }
 
         /// <summary>

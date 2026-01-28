@@ -100,7 +100,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns the number of edges in the layer.
         /// </summary>
-        public ulong NbrEdges
+        public uint NbrEdges
         {
             get
             {
@@ -187,6 +187,36 @@ namespace Threadle.Core.Model
             if (!(Edgesets.TryGetValue(nodeId, out var edgeset)))
                 return [];
             return edgeset.GetAlterIds(edgeTraversal);
+        }
+
+        public List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 1000)
+        {
+            List<Dictionary<string, object>> edges = [];
+            int skipped = 0;
+            foreach (var kvp in _edgesets)
+            {
+                uint egoId = kvp.Key;
+                foreach (var(alterId, value) in kvp.Value.GetOutboundEdgesWithValues(egoId))
+                {
+                    if (skipped <offset)
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    if (edges.Count >= limit)
+                        return edges;
+
+                    edges.Add(new Dictionary<string, object>
+                    {
+                        ["node1"] = egoId,
+                        ["node2"] = alterId,
+                        ["value"] = value
+
+                    });
+                }
+            }
+            return edges;
         }
 
         /// <summary>

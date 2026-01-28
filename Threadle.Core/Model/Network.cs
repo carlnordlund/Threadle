@@ -414,14 +414,14 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Returns an array with the names of all hyperedges in a specific layer.
+        /// Returns an array with the names of all hyperedges in a specific 2-mode layer.
         /// Returns a maximum of 1000 hyperedge names starting with the first one in the set of all hyperedges,
         /// but this can be adjusted.
         /// </summary>
         /// <param name="layerName">The name of the 2-mode layer.</param>
         /// <param name="offset">The index of the hyperedge to start with (defaults to 0).</param>
         /// <param name="limit">The maximum number of hyperedge names to return.</param>
-        /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names in this layer (given the offset and limit).</returns></returns>
+        /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names in this layer (given the offset and limit).</returns>
         public OperationResult<string[]> GetAllHyperedges(string layerName, int offset = 0, int limit = 1000)
         {
             offset = (offset < 0) ? 0 : offset;
@@ -436,7 +436,7 @@ namespace Threadle.Core.Model
             if (total == 0)
                 message = $"Layer '{layerName}' has no hyperedges.";
             else if (hyperedgeNames.Length == 0)
-                message = $"Offset { offset} is beyond the available hyperedges in layer '{layerName}'(total: { total}).";
+                message = $"Offset { offset} is beyond the available hyperedges in layer '{layerName}' (total: {total}).";
             else if (offset == 0 && hyperedgeNames.Length == total)
                 message = $"Returning all {total} hyperedge(s) in layer '{layerName}':";
             else
@@ -444,6 +444,36 @@ namespace Threadle.Core.Model
             return OperationResult<string[]>.Ok(hyperedgeNames, message);
         }
 
+        /// <summary>
+        /// Returns a list of dictionaries with all the edges in a specific 1-mode layer.
+        /// Returns a maximum of 1000 edges starting with the first one in the set of edgesets, but
+        /// this can be adjusted.
+        /// </summary>
+        /// <param name="layerName">The name of the 1-mode layer.</param>
+        /// <param name="offset">The index of the edge to start with (defaults to 0).</param>
+        /// <param name="limit">The maximum number of edges to return.</param>
+        /// <returns>Returns an OperationResult object with the list of dictionaries for the edges in this layer (given the offset and limit).</returns>
+        public OperationResult<List<Dictionary<string,object>>> GetAllEdges(string layerName, int offset =0, int limit = 1000)
+        {
+            offset = (offset < 0) ? 0 : offset;
+            limit = (limit < 0) ? 0 : limit;
+            var layerResult = GetOneModeLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<List<Dictionary<string,object>>>.Fail(layerResult);
+            var layerOneMode = layerResult.Value!;
+            List<Dictionary<string, object>> edges = layerOneMode.GetAllEdges(offset, limit);
+            uint total = layerOneMode.NbrEdges;
+            string message;
+            if (total ==0)
+                message = $"Layer '{layerName}' has no edges.";
+            else if (edges.Count==0)
+                message = $"Offset {offset} is beyond the available edges in layer '{layerName}' (total: {total}).";
+            else if (offset ==0 && edges.Count==total)
+                message = $"Returning all {total} edge(s) in layer '{layerName}':";
+            else
+                message = $"Returning edges {offset + 1} - {offset + edges.Count} of {total} in layer '{layerName}':";
+            return OperationResult<List<Dictionary<string, object>>>.Ok(edges, message);
+        }
 
         #endregion
 
