@@ -632,6 +632,33 @@ namespace Threadle.Core.Model
             }
             return (attributes.AttrIndexes.Count > 0);
         }
+
+        /// <summary>
+        /// Returns a list of node ids in this nodeset.
+        /// Returns a maximum of 1000 nodes starting with the first one in the set of nodes, but
+        /// this can be adjusted.
+        /// </summary>
+        /// <param name="offset">The index of the node to start with (defaults to 0).</param>
+        /// <param name="limit">The maximum number of nodes to return.</param>
+        /// <returns>Returns an OperationResult object with the list of node ids (uints) (given the offset and limit).</returns>
+        public OperationResult<List<uint>> GetAllNodes(int offset=0, int limit=1000)
+        {
+            offset = (offset < 0) ? 0 : offset;
+            limit = (limit < 0) ? 0 : limit;
+            uint[] allNodes = NodeIdArray;
+            int total = NodeIdArray.Length;
+            var nodes = allNodes.Skip(offset).Take(limit).ToList();
+            string message;
+            if (total == 0)
+                message = $"Nodeset '{Name}' has no nodes.";
+            else if (nodes.Count == 0)
+                message = $"Offset {offset} is beyond the available nodes in nodeset '{Name}' (total: {total}).";
+            else if (offset == 0 && nodes.Count == total)
+                message = $"Returning all {total} nodes in nodeset '{Name}':";
+            else
+                message = $"Returning nodes {offset + 1} - {offset + nodes.Count} of {total} in nodeset '{Name}':";
+            return OperationResult<List<uint>>.Ok(nodes, message);
+        }
         #endregion
     }
 }
