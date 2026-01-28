@@ -2,6 +2,16 @@ To-do
 =====
 
 getrandomedge() - use skimming approach, O(n) complexity
+
+
+
+
+
+
+
+
+Done:
+=====
 getallnodes() - paginated, limit
 
 
