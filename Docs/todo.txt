@@ -1,6 +1,13 @@
 To-do
 =====
 
+getrandomedge() - use skimming approach, O(n) complexity
+getallnodes() - paginated, limit
+
+
+
+
+
 Need to redo preview([network]) - it should display actual relational data, not just metadata (which info([Network]) does already)
 
 
