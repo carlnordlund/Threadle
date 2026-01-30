@@ -315,6 +315,39 @@ namespace Threadle.Core.Analysis
             return OperationResult<uint>.Ok(randomNodeId);
         }
 
+        /// <summary>
+        /// Selects a random edge from the specified network and layer. Layers can be either 1-mode or 2-mode: for 2-mode
+        /// layers, the random pick is a bit intricate, using first a polling method with a certain number of attemps,
+        /// before switching over to the second, slightly biased version.
+        /// </summary>
+        /// <param name="network">The network from which to pick the random edge.</param>
+        /// <param name="layerName">The name of the layer</param>
+        /// <returns>A string-object dictionary containing ids for the two nodes and the value of the tie.</returns>
+        public static OperationResult<Dictionary<string, object>> GetRandomEdge(Network network, string layerName, int maxAttempts = 100)
+        {
+            var layerResult = network.GetLayer(layerName);
+            if (!layerResult.Success)
+                return OperationResult<Dictionary<string,object>>.Fail(layerResult);
+            var layer = layerResult.Value!;
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            if (nodeIds.Length == 1)
+                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Network has no nodes, and thus no edges.");
+
+            Dictionary<string, object>? randomEdge = Functions.GetRandomEdge(layer, nodeIds, maxAttempts);
+
+            if (randomEdge != null)
+                return OperationResult<Dictionary<string, object>>.Ok(randomEdge, "Random edge found through polling.");
+
+            if (layer is LayerOneMode layerOneMode)
+                randomEdge = Functions.GetRandomEdgeSweepOneMode(layerOneMode);
+            else if (layer is LayerTwoMode layerTwoMode)
+                randomEdge = Functions.GetRandomEdgeWeightedTwoMode(layerTwoMode);
+            
+            if (randomEdge == null)
+                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Could not find any edge in layer {layerName}.");    
+            return OperationResult<Dictionary<string, object>>.Ok(randomEdge,"Random edge found through non-polling.");
+        }
         #endregion
     }
 }

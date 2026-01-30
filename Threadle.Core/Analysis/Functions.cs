@@ -1,9 +1,10 @@
-﻿using Threadle.Core.Model;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -354,6 +355,140 @@ namespace Threadle.Core.Analysis
                 }
             }
             return componentIds;
+        }
+
+        internal static Dictionary<string,object>? GetRandomEdge(ILayer layer, uint[] nodeIds, int maxAttempts)
+        {
+            for (int i = 0; i < maxAttempts; i++)
+            {
+                uint node1 = nodeIds[Misc.Random.Next(nodeIds.Length)];
+                uint node2 = nodeIds[Misc.Random.Next(nodeIds.Length)];
+                if (node1 == node2)
+                    continue;
+                float value = layer.GetEdgeValue(node1, node2);
+                if (value > 0)
+                        return new Dictionary<string, object>
+                        {
+                            ["node1"] = node1,
+                            ["node2"] = node2,
+                            ["value"] = value
+                        };
+            }
+            return null;
+        }
+
+        internal static Dictionary<string, object>? GetRandomEdgeSweepOneMode(LayerOneMode layerOneMode)
+        {
+            int totalEdges = (int)layerOneMode.NbrEdges;
+            int randomIndex = Misc.Random.Next(totalEdges);
+            foreach (var kvp in layerOneMode.Edgesets)
+            {
+                if (randomIndex < kvp.Value.NbrEdges)
+                {
+                    uint node1 = kvp.Key;
+                    uint node2 = kvp.Value.GetOutboundNodeIds.ElementAt(randomIndex);
+                    float value = layerOneMode.GetEdgeValue(node1, node2);
+                    return new Dictionary<string, object>
+                    {
+                        ["node1"] = node1,
+                        ["node2"] = node2,
+                        ["value"] = value
+                    };
+                }
+                randomIndex -= (int)kvp.Value.NbrEdges;
+            }
+            return null;
+        }
+
+        internal static Dictionary<string, object>? GetRandomEdgeWeightedTwoMode(LayerTwoMode layerTwoMode)
+        {
+            var hyperedges = layerTwoMode.AllHyperEdges.Values.ToList();
+            if (hyperedges.Count == 0)
+                return null;
+            List<int> weights = new(hyperedges.Count);
+            Int64 totalWeight = 0;
+            foreach (var hyperedge in hyperedges)
+            {
+                int k = hyperedge.NbrNodes;
+                int weight = k * (k - 1) / 2;
+                weights.Add(weight);
+                totalWeight+= weight;
+            }
+
+            if (totalWeight == 0)
+                return null;
+            Int64 randomWeight = Misc.Random.NextInt64(totalWeight);
+
+            int selectedIndex = 0;
+            for (int i=0; i<weights.Count;i++)
+            {
+                if (randomWeight<weights[i])
+                {
+                    selectedIndex = i;
+                    break;
+                }
+                randomWeight -= weights[i];
+            }
+
+            Hyperedge selectedHyperedge = hyperedges[selectedIndex];
+            var Nodeids = selectedHyperedge.NodeIds.ToArray();
+            int idx1 = Misc.Random.Next(Nodeids.Length);
+            int idx2;
+            do
+            {
+                idx2 = Misc.Random.Next(Nodeids.Length);
+            } while (idx2 == idx1);
+            return new Dictionary<string, object>
+            {
+                ["node1"] = Nodeids[idx1],
+                ["node2"] = Nodeids[idx2],
+                ["value"] = layerTwoMode.GetEdgeValue(Nodeids[idx1], Nodeids[idx2])
+            };
+        }
+
+        //internal static OperationResult<Dictionary<string, object>> GetRandomEdgeOneMode(LayerOneMode layerOneMode, uint[] nodeIds, int maxAttempts)
+        //{
+        //    for (int i = 0; i < maxAttempts; i++)
+        //    {
+        //        uint node1 = nodeIds[Misc.Random.Next(nodeIds.Length)];
+        //        uint node2 = nodeIds[Misc.Random.Next(nodeIds.Length)];
+        //        if (node1 == node2)
+        //            continue;
+        //        float value = layerOneMode.GetEdgeValue(node1, node2);
+        //        if (value > 0)
+        //            return OperationResult<Dictionary<string, object>>.Ok(
+        //                new Dictionary<string, object>
+        //                {
+        //                    ["node1"] = node1,
+        //                    ["node2"] = node2,
+        //                    ["value"] = value
+        //                }, $"Random edge found through polling ({i+1} attempts).");
+        //    }
+        //    return OperationResult<Dictionary<string, object>>.Ok(GetRandomEdgeSweepOneMode(layerOneMode), "Random edge found through sweep approach.");
+        //}
+
+
+        internal static OperationResult<Dictionary<string, object>> GetRandomEdgeTwoMode(LayerTwoMode layerTwoMode, uint[] nodeIds, int maxAttempts)
+        {
+            int n = nodeIds.Length;
+            for (int i = 0; i < maxAttempts; i++)
+            {
+                uint node1 = nodeIds[Misc.Random.Next(n)];
+                uint node2 = nodeIds[Misc.Random.Next(n)];
+                if (node1 == node2)
+                    continue;
+                float value = layerTwoMode.GetEdgeValue(node1, node2);
+                if (value>0)
+                    return OperationResult<Dictionary<string, object>>.Ok(
+                        new Dictionary<string, object>
+                        {
+                            ["node1"] = node1,
+                            ["node2"] = node2,
+                            ["value"] = value
+                        }, $"Random edge found through polling ({i + 1} attempts).");
+            }
+
+            throw new NotImplementedException();
         }
         #endregion
     }

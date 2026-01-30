@@ -51,6 +51,7 @@ namespace Threadle.CLIconsole.Runtime
             ["getnodehyperedges"] = new GetNodeHyperedges(),
             ["getnodeidbyindex"] = new GetNodeIdByIndex(),
             ["getrandomalter"] = new GetRandomAlter(),
+            ["getrandomedge"] = new GetRandomEdge(),
             ["getrandomnode"] = new GetRandomNode(),
             ["getwd"] = new GetWorkingDirectory(),
             ["help"] = new HelpCommand(),
