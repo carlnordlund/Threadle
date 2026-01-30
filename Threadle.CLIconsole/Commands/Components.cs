@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "components(network = [var:network], layername = [str], *attrName = [str])";
+        public string Syntax => "components(network = [var:network], layername = [str], *attrname = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -41,7 +41,7 @@ namespace Threadle.CLIconsole.Commands
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-            string? attrName = command.GetArgument("attrName");
+            string? attrName = command.GetArgument("attrname");
             var componentsResult = Analyses.ConnectedComponents(network, layerName, attrName);
             return CommandResult.FromOperationResult(componentsResult, componentsResult.Value);
         }

@@ -315,12 +315,12 @@ namespace Threadle.Core.Utilities
         /// Convenience function for expressing an edge with or without directional connotations.
         /// </summary>
         /// <param name="directionality">Directionality of the edge specified by a <see cref="EdgeDirectionality"/> value.</param>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
-        /// <returns>A string either expressing this as 'from [node1id] to [node2id]', or 'between [node1id] and [node2id]'.</returns>
-        internal static string BetweenFromToText(EdgeDirectionality directionality, uint node1id, uint node2id)
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
+        /// <returns>A string either expressing this as 'from [node1Id] to [node2Id]', or 'between [node1Id] and [node2Id]'.</returns>
+        internal static string BetweenFromToText(EdgeDirectionality directionality, uint node1Id, uint node2Id)
         {
-            return directionality == EdgeDirectionality.Directed ? $"from {node1id} to {node2id}" : $"between {node1id} and {node2id}";
+            return directionality == EdgeDirectionality.Directed ? $"from {node1Id} to {node2Id}" : $"between {node1Id} and {node2Id}";
         }
 
         internal static string GetFileEnding(string filepath)

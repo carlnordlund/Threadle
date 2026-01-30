@@ -342,20 +342,20 @@ namespace Threadle.Core.Model
         /// Checks if the Nodeset contains the two nodes with the specified ids.
         /// This one returns a proper OperationResult informing which, or if both, were missing.
         /// </summary>
-        /// <param name="node1id">The id of the first node that is to be checked.</param>
-        /// <param name="node2id">The id of the second node that is to be checked.</param>
+        /// <param name="node1Id">The id of the first node that is to be checked.</param>
+        /// <param name="node2Id">The id of the second node that is to be checked.</param>
         /// <returns>An <see cref="OperationResult.Success"> if both are found, Fail otherwise.</returns>
-        internal OperationResult CheckThatNodesExist(uint node1id, uint node2id)
+        internal OperationResult CheckThatNodesExist(uint node1Id, uint node2Id)
         {
-            bool node1exists = CheckThatNodeExists(node1id);
-            bool node2exists = CheckThatNodeExists(node2id);
+            bool node1exists = CheckThatNodeExists(node1Id);
+            bool node2exists = CheckThatNodeExists(node2Id);
             if (node1exists && node2exists)
                 return OperationResult.Ok();
             if (!node1exists && !node2exists)
-                return OperationResult.Fail("NodeNotFound", $"Neither node {node1id} nor node {node2id} found in nodeset '{Name}'.");
+                return OperationResult.Fail("NodeNotFound", $"Neither node {node1Id} nor node {node2Id} found in nodeset '{Name}'.");
             if (!node1exists)
-                return OperationResult.Fail("NodeNotFound", $"Node {node1id} not found in nodeset '{Name}'.");
-            return OperationResult.Fail("NodeNotFound", $"Node {node2id} not found in nodeset '{Name}'.");
+                return OperationResult.Fail("NodeNotFound", $"Node {node1Id} not found in nodeset '{Name}'.");
+            return OperationResult.Fail("NodeNotFound", $"Node {node2Id} not found in nodeset '{Name}'.");
         }
 
         /// <summary>

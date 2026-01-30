@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "degree(network = [var:network], layername = [str], *attrName = [str], *direction = ['in'(default),'out','both'])";
+        public string Syntax => "degree(network = [var:network], layername = [str], *attrname = [str], *direction = ['in'(default),'out','both'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -43,7 +43,7 @@ namespace Threadle.CLIconsole.Commands
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-            string? attrName = command.GetArgument("attrName");
+            string? attrName = command.GetArgument("attrname");
             EdgeTraversal direction = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.In);
             return CommandResult.FromOperationResult(Analyses.DegreeCentralities(network, layerName, attrName, direction));
         }

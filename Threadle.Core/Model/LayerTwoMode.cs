@@ -100,35 +100,35 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the edge value between node1id and node2id if this exists.
+        /// Gets the edge value between node1Id and node2Id if this exists.
         /// As this is a 2-mode layer, this returns the number of shared Hyperedge objects that these two
         /// node ids have, as such reflecting the value that would emerge when a 2-mode network is projected
         /// to a 1-mode counterpart.
         /// </summary>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
         /// <returns>The value of the projected edge, i.e. the number of shared affiliations they have.</returns>
-        public float GetEdgeValue(uint node1id, uint node2id)
+        public float GetEdgeValue(uint node1Id, uint node2Id)
         {
-            if (!HyperEdgeCollections.TryGetValue(node1id, out var sourceCollection) || !HyperEdgeCollections.TryGetValue(node2id, out var targetCollection))
+            if (!HyperEdgeCollections.TryGetValue(node1Id, out var sourceCollection) || !HyperEdgeCollections.TryGetValue(node2Id, out var targetCollection))
                 return 0f;
             return (sourceCollection.HyperEdges.Intersect(targetCollection.HyperEdges)).Count();
         }
 
         /// <summary>
-        /// Checks if an edge exists between node1id and node2id.
+        /// Checks if an edge exists between node1Id and node2Id.
         /// As this is a 2-mode layer, this checks if there is at least one Hyperedge where both exist.
-        /// Goes through the set of Hyperedge objects of node1id and checks if node2id is in any of these.
+        /// Goes through the set of Hyperedge objects of node1Id and checks if node2Id is in any of these.
         /// </summary>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
         /// <returns>Returns true if the two nodes share at least one affiliation (hyperedge).</returns>
-        public bool CheckEdgeExists(uint node1id, uint node2id)
+        public bool CheckEdgeExists(uint node1Id, uint node2Id)
         {
-            if (!HyperEdgeCollections.TryGetValue(node1id, out var hyperEdgeCollection))
+            if (!HyperEdgeCollections.TryGetValue(node1Id, out var hyperEdgeCollection))
                 return false;
             foreach (Hyperedge hyperedge in hyperEdgeCollection.HyperEdges)
-                if (hyperedge.NodeIds.Contains(node2id))
+                if (hyperedge.NodeIds.Contains(node2Id))
                     return true;
             return false;
         }
@@ -256,8 +256,8 @@ namespace Threadle.Core.Model
             if (nodeIds != null && nodeIds.Length > 0)
             {
                 hyperedge.SetNodeIds([.. nodeIds.Distinct()]);
-                foreach (uint nodeid in nodeIds)
-                    AddHyperEdgeToNode(nodeid, hyperedge);
+                foreach (uint nodeId in nodeIds)
+                    AddHyperEdgeToNode(nodeId, hyperedge);
             }
             return OperationResult.Ok($"Added hyperedge '{hyperName}' (with {hyperedge.NbrNodes} nodes) in layer '{Name}'.");
         }

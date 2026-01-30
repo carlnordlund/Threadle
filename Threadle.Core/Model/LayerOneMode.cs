@@ -150,29 +150,29 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the edge value between node1id and node2id if this exists (from node1id to node2id for directed layers).
+        /// Gets the edge value between node1Id and node2Id if this exists (from node1Id to node2Id for directed layers).
         /// </summary>
-        /// <param name="node1id">The first (source) node nodeIdAlter.</param>
-        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) node nodeIdAlter.</param>
+        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
         /// <returns>The value of the edge if it exists, otherwise zero.</returns>
-        public float GetEdgeValue(uint node1id, uint node2id)
+        public float GetEdgeValue(uint node1Id, uint node2Id)
         {
-            if (!Edgesets.TryGetValue(node1id, out var edgeset))
+            if (!Edgesets.TryGetValue(node1Id, out var edgeset))
                 return 0f;
-            return edgeset.GetOutboundPartnerEdgeValue(node2id);
+            return edgeset.GetOutboundPartnerEdgeValue(node2Id);
         }
 
         /// <summary>
-        /// Checks if an edge exists between node1id and node2id (from node1id to node2id for directed layers).
+        /// Checks if an edge exists between node1Id and node2Id (from node1Id to node2Id for directed layers).
         /// </summary>
-        /// <param name="node1id">The first (source) node nodeIdAlter.</param>
-        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) node nodeIdAlter.</param>
+        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
         /// <returns>Returns true if there is an edge, false otherwise.</returns>
-        public bool CheckEdgeExists(uint node1id, uint node2id)
+        public bool CheckEdgeExists(uint node1Id, uint node2Id)
         {
-            if (!Edgesets.TryGetValue(node1id, out var edgeset))
+            if (!Edgesets.TryGetValue(node1Id, out var edgeset))
                 return false;
-            return edgeset.CheckOutboundPartnerEdgeExists(node2id);
+            return edgeset.CheckOutboundPartnerEdgeExists(node2Id);
         }
 
         /// <summary>
@@ -309,26 +309,26 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Method to add an edge between two nodes. If the layer contains directional edges, the edge goes
-        /// from node1id to node2id. The edge value is optional for layers with binary edges.
+        /// from node1Id to node2Id. The edge value is optional for layers with binary edges.
         /// If Directional and UserSetting is set to only add outbound edges, no inbound edge is stored at the destination node.
         /// Returns an OperationResult informing how it all went.
         /// </summary>
-        /// <param name="node1id">The first (source) bode nodeIdAlter.</param>
-        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) bode nodeIdAlter.</param>
+        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
         /// <param name="value">The value of the edge (defaults to 1; moot for binary layers).</param>
         /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
-        internal OperationResult AddEdge(uint node1id, uint node2id, float value = 1)
+        internal OperationResult AddEdge(uint node1Id, uint node2Id, float value = 1)
         {
-            if (node1id == node2id && !Selfties)
+            if (node1Id == node2Id && !Selfties)
                 return OperationResult.Fail("ConstraintSelftiesNotAllowed",$"Layer {Name} does not allow for selfties.");
-            IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1id);
-            IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2id);
+            IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1Id);
+            IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2Id);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
-                if (!edgeSetNode2.AddInboundEdge(node1id, value).Success)
-                    return OperationResult.Fail("EdgeAlreadyExists", $"Inbound edge to {node2id} from {node1id} already exists.");
-            if (!edgeSetNode1.AddOutboundEdge(node2id, value).Success)
-                return OperationResult.Fail("EdgeAlreadyExists", $"Outbound edge from {node1id} to {node2id} already exists.");
-            return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} (value={value}) in layer '{Name}'.");
+                if (!edgeSetNode2.AddInboundEdge(node1Id, value).Success)
+                    return OperationResult.Fail("EdgeAlreadyExists", $"Inbound edge to {node2Id} from {node1Id} already exists.");
+            if (!edgeSetNode1.AddOutboundEdge(node2Id, value).Success)
+                return OperationResult.Fail("EdgeAlreadyExists", $"Outbound edge from {node1Id} to {node2Id} already exists.");
+            return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} (value={value}) in layer '{Name}'.");
         }
 
         /// <summary>
@@ -372,14 +372,14 @@ namespace Threadle.Core.Model
         /// Always add an outbound from node1 to node2. Add an inbound to node2 from node1
         /// as long as we don't have OnlyOutboundEdges activated - or if it is symmetric
         /// </summary>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
         /// <param name="value">The value of the edge (defaults to 1)</param>
-        internal void _addEdge(uint node1id, uint node2id, float value = 1)
+        internal void _addEdge(uint node1Id, uint node2Id, float value = 1)
         {
-            GetOrCreateEdgeset(node1id)._addOutboundEdge(node2id, value);
+            GetOrCreateEdgeset(node1Id)._addOutboundEdge(node2Id, value);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
-                GetOrCreateEdgeset(node2id)._addInboundEdge(node1id, value);
+                GetOrCreateEdgeset(node2Id)._addInboundEdge(node1Id, value);
         }
 
         /// <summary>
@@ -406,19 +406,19 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes an (the) edge between node1id and node2id. Returns a fail if no such edge is found.
+        /// Removes an (the) edge between node1Id and node2Id. Returns a fail if no such edge is found.
         /// (First checks if there indeed are any Edgeset recorded for these, then checks if there are any corresponding edges recorded)
         /// </summary>
-        /// <param name="node1id">The first (source) node nodeIdAlter.</param>
-        /// <param name="node2id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) node nodeIdAlter.</param>
+        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
         /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
-        internal OperationResult RemoveEdge(uint node1id, uint node2id)
+        internal OperationResult RemoveEdge(uint node1Id, uint node2Id)
         {
-            if (!Edgesets.TryGetValue(node1id, out var edgesetNode1) || !Edgesets.TryGetValue(node2id, out var edgesetNode2))
-                return OperationResult.Fail("EdgeNotFound", $"No edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}' found.");
-            if (!edgesetNode1.RemoveOutboundEdge(node2id).Success || !edgesetNode2.RemoveInboundEdge(node1id).Success)
-                return OperationResult.Fail("EdgeNotFound", $"No edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}' found.");
-            return OperationResult.Ok($"Removed edge {Misc.BetweenFromToText(Directionality, node1id, node2id)} in layer '{Name}'.");
+            if (!Edgesets.TryGetValue(node1Id, out var edgesetNode1) || !Edgesets.TryGetValue(node2Id, out var edgesetNode2))
+                return OperationResult.Fail("EdgeNotFound", $"No edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} in layer '{Name}' found.");
+            if (!edgesetNode1.RemoveOutboundEdge(node2Id).Success || !edgesetNode2.RemoveInboundEdge(node1Id).Success)
+                return OperationResult.Fail("EdgeNotFound", $"No edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} in layer '{Name}' found.");
+            return OperationResult.Ok($"Removed edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} in layer '{Name}'.");
         }
 
         /// <summary>

@@ -49,7 +49,7 @@ namespace Threadle.Core.Utilities
 
             int maxColIndex = Math.Max(node1col, node2col);
 
-            uint node1id, node2id;
+            uint node1Id, node2Id;
             if (layerOneMode.IsBinary)
             {
                 // Importing binary datac
@@ -73,15 +73,15 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip rows where we can't parse node ids
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id))
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id))
                             continue;
 
                         // Add nodes that are missing
-                        if (!network.Nodeset.CheckThatNodeExists(node1id))
-                            network.Nodeset._addNodeWithoutAttribute(node1id);
-                        if (!network.Nodeset.CheckThatNodeExists(node2id))
-                            network.Nodeset._addNodeWithoutAttribute(node2id);
-                        layerOneMode._addEdge(node1id, node2id);
+                        if (!network.Nodeset.CheckThatNodeExists(node1Id))
+                            network.Nodeset._addNodeWithoutAttribute(node1Id);
+                        if (!network.Nodeset.CheckThatNodeExists(node2Id))
+                            network.Nodeset._addNodeWithoutAttribute(node2Id);
+                        layerOneMode._addEdge(node1Id, node2Id);
                     }
                 }
                 else
@@ -104,13 +104,13 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip rows where we can't parse node ids
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id))
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id))
                             continue;
                         
                         // Skip edges with nodes that are missing
-                        if (!network.Nodeset.CheckThatNodeExists(node1id) || !network.Nodeset.CheckThatNodeExists(node2id))
+                        if (!network.Nodeset.CheckThatNodeExists(node1Id) || !network.Nodeset.CheckThatNodeExists(node2Id))
                             continue;
-                        layerOneMode._addEdge(node1id, node2id);
+                        layerOneMode._addEdge(node1Id, node2Id);
                     }
                 }
             }
@@ -141,15 +141,15 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip rows where we can't parse node ids or float value
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
                             continue;
 
                         // Add nodes that are missing                        
-                        if (!network.Nodeset.CheckThatNodeExists(node1id))
-                            network.Nodeset._addNodeWithoutAttribute(node1id);
-                        if (!network.Nodeset.CheckThatNodeExists(node2id))
-                            network.Nodeset._addNodeWithoutAttribute(node2id);
-                        layerOneMode._addEdge(node1id, node2id, value);
+                        if (!network.Nodeset.CheckThatNodeExists(node1Id))
+                            network.Nodeset._addNodeWithoutAttribute(node1Id);
+                        if (!network.Nodeset.CheckThatNodeExists(node2Id))
+                            network.Nodeset._addNodeWithoutAttribute(node2Id);
+                        layerOneMode._addEdge(node1Id, node2Id, value);
                     }
                 }
                 else
@@ -171,13 +171,13 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip rows where we can't parse node ids or float value
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
+                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
                             continue;
 
                         // Skip edges that have missing nodes
-                        if (!network.Nodeset.CheckThatNodeExists(node1id) || !network.Nodeset.CheckThatNodeExists(node2id))
+                        if (!network.Nodeset.CheckThatNodeExists(node1Id) || !network.Nodeset.CheckThatNodeExists(node2Id))
                             continue;
-                        layerOneMode._addEdge(node1id, node2id, value);
+                        layerOneMode._addEdge(node1Id, node2Id, value);
                     }
                 }
             }

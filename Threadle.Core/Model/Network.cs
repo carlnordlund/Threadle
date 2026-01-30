@@ -128,7 +128,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes a layer with the specific layername. Also clears out all edges in that layer.
+        /// Removes a layer with the specific layerName. Also clears out all edges in that layer.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
@@ -178,38 +178,38 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an edge between <paramref name="node1id"/> and <paramref name="node2id"/>, in the specified (1-mode) layer.
+        /// Adds an edge between <paramref name="node1Id"/> and <paramref name="node2Id"/>, in the specified (1-mode) layer.
         /// The edge is either directional or symmetric depending on the properties of the layer.
         /// The default edge value is 1, but this can be set for valued layerNames.
         /// An optional flag allows for creating and adding nodes to the nodeset in case they are missing.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
-        /// <param name="node1id">Id of the first node.</param>
-        /// <param name="node2id">Id of the second node.</param>
+        /// <param name="node1Id">Id of the first node.</param>
+        /// <param name="node2Id">Id of the second node.</param>
         /// <param name="value">Value of the edge.</param>
         /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult AddEdge(string layerName, uint node1id, uint node2id, float value = 1, bool addMissingNodes = false)
+        public OperationResult AddEdge(string layerName, uint node1Id, uint node2Id, float value = 1, bool addMissingNodes = false)
         {
             var layerResult = GetOneModeLayer(layerName);
             if (!layerResult.Success)
                 return layerResult;
-            return AddEdge(layerResult.Value!, node1id, node2id, value, addMissingNodes);
+            return AddEdge(layerResult.Value!, node1Id, node2Id, value, addMissingNodes);
         }
 
         /// <summary>
-        /// Removes an (the) edge between node1id and node2id in the specified 1-mode layer.
+        /// Removes an (the) edge between node1Id and node2Id in the specified 1-mode layer.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult RemoveEdge(string layerName, uint node1id, uint node2id)
+        public OperationResult RemoveEdge(string layerName, uint node1Id, uint node2Id)
         {
             var layerResult = GetOneModeLayer(layerName);
             if (!layerResult.Success)
                 return layerResult;
-            return RemoveEdge(layerResult.Value!, node1id, node2id);
+            return RemoveEdge(layerResult.Value!, node1Id, node2Id);
         }
 
         /// <summary>
@@ -283,18 +283,18 @@ namespace Threadle.Core.Model
         /// Check if an edge exists between two nodes in a particular layer. Works for both 1- and 2-mode layerNames.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
-        /// <param name="node1id">Id of the first node.</param>
-        /// <param name="node2id">Id of the second node.</param>
+        /// <param name="node1Id">Id of the first node.</param>
+        /// <param name="node2Id">Id of the second node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="bool"/>.</returns>
-        public OperationResult<bool> CheckEdgeExists(string layerName, uint node1id, uint node2id)
+        public OperationResult<bool> CheckEdgeExists(string layerName, uint node1Id, uint node2Id)
         {
-            OperationResult nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+            OperationResult nodeCheckResult = Nodeset.CheckThatNodesExist(node1Id, node2Id);
             if (!nodeCheckResult.Success)
                 return OperationResult<bool>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
             var layerResult = GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<bool>.Fail(layerResult.Code, layerResult.Message);
-            return OperationResult<bool>.Ok(layerResult.Value!.CheckEdgeExists(node1id, node2id));
+            return OperationResult<bool>.Ok(layerResult.Value!.CheckEdgeExists(node1Id, node2Id));
         }
 
         /// <summary>
@@ -302,18 +302,18 @@ namespace Threadle.Core.Model
         /// value is returned if there is no edge between the nodes.
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>
-        /// <param name="node1id">Id of the first node.</param>
-        /// <param name="node2id">Id of the second node.</param>
+        /// <param name="node1Id">Id of the first node.</param>
+        /// <param name="node2Id">Id of the second node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="float"/>.</returns>
-        public OperationResult<float> GetEdge(string layerName, uint node1id, uint node2id)
+        public OperationResult<float> GetEdge(string layerName, uint node1Id, uint node2Id)
         {
-            OperationResult nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+            OperationResult nodeCheckResult = Nodeset.CheckThatNodesExist(node1Id, node2Id);
             if (!nodeCheckResult.Success)
                 return OperationResult<float>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
             var layerResult = GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<float>.Fail(layerResult.Code, layerResult.Message);
-            return OperationResult<float>.Ok(layerResult.Value!.GetEdgeValue(node1id, node2id));
+            return OperationResult<float>.Ok(layerResult.Value!.GetEdgeValue(node1Id, node2Id));
         }
 
         /// <summary>
@@ -538,34 +538,34 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an edge between node1id and node2id in the specified 1-mode layer.
+        /// Adds an edge between node1Id and node2Id in the specified 1-mode layer.
         /// </summary>
         /// <param name="layerOneMode">The <see cref="LayerOneMode"/> layer.</param>
-        /// <param name="node1id">Id of the first node.</param>
-        /// <param name="node2id">Id of the second node.</param>
+        /// <param name="node1Id">Id of the first node.</param>
+        /// <param name="node2Id">Id of the second node.</param>
         /// <param name="value">Value of the edge.</param>
         /// <param name="addMissingNodes">Indicates whether non-existing nodes should be added.</param>
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
-        internal OperationResult AddEdge(LayerOneMode layerOneMode, uint node1id, uint node2id, float value, bool addMissingNodes)
+        internal OperationResult AddEdge(LayerOneMode layerOneMode, uint node1Id, uint node2Id, float value, bool addMissingNodes)
         {
             value = Misc.FixConnectionValue(value, layerOneMode.EdgeValueType);
             if (value == 0)
                 return OperationResult.Ok("Edge value is zero: no edge added.");
             if (!addMissingNodes)
             {
-                var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+                var nodeCheckResult = Nodeset.CheckThatNodesExist(node1Id, node2Id);
                 if (!nodeCheckResult.Success)
                     return nodeCheckResult;
             }
-            OperationResult result = layerOneMode.AddEdge(node1id, node2id, value);
+            OperationResult result = layerOneMode.AddEdge(node1Id, node2Id, value);
             if (result.Success)
             {
                 if (addMissingNodes)
                 {
-                    if (!Nodeset.CheckThatNodeExists(node1id))
-                        Nodeset.AddNode(node1id);
-                    if (!Nodeset.CheckThatNodeExists(node2id))
-                        Nodeset.AddNode(node2id);
+                    if (!Nodeset.CheckThatNodeExists(node1Id))
+                        Nodeset.AddNode(node1Id);
+                    if (!Nodeset.CheckThatNodeExists(node2Id))
+                        Nodeset.AddNode(node2Id);
                 }
                 IsModified = true;
             }
@@ -576,15 +576,15 @@ namespace Threadle.Core.Model
         /// Removes an edge between two nodes in the specified 1-mode layer object.
         /// </summary>
         /// <param name="layerOneMode">The <see cref="LayerOneMode"/> object.</param>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
-        internal OperationResult RemoveEdge(LayerOneMode layerOneMode, uint node1id, uint node2id)
+        internal OperationResult RemoveEdge(LayerOneMode layerOneMode, uint node1Id, uint node2Id)
         {
-            var nodeCheckResult = Nodeset.CheckThatNodesExist(node1id, node2id);
+            var nodeCheckResult = Nodeset.CheckThatNodesExist(node1Id, node2Id);
             if (!nodeCheckResult.Success)
                 return nodeCheckResult;
-            OperationResult result = layerOneMode.RemoveEdge(node1id, node2id);
+            OperationResult result = layerOneMode.RemoveEdge(node1Id, node2Id);
             if (result.Success)
                 IsModified = true;
             return result;
@@ -720,9 +720,9 @@ namespace Threadle.Core.Model
             return alterIds.ToArray();
         }
 
-        internal ILayer? _getLayer(string layername)
+        internal ILayer? _getLayer(string layerName)
         {
-            if (Layers.TryGetValue(layername, out var layer))
+            if (Layers.TryGetValue(layerName, out var layer))
                 return layer;
             return null;
         }

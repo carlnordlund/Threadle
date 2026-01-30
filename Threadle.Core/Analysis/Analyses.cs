@@ -250,12 +250,12 @@ namespace Threadle.Core.Analysis
         /// For directed layers, it is also possible to specify whether outbound, inbound or both-directional alters should be included.
         /// </summary>
         /// <param name="network">The Network object.</param>
-        /// <param name="nodeid">The ego node id.</param>
+        /// <param name="nodeId">The ego node id.</param>
         /// <param name="layerName">The name of the layer to pick from. If left blank or null, all layers are used.</param>
         /// <param name="edgeTraversal">An <see cref="EdgeTraversal"/> value indicating whether inbound- or outbound-going edges (or both) should be considered.</param>
         /// <param name="balanced">Indicates whether the pick should be balanced across layers.</param>
         /// <returns>An <see cref="OperationResult{T}"/> containing the random alter node id if successful; otherwise, an error message.</returns>
-        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeid, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false)
+        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeId, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false)
         {
             List<uint> alterIds = [];
             if (layerName != null && layerName.Length > 0)
@@ -265,7 +265,7 @@ namespace Threadle.Core.Analysis
                 if (!layerResult.Success)
                     return OperationResult<uint>.Fail(layerResult);
                 var layer = layerResult.Value!;
-                var altersResult = network.GetNodeAlters(layer.Name, nodeid, edgeTraversal);
+                var altersResult = network.GetNodeAlters(layer.Name, nodeId, edgeTraversal);
                 if (!altersResult.Success)
                     return OperationResult<uint>.Fail(altersResult);
                 alterIds.AddRange(altersResult.Value!);
@@ -278,12 +278,12 @@ namespace Threadle.Core.Analysis
 
                     foreach (var layer in network.Layers.Values)
                     {
-                        uint[] alters = layer.GetNodeAlters(nodeid, edgeTraversal);
+                        uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
                         if (alters.Length > 0)
                             layerAlterslist.Add(alters);
                     }
                     if (layerAlterslist.Count == 0)
-                        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeid} has no alters in any layer with the given edge traversal.");
+                        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any layer with the given edge traversal.");
                     var chosenLayerAlters = layerAlterslist[Misc.Random.Next(layerAlterslist.Count)];
                     alterIds.AddRange(chosenLayerAlters);
                 }
@@ -291,13 +291,13 @@ namespace Threadle.Core.Analysis
                 {
                     foreach (var layer in network.Layers.Values)
                     {
-                        uint[] alters = layer.GetNodeAlters(nodeid, edgeTraversal);
+                        uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
                         alterIds.AddRange(alters);
                     }
                 }
             }
             if (alterIds.Count == 0)
-                return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeid} has no alters in the specified layer(s) with the given edge traversal.");
+                return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
             uint randomAlterId = alterIds[Misc.Random.Next(alterIds.Count)];
             return OperationResult<uint>.Ok(randomAlterId);
         }

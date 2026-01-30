@@ -43,19 +43,19 @@ namespace Threadle.Core.Model
         /// value for valued layers. For 2-mode layers, returns the number of affiliations (hyperedges)
         /// that the two nodes share.
         /// </summary>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
         /// <returns>The value of the possible edge between the two nodes.</returns>
-        float GetEdgeValue(uint node1id, uint node2id);
+        float GetEdgeValue(uint node1Id, uint node2Id);
 
         /// <summary>
         /// Checks if an edge exists between the two nodes. For 2-mode layers, returns true if the two
         /// nodes share at leasts one affil
         /// </summary>
-        /// <param name="node1id">The first node id.</param>
-        /// <param name="node2id">The second node id.</param>
+        /// <param name="node1Id">The first node id.</param>
+        /// <param name="node2Id">The second node id.</param>
         /// <returns>Returns true if there is a node, false otherwise.</returns>
-        bool CheckEdgeExists(uint node1id, uint node2id);
+        bool CheckEdgeExists(uint node1Id, uint node2Id);
         
         /// <summary>
         /// Returns an array of node ids for the alters for a specified ego node.

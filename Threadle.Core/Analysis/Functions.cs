@@ -75,8 +75,8 @@ namespace Threadle.Core.Analysis
             ulong nbrPotentialEdges = (ulong)(nbrNodes * (nbrNodes - 1));
 
             ulong nbrExistingEdges = 0;
-            foreach (uint nodeid in network.Nodeset.NodeIdArray)
-                nbrExistingEdges += (ulong)layer.GetNodeAlters(nodeid).Length;
+            foreach (uint nodeId in network.Nodeset.NodeIdArray)
+                nbrExistingEdges += (ulong)layer.GetNodeAlters(nodeId).Length;
             return (double)nbrExistingEdges / nbrPotentialEdges;
         }
 
