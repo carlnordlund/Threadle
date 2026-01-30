@@ -3,7 +3,12 @@ To-do
 Missing:
 * export functionality (graphml, csv etc)
 * degree now as type int, preview does show data now (nodeset and network)
-* API inconsistencies: layername or layerName, attrname or attrName? Go through
+* API inconsistencies: layername or layerName, attrname or attrName? Go through. Fixed now! Or?
+* Nice to have:
+	* betweenness centrality,
+	* clustering coeff
+	* assortativity coeff (for node attributes)
+	* community detection?
 
 
 
