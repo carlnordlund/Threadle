@@ -402,12 +402,12 @@ namespace Threadle.Core.Analysis
 
         internal static Dictionary<string, object>? GetRandomEdgeWeightedTwoMode(LayerTwoMode layerTwoMode)
         {
-            var hyperedges = layerTwoMode.AllHyperEdges.Values.ToList();
-            if (hyperedges.Count == 0)
+            var validHyperedges = layerTwoMode.AllHyperEdges.Values.Where(h => h.NbrNodes >= 2).ToList();
+            if (validHyperedges.Count == 0)
                 return null;
-            List<int> weights = new(hyperedges.Count);
+            List<int> weights = new(validHyperedges.Count);
             Int64 totalWeight = 0;
-            foreach (var hyperedge in hyperedges)
+            foreach (var hyperedge in validHyperedges)
             {
                 int k = hyperedge.NbrNodes;
                 int weight = k * (k - 1) / 2;
@@ -430,7 +430,7 @@ namespace Threadle.Core.Analysis
                 randomWeight -= weights[i];
             }
 
-            Hyperedge selectedHyperedge = hyperedges[selectedIndex];
+            Hyperedge selectedHyperedge = validHyperedges[selectedIndex];
             var Nodeids = selectedHyperedge.NodeIds.ToArray();
             int idx1 = Misc.Random.Next(Nodeids.Length);
             int idx2;
