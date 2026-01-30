@@ -120,9 +120,9 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="partnerNodeId">The id of the source node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult RemoveInboundEdge(uint nodeid)
+        public OperationResult RemoveInboundEdge(uint partnerNodeId)
         {
-            if (_inbound.Remove(nodeid))
+            if (_inbound.Remove(partnerNodeId))
                 return OperationResult.Ok();
             return OperationResult.Fail("EdgeNotFound", "Edge not found.");
         }
@@ -132,9 +132,9 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="partnerNodeId">The id of the destination node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult RemoveOutboundEdge(uint nodeid)
+        public OperationResult RemoveOutboundEdge(uint partnerNodeId)
         {
-            if (_outbound.Remove(nodeid))
+            if (_outbound.Remove(partnerNodeId))
                 return OperationResult.Ok();
             return OperationResult.Fail("EdgeNotFound", "Edge not found.");
         }
@@ -286,7 +286,6 @@ namespace Threadle.Core.Model
             //if (!UserSettings.OnlyOutboundEdges)
             _inbound = new(capacity);
         }
-
         #endregion
     }
 }

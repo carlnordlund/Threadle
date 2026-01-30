@@ -39,8 +39,8 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-            string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
-            return CommandResult.FromOperationResult(nodeset!.UndefineNodeAttribute(attributeName));
+            string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
+            return CommandResult.FromOperationResult(nodeset!.UndefineNodeAttribute(attrName));
         }
     }
 }

@@ -47,8 +47,6 @@ namespace Threadle.CLIconsole.Commands
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", false);
             bool header = command.GetArgumentParseBool("header", false);
 
-            //char separator = command.GetArgumentParseString("sep", "\t")[0];
-            //bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", false);
             if (!network.Layers.TryGetValue(layerName, out var layer))
                 return CommandResult.Fail("LayerNotFound", $"!Error: Layer '{layerName}' not found.");
 

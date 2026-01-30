@@ -287,6 +287,7 @@ namespace Threadle.Core.Model
                     edgeset._connections.Add(nodeId);
             return edgeset;
         }
+
         public void _setCapacity(int capacity)
         {
             _connections = new(capacity);

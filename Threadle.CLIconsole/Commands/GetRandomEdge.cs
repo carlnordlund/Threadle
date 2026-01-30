@@ -43,7 +43,6 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             int maxAttempts = command.GetArgumentParseInt("maxattempts", 100);
-
             OperationResult<Dictionary<string, object>> result = Analyses.GetRandomEdge(network, layerName, maxAttempts);
             return CommandResult.FromOperationResult(result, result.Value);
         }

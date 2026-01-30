@@ -26,13 +26,6 @@ namespace Threadle.Core.Processing
 
 
         #region Methods (public)
-        /// Dichotomizes the valued edges in a 1-mode layer by the provided condition type and threshold, storing these
-        /// new dichotomized edges in a new binary 1-mode layer with the same directionality with the provided name.
-        /// The comparison condition, threshold, values-if-true and values-if-false are all customizable.
-        /// Note that dichotomization creates a new layer, without modifying anything in the layer that is being dichotomized.
-
-
-
         /// <summary>
         /// Symmetrizes the directed edges in a 1-mode layer by the provided method, storing these new symmetrized
         /// edges in a new symmetric 1-mode layer with the same value type with the provided name.

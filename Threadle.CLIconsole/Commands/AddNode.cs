@@ -20,12 +20,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "addnode(structure = [var:structure], id = [uint])";
+        public string Syntax => "addnode(structure = [var:structure], nodeid = [uint])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates and adds a node with id [id] and adds it to the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Note that the node id is what makes each node unique, and it must be an unsigned integer.";
+        public string Description => "Creates and adds a node with id [nodeid] and adds it to the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Note that the node id is what makes each node unique, and it must be an unsigned integer.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -41,7 +41,7 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;                
-            uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("id", "arg1");
+            uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             return CommandResult.FromOperationResult(nodeset!.AddNode(nodeId));
         }
     }

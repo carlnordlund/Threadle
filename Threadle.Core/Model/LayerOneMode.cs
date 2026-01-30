@@ -336,11 +336,11 @@ namespace Threadle.Core.Model
         /// Used by binary reader.
         /// Note that it is quite cleverly constructed: read extensive comments.
         /// </summary>
-        /// <param name="nodeIdEgo">The id of ego node.</param>
+        /// <param name="egoNodeId">The id of ego node.</param>
         /// <param name="nodeIdsAlters">Array of id to alter nodes that ego is connected to.</param>
-        internal void _addBinaryEdges(uint nodeIdEgo, uint[] nodeIdsAlters)
+        internal void _addBinaryEdges(uint egoNodeId, uint[] nodeIdsAlters)
         {
-            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo);
+            IEdgeset edgeSetEgo = GetOrCreateEdgeset(egoNodeId);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
             {
                 // So two reasons to be here:
@@ -354,7 +354,7 @@ namespace Threadle.Core.Model
                 foreach (uint nodeIdAlter in nodeIdsAlters)
                 {
                     edgeSetEgo._addOutboundEdge(nodeIdAlter, 1);
-                    GetOrCreateEdgeset(nodeIdAlter)._addInboundEdge(nodeIdEgo, 1);
+                    GetOrCreateEdgeset(nodeIdAlter)._addInboundEdge(egoNodeId, 1);
                 }
             }
             else
@@ -387,17 +387,17 @@ namespace Threadle.Core.Model
         /// Used by binaryreader.
         /// See <see cref="_addBinaryEdges(uint, uint[])"/> for details on how it works!
         /// </summary>
-        /// <param name="nodeIdEgo">The id of ego node.</param>
+        /// <param name="egoNodeId">The id of ego node.</param>
         /// <param name="nodeIdsAlters">A List of tuples containing node alter ids and edge values</param>
-        internal void _addValuedEdges(uint nodeIdEgo, List<(uint alterId, float value)> nodeIdsAlters)
+        internal void _addValuedEdges(uint egoNodeId, List<(uint alterId, float value)> nodeIdsAlters)
         {
-            IEdgeset edgeSetEgo = GetOrCreateEdgeset(nodeIdEgo);
+            IEdgeset edgeSetEgo = GetOrCreateEdgeset(egoNodeId);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
             {
                 foreach ((uint alterId, float value) in nodeIdsAlters)
                 {
                     edgeSetEgo._addOutboundEdge(alterId, value);
-                    GetOrCreateEdgeset(alterId)._addInboundEdge(nodeIdEgo, value);
+                    GetOrCreateEdgeset(alterId)._addInboundEdge(egoNodeId, value);
                 }
             }
             else

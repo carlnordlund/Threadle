@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[array:uint] = getnodealters(network = [var:network], nodeId = [uint], *layernames = [semicolon-separated layer names], *direction = ['both'(default),'in','out'], *unique = [false(default),true])";
+        public string Syntax => "[array:uint] = getnodealters(network = [var:network], nodeid = [uint], *layernames = [semicolon-separated layer names], *direction = ['both'(default),'in','out'], *unique = [false(default),true])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -45,12 +45,8 @@ namespace Threadle.CLIconsole.Commands
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string layerNames = command.GetArgumentParseString("layernames", "");
             bool uniqueAlters = command.GetArgumentParseBool("unique", false);
-
             string[]? layers = (layerNames.Length > 0) ? layerNames.Split(';') : null;
-
-
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
-            //OperationResult<uint[]> result = network.GetNodeAlters(layerName, nodeId, edgeTraversal);
             OperationResult<uint[]> result = network.GetNodeAlters(layers, nodeId, edgeTraversal, uniqueAlters);
             return CommandResult.FromOperationResult(result, result.Value);
         }

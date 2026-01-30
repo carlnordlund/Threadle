@@ -412,8 +412,8 @@ namespace Threadle.Core.Utilities
 
             for (byte i = 0; i < attributeDefs.Count; i++)
             {
-                WriteString(writer, attributeDefs[i].Name);
-                writer.Write((byte)attributeDefs[i].Type);
+                WriteString(writer, attributeDefs[i].AttrName);
+                writer.Write((byte)attributeDefs[i].AttrType);
                 //nameToIndex[attributeDefs[i].Name] = i;
                 internalToHere[attributeDefs[i].Index] = i;
             }

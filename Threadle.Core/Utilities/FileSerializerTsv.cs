@@ -312,14 +312,14 @@ namespace Threadle.Core.Utilities
             int nbrAttributes = attributeDefs.Count;
             var header = nodeset.Name;
             if (attributeDefs.Count > 0)
-                header += "\t" + string.Join("\t", attributeDefs.Select(a => $"{a.Name}:{a.Type}"));
+                header += "\t" + string.Join("\t", attributeDefs.Select(a => $"{a.AttrName}:{a.AttrType}"));
             writer.WriteLine(header);
             foreach (uint node in nodeset.NodeIdArray)
             {
                 var row = new List<string> { node.ToString() };
                 foreach (var attrDef in attributeDefs)
                 {
-                    var attr = nodeset.GetNodeAttribute(node, attrDef.Name);
+                    var attr = nodeset.GetNodeAttribute(node, attrDef.AttrName);
                     row.Add(attr.Success ? attr.Value.ToString() : "");
                 }
                 writer.WriteLine(string.Join("\t", row));

@@ -54,16 +54,16 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (bool) defined and true assigned to all nodes by probability {p}.");
         }
 
-        public static OperationResult GenerateCharAttr(Nodeset nodeset, string attrName, string charstring)
+        public static OperationResult GenerateCharAttr(Nodeset nodeset, string attrName, string charString)
         {
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Char);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
             byte attrIndex = attrDefineResult.Value;
 
-            char[]? chars = Misc.CharStringToChars(charstring, ';');
+            char[]? chars = Misc.CharStringToChars(charString, ';');
             if (chars == null || chars.Length == 0)
-                return OperationResult.Fail("InvalidArgument", $"The '{charstring}' is either empty or does not contain a semicolon-separated series of individual characters.");
+                return OperationResult.Fail("InvalidArgument", $"The '{charString}' is either empty or does not contain a semicolon-separated series of individual characters.");
             int nbrChars = chars.Length;
 
             uint[] nodeIdArray = nodeset.NodeIdArray;
@@ -73,9 +73,6 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (char) defined and specified random characters assigned to all nodes.");
         }
 
-
-
-
         public static OperationResult GenerateRandomTwoModeLayer(Network network, string layerName, int h, int averageNbrAffiliations)
         {
             var layerResult = network.GetLayer(layerName);
@@ -83,7 +80,6 @@ namespace Threadle.Core.Processing
                 return layerResult;
             if (!(layerResult.Value is LayerTwoMode layer))
                 return OperationResult.Fail("InvalidLayerMode", $"Layer '{layerName}' in network '{network.Name}' is not 2-mode.");
-
 
             if (h < 2)
                 return OperationResult.Fail("InvalidArgument", "The number of hyperedges (h) must be at least 2.");
@@ -104,7 +100,6 @@ namespace Threadle.Core.Processing
                 layer.AddHyperedge(hyperNames[j], null);
             }
 
-
             for (int i = 0; i < n; i++)
             {
                 int nbrAffs = Misc.SampleFromCDF(cdf);
@@ -115,8 +110,6 @@ namespace Threadle.Core.Processing
             //return OperationResult.Ok();
             return OperationResult.Ok($"Randomized 2-mode network with h={h} hyperedges and a={averageNbrAffiliations} average number of affiliations per node generated in layer '{layerName}' in network '{network.Name}'.");
         }
-
-
 
         public static OperationResult GenerateBarabasiAlbertLayer(Network network, string layerName, int m)
         {

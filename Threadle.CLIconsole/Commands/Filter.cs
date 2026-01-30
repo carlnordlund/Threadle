@@ -44,10 +44,10 @@ namespace Threadle.CLIconsole.Commands
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
             if (CommandHelpers.TryGetVariable<Nodeset>(context, command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-            string attributeName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
+            string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             ConditionType conditionType = command.GetArgumentParseEnumThrowExceptionIfMissingOrNull<ConditionType>("cond", "arg2");
-            string attributeValue = (conditionType == ConditionType.isnull || conditionType == ConditionType.notnull) ? "" : command.GetArgumentThrowExceptionIfMissingOrNull("attrvalue", "arg3");
-            OperationResult<Nodeset> result = NodesetProcessor.Filter(nodeset, attributeName, conditionType, attributeValue);
+            string attrValue = (conditionType == ConditionType.isnull || conditionType == ConditionType.notnull) ? "" : command.GetArgumentThrowExceptionIfMissingOrNull("attrvalue", "arg3");
+            OperationResult<Nodeset> result = NodesetProcessor.Filter(nodeset, attrName, conditionType, attrValue);
             if (!result.Success)
                 return CommandResult.FromOperationResult(result);
             context.SetVariable(variableName, result.Value!);

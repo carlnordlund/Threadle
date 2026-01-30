@@ -267,13 +267,13 @@ namespace Threadle.Core.Model
         /// of Hyperedge objects, it is first created.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
-        /// <param name="hyperEdge">The hyperedge that the node is part of.</param>
-        private void AddHyperEdgeToNode(uint nodeId, Hyperedge hyperEdge)
+        /// <param name="hyperedge">The hyperedge that the node is part of.</param>
+        private void AddHyperEdgeToNode(uint nodeId, Hyperedge hyperedge)
         {
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
-                collection.AddHyperEdge(hyperEdge);
+                collection.AddHyperEdge(hyperedge);
             else
-                HyperEdgeCollections.Add(nodeId, new HyperedgeCollection(hyperEdge));
+                HyperEdgeCollections.Add(nodeId, new HyperedgeCollection(hyperedge));
         }
 
         /// <summary>
@@ -331,13 +331,13 @@ namespace Threadle.Core.Model
         /// Adds an affiliation to a hyperedge. If the hyperedge does not exist, it is created.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
-        /// <param name="hyperedgeName">The name of the affiliation.</param>
-        internal void _addAffiliation(uint nodeId, string hyperedgeName)
+        /// <param name="hyperName">The name of the affiliation.</param>
+        internal void _addAffiliation(uint nodeId, string hyperName)
         {
-            if (!AllHyperEdges.TryGetValue(hyperedgeName, out var hyperedge))
+            if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
             {
-                hyperedge = new Hyperedge(hyperedgeName);
-                AllHyperEdges[hyperedgeName] = hyperedge;
+                hyperedge = new Hyperedge(hyperName);
+                AllHyperEdges[hyperName] = hyperedge;
             }
             AddHyperEdgeToNode(nodeId, hyperedge);
             hyperedge.AddNode(nodeId);
@@ -387,11 +387,11 @@ namespace Threadle.Core.Model
         /// Suppport method for method to remove a hyperedge.
         /// </summary>
         /// <param name="nodeId">The node id whose Hyperedge object is to be removed.</param>
-        /// <param name="hyperEdge">The Hyperedge to remove.</param>
-        private void RemoveHyperedgeFromNode(uint nodeId, Hyperedge hyperEdge)
+        /// <param name="hyperedge">The Hyperedge to remove.</param>
+        private void RemoveHyperedgeFromNode(uint nodeId, Hyperedge hyperedge)
         {
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection))
-                collection.HyperEdges.Remove(hyperEdge);
+                collection.HyperEdges.Remove(hyperedge);
         }
 
         internal string[] GetHyperedgeNames(uint nodeId)
@@ -408,12 +408,10 @@ namespace Threadle.Core.Model
             return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
         }
 
-
-
         /// <summary>
         /// Creates and returns an empty copy of this layer.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>A <see cref="LayerTwoMode"/> object.</returns>
         private LayerTwoMode CreateEmptyCopy()
         {
             return new LayerTwoMode(this.Name);

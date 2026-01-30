@@ -468,28 +468,28 @@ namespace Threadle.Core.Analysis
         //}
 
 
-        internal static OperationResult<Dictionary<string, object>> GetRandomEdgeTwoMode(LayerTwoMode layerTwoMode, uint[] nodeIds, int maxAttempts)
-        {
-            int n = nodeIds.Length;
-            for (int i = 0; i < maxAttempts; i++)
-            {
-                uint node1 = nodeIds[Misc.Random.Next(n)];
-                uint node2 = nodeIds[Misc.Random.Next(n)];
-                if (node1 == node2)
-                    continue;
-                float value = layerTwoMode.GetEdgeValue(node1, node2);
-                if (value>0)
-                    return OperationResult<Dictionary<string, object>>.Ok(
-                        new Dictionary<string, object>
-                        {
-                            ["node1"] = node1,
-                            ["node2"] = node2,
-                            ["value"] = value
-                        }, $"Random edge found through polling ({i + 1} attempts).");
-            }
+        //internal static OperationResult<Dictionary<string, object>> GetRandomEdgeTwoMode(LayerTwoMode layerTwoMode, uint[] nodeIds, int maxAttempts)
+        //{
+        //    int n = nodeIds.Length;
+        //    for (int i = 0; i < maxAttempts; i++)
+        //    {
+        //        uint node1 = nodeIds[Misc.Random.Next(n)];
+        //        uint node2 = nodeIds[Misc.Random.Next(n)];
+        //        if (node1 == node2)
+        //            continue;
+        //        float value = layerTwoMode.GetEdgeValue(node1, node2);
+        //        if (value>0)
+        //            return OperationResult<Dictionary<string, object>>.Ok(
+        //                new Dictionary<string, object>
+        //                {
+        //                    ["node1"] = node1,
+        //                    ["node2"] = node2,
+        //                    ["value"] = value
+        //                }, $"Random edge found through polling ({i + 1} attempts).");
+        //    }
 
-            throw new NotImplementedException();
-        }
+        //    throw new NotImplementedException();
+        //}
         #endregion
     }
 }

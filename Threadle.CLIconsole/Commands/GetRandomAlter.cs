@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[uint] = getrandomalter(network = [var:network], nodeid = [uint], *layername = [str], *direction = ['both'(default),'in','out'], *balanced = ['true','false'(default)])";
+        public string Syntax => "[uint] = getrandomalter(network = [var:network], nodeId = [uint], *layername = [str], *direction = ['both'(default),'in','out'], *balanced = ['true','false'(default)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -42,11 +42,11 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-            uint nodeid = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
+            uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeId", "arg1");
             string layerName = command.GetArgumentParseString("layername", "");
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
             bool balanced = command.GetArgumentParseBool("balanced", false);
-            OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeid, layerName, edgeTraversal, balanced);
+            OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeId, layerName, edgeTraversal, balanced);
             return CommandResult.FromOperationResult(
                 opResult: result,
                 payload: result.Value

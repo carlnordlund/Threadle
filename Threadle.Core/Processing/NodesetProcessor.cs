@@ -24,25 +24,22 @@ namespace Threadle.Core.Processing
         /// specified attribute and condition.  Nodes that satisfy the condition are included in the resulting filtered
         /// <see cref="Nodeset"/>.  If the attribute specified by <paramref name="attrName"/> does not exist in the
         /// <paramref name="sourceNodeset"/>,  the method returns an error result with the code "AttributeNotFound".  If
-        /// <paramref name="attrValue"/> is not provided (null or empty) and the condition is not <see
+        /// <paramref name="attrValueStr"/> is not provided (null or empty) and the condition is not <see
         /// cref="ConditionType.notnull"/>  or <see cref="ConditionType.isnull"/>, the method returns an error result
         /// with the code "AttributeValueNotFound".</remarks>
         /// <param name="sourceNodeset">The source <see cref="Nodeset"/> to filter.</param>
         /// <param name="attrName">The name of the attribute to evaluate for filtering.</param>
         /// <param name="condition">The condition to apply when evaluating the attribute value.</param>
-        /// <param name="attrValue">The value to compare against the attribute value, if applicable. This parameter is optional and defaults to
+        /// <param name="attrValueStr">The value to compare against the attribute value, if applicable. This parameter is optional and defaults to
         /// an empty string.</param>
         /// <returns>An <see cref="OperationResult{T}"/> containing the filtered <see cref="Nodeset"/> if the operation succeeds;
         /// otherwise, an error result indicating the failure reason.</returns>
-        public static OperationResult<Nodeset> Filter(Nodeset sourceNodeset, string attrName, ConditionType condition, string attrValue = "")
+        public static OperationResult<Nodeset> Filter(Nodeset sourceNodeset, string attrName, ConditionType condition, string attrValueStr = "")
         {
             if (!sourceNodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out var attrIndex))
                 return OperationResult<Nodeset>.Fail("AttributeNotFound", $"Attribute '{attrName}' not found in nodeset '{sourceNodeset.Name}'.");
-            if ((attrValue == null || attrValue.Length == 0) && condition != ConditionType.notnull && condition != ConditionType.isnull)
+            if ((attrValueStr == null || attrValueStr.Length == 0) && condition != ConditionType.notnull && condition != ConditionType.isnull)
                 return OperationResult<Nodeset>.Fail("MissingAttributeValue", $"Attribute value must be set for '{condition}' condition.");
-            //Nodeset filtered = sourceNodeset.Clone(sourceNodeset.Name + "_filtered");
-
-            //Nodeset clone = new Nodeset(newName != null ? newName : Name + "_clone") { NodeAttributeDefinitionManager = NodeAttributeDefinitionManager.Clone() };
 
             Nodeset filtered = new Nodeset(sourceNodeset.Name + "_clone") { NodeAttributeDefinitionManager = sourceNodeset.NodeAttributeDefinitionManager.Clone() };
 
@@ -54,7 +51,7 @@ namespace Threadle.Core.Processing
                     true => condition switch
                     {
                         ConditionType.notnull => true,  // Existing attribute counts as 'notnull'
-                        _ => Misc.EvalutateCondition(result.Value, attrValue!, condition), // Evaluate condition here
+                        _ => Misc.EvalutateCondition(result.Value, attrValueStr!, condition), // Evaluate condition here
                     },
                     false => condition switch
                     {
