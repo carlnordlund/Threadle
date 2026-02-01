@@ -19,12 +19,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "removeedge(network = [var:network], layername = [str], node1id = [uint], node2id = [uint])";
+        public string Syntax => "removeedge(network = [var:network], layername = [str], node1Id = [uint], node2Id = [uint])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Removes the edge (if one exists) between node1id and node2id in the specified layer 'layername' (which must be 1-mode) in network [var:network]. If the layer is directional, node1id is the source (from) and node2id is the destination (to). Gives a warning message if any of the nodes are missing, or if the edge does not exist.";
+        public string Description => "Removes the edge (if one exists) between node1Id and node2Id in the specified layer 'layername' (which must be 1-mode) in network [var:network]. If the layer is directional, node1Id is the source (from) and node2Id is the destination (to). Gives a warning message if any of the nodes are missing, or if the edge does not exist.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -41,9 +41,9 @@ namespace Threadle.CLIconsole.Commands
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
-            uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
-            uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
-            return CommandResult.FromOperationResult(network.RemoveEdge(layerName, node1id, node2id));
+            uint node1Id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1Id", "arg2");
+            uint node2Id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2Id", "arg3");
+            return CommandResult.FromOperationResult(network.RemoveEdge(layerName, node1Id, node2Id));
         }
     }
 }

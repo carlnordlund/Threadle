@@ -20,12 +20,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[float] = getedge(network = [var:network], layername = [str], node1id = [uint], node2id = [uint])";
+        public string Syntax => "[float] = getedge(network = [var:network], layername = [str], node1Id = [uint], node2Id = [uint])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Returns the edge value between node1id (from) and node2id (to) in the specified layer 'layername', which can be either 1-mode or 2-mode. If the layer is 1-mode directional, node1id is the source and node2id is the destination. If no edge is found, returns zero. For 2-mode layers, the value represents the number of affiliations that the two nodes share in this particular layer, i.e. the value that typically emerge when using the classical matrix-multiplcation-approach for projecting 2-mode data to 1-mode.";
+        public string Description => "Returns the edge value between node1Id (from) and node2Id (to) in the specified layer 'layername', which can be either 1-mode or 2-mode. If the layer is 1-mode directional, node1Id is the source and node2Id is the destination. If no edge is found, returns zero. For 2-mode layers, the value represents the number of affiliations that the two nodes share in this particular layer, i.e. the value that typically emerge when using the classical matrix-multiplcation-approach for projecting 2-mode data to 1-mode.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -42,9 +42,9 @@ namespace Threadle.CLIconsole.Commands
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-            uint node1id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1id", "arg2");
-            uint node2id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2id", "arg3");
-            OperationResult<float> result = network.GetEdge(layerName, node1id, node2id);
+            uint node1Id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1Id", "arg2");
+            uint node2Id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2Id", "arg3");
+            OperationResult<float> result = network.GetEdge(layerName, node1Id, node2Id);
             return CommandResult.FromOperationResult(result, result.Value);
         }
     }
