@@ -42,7 +42,7 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
+            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             ConditionType conditionType = command.GetArgumentParseEnum<ConditionType>("cond", ConditionType.ge);
             float threshold = command.GetArgumentParseFloat("threshold", 1);
             float trueValue = command.GetArgument("truevalue") == "keep" ? float.NaN : command.GetArgumentParseFloat("truevalue", 1);

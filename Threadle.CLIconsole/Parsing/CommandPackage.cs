@@ -56,7 +56,7 @@ namespace Threadle.CLIconsole.Parsing
         {
             if (AssignedVariable == null)
                 throw new Exception("!Error: No variable assigned.");
-            return AssignedVariable.Trim().ToLowerInvariant();
+            return AssignedVariable.Trim();
         }
 
         /// <summary>

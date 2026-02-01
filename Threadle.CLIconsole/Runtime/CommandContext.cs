@@ -50,7 +50,7 @@ namespace Threadle.CLIconsole.Runtime
         /// <param name="value">The <see cref="IStructure"/> to store.</param>
         internal void SetVariable(string name, IStructure value)
         {
-            Variables[name.ToLowerInvariant()] = value;
+            Variables[name] = value;
         }
 
         /// <summary>

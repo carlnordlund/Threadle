@@ -89,7 +89,7 @@ namespace Threadle.Core.Utilities
         {
             try
             {
-                LayerImporters.ImportOneModeEdgelist(filepath, network, layer, node1col, node2col, valueCol, hasHeader, separator, addMissingNodes);
+                LayerImportExport.ImportOneModeEdgelist(filepath, network, layer, node1col, node2col, valueCol, hasHeader, separator, addMissingNodes);
                 return OperationResult.Ok($"Imported edgelist to 1-mode layer '{layer.Name}'");
 
             }
@@ -112,7 +112,7 @@ namespace Threadle.Core.Utilities
         {
             try
             {
-                LayerImporters.ImportOneModeMatrix(filepath, network, layer, separator, addMissingNodes);
+                LayerImportExport.ImportOneModeMatrix(filepath, network, layer, separator, addMissingNodes);
                 return OperationResult.Ok($"Imported matrix to 1-mode layer '{layer.Name}'");
             }
             catch (Exception ex)
@@ -120,6 +120,19 @@ namespace Threadle.Core.Utilities
                 return OperationResult.Fail("IOImportError", "Unexpected error when importing matrix to 1-mode layer: " + ex.Message);
             }
         }
+
+        //public static OperationResult ExportOneModeEdgeList(LayerOneMode layerOneMode, string filepath, char separator, bool header)
+        //{
+        //    try
+        //    {
+        //        LayerImporters.ExportOneModeEdgeList(layerOneMode, filepath, separator, header);
+        //        return OperationResult.Ok($"Exported 1-mode layer '{layerOneMode.Name}' to file: {filepath}");
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return OperationResult.Fail("IOExportError", "Unexpected error when exporting 1-mode layer to edgelist:: " + ex.Message);
+        //    }
+        //}
 
         /// <summary>
         /// Public-facing method for importing an edgelist to a 2-mode layer.
@@ -138,7 +151,7 @@ namespace Threadle.Core.Utilities
         {
             try
             {
-                LayerImporters.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, addMissingNodes);
+                LayerImportExport.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, addMissingNodes);
                 return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
             }
             catch (Exception ex)
@@ -146,6 +159,8 @@ namespace Threadle.Core.Utilities
                 return OperationResult.Fail("IOImportError", "Unexpected error when importing edgelist to 2-mode layer: " + ex.Message);
             }
         }
+
+
 
         /// <summary>
         /// Public-facing method for importing a matrix/table to a 2-mode layer.
@@ -163,7 +178,7 @@ namespace Threadle.Core.Utilities
             try
             {
                 //LayerImporters.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, addMissingNodes);
-                LayerImporters.ImportTwoModeMatrix(filepath, network, layer, separator, addMissingNodes);
+                LayerImportExport.ImportTwoModeMatrix(filepath, network, layer, separator, addMissingNodes);
                 return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
             }
             catch (Exception ex)
@@ -171,6 +186,35 @@ namespace Threadle.Core.Utilities
                 return OperationResult.Fail("IOImportError", "Unexpected error when importing matrix/table to 2-mode layer: " + ex.Message);
             }
         }
+
+        public static OperationResult ExportLayerEdgelist(ILayer layer, string filepath, char separator, bool header)
+        {
+            try
+            {
+                if (layer is LayerOneMode layerOneMode)
+                    LayerImportExport.ExportOneModeEdgeList(layerOneMode, filepath, separator, header);
+                else if (layer is LayerTwoMode layerTwoMode)
+                    LayerImportExport.ExportTwoModeEdgeList(layerTwoMode, filepath, separator, header);
+                else
+                    return OperationResult.Fail("IOExportError", $"Did not recognize layer type of layer '{layer.Name}'.");
+                return OperationResult.Ok($"Exported layer '{layer.Name}' to file: {filepath}");
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOExportError", "Unexpected error when exporting layer to edgelist: " + ex.Message);
+            }
+        }
+
+
+        //public static OperationResult ExportTwoModeEdgeList(LayerTwoMode layerTwoMode, string filepath, char separator, bool header)
+        //{
+        //    try
+        //    {
+        //        LayerImporters.ExportTwoModeEdgeList(layerTwoMode, filepath, separator, header);
+        //        return OperationResult.Ok($"Exported 2-mode layer '{layerTwoMode.Name}' to file: {filepath}");
+        //    }
+        //    throw new NotImplementedException();
+        //}
 
         /// <summary>
         /// Sets the current working directory as safe as possible.
@@ -466,6 +510,9 @@ namespace Threadle.Core.Utilities
                 return OperationResult<StructureResult>.Fail("IOError", $"Unexpected error while loading network: {e.Message}");
             }
         }
+
+
+
         #endregion
     }
 }

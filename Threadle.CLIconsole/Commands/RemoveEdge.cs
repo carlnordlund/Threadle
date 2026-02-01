@@ -40,7 +40,7 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1").ToLowerInvariant();
+            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint node1Id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node1Id", "arg2");
             uint node2Id = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("node2Id", "arg3");
             return CommandResult.FromOperationResult(network.RemoveEdge(layerName, node1Id, node2Id));

@@ -24,7 +24,7 @@ namespace Threadle.CLIconsole.Parsing
                     return null;
                 CommandPackage package = new CommandPackage
                 {
-                    AssignedVariable = dto.Assign?.Trim().ToLowerInvariant(),
+                    AssignedVariable = dto.Assign?.Trim(),
                     CommandName = dto.Command.Trim().ToLowerInvariant(),
                     NamedArgs = dto.Args ?? new Dictionary<string, string>()
                 };

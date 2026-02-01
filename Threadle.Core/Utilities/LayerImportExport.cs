@@ -13,10 +13,67 @@ namespace Threadle.Core.Utilities
     /// <summary>
     /// Class implementing various methods for importing to specific layers
     /// </summary>
-    internal static class LayerImporters
+    internal static class LayerImportExport
     {
 
         #region Methods (internal)
+        /// <summary>
+        /// Exports a specified 1-mode layer as an edgelist to the specified file. The first two columns contains the node pairs
+        /// for each edge. If the layer contains valued ties, a third column contains the edge value. An optional header is shown
+        /// on the first row, this being either 'from' and 'to' for directional edges, and 'node1' and 'node2' for symmetric edges.
+        /// For valued edges, the header for the third column is 'value. Columns are separated using the provided sep character.
+        /// </summary>
+        /// <param name="layerOneMode">The 1-mode layer</param>
+        /// <param name="filepath">File to write the edgelist to</param>
+        /// <param name="sep">The separator to use</param>
+        /// <param name="header">Boolean whether the first line is to contain headers.</param>
+        internal static void ExportOneModeEdgeList(LayerOneMode layerOneMode, string filepath, char sep, bool header)
+        {
+            using var writer = new StreamWriter(filepath);
+
+            if (header)
+            {
+                string headerLine = layerOneMode.IsDirectional ? $"from{sep}to" : $"node1{sep}node2";
+                headerLine += layerOneMode.IsValued ? $"{sep}value" : "";
+                writer.WriteLine(headerLine);
+            }
+            if (layerOneMode.IsBinary)
+                foreach (var kvp in layerOneMode.Edgesets)
+                {
+                    uint egoId = kvp.Key;
+                    foreach (var alterId in kvp.Value.GetOutboundNodeIds)
+                        writer.WriteLine($"{egoId}{sep}{alterId}");
+                }
+            else
+                foreach (var kvp in layerOneMode.Edgesets)
+                {
+                    uint egoId = kvp.Key;
+                    foreach (var (alterId, value) in kvp.Value.GetOutboundEdgesWithValues(egoId))
+                        writer.WriteLine($"{egoId}{sep}{alterId}{sep}{value}");
+                }
+        }
+
+        /// <summary>
+        /// Exports a specified 2-mode layer as an edgelist to the specified file. The first column contains the node id
+        /// and the second column contains the affiliation (i.e. hyperedge name). An optional header is shown at the top
+        /// with 'node' and 'affiliation' as headers. Columns are separated using the provided character.
+        /// </summary>
+        /// <param name="layerTwoMode">The 2-mode layer</param>
+        /// <param name="filepath">File to write the edgelist to</param>
+        /// <param name="sep">The separator to use</param>
+        /// <param name="header">Boolean whether the first line is to contain headers.</param>
+        internal static void ExportTwoModeEdgeList(LayerTwoMode layerTwoMode, string filepath, char sep, bool header)
+        {
+            using var writer = new StreamWriter(filepath);
+            if (header)
+                writer.WriteLine($"node{sep}affiliation");
+            foreach (var kvp in layerTwoMode.HyperEdgeCollections)
+            {
+                uint egoId = kvp.Key;
+                foreach (var hyperedge in kvp.Value.HyperEdges)
+                    writer.WriteLine($"{egoId}{sep}{hyperedge.Name}");
+            }
+        }
 
         /// <summary>
         /// Imports a 1-mode edgelist from file, inserting it into the specified layer. Checks that the node exists
@@ -48,7 +105,6 @@ namespace Threadle.Core.Utilities
             int lineNumber = 0;
 
             int maxColIndex = Math.Max(node1col, node2col);
-
             uint node1Id, node2Id;
             if (layerOneMode.IsBinary)
             {
