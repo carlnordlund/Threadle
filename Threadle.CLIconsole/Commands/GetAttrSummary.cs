@@ -23,7 +23,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates and returns summary statistics for the specified node attribute in the nodeset. Statistics vary by attribute type: (int/float) Mean, Median, StdDev, Min, Max, Q1, Q3; (Bool) Count_true, Count_false, Ratio_true; (Char) Frequency distribution, Mode, Unique_values. All types include Count, Missing, and PercentageWithValue.";
+        public string Description => "Calculates and returns summary statistics for the specified node attribute in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Statistics vary by attribute type: (int/float) Mean, Median, StdDev, Min, Max, Q1, Q3; (Bool) Count_true, Count_false, Ratio_true; (Char) Frequency distribution, Mode, Unique_values. All types include Count, Missing, and PercentageWithValue.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -37,7 +37,7 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"), out var nodeset) is CommandResult commandResult)
+            if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             var summaryResult = Analyses.GetAttributeSummary(nodeset!, attrName);
