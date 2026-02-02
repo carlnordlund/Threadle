@@ -54,9 +54,9 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Factory method to create an OperationResult object for successful operations.
         /// </summary>
-        /// <param name="message">A message about the successful operation (defaults to 'Success').</param>
+        /// <param name="message">A message about the successful operation (defaults to empty string).</param>
         /// <returns>An <see cref="OperationResult"/> object indicating success.</returns>
-        public static OperationResult Ok(string message = "Success") => new(true, "OK", message);
+        public static OperationResult Ok(string message = "") => new(true, "OK", message);
 
         /// <summary>
         /// Factory method to create an OperationResult object for failed operations.
