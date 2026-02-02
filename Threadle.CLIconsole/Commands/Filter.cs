@@ -38,7 +38,7 @@ namespace Threadle.CLIconsole.Commands
         /// Executes the command.
         /// </summary>
         /// <param name="command">The parsed <see cref="CommandPackage"/> to be executed.</param>
-        /// <param name="context">The <see cref="CommandContext"/> providing shared console varioable memory.</param>
+        /// <param name="context">The <see cref="CommandContext"/> providing shared console variable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
@@ -51,7 +51,6 @@ namespace Threadle.CLIconsole.Commands
             if (!result.Success)
                 return CommandResult.FromOperationResult(result);
             context.SetVariable(variableName, result.Value!);
-            // Not sure that this works!
             return CommandResult.FromOperationResult(
                 opResult: result,
                 payload: null,

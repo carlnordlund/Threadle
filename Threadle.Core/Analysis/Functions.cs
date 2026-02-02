@@ -445,51 +445,6 @@ namespace Threadle.Core.Analysis
                 ["value"] = layerTwoMode.GetEdgeValue(Nodeids[idx1], Nodeids[idx2])
             };
         }
-
-        //internal static OperationResult<Dictionary<string, object>> GetRandomEdgeOneMode(LayerOneMode layerOneMode, uint[] nodeIds, int maxAttempts)
-        //{
-        //    for (int i = 0; i < maxAttempts; i++)
-        //    {
-        //        uint node1 = nodeIds[Misc.Random.Next(nodeIds.Length)];
-        //        uint node2 = nodeIds[Misc.Random.Next(nodeIds.Length)];
-        //        if (node1 == node2)
-        //            continue;
-        //        float value = layerOneMode.GetEdgeValue(node1, node2);
-        //        if (value > 0)
-        //            return OperationResult<Dictionary<string, object>>.Ok(
-        //                new Dictionary<string, object>
-        //                {
-        //                    ["node1"] = node1,
-        //                    ["node2"] = node2,
-        //                    ["value"] = value
-        //                }, $"Random edge found through polling ({i+1} attempts).");
-        //    }
-        //    return OperationResult<Dictionary<string, object>>.Ok(GetRandomEdgeSweepOneMode(layerOneMode), "Random edge found through sweep approach.");
-        //}
-
-
-        //internal static OperationResult<Dictionary<string, object>> GetRandomEdgeTwoMode(LayerTwoMode layerTwoMode, uint[] nodeIds, int maxAttempts)
-        //{
-        //    int n = nodeIds.Length;
-        //    for (int i = 0; i < maxAttempts; i++)
-        //    {
-        //        uint node1 = nodeIds[Misc.Random.Next(n)];
-        //        uint node2 = nodeIds[Misc.Random.Next(n)];
-        //        if (node1 == node2)
-        //            continue;
-        //        float value = layerTwoMode.GetEdgeValue(node1, node2);
-        //        if (value>0)
-        //            return OperationResult<Dictionary<string, object>>.Ok(
-        //                new Dictionary<string, object>
-        //                {
-        //                    ["node1"] = node1,
-        //                    ["node2"] = node2,
-        //                    ["value"] = value
-        //                }, $"Random edge found through polling ({i + 1} attempts).");
-        //    }
-
-        //    throw new NotImplementedException();
-        //}
         #endregion
     }
 }
