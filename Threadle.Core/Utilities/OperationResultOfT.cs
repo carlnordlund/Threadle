@@ -45,8 +45,7 @@ namespace Threadle.Core.Utilities
         /// <param name="value">The generic return value to include.</param>
         /// <param name="message">A message about the successful operation (defaults to 'Success').</param>
         /// <returns>An <see cref="OperationResult{T}"/> object indicating success, with an attached value of type T.</returns>
-        public static OperationResult<T> Ok(T value, string message = "Success")
-            => new(true, "OK", message, value);
+        public static OperationResult<T> Ok(T value, string message = "") => new(true, "OK", message, value);
 
         /// <summary>
         /// Factory method to create an OperationResult object for failed operations, including a default (null) value.
