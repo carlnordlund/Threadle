@@ -43,7 +43,7 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             SymmetrizeMethod method = command.GetArgumentParseEnum<SymmetrizeMethod>("method", SymmetrizeMethod.max);
-            string newLayerName = network.GetNextAvailableLayerName(command.GetArgumentParseString("newlayername", layerName + "-symmetrized").ToLowerInvariant());
+            string newLayerName = network.GetNextAvailableLayerName(command.GetArgumentParseString("newlayername", layerName + "-symmetrized"));
             return CommandResult.FromOperationResult(NetworkProcessor.SymmetrizeLayer(network, layerName, method, newLayerName));
         }
     }
