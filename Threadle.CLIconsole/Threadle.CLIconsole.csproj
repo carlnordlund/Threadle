@@ -46,6 +46,7 @@
     <None Remove="R\**" />
     <None Remove="threadleR\**" />
     <None Remove=".Rhistory" />
+    <None Remove="threadleR_0.1.0.tar.gz" />
   </ItemGroup>
 
   <!-- Reference Threadle.Core project -->
