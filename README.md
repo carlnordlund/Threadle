@@ -13,7 +13,7 @@ Precompiled binaries and installation files for Windows, Linux, and MacOS are av
 https://threadle.dev/
 
 ## threadleR - the R frontend/client
-Although Threadle comes with a CLI frontend accepting Threadle commands (see (https://threadle.dev/?page=cli)[https://threadle.dev/?page=cli]), working directly on the CLI is quite
+Although Threadle comes with a CLI frontend accepting Threadle (commands)[online documentation](https://threadle.dev/?page=cli], working directly on the CLI is quite
 limited. For more advanced workflows, we have developed threadleR, which makes it really easy to work with Threadle in R.
 
 You will find threadleR in a separate repository: https://github.com/YukunJiao/threadleR/
