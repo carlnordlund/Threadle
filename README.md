@@ -21,7 +21,9 @@ You will find threadleR in a separate repository: https://github.com/YukunJiao/t
 
 ### Authors and Funding
 Threadle is developed and maintained by Carl Nordlund at the Institute for Analytical Sociology, Linköping University, Sweden.
+
 threadleR, the R client to Threadle, is developed and maintained by Yukun Jiao, student at the Masters program in Computational Social Science at Linköping University, Sweden.
+
 The project is part of The Complete Network of Sweden project, a research environment funded by Swedish Research Council (grant #2024-01861)
 
 More information about the project can be found here:
