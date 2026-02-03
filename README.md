@@ -30,6 +30,6 @@ More information about the project can be found here:
 https://www.netreg.se
 
 ### License
-Threadle is released under the MIT License, which allows anyone to use, modify, and redistribute the software for any purpose, including academic, research, or commercial use.
+Threadle is released under the [MIT license](LICENSE.md), which allows anyone to use, modify, and redistribute the software for any purpose, including academic, research, or commercial use.
 
 Since Threadle and its methods are publicly released and documented, this publication constitutes prior art, preventing others from patenting the same methods implemented in this software.
