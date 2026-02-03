@@ -7,7 +7,7 @@ Unlike general-purpose network libraries, it emphasizes memory-efficient storage
 Threadle is open source and built in .NET, with a Core module handling data models, processing, and file I/O for massive, multi-dimensional networks.
 A fast CLI console provides direct use or interop from other languages, including R. Precompiled binaries are available for Windows, macOS, and Linux, or it can be built from source.
 
-Threadle can be compiled for multiple operating systems and architectures. See [INSTALL.txt](install) for information on how to compile Threadle from source.
+Threadle can be compiled for multiple operating systems and architectures. See [INSTALL.txt](INSTALL.txt) for information on how to compile Threadle from source.
 
 Precompiled binaries and installation files for Windows, Linux, and MacOS are available on the project website:
 https://threadle.dev/
