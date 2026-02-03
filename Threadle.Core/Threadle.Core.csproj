@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <!-- Library Metadata -->    
     <Version>1.0.0</Version>
@@ -11,15 +10,9 @@
     
     <!-- Build configuration -->
     <TargetFramework>net8.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64;win-x86;win-arm64;linux-x64;linux-arm;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-
-
-
-<!--    <DebugType>full</DebugType>
-    <DebugSymbols>true</DebugSymbols>-->
   </PropertyGroup>
   
   <!-- Debug Configuration -->
@@ -33,6 +26,4 @@
     <DebugType>embedded</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
-
-
 </Project>
