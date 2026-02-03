@@ -15,12 +15,13 @@ https://threadle.dev/
 
 ## threadleR - the R frontend/client
 Although Threadle comes with a CLI frontend accepting Threadle [commands](https://threadle.dev/?page=cli), working directly on the CLI is quite
-limited. For more advanced workflows, we have developed threadleR, which makes it really easy to work with Threadle in R.
+limited. For more advanced workflows, use threadleR, which makes it really easy to work with Threadle in R.
 
 You will find threadleR in a separate repository: https://github.com/YukunJiao/threadleR/
 
 ### Authors and Funding
 Threadle is developed and maintained by Carl Nordlund at the Institute for Analytical Sociology, Linköping University, Sweden.
+threadleR, the R client to Threadle, is developed and maintained by Yukun Jiao, student at the Masters program in Computational Social Science at Linköping University, Sweden.
 The project is part of The Complete Network of Sweden project, a research environment funded by Swedish Research Council (grant #2024-01861)
 
 More information about the project can be found here:
