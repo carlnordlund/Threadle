@@ -8,6 +8,7 @@
     <Description>Threadle CLI - High-performance network data management</Description>
     <Copyright>Copyright © 2026 Carl Nordlund</Copyright>
     <Authors>Carl Nordlund</Authors>
+    <ApplicationIcon>Assets\icons.ico</ApplicationIcon>
 
     <!-- Build Configuration -->
     <OutputType>Exe</OutputType>
