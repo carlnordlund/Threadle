@@ -21,7 +21,7 @@ namespace Threadle.CLIconsole.Runtime
         /// If true, informational messages are printed.
         /// If false, only forced output (payloads, results) are printed.
         /// </summary>
-        public static bool Verbose { get; set; } = true;
+        //public static bool Verbose { get; set; } = true;
         #endregion
 
 
@@ -34,7 +34,7 @@ namespace Threadle.CLIconsole.Runtime
         /// <param name="overrideVerbose">Set to true to override the verbosity setting.</param>
         public static void WriteLine(string message, bool overrideVerbose = false)
         {
-            if (!Verbose && !overrideVerbose)
+            if (!CLISettings.Verbose && !overrideVerbose)
                 return;
             Console.Out.WriteLine(message);
         }
@@ -47,7 +47,7 @@ namespace Threadle.CLIconsole.Runtime
         /// <param name="overrideVerbose">Set to true to override the verbosity setting.</param>
         public static void Write(string message, bool overrideVerbose = false)
         {
-            if (!Verbose && !overrideVerbose)
+            if (!CLISettings.Verbose && !overrideVerbose)
                 return;
             Console.Out.Write(message);
         }
@@ -60,7 +60,7 @@ namespace Threadle.CLIconsole.Runtime
         /// <param name="overrideVerbose">Set to true to override the verbosity setting.</param>
         public static void WriteLines(IEnumerable<string> lines, bool overrideVerbose = false)
         {
-            if (!Verbose && !overrideVerbose)
+            if (!CLISettings.Verbose && !overrideVerbose)
                 return;
             foreach (var line in lines)
                 Console.Out.WriteLine(line);

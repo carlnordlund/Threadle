@@ -41,7 +41,7 @@ namespace Threadle.CLIconsole.Commands
             bool value = command.GetArgumentParseBoolThrowExceptionIfMissingOrNull("value", "arg1");
             if (param == "verbose")
             {
-                ConsoleOutput.Verbose = value;
+                CLISettings.Verbose = value;
                 return CommandResult.Ok($"Setting 'verbose' set to {value}.");
             }
             // Delegate to shared settings manager

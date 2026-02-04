@@ -15,10 +15,17 @@ namespace Threadle.CLIconsole.Results
 
         public void Render(CommandResult result)
         {
-            ConsoleOutput.WriteLine(JsonSerializer.Serialize(result, Options), true);
-            //Console.WriteLine(
-            //    JsonSerializer.Serialize(result, Options)
-            //);
+            object toSerialize = CLISettings.Verbose
+                ? result
+                : new
+                {
+                    result.Success,
+                    result.Code,
+                    result.Payload,
+                    result.Assigned
+                };
+
+            ConsoleOutput.WriteLine(JsonSerializer.Serialize(toSerialize, Options), true);
         }
 
         public void RenderException(Exception ex)

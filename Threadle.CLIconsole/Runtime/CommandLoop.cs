@@ -79,7 +79,7 @@ namespace Threadle.CLIconsole.Runtime
             Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 
             /// Write welcome message if non-JSON
-            if (!jsonMode && ConsoleOutput.Verbose)
+            if (!jsonMode && CLISettings.Verbose)
                 ConsoleOutput.WriteLines(WelcomeMessage);
 
             // Start infinite command loop

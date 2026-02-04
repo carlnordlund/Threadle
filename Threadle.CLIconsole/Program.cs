@@ -25,7 +25,7 @@ namespace Threadle.CLIconsole
                 {
                     case "-s":
                     case "--silent":
-                        ConsoleOutput.Verbose = false;
+                        CLISettings.Verbose = false;
                         break;
                     case "-j":
                     case "--json":

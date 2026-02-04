@@ -32,7 +32,7 @@ namespace Threadle.CLIconsole.Results
             }
 
             // Start with displaying the actual message (as long as it exists and Verbose settings are true)
-            if (ConsoleOutput.Verbose && !string.IsNullOrWhiteSpace(result.Message))
+            if (CLISettings.Verbose && !string.IsNullOrWhiteSpace(result.Message))
                 ConsoleOutput.WriteLine(result.Message);
 
             // Then display any Payload data if that exists
@@ -40,7 +40,7 @@ namespace Threadle.CLIconsole.Results
                 RenderPayload(result.Payload, 0);
 
             // Finally display any assigned variables
-            if (ConsoleOutput.Verbose && result.Assigned?.Any() == true)
+            if (CLISettings.Verbose && result.Assigned?.Any() == true)
             {
                 foreach (var kvp in result.Assigned)
                     ConsoleOutput.WriteLine(
