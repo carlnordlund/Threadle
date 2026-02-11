@@ -107,6 +107,9 @@ namespace Threadle.CLIconsole.Results
                 case IDictionary<string, object> dict:
                     RenderDictionary(dict, indent);
                     break;
+                case IDictionary<uint, object?> dict:
+                    RenderDictionary(dict, indent);
+                    break;
 
                 case IEnumerable<Dictionary<string,string>> helpTexts:
                     RenderHelpLines(helpTexts, indent);
@@ -217,6 +220,23 @@ namespace Threadle.CLIconsole.Results
             string pad = new string(' ', indent * 2);
             foreach (var item in items)
                 Console.Out.WriteLine($"{pad}{item}");
+        }
+
+        /// <summary>
+        /// Helper method to display a uint-object? dictionary, e.g. when displaying the return data
+        /// from 'getattrs()'. Does not call anything recursively. Note that the object can be null:
+        /// in that case, the text 'null' is written.
+        /// </summary>
+        /// <param name="dict">The uint-object? payload.</param>
+        /// <param name="indent">Current indentation.</param>
+        private static void RenderDictionary(IDictionary<uint, object?> dict, int indent = 0)
+        {
+            string pad = new string(' ', indent * 2);
+            foreach (var kvp in dict)
+            {
+                Console.Out.Write($"{pad}{kvp.Key}:");
+                RenderPayload(kvp.Value == null ? "-" : kvp.Value, 0);
+            }
         }
 
         /// <summary>

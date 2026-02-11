@@ -44,6 +44,7 @@ namespace Threadle.CLIconsole.Runtime
             ["getallhyperedges"] = new GetAllHyperedges(),
             ["getallnodes"] = new GetAllNodes(),
             ["getattr"] = new GetAttr(),
+            ["getattrs"]=new GetAttrs(),
             ["getattrsummary"] = new GetAttrSummary(),
             ["getedge"] = new GetEdge(),
             ["gethyperedgenodes"] = new GetHyperedgeNodes(),
