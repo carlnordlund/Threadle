@@ -248,7 +248,7 @@ namespace Threadle.Core.Model
         /// Adds an node affiliation in the specified (2-mode) layer. Optional flags allow for creating and adding nodes and hyperedges to the nodeset
         /// in case they are missing.
         /// </summary>
-        /// <param name="layerName">The name of the layer.</param>
+        /// <param name="layerName">The name of the 1-mode layer.</param>
         /// <param name="hyperName">The (unique) name of the hyperedge.</param>
         /// <param name="nodeId">The node id.</param>
         /// <param name="addMissingNode">Indicates whether a non-existing node should be added.</param>
@@ -262,6 +262,14 @@ namespace Threadle.Core.Model
             return AddAffiliation(layerResult.Value!, hyperName, nodeId, addMissingNode, addMissingHyperedge);
         }
 
+        /// <summary>
+        /// Removes a node affiliation in the specified (2-mode) layer. Continues to the next method
+        /// if the layername indeed exists.
+        /// </summary>
+        /// <param name="layerName">The name of the 2-mode layer.</param>
+        /// <param name="hyperName">The (unique) name of the hyperedge.</param>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveAffiliation(string layerName, string hyperName, uint nodeId)
         {
             var layerResult = GetTwoModeLayer(layerName);
@@ -463,7 +471,6 @@ namespace Threadle.Core.Model
                 message = $"Returning edges {offset + 1} - {offset + edges.Count} of {total} in layer '{layerName}':";
             return OperationResult<List<Dictionary<string, object>>>.Ok(edges, message);
         }
-
         #endregion
 
 
@@ -628,7 +635,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an node affiliation in the specified (2-mode) layer. Flags allow for creating and adding nodes and hyperedges to the nodeset
+        /// Adds a node affiliation in the specified (2-mode) layer. Flags allow for creating and adding nodes and hyperedges to the nodeset
         /// in case they are missing.
         /// </summary>
         /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> object.</param>
@@ -659,6 +666,13 @@ namespace Threadle.Core.Model
             return result;
         }
 
+        /// <summary>
+        /// Removes a node affiliation in the specified (2-mode) layer.
+        /// </summary>
+        /// <param name="layerTwoMode">The <see cref="LayerTwoMode"/> object.</param>
+        /// <param name="hyperName">The name of the hyperedge.</param>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult RemoveAffiliation(LayerTwoMode layerTwoMode, string hyperName, uint nodeId)
         {
             if (!Nodeset.CheckThatNodeExists(nodeId))
@@ -670,8 +684,6 @@ namespace Threadle.Core.Model
                 IsModified = true;
             return result;
         }
-
-
 
         /// <summary>
         /// Internal method for setting the Nodeset (only to be used by the loader)
@@ -711,6 +723,11 @@ namespace Threadle.Core.Model
             return alterIds.ToArray();
         }
 
+        /// <summary>
+        /// Retrieves the layer associated with the specified layer name, if it exists.
+        /// </summary>
+        /// <param name="layerName">The name of the layer.</param>
+        /// <returns>The layer associated with the specified name if it exists; otherwise, null.</returns>
         internal ILayer? _getLayer(string layerName)
         {
             if (Layers.TryGetValue(layerName, out var layer))

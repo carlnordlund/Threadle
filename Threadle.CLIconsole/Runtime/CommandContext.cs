@@ -55,7 +55,6 @@ namespace Threadle.CLIconsole.Runtime
         {
             if (!Variables.TryGetValue(name, out var structure))
                 return CommandResult.Fail("StructureNotFound", $"Structure {name} not found.");
-            //return OperationResult.Fail("StructureNotFound", $"Structure {name} not found.");
             if (structure is Nodeset nodeset)
             {
                 foreach (var kvp in Variables)
@@ -64,7 +63,6 @@ namespace Threadle.CLIconsole.Runtime
             }
             Variables.Remove(name);
             return CommandResult.Ok($"Structure '{name}' removed.");
-            //return OperationResult.Ok($"Structure '{name}' removed.");
         }
 
 

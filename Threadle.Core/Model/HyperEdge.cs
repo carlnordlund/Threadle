@@ -24,14 +24,6 @@
         #region Constructors
         /// <summary>
         /// Initializes a new instance of the <see cref="Hyperedge"/> class,
-        /// not connected to any node ids.
-        /// </summary>
-        public Hyperedge()
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Hyperedge"/> class,
         /// setting its connected endpoints to the provided array of node ids.
         /// </summary>
         /// <param name="nodeIds">An array of node ids that the Hyperedge connects.</param>
@@ -40,11 +32,23 @@
             _nodeIds = [.. nodeIds];
         }
 
+        /// <summary>
+        /// Initializes a new instance of the Hyperedge class with the specified name.
+        /// </summary>
+        /// <param name="name">The name of the hyperedge. Cannot be null or empty.</param>
         public Hyperedge(string name)
         {
             _name = name;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the Hyperedge class with the specified name and associated node IDs.
+        /// </summary>
+        /// <remarks>Each node ID in the array must correspond to an existing node in the graph. Ensure
+        /// that the provided node IDs are valid to avoid inconsistent graph state.</remarks>
+        /// <param name="name">The name that uniquely identifies the hyperedge within the graph.</param>
+        /// <param name="nodeIds">An array of unsigned integers representing the IDs of the nodes connected by this hyperedge. The array must
+        /// not be null or empty.</param>
         public Hyperedge(string name, uint[] nodeIds)
         {
             _name = name;
@@ -64,22 +68,28 @@
         /// </summary>
         public int NbrNodes => _nodeIds.Count;
 
+        /// <summary>
+        /// Returns the name of the hyperedge.
+        /// </summary>
         public string Name => _name;
         #endregion
 
 
         #region Methods
         /// <summary>
-        /// Internal setter when adding via LayerTwoMode
+        /// Adds the specified node to the hyperedge.
         /// </summary>
-        /// <param name="name"></param>
-        internal void SetName(string name) => _name = name;
-
+        /// <param name="nodeId">The node id to add.</param>
         internal void AddNode(uint nodeId)
         {
             _nodeIds.Add(nodeId);
         }
 
+        /// <summary>
+        /// Removes the node from the hyperedge.
+        /// </summary>
+        /// <param name="nodeId">The node id to remove.</param>
+        /// <returns>true if the node was successfully removed; otherwise, false.</returns>
         internal bool RemoveNode(uint nodeId)
         {
             return _nodeIds.Remove(nodeId);

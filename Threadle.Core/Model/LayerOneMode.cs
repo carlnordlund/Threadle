@@ -183,6 +183,14 @@ namespace Threadle.Core.Model
             return edgeset.GetAlterIds(edgeTraversal);
         }
 
+        /// <summary>
+        /// Retrieves a collection of edges with their associated values, starting from a specified offset and limited
+        /// to a maximum number of results.
+        /// </summary>
+        /// <param name="offset">The number of edges to skip before beginning to collect results. Must be greater than or equal to 0.</param>
+        /// <param name="limit">The maximum number of edges to return. Must be greater than 0.</param>
+        /// <returns>A list of dictionaries, each containing the identifiers of two connected nodes and the associated value. The
+        /// list may be empty if no edges are available after applying the offset.</returns>
         public List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 1000)
         {
             List<Dictionary<string, object>> edges = [];
@@ -206,7 +214,6 @@ namespace Threadle.Core.Model
                         ["node1"] = egoId,
                         ["node2"] = alterId,
                         ["value"] = value
-
                     });
                 }
             }
@@ -234,7 +241,6 @@ namespace Threadle.Core.Model
                 ids.UnionWith(edgeset.GetAllNodeIds);
             return ids;
         }
-
 
         /// <summary>
         /// Create a filtered copy of this Layer that only keeps edges whose nodes are present in

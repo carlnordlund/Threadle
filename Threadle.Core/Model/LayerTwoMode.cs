@@ -128,6 +128,11 @@ namespace Threadle.Core.Model
             return false;
         }
 
+        /// <summary>
+        /// Determines whether a hyperedge with the specified name exists in the collection.
+        /// </summary>
+        /// <param name="hyperName">The name of the hyperedge.</param>
+        /// <returns>true if a hyperedge with the specified name exists; otherwise, false.</returns>
         public bool CheckThatHyperedgeExists(string hyperName)
         {
             return AllHyperEdges.ContainsKey(hyperName);
@@ -224,14 +229,17 @@ namespace Threadle.Core.Model
 
 
         #region Methods (private, internal)
-
+        /// <summary>
+        /// Retrieves a hyperedge with the specified name from the collection of all hyperedges.
+        /// </summary>
+        /// <param name="hyperName">The name of the hyperedge.</param>
+        /// <returns>The hyperedge associated with the specified name, or null if no such hyperedge exists.</returns>
         internal Hyperedge? GetHyperedge(string hyperName)
         {
             if (AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
                 return hyperedge;
             return null;
         }
-
 
         /// <summary>
         /// Adds a Hyperedge with the specified name and optional array of node id members.
@@ -357,7 +365,6 @@ namespace Threadle.Core.Model
             return OperationResult.Ok($"Node '{nodeId}' no longer affiliated to hyperedge '{hyperName}' in 2-mode layer '{Name}'.");
         }
 
-
         /// <summary>
         /// Removes a Hyperedge by its name. Also removes all references to this Hyperedge from the
         /// dictionary for node ids.
@@ -389,6 +396,12 @@ namespace Threadle.Core.Model
                 collection.HyperEdges.Remove(hyperedge);
         }
 
+        /// <summary>
+        /// Retrieves the names of hyperedges associated with the specified node identifier.
+        /// </summary>
+        /// <param name="nodeId">The node id for which hyperedge names are to be retrieved.</param>
+        /// <returns>An array of strings containing the names of hyperedges associated with the specified node. The array will be
+        /// empty if no hyperedges are found for the given node identifier.</returns>
         internal string[] GetHyperedgeNames(uint nodeId)
         {
             if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperedgeCollection))
@@ -396,6 +409,15 @@ namespace Threadle.Core.Model
             return hyperedgeCollection.HyperEdges.Select(he => he.Name).ToArray();
         }
 
+        /// <summary>
+        /// Retrieves a subset of hyperedge names, starting at the specified offset and limited to the given number of
+        /// results.
+        /// </summary>
+        /// <param name="offset">The zero-based index at which to begin retrieving hyperedge names. If less than zero, the value is treated
+        /// as zero.</param>
+        /// <param name="limit">The maximum number of hyperedge names to retrieve. If less than zero, the value is treated as zero.</param>
+        /// <returns>An array of strings containing the names of hyperedges, limited by the specified offset and limit. The array
+        /// is empty if no hyperedges are available within the specified range.</returns>
         internal string[] GetAllHyperedgeNames(int offset, int limit)
         {
             offset = (offset < 0) ? 0 : offset;

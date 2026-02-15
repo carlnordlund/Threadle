@@ -258,9 +258,7 @@ namespace Threadle.Core.Utilities
                     .OrderBy(d => d.Name)
                     .Select(d => new Dictionary<string, object>
                     {
-                        ["Name"] = d.Name//,
-                        //["Type"] ="Directory",
-                        //["Modified"] = d.LastWriteTime
+                        ["Name"] = d.Name
                     }
                     )
                     .ToList();
@@ -269,10 +267,7 @@ namespace Threadle.Core.Utilities
                     .OrderBy(f => f.Name)
                     .Select(f => new Dictionary<string, object>
                     {
-                        ["Name"] = f.Name//,
-                        //["Type"] = "File",
-                        //["Size"] = f.Length,
-                        //["Modified"] = f.LastWriteTime
+                        ["Name"] = f.Name
                     }
                     )
                     .ToList();
