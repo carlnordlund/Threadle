@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using Threadle.Core.Model;
+﻿using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Processing.Enums;
 using Threadle.Core.Utilities;
@@ -55,11 +48,12 @@ namespace Threadle.Core.Processing
                     if (a == 0) return b;
                     if (b == 0) return a;
                     return Math.Min(a, b);
-                },
+                }
+                ,
                 SymmetrizeMethod.sum => (a, b) => a + b,
                 SymmetrizeMethod.average => (a, b) => (a + b) / 2,
                 SymmetrizeMethod.product => (a, b) => a * b,
-                _ => (a,b) => Math.Min(a,b)
+                _ => (a, b) => Math.Min(a, b)
             };
 
             if (originalLayer.IsBinary)

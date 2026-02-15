@@ -1,10 +1,5 @@
 ﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
@@ -189,7 +184,7 @@ namespace Threadle.Core.Model
         {
             HashSet<uint> allowedNodeIds = [.. nodeset.NodeIdArray];
             LayerTwoMode layerCopy = CreateEmptyCopy();
-            foreach (var(name, hyperedge) in AllHyperEdges)
+            foreach (var (name, hyperedge) in AllHyperEdges)
             {
                 Hyperedge hyperedge_filtered = new(hyperedge.NodeIds.Intersect(allowedNodeIds).ToArray());
                 if (hyperedge_filtered.NbrNodes == 0)

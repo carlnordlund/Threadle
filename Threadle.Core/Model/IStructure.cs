@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Threadle.Core.Model
+﻿namespace Threadle.Core.Model
 {
     /// <summary>
     /// Interface for a structure in Threadle. A structure is characterized as possible to store
@@ -18,7 +12,7 @@ namespace Threadle.Core.Model
         /// Returns the name of the structure.
         /// </summary>
         string Name { get; set; }
-        
+
         /// <summary>
         /// The filepath of the structure (null if it has not been saved or loaded from file)
         /// </summary>
@@ -37,7 +31,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a dictionary of information about the structure (e.g. used by the Info CLI command)
         /// </summary>
-        Dictionary<string,object> Info { get; }
+        Dictionary<string, object> Info { get; }
         #endregion
     }
 }

@@ -1,10 +1,4 @@
 ﻿using Threadle.Core.Model;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Threadle.Core.Utilities
 {
@@ -21,7 +15,7 @@ namespace Threadle.Core.Utilities
         /// Returns the main IStructure object.
         /// </summary>
         public IStructure MainStructure { get; } = mainStructure;
-        
+
         /// <summary>
         /// Returns a dictionary of name-indexed IStructure objects.
         /// </summary>

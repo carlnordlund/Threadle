@@ -1,10 +1,5 @@
 ﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
@@ -104,7 +99,7 @@ namespace Threadle.Core.Model
 
         public void _addInboundEdge(uint partnerNodeId, float value = 1)
         {
-            _inbound.Add(new Connection(partnerNodeId,value));
+            _inbound.Add(new Connection(partnerNodeId, value));
         }
 
         public void _addOutboundEdge(uint partnerNodeId, float value = 1)
@@ -120,7 +115,7 @@ namespace Threadle.Core.Model
 
         public void _sort()
         {
-            _inbound.Sort((a,b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
+            _inbound.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
             _outbound.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
         }
 
@@ -252,9 +247,9 @@ namespace Threadle.Core.Model
                     var union = new HashSet<uint>(_outbound.Count + _inbound.Count);
                     for (int i = 0; i < _outbound.Count; i++)
                         union.Add(_outbound[i].partnerNodeId);
-                    for (int i=0; i< _inbound.Count; i++)
+                    for (int i = 0; i < _inbound.Count; i++)
                         union.Add(_inbound[i].partnerNodeId);
-                    return union.Count>0 ? [.. union] : [];
+                    return union.Count > 0 ? [.. union] : [];
                 default:
                     return [];
             }

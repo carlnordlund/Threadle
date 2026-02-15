@@ -1,10 +1,5 @@
 ﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
@@ -32,7 +27,7 @@ namespace Threadle.Core.Model
         /// Returns the number of outbound edges in this edgeset.
         /// </summary>
         public uint NbrOutboundEdges { get => (uint)_outbound.Count; }
-        
+
         /// <summary>
         /// Returns the number of inbound edges in this edgeset.
         /// </summary>
@@ -48,12 +43,12 @@ namespace Threadle.Core.Model
         /// Returns a list of the outbound node ids in this edgeset.
         /// </summary>
         public List<uint> GetOutboundNodeIds { get => _outbound; }
-        
+
         /// <summary>
         /// Returns a list of inbound node ids in this edgeset.
         /// </summary>
         public List<uint> GetInboundNodeIds { get => _inbound; }
-        
+
         /// <summary>
         /// Returns a list of inbound and outbound node ids in this edgeset. Could thus contain duplicate node ids.
         /// </summary>
@@ -72,7 +67,7 @@ namespace Threadle.Core.Model
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
         {
             if (UserSettings.BlockMultiedges && _inbound.Contains(partnerNodeId))
-                return OperationResult.Fail("EdgeAlreadyExists","Edge already exists (blocked)");
+                return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _inbound.Add(partnerNodeId);
             return OperationResult.Ok();
         }

@@ -1,13 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
-using System.Threading.Tasks;
-using Threadle.Core.Utilities;
-
-namespace Threadle.CLIconsole.Runtime
+﻿namespace Threadle.CLIconsole.Runtime
 {
     /// <summary>
     /// Centralized helper for writing text output to the console.
@@ -16,15 +7,6 @@ namespace Threadle.CLIconsole.Runtime
     /// </summary>
     public static class ConsoleOutput
     {
-        #region Properties
-        /// <summary>
-        /// If true, informational messages are printed.
-        /// If false, only forced output (payloads, results) are printed.
-        /// </summary>
-        //public static bool Verbose { get; set; } = true;
-        #endregion
-
-
         #region Methods (public)
         /// <summary>
         /// Writes a line to STDOUT.

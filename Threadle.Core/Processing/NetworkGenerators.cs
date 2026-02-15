@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using Threadle.Core.Model;
+﻿using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -93,7 +86,7 @@ namespace Threadle.Core.Processing
             uint[] nodeIds = nodeset.NodeIdArray;
             int n = nodeIds.Length;
 
-            string[] hyperNames= new string[h];
+            string[] hyperNames = new string[h];
             for (int j = 0; j < h; j++)
             {
                 hyperNames[j] = $"aff_{j}";
@@ -156,7 +149,8 @@ namespace Threadle.Core.Processing
             {
                 newNode = nodeIds[i];
                 targets.Clear();
-                while (targets.Count<m) {
+                while (targets.Count < m)
+                {
                     candidate = edgeEndpoints[Misc.Random.Next(edgeEndpoints.Count)];
                     if (candidate != newNode)
                         targets.Add(candidate);
@@ -176,7 +170,7 @@ namespace Threadle.Core.Processing
         {
             if (k % 2 != 0)
                 return OperationResult.Fail("InvalidArgument", $"The node degree (k) is {k}; it must be an even number.");
-            if (beta<0 || beta>1)
+            if (beta < 0 || beta > 1)
                 return OperationResult.Fail("InvalidArgument", $"The rewiring probability (beta) is {beta}; it must be between 0 and 1.");
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
@@ -328,7 +322,7 @@ namespace Threadle.Core.Processing
         /// <returns>The calculated column index as a zero-based unsigned integer.</returns>
         private static uint GetCol(uint row, uint offsetInRow, long n, EdgeDirectionality directionality, bool selfties)
         {
-            if (directionality== EdgeDirectionality.Directed)
+            if (directionality == EdgeDirectionality.Directed)
             {
                 if (selfties)
                     return offsetInRow;

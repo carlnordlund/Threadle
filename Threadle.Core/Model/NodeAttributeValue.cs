@@ -1,10 +1,5 @@
-﻿using Threadle.Core.Model.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Runtime.InteropServices;
+using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Model
 {
@@ -132,7 +127,7 @@ namespace Threadle.Core.Model
         /// <param name="raw">The raw integer read from a byte stream.</param>
         /// <param name="type">The <see cref="NodeAttributeType"/> this should be interpreted as.</param>
         /// <returns>A correctly configured and set <see cref="NodeAttributeValue"/> struct.</returns>
-        public static NodeAttributeValue FromRaw (int raw, NodeAttributeType type)
+        public static NodeAttributeValue FromRaw(int raw, NodeAttributeType type)
         {
             return type switch
             {

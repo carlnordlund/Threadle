@@ -1,20 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Results;
+﻿using Threadle.CLIconsole.Results;
 using Threadle.Core.Model;
 
 namespace Threadle.CLIconsole.Runtime
 {
     /// <summary>
-    /// Why not place this in CommandContext, where it has access to the context,
-    /// so there is no need to provide it? Is it because I don't want CommandResult
-    /// referred to inside CommandContext?
+    /// Provides static helper methods for retrieving specific structures, such as Nodesets or Networks, from the
+    /// variable space of a CommandContext instance.
     /// </summary>
     internal static class CommandHelpers
     {
+        #region Methods (public)
         /// <summary>
         /// Helper function for getting a specific structure from the variable space of a provided
         /// context. Delivers the specific structure to the outbound value parameter.
@@ -63,5 +58,6 @@ namespace Threadle.CLIconsole.Runtime
                 return CommandResult.Fail("ConstraintNoNodeset", $"No Nodeset found in structure named '{name}'.");
             return null;
         }
+        #endregion
     }
 }

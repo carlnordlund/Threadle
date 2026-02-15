@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using Threadle.Core.Model;
+﻿using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -338,7 +332,7 @@ namespace Threadle.Core.Analysis
                     Queue<uint> queue = [];
                     queue.Enqueue(nodeId);
                     visited.Add(nodeId);
-                    while (queue.Count>0)
+                    while (queue.Count > 0)
                     {
                         uint current = queue.Dequeue();
                         componentIds[current] = currentComponentId;
@@ -357,7 +351,7 @@ namespace Threadle.Core.Analysis
             return componentIds;
         }
 
-        internal static Dictionary<string,object>? GetRandomEdge(ILayer layer, uint[] nodeIds, int maxAttempts)
+        internal static Dictionary<string, object>? GetRandomEdge(ILayer layer, uint[] nodeIds, int maxAttempts)
         {
             for (int i = 0; i < maxAttempts; i++)
             {
@@ -367,12 +361,12 @@ namespace Threadle.Core.Analysis
                     continue;
                 float value = layer.GetEdgeValue(node1, node2);
                 if (value > 0)
-                        return new Dictionary<string, object>
-                        {
-                            ["node1"] = node1,
-                            ["node2"] = node2,
-                            ["value"] = value
-                        };
+                    return new Dictionary<string, object>
+                    {
+                        ["node1"] = node1,
+                        ["node2"] = node2,
+                        ["value"] = value
+                    };
             }
             return null;
         }
@@ -412,7 +406,7 @@ namespace Threadle.Core.Analysis
                 int k = hyperedge.NbrNodes;
                 int weight = k * (k - 1) / 2;
                 weights.Add(weight);
-                totalWeight+= weight;
+                totalWeight += weight;
             }
 
             if (totalWeight == 0)
@@ -420,9 +414,9 @@ namespace Threadle.Core.Analysis
             Int64 randomWeight = Misc.Random.NextInt64(totalWeight);
 
             int selectedIndex = 0;
-            for (int i=0; i<weights.Count;i++)
+            for (int i = 0; i < weights.Count; i++)
             {
-                if (randomWeight<weights[i])
+                if (randomWeight < weights[i])
                 {
                     selectedIndex = i;
                     break;

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.Core.Model.Enums;
+﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -96,7 +90,7 @@ namespace Threadle.Core.Model
         /// Returns true if the layer has valued edges, otherwise false.
         /// </summary>
         public bool IsValued => EdgeValueType == EdgeType.Valued;
-        
+
         /// <summary>
         /// Returns the number of edges in the layer.
         /// </summary>
@@ -196,9 +190,9 @@ namespace Threadle.Core.Model
             foreach (var kvp in _edgesets)
             {
                 uint egoId = kvp.Key;
-                foreach (var(alterId, value) in kvp.Value.GetOutboundEdgesWithValues(egoId))
+                foreach (var (alterId, value) in kvp.Value.GetOutboundEdgesWithValues(egoId))
                 {
-                    if (skipped <offset)
+                    if (skipped < offset)
                     {
                         skipped++;
                         continue;
@@ -299,7 +293,8 @@ namespace Threadle.Core.Model
                 else
                     edgeSetFactory = () => new EdgesetBinarySymmetric();
             }
-            else if (IsValued) {
+            else if (IsValued)
+            {
                 if (IsDirectional)
                     edgeSetFactory = () => new EdgesetValuedDirectional();
                 else
@@ -320,7 +315,7 @@ namespace Threadle.Core.Model
         internal OperationResult AddEdge(uint node1Id, uint node2Id, float value = 1)
         {
             if (node1Id == node2Id && !Selfties)
-                return OperationResult.Fail("ConstraintSelftiesNotAllowed",$"Layer {Name} does not allow for selfties.");
+                return OperationResult.Fail("ConstraintSelftiesNotAllowed", $"Layer {Name} does not allow for selfties.");
             IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1Id);
             IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2Id);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)

@@ -1,13 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Emit;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using Threadle.Core.Model.Enums;
+﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -82,14 +73,14 @@ namespace Threadle.Core.Model
         /// Returns a dictionary with meta-information about this Network, including nodeset name and Layers.
         /// </summary>
         public Dictionary<string, object> Info => new Dictionary<string, object>
-            {
-                ["Type"] = "Network",
-                ["Name"] = Name,
-                ["Filepath"] = Filepath,
-                ["isModified"] = IsModified,
-                ["Nodeset"] = Nodeset.Name,
-                ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata)
-            };
+        {
+            ["Type"] = "Network",
+            ["Name"] = Name,
+            ["Filepath"] = Filepath,
+            ["isModified"] = IsModified,
+            ["Nodeset"] = Nodeset.Name,
+            ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata)
+        };
 
         /// <summary>
         /// Gets the Nodeset that this Network uses
@@ -353,7 +344,7 @@ namespace Threadle.Core.Model
 
             List<ILayer> layerList = [];
             // At least one layer has been specified
-            if (layerNames !=null && layerNames.Length > 0)
+            if (layerNames != null && layerNames.Length > 0)
                 foreach (var layerName in layerNames)
                 {
                     if (_getLayer(layerName) is not ILayer layer)
@@ -434,7 +425,7 @@ namespace Threadle.Core.Model
             if (total == 0)
                 message = $"Layer '{layerName}' has no hyperedges.";
             else if (hyperedgeNames.Length == 0)
-                message = $"Offset { offset} is beyond the available hyperedges in layer '{layerName}' (total: {total}).";
+                message = $"Offset {offset} is beyond the available hyperedges in layer '{layerName}' (total: {total}).";
             else if (offset == 0 && hyperedgeNames.Length == total)
                 message = $"Returning all {total} hyperedge(s) in layer '{layerName}':";
             else

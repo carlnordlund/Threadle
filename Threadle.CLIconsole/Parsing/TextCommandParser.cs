@@ -1,12 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+﻿using System.Text.RegularExpressions;
 
 namespace Threadle.CLIconsole.Parsing
 {
+    /// <summary>
+    /// Provides functionality to parse text-based command input into structured command packages, extracting command
+    /// names, optional variable assignments, and key-value arguments.
+    /// </summary>
+    /// <remarks>This parser is designed for command-line style input where commands may optionally assign
+    /// their result to a variable and may include arguments in parentheses. The parser returns a CommandPackage
+    /// representing the parsed command, or null if the input does not conform to the expected format. This class is not
+    /// thread-safe.</remarks>
     public sealed class TextCommandParser : ICommandParser
     {
         #region Fields
@@ -21,6 +24,17 @@ namespace Threadle.CLIconsole.Parsing
         private static readonly Regex argRegex = new(@"(?:([a-zA-Z0-9]+)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^,\s]+)))|(?:""([^""]*)""|'([^']*)'|([^=,\s]+))", RegexOptions.Compiled);
         #endregion
 
+        #region Methods (public)
+        /// <summary>
+        /// Parses a command-line input string and returns a corresponding CommandPackage object containing the command
+        /// name, assigned variable, and named arguments.
+        /// </summary>
+        /// <remarks>The input string must conform to the expected command-line format for successful
+        /// parsing. The method extracts the command name, an optional assigned variable, and any named or positional
+        /// arguments from the input. If the input cannot be parsed, the method returns null.</remarks>
+        /// <param name="input">The input string representing a command and its arguments to be parsed.</param>
+        /// <returns>A CommandPackage object that represents the parsed command and its arguments, or null if the input does not
+        /// match the expected command format.</returns>
         public CommandPackage? Parse(string input)
         {
             // existing CLI parsing logic
@@ -57,5 +71,6 @@ namespace Threadle.CLIconsole.Parsing
             }
             return cmd;
         }
+        #endregion
     }
 }

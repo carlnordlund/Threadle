@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Parsing;
+﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.Core.Utilities;
 
@@ -16,6 +11,7 @@ namespace Threadle.CLIconsole.Runtime
     /// </summary>
     internal static class ScriptExecutor
     {
+        #region Methods (public)
         /// <summary>
         /// Reads and executes a script file, working with the provided CommandContext. Creates
         /// its own TextCommandParser for reading and parsing commands. Will provide any payloads and
@@ -48,7 +44,7 @@ namespace Threadle.CLIconsole.Runtime
 
                 var pkt = parser.Parse(line);
                 if (pkt == null)
-                    return CommandResult.Fail("InvalidSyntax",$"Invalid command syntax at line {i + 1}.");
+                    return CommandResult.Fail("InvalidSyntax", $"Invalid command syntax at line {i + 1}.");
 
                 var lineResult = CommandDispatcher.Dispatch(pkt, context);
                 if (!lineResult.Success)
@@ -61,5 +57,6 @@ namespace Threadle.CLIconsole.Runtime
             }
             return CommandResult.Ok($"Script '{filePath}' executed successfully", payload: payloads, assignments: assigned);
         }
+        #endregion
     }
 }

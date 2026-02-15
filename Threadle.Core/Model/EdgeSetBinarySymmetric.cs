@@ -1,10 +1,5 @@
 ﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
@@ -28,13 +23,13 @@ namespace Threadle.Core.Model
         /// total number of edges as they are symmetric.
         /// </summary>
         public uint NbrOutboundEdges { get => (uint)_connections.Count; }
-        
+
         /// <summary>
         /// Returns the number of inbound edges in this edgeset, i.e. the
         /// total number of edges as they are symmetric.
         /// </summary>
         public uint NbrInboundEdges { get => (uint)_connections.Count; }
-        
+
         /// <summary>
         /// Returns the number of edges in this edgeset. Only used when counting edges for view command,
         /// and needs to be the same for directional and symmetric layers.
@@ -46,7 +41,7 @@ namespace Threadle.Core.Model
         /// As edges are symmetric, it is the same set as the inbound.
         /// </summary>
         public List<uint> GetOutboundNodeIds { get => _connections; }
-        
+
         /// <summary>
         /// Returns a list of the inbound node ids in this edgeset.
         /// As edges are symmetric, it is the same set as the outbound.
@@ -219,7 +214,7 @@ namespace Threadle.Core.Model
             foreach (uint alterNodeId in _connections)
             {
                 if (alterNodeId > egoNodeId)
-                    ret.Add(alterNodeId);                
+                    ret.Add(alterNodeId);
             }
             return ret;
         }

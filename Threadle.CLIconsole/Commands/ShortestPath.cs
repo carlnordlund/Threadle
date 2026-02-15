@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Parsing;
+﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
-using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -47,7 +41,7 @@ namespace Threadle.CLIconsole.Commands
             var shortestPathResult = Analyses.ShortestPath(network, layerName, node1id, node2id);
             if (!shortestPathResult.Success)
                 return CommandResult.FromOperationResult(shortestPathResult);
-            return CommandResult.Ok($"Shortest path from node '{node1id}' to '{node2id}' is {shortestPathResult.Value}",shortestPathResult.Value);
+            return CommandResult.Ok($"Shortest path from node '{node1id}' to '{node2id}' is {shortestPathResult.Value}", shortestPathResult.Value);
         }
     }
 }

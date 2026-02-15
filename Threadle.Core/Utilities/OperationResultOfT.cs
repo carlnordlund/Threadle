@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Threadle.Core.Utilities
+﻿namespace Threadle.Core.Utilities
 {
     /// <summary>
     /// Represents the outcome of several methods in Threadle, indicating success or failure.

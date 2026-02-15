@@ -1,9 +1,4 @@
 ﻿using Threadle.Core.Model.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Threadle.Core.Model
 {
@@ -36,7 +31,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <returns>A HashSet of node ids.</returns>
         HashSet<uint> GetMentionedNodeIds();
-        
+
         /// <summary>
         /// Returns the value of a potential edge between two nodes. If no edge
         /// exists, returns zero. For 1-mode layers, returns 1 for binary layers and the edge
@@ -56,7 +51,7 @@ namespace Threadle.Core.Model
         /// <param name="node2Id">The second node id.</param>
         /// <returns>Returns true if there is a node, false otherwise.</returns>
         bool CheckEdgeExists(uint node1Id, uint node2Id);
-        
+
         /// <summary>
         /// Returns an array of node ids for the alters for a specified ego node.
         /// </summary>

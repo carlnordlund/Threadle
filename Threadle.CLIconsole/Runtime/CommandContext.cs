@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Results;
+﻿using Threadle.CLIconsole.Results;
 using Threadle.Core.Model;
 using Threadle.Core.Utilities;
 
@@ -21,12 +16,9 @@ namespace Threadle.CLIconsole.Runtime
         /// by the variable names that these structures were assigned to.
         /// </summary>
         public Dictionary<string, IStructure> Variables { get; } = new();
-
-        public List<string> VariableNames => Variables.Select(kvp => $"{kvp.Key} [{kvp.Value.GetType().Name}]").ToList();
         #endregion
 
 
-            
         #region Methods (internal)
         /// <summary>
         /// Returns a dictionary with metadata about the structures currently stored in the
@@ -63,7 +55,7 @@ namespace Threadle.CLIconsole.Runtime
         {
             if (!Variables.TryGetValue(name, out var structure))
                 return CommandResult.Fail("StructureNotFound", $"Structure {name} not found.");
-                //return OperationResult.Fail("StructureNotFound", $"Structure {name} not found.");
+            //return OperationResult.Fail("StructureNotFound", $"Structure {name} not found.");
             if (structure is Nodeset nodeset)
             {
                 foreach (var kvp in Variables)
@@ -86,19 +78,13 @@ namespace Threadle.CLIconsole.Runtime
         }
 
         /// <summary>
-        /// Tries to get an object of type T from the console variable memory. Throws an exception if unsuccessful.
+        /// Tries to get an object of type T from the console variable memory. Returns true if successful, false otherwise.
+        /// The actual object is returned via the out parameter <paramref name="value"/>. Note that if the method returns false, the value of the out parameter is null.
         /// </summary>
         /// <typeparam name="T">The type of object to get.</typeparam>
         /// <param name="name">The variable name.</param>
-        /// <returns>Returns the object of type T.</returns>
-        /// <exception cref="Exception">Thrown if the object is not found.</exception>
-        internal T GetVariableThrowExceptionIfMissing<T>(string name) where T: class
-        {
-            if (Variables.TryGetValue(name, out var value) && value is T typedValue)
-                return typedValue;
-            throw new Exception($"!Error: No {typeof(T).Name} named '{name}' found.");
-        }
-
+        /// <param name="value">The return object of type T, null if no such object exists.</param>
+        /// <returns>True if successful, otherwise false.</returns>
         internal bool TryGetVariable<T>(string name, out T value) where T : class
         {
             if (Variables.TryGetValue(name, out var raw) && raw is T typed)
@@ -109,31 +95,6 @@ namespace Threadle.CLIconsole.Runtime
             value = null!;
             return false;
         }
-
-
-        //internal CommandResult? TryGetVariable<T>(string name, out T value) where T : class
-        //{
-        //    if (Variables.TryGetValue(name, out var raw) && raw is T typed)
-        //    {
-        //        value = typed;
-        //        return null;
-        //    }
-        //    value = null!;
-        //    return CommandResult.Fail("VariableNotFound", $"No {typeof(T).Name} named '{name}' found.");
-
-
-
-
-        //    //if (!context.TryGetVariable(name, out value))
-        //    //{
-        //    //    return CommandResult.Fail(
-        //    //        "VariableNotFound",
-        //    //        $"No {typeof(T).Name} named '{name}' found."
-        //    //    );
-        //    //}
-        //    //return null;
-        //}
-
 
         /// <summary>
         /// Returns the next available variable name, either based on a provided <paramref name="baseName"/> or following the Untitled-
@@ -157,29 +118,6 @@ namespace Threadle.CLIconsole.Runtime
         }
 
         /// <summary>
-        /// Convenience function for obtaining a <see cref="Nodeset"/> from a provided variable name, which
-        /// can then either be a variable for a <see cref="Nodeset"/> or for a <see cref="Network"/>. If the latter,
-        /// the <see cref="Nodeset"/> in that Network is returned. Throws an exception if neither a Nodeset nor a
-        /// Network is found.
-        /// </summary>
-        /// <remarks>Note that this method, like some other methods, is prepared for expanding Threadle to handle other
-        /// kind of possible <see cref="IStructure"/> objects in the future, i.e. not just <see cref="Nodeset"/> and <see cref="Network"/>
-        /// objects.</remarks>
-        /// <param name="structureName">The name of the structure (i.e. either a <see cref="Nodeset"/> or a <see cref="Network"/>).</param>
-        /// <returns>Returns a <see cref="Nodeset"/> object.</returns>
-        /// <exception cref="ArgumentException">Thrown if the structure is neither a Nodeset nor a Network object.</exception>
-        //internal Nodeset GetNodesetFromIStructure(string structureName)
-        //{
-        //    Nodeset nodeset = GetVariableThrowExceptionIfMissing<IStructure>(structureName) switch
-        //    {
-        //        Nodeset ns => ns,
-        //        Network net => net.Nodeset,
-        //        _ => throw new ArgumentException($"Structure '{structureName}' neither a Nodeset nor a Network.")
-        //    };
-        //    return nodeset;
-        //}
-
-        /// <summary>
         /// Returns a collection of all <see cref="Network"/> objects that refers to the provided <see cref="Nodeset"/> object.
         /// Used by <see cref="Commands.RemoveNode"/> to make sure that the removal of a node also removes related edges in all
         /// networks that use this particular <see cref="Nodeset"/>.
@@ -190,19 +128,6 @@ namespace Threadle.CLIconsole.Runtime
         {
             return Variables.Values.OfType<Network>().Where(net => ReferenceEquals(net.Nodeset, nodeset));
         }
-        #endregion
-
-
-        #region Methods (private)
-        /// <summary>
-        /// Checks if there is a stored structure with the specified variable name in the console variable memory.
-        /// </summary>
-        /// <param name="name">The variable name.</param>
-        /// <returns>Returns true if there is such a stored variable, false otherwise.</returns>
-        //private bool VariableExists(string name)
-        //{
-        //    return Variables.ContainsKey(name);
-        //}
         #endregion
     }
 }

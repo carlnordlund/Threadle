@@ -1,13 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using Threadle.Core.Model.Enums;
+﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -328,7 +319,7 @@ namespace Threadle.Core.Model
                 else
                     result[nodeId] = null;
             }
-            return OperationResult<Dictionary<uint,object?>>.Ok(result);
+            return OperationResult<Dictionary<uint, object?>>.Ok(result);
         }
 
         /// <summary>

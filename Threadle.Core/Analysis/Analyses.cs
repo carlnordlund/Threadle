@@ -1,12 +1,6 @@
 ﻿using Threadle.Core.Model;
-using Threadle.Core.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Threadle.Core.Model.Enums;
-using System.Runtime.InteropServices.Marshalling;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Analysis
 {
@@ -23,7 +17,7 @@ namespace Threadle.Core.Analysis
         /// <param name="nodeset">The Nodeset structure.</param>
         /// <param name="attrName">The attribute name.</param>
         /// <returns>An <see cref="OperationResult"/> with a potentially nested string-object dictionary with summary statistics about the attribute.</returns>
-        public static OperationResult<Dictionary<string,object>> GetAttributeSummary(Nodeset nodeset, string attrName)
+        public static OperationResult<Dictionary<string, object>> GetAttributeSummary(Nodeset nodeset, string attrName)
         {
             if (!nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult<Dictionary<string, object>>.Fail("AttributeNotFound", $"Attribute '{attrName}' not found in nodeset '{nodeset.Name}'.");
@@ -43,7 +37,7 @@ namespace Threadle.Core.Analysis
             switch (attrType)
             {
                 case NodeAttributeType.Int:
-                    stats = Functions.CalculateIntStatistics(nodeset, attrIndex,  out countWithValues);
+                    stats = Functions.CalculateIntStatistics(nodeset, attrIndex, out countWithValues);
                     break;
                 case NodeAttributeType.Float:
                     stats = Functions.CalculateFloatStatistics(nodeset, attrIndex, out countWithValues);
@@ -87,7 +81,7 @@ namespace Threadle.Core.Analysis
             {
                 Queue<uint> queue = [];
                 HashSet<uint> visited = [];
-                Dictionary<uint,int> distances = [];
+                Dictionary<uint, int> distances = [];
                 uint current;
 
                 if (layerName != null && layerName.Length > 0)
@@ -104,7 +98,7 @@ namespace Threadle.Core.Analysis
                     while (queue.Count > 0)
                     {
                         current = queue.Dequeue();
-                        foreach (uint neighborId in layer.GetNodeAlters(current,EdgeTraversal.Out))
+                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
                         {
                             if (!visited.Contains(neighborId))
                             {
@@ -123,7 +117,7 @@ namespace Threadle.Core.Analysis
                     queue.Enqueue(nodeIdFrom);
                     visited.Add(nodeIdFrom);
                     distances[nodeIdFrom] = 0;
-                    while (queue.Count>0)
+                    while (queue.Count > 0)
                     {
                         current = queue.Dequeue();
                         foreach (uint neighborId in network._getNodeAltersAllLayers(current, EdgeTraversal.Out))
@@ -170,19 +164,19 @@ namespace Threadle.Core.Analysis
         /// <param name="layerName">The name of the layer.</param>
         /// <param name="attrName">The name of the node attribute where to store the component index.</param>
         /// <returns>An <see cref="OperationResult"/> object informing how well it went, with a string-object dictionary with additional information.</returns>
-        public static OperationResult<Dictionary<string,object>> ConnectedComponents(Network network, string layerName, string? attrName = null)
+        public static OperationResult<Dictionary<string, object>> ConnectedComponents(Network network, string layerName, string? attrName = null)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
-                return OperationResult<Dictionary<string,object>>.Fail(layerResult);
+                return OperationResult<Dictionary<string, object>>.Fail(layerResult);
             ILayer layer = layerResult.Value!;
             Dictionary<uint, int> componentIndexMapping = Functions.ConnectedComponents(network, layer);
             var attrDict = componentIndexMapping.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
             attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_componentIndex";
             var setAttrResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
             if (!setAttrResult.Success)
-                return OperationResult<Dictionary<string,object>>.Fail(setAttrResult);
-            
+                return OperationResult<Dictionary<string, object>>.Fail(setAttrResult);
+
             Dictionary<string, object> componentInfo = [];
             int nbrComponents = componentIndexMapping.Values.Max() + 1;
             int[] componentSizes = new int[nbrComponents];
@@ -190,7 +184,7 @@ namespace Threadle.Core.Analysis
                 componentSizes[compId]++;
             componentInfo["NbrComponents"] = nbrComponents;
             componentInfo["ComponentSizes"] = componentSizes.OrderByDescending(c => c).ToList();
-            return OperationResult<Dictionary<string,object>>.Ok(componentInfo);
+            return OperationResult<Dictionary<string, object>>.Ok(componentInfo);
 
             //return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
         }
@@ -327,7 +321,7 @@ namespace Threadle.Core.Analysis
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
-                return OperationResult<Dictionary<string,object>>.Fail(layerResult);
+                return OperationResult<Dictionary<string, object>>.Fail(layerResult);
             var layer = layerResult.Value!;
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
@@ -343,10 +337,10 @@ namespace Threadle.Core.Analysis
                 randomEdge = Functions.GetRandomEdgeSweepOneMode(layerOneMode);
             else if (layer is LayerTwoMode layerTwoMode)
                 randomEdge = Functions.GetRandomEdgeWeightedTwoMode(layerTwoMode);
-            
+
             if (randomEdge == null)
-                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Could not find any edge in layer {layerName}.");    
-            return OperationResult<Dictionary<string, object>>.Ok(randomEdge,"Random edge found through non-polling.");
+                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Could not find any edge in layer {layerName}.");
+            return OperationResult<Dictionary<string, object>>.Ok(randomEdge, "Random edge found through non-polling.");
         }
         #endregion
     }

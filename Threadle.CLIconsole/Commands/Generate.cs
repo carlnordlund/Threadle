@@ -1,15 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Parsing;
+﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Model;
-using Threadle.Core.Model.Enums;
 using Threadle.Core.Processing;
-using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -44,7 +37,8 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string type = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg2").ToLowerInvariant();
-            switch (type) {
+            switch (type)
+            {
                 case "er":
                     double p = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("p", null);
                     return CommandResult.FromOperationResult(NetworkGenerators.GenerateErdosRenyiLayer(network, layerName, p));

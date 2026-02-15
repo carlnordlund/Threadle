@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Threadle.Core.Model
+﻿namespace Threadle.Core.Model
 {
     /// <summary>
     /// Represents a valued tie, used by the valued edgesets where both a partnerNodeId and

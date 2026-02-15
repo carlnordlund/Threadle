@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.Core.Utilities;
-
-namespace Threadle.Core.Model
+﻿namespace Threadle.Core.Model
 {
     /// <summary>
     /// Describes an affiliation, e.g. like a specific school class, a specific workplace or similar

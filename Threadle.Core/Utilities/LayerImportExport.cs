@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using Threadle.Core.Model;
+﻿using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Utilities
@@ -162,7 +155,7 @@ namespace Threadle.Core.Utilities
                         // Skip rows where we can't parse node ids
                         if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id))
                             continue;
-                        
+
                         // Skip edges with nodes that are missing
                         if (!network.Nodeset.CheckThatNodeExists(node1Id) || !network.Nodeset.CheckThatNodeExists(node2Id))
                             continue;
@@ -270,7 +263,7 @@ namespace Threadle.Core.Utilities
                 throw new Exception($"Number of rows ({nbrRows}) different than number of columns ({nbrCols}) in file '{filepath}'");
             uint[] rowIds = new uint[nbrRows - 1];
             uint[] colIds = new uint[nbrCols - 1];
-            for (int i=1; i<nbrCols;i++)
+            for (int i = 1; i < nbrCols; i++)
             {
                 if (!uint.TryParse(cells[0, i], out colIds[i - 1]))
                     throw new Exception($"Column header '{cells[0, i]}' in file '{filepath}' not an unsigned integer.");

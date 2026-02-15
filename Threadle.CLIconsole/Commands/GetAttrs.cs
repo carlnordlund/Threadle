@@ -1,14 +1,7 @@
-﻿using Threadle.Core.Model;
-using Threadle.Core.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Parsing;
+﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -46,7 +39,7 @@ namespace Threadle.CLIconsole.Commands
                 return CommandResult.Fail("ParseError", "Could not parse semicolon-separated list with nodes.");
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg2");
 
-            OperationResult<Dictionary<uint, object?>> result = nodeset!.GetMultipleNodeAttributes(nodeIds, attrName); 
+            OperationResult<Dictionary<uint, object?>> result = nodeset!.GetMultipleNodeAttributes(nodeIds, attrName);
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);
             return CommandResult.Ok(result.Message, result.Value);

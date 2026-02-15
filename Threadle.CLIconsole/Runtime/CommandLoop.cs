@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 
@@ -42,6 +38,7 @@ namespace Threadle.CLIconsole.Runtime
                     $"\r\n" +
                     $"  Project website: \u001b[36mhttps://threadle.dev\u001b[0m\r\n" +
                     $"  Funding: Swedish Research Council (Vetenskapsrådet), Grant 2024-01861\r\n" +
+                    $"  License: MIT · © 2026 Carl Nordlund\r\n"+
                     $"\r\n" +
                     $"  Type '\u001b[36mhelp\u001b[0m' for commands, '\u001b[36mexit\u001b[0m' to quit.\r\n"
                 };
@@ -87,7 +84,7 @@ namespace Threadle.CLIconsole.Runtime
             {
                 if (!jsonMode)
                     ConsoleOutput.Write("> ");
-                
+
                 var line = Console.ReadLine();
                 if (line == null)
                     break;
@@ -104,7 +101,7 @@ namespace Threadle.CLIconsole.Runtime
                     ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
                     continue;
                 }
-                
+
                 try
                 {
                     var result = CommandDispatcher.Dispatch(command, context);
@@ -150,26 +147,6 @@ namespace Threadle.CLIconsole.Runtime
                 currentLineLength += word.Length;
             }
             return wrapped;
-        }
-
-        private static void RenderResult(CommandResult result)
-        {
-            if (!result.Success)
-            {
-                ConsoleOutput.WriteLine($"!Error [{result.Code}]: {result.Message}");
-                return;
-            }
-            ConsoleOutput.WriteLine(result.Message);
-            if (result.Assigned!=null)
-            {
-                foreach (var kvp in result.Assigned)
-                    ConsoleOutput.WriteLine($"  Assigned {kvp.Key} : {kvp.Value}");
-            }
-
-            if (result.Payload!=null)
-            {
-                ConsoleOutput.WriteLine(result.Payload.ToString() ?? "");
-            }
         }
         #endregion
     }

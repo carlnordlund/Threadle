@@ -1,15 +1,19 @@
-﻿using Threadle.CLIconsole.Commands;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text.RegularExpressions;
+using Threadle.CLIconsole.Commands;
 using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
-using System.Text.RegularExpressions;
 
 namespace Threadle.CLIconsole.Runtime
 {
+    /// <summary>
+    /// Provides a centralized mechanism for dispatching command-line interface (CLI) commands to their corresponding
+    /// handlers within the application.
+    /// </summary>
+    /// <remarks>The CommandDispatcher class maintains a registry of available CLI commands and their
+    /// associated ICommand implementations. It enables dynamic execution of commands based on user input, supports
+    /// retrieval of command metadata for help and documentation purposes, and facilitates extensibility by allowing new
+    /// commands to be added to the registry. This class is intended for internal use by the CLI infrastructure and is
+    /// not intended to be instantiated.</remarks>
     public static class CommandDispatcher
     {
         #region Fields
@@ -44,7 +48,7 @@ namespace Threadle.CLIconsole.Runtime
             ["getallhyperedges"] = new GetAllHyperedges(),
             ["getallnodes"] = new GetAllNodes(),
             ["getattr"] = new GetAttr(),
-            ["getattrs"]=new GetAttrs(),
+            ["getattrs"] = new GetAttrs(),
             ["getattrsummary"] = new GetAttrSummary(),
             ["getedge"] = new GetEdge(),
             ["gethyperedgenodes"] = new GetHyperedgeNodes(),
@@ -82,59 +86,6 @@ namespace Threadle.CLIconsole.Runtime
         #endregion
 
 
-        #region Constructor
-        /// <summary>
-        /// Initializes a new instance of the <see cref="CommandDispatcher"/> class, setting
-        /// all available CLI commands and their corresponding classes.
-        /// </summary>
-        //public CommandDispatcher()
-        //{
-        //    _commands["addaff"] = new AddAffiliation();
-        //    _commands["addedge"] = new AddEdge();
-        //    _commands["addhyper"] = new AddHyper();
-        //    _commands["addlayer"] = new AddLayer();
-        //    _commands["addnode"] = new _addNodeWithAttributes();
-        //    _commands["checkedge"] = new CheckEdge();
-        //    _commands["clearlayer"] = new ClearLayer();
-        //    _commands["createnetwork"] = new CreateNetwork();
-        //    _commands["createnodeset"] = new CreateNodeset();
-        //    _commands["defineattr"] = new DefineAttr();
-        //    _commands["degree"] = new Degree();
-        //    _commands["delete"] = new Remove();
-        //    _commands["deleteall"] = new RemoveAll();
-        //    _commands["density"] = new Density();
-        //    _commands["dichotomize"] = new Dichotomize();
-        //    _commands["filter"] = new Filter();
-        //    _commands["generate"] = new GenerateRandom();
-        //    _commands["getattr"] = new GetAttr();
-        //    _commands["getedge"] = new GetEdge();
-        //    _commands["getnbrnodes"] = new GetNbrNodes();
-        //    _commands["getnodealters"] = new GetNodeAlters();
-        //    _commands["getnodeidbyindex"] = new GetNodeIdByIndex();
-        //    _commands["getrandomalter"] = new GetRandomAlter();
-        //    _commands["getrandomnode"] = new GetRandomNode();
-        //    _commands["getwd"] = new GetWorkingDirectory();
-        //    _commands["i"] = new Inventory();
-        //    _commands["importlayer"] = new ImportLayer();
-        //    _commands["info"] = new Info();
-        //    _commands["loadfile"] = new LoadFile();
-        //    _commands["preview"] = new Preview();
-        //    _commands["removeaff"] = new RemoveAffiliation();
-        //    _commands["removeattr"] = new RemoveAttr();
-        //    _commands["removeedge"] = new RemoveEdge();
-        //    _commands["removehyper"] = new RemoveHyper();
-        //    _commands["removelayer"] = new RemoveLayer();
-        //    _commands["removenode"] = new RemoveNode();
-        //    _commands["savefile"] = new SaveFile();
-        //    _commands["setattr"] = new SetAttr();
-        //    _commands["setting"] = new Setting();
-        //    _commands["setwd"] = new SetWorkingDirectory();
-        //    _commands["subnet"] = new Subnet();
-        //    _commands["undefineattr"] = new UndefineAttr();
-        //}
-        #endregion
-
-
         #region Methods (internal)
         /// <summary>
         /// Method to dispatch a particular command, providing the current command context (i.e.
@@ -157,13 +108,6 @@ namespace Threadle.CLIconsole.Runtime
         }
 
         /// <summary>
-        /// Returns the dictionary of all commands, used by the command loop when responding to the
-        /// 'help' CLI command.
-        /// </summary>
-        /// <returns>Returns the dictionary of CLI commands and their corresponding classes.</returns>
-        internal static Dictionary<string, ICommand> GetAllCommands() => _commands;
-
-        /// <summary>
         /// Returns the command class for a particular CLI command, or null if no such command exists.
         /// </summary>
         /// <param name="name">The CLI command for the particular <see cref="ICommand"/> class.</param>
@@ -171,11 +115,16 @@ namespace Threadle.CLIconsole.Runtime
         internal static ICommand? GetCommand(string name)
             => _commands.TryGetValue(name.ToLower(), out var cmd) ? cmd : null;
 
+        /// <summary>
+        /// Retrieves help information for the specified command, including its syntax and description.
+        /// </summary>
+        /// <param name="commandName">The name of the command for which help information is requested. This parameter cannot be null or empty.</param>
+        /// <returns>A CommandResult containing the help information for the specified command. If the command is not found, the
+        /// result indicates failure with an appropriate error message.</returns>
         internal static CommandResult GetHelpFor(string commandName)
         {
             if (!(GetCommand(commandName) is ICommand command))
                 return CommandResult.Fail("CommandNotFound", $"The command '{commandName}' was not found.");
-
 
             Dictionary<string, string> helpText = new()
             {
@@ -187,9 +136,15 @@ namespace Threadle.CLIconsole.Runtime
                 $"Help for command '{commandName}':",
                 helpText
                 );
-
         }
 
+        /// <summary>
+        /// Retrieves a summary of all available commands, including their syntax and descriptions.
+        /// </summary>
+        /// <remarks>Use this method to display a comprehensive list of supported commands and their usage
+        /// details to users. This can assist in building help menus or command reference documentation.</remarks>
+        /// <returns>A CommandResult containing a collection of help information for each registered command. Each entry includes
+        /// the command name, its syntax, and a description.</returns>
         internal static CommandResult GetHelpForAll()
         {
             List<Dictionary<string, string>> helpTexts = [];
@@ -207,6 +162,15 @@ namespace Threadle.CLIconsole.Runtime
             );
         }
 
+        /// <summary>
+        /// Saves the syntax and descriptions of all registered commands to a specified file.
+        /// </summary>
+        /// <remarks>This method extracts the syntax and description for each registered command and
+        /// writes them to the specified file in a tab-separated format. This method is specifically
+        /// designed for updating the CLI command page on the THreadle website!</remarks>
+        /// <param name="filepath">The path to the file where the command syntax details will be written. This value must not be null or empty.</param>
+        /// <returns>A CommandResult indicating whether the operation succeeded. The result message contains the file path where
+        /// the syntax details were saved.</returns>
         internal static CommandResult DumpHelpToFile(string filepath)
         {
             var pattern = @"^(?:\s*(\[[^\]]+\])\s*=\s*)?([a-zA-Z_]\w*)\s*\(\s*(.*?)\s*\)\s*$";
@@ -220,8 +184,6 @@ namespace Threadle.CLIconsole.Runtime
 
             return CommandResult.Ok($"Saved syntax details to file '{filepath}'");
         }
-
-
         #endregion
     }
 }

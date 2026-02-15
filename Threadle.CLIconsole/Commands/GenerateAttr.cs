@@ -1,15 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Parsing;
+﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
-using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Processing;
-using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -43,7 +36,7 @@ namespace Threadle.CLIconsole.Commands
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
-            NodeAttributeType attrType = command.GetArgumentParseEnum<NodeAttributeType>("attrtype",NodeAttributeType.Int);
+            NodeAttributeType attrType = command.GetArgumentParseEnum<NodeAttributeType>("attrtype", NodeAttributeType.Int);
             switch (attrType)
             {
                 case NodeAttributeType.Int:

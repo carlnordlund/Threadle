@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO.Compression;
-using System.Linq;
+﻿using System.IO.Compression;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 
@@ -139,7 +134,7 @@ namespace Threadle.Core.Utilities
         /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset.</returns>
         /// <exception cref="InvalidDataException">Thrown if the binary file isn't a Threadle Network file or if it is the wrong version.</exception>
         private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader)
-        {            
+        {
             // Check magic bytes - should be the MagicNetwork characters (TNTW)
             var magicBytes = reader.ReadBytes(4);
             string magic = Encoding.ASCII.GetString(magicBytes);
@@ -169,7 +164,7 @@ namespace Threadle.Core.Utilities
             int nbrLayers = reader.ReadByte();
 
             // Loop through the layers to load
-            for (int i=0; i<nbrLayers; i++)
+            for (int i = 0; i < nbrLayers; i++)
             {
                 string layerName = ReadString(reader);
                 int mode = reader.ReadByte();
@@ -219,7 +214,7 @@ namespace Threadle.Core.Utilities
                         for (uint j = 0; j < nbrEdgesets; j++)
                         {
                             // Get ego of nodelist row
-                            uint nodeIdEgo=reader.ReadUInt32();
+                            uint nodeIdEgo = reader.ReadUInt32();
 
                             // Get nbr of alters
                             int nbrAlters = reader.ReadInt32();
@@ -327,7 +322,7 @@ namespace Threadle.Core.Utilities
             nodeset.InitSizeNodesWithoutAttributes(nbrNodesWithoutAttributes);
 
             // Iterate through all nodes without attributes
-            for (int i=0;  i < nbrNodesWithoutAttributes; i++)
+            for (int i = 0; i < nbrNodesWithoutAttributes; i++)
             {
                 // Read nodeId
                 uint nodeId = reader.ReadUInt32();
@@ -351,7 +346,7 @@ namespace Threadle.Core.Utilities
                 byte nodeAttrCount = reader.ReadByte();
 
                 // Prepare storage for these node attributes
-                List<byte> attrIndexes =new(nodeAttrCount);
+                List<byte> attrIndexes = new(nodeAttrCount);
                 List<NodeAttributeValue> attrValues = new(nodeAttrCount);
 
                 // Loop through the attributes of this node
@@ -393,7 +388,7 @@ namespace Threadle.Core.Utilities
 
             // Format version (1)
             writer.Write(FormatVersion);
-            
+
             // Nodeset name (length + string)
             WriteString(writer, nodeset.Name);
 
@@ -586,7 +581,7 @@ namespace Threadle.Core.Utilities
                         foreach (uint nodeId in hyperedge.NodeIds)
                             writer.Write(nodeId);
                     }
-                }                
+                }
             }
         }
 

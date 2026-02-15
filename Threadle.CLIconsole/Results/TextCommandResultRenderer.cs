@@ -1,11 +1,4 @@
-﻿using System;
-using System.CodeDom.Compiler;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using Threadle.CLIconsole.Runtime;
+﻿using Threadle.CLIconsole.Runtime;
 
 namespace Threadle.CLIconsole.Results
 {
@@ -111,7 +104,7 @@ namespace Threadle.CLIconsole.Results
                     RenderDictionary(dict, indent);
                     break;
 
-                case IEnumerable<Dictionary<string,string>> helpTexts:
+                case IEnumerable<Dictionary<string, string>> helpTexts:
                     RenderHelpLines(helpTexts, indent);
                     break;
 
@@ -199,7 +192,13 @@ namespace Threadle.CLIconsole.Results
                 Console.Out.WriteLine($"{pad}{line}");
         }
 
-        private static void RenderDictionaryList(IEnumerable<Dictionary<string, object>> items, int indent =0)
+        /// <summary>
+        /// Helper method to display a List of string-object dictionaries.
+        /// Each dictionary is displayed as a single line, with key-value pairs separated by commas.
+        /// </summary>
+        /// <param name="items">A collection of string-object dictionaries.</param>
+        /// <param name="indent">Current indentation.</param>
+        private static void RenderDictionaryList(IEnumerable<Dictionary<string, object>> items, int indent = 0)
         {
             string pad = new string(' ', indent * 2);
 

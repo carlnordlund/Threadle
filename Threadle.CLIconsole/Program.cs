@@ -1,5 +1,4 @@
-﻿using Threadle.Core.Utilities;
-using System.Globalization;
+﻿using System.Globalization;
 using Threadle.CLIconsole.Runtime;
 
 namespace Threadle.CLIconsole

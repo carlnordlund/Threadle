@@ -1,10 +1,4 @@
 ﻿using Threadle.Core.Model;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Reflection.Metadata.Ecma335;
 
 namespace Threadle.Core.Utilities
 {
@@ -58,7 +52,7 @@ namespace Threadle.Core.Utilities
             {
                 if (filepath is null || filepath.Length == 0)
                     return OperationResult.Fail("MissingFilepath", $"No filepath for structure '{structure.Name}' provided.");
-                    
+
                 return structure switch
                 {
                     Nodeset nodeset => SaveNodeset(nodeset, filepath),
@@ -252,7 +246,7 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="path">Optional filepath: if null, the current working will be used.</param>
         /// <returns>Returns a string-object dictionary with info about the directories and files.</returns>
-        public static OperationResult<Dictionary<string,object>> GetDirectoryListing(string? path = null)
+        public static OperationResult<Dictionary<string, object>> GetDirectoryListing(string? path = null)
         {
             try
             {
@@ -262,7 +256,7 @@ namespace Threadle.Core.Utilities
                 var directories = Directory.GetDirectories(targetPath)
                     .Select(d => new DirectoryInfo(d))
                     .OrderBy(d => d.Name)
-                    .Select(d => new Dictionary<string,object>
+                    .Select(d => new Dictionary<string, object>
                     {
                         ["Name"] = d.Name//,
                         //["Type"] ="Directory",
@@ -377,8 +371,8 @@ namespace Threadle.Core.Utilities
                 // Imperative that this Nodeset is first stored on file (separately, so that it has a Filepath property).
                 // If not: throw back a Fail
                 if (nodeset.Filepath is null || nodeset.Filepath.Length == 0)
-                    return OperationResult.Fail("ConstraintUnsavedNodeset",$"Network '{network.Name}' uses nodeset '{nodeset.Name}' which is not yet saved to file. Save that first!");
-                
+                    return OperationResult.Fail("ConstraintUnsavedNodeset", $"Network '{network.Name}' uses nodeset '{nodeset.Name}' which is not yet saved to file. Save that first!");
+
                 // Get fileformat of the network based on the filepath
                 FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
 

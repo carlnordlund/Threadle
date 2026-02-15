@@ -1,14 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.Core.Utilities;
-
-namespace Threadle.CLIconsole.Parsing
+﻿namespace Threadle.CLIconsole.Parsing
 {
     /// <summary>
-    /// Class representing a CLI command and its content
+    /// Class representing a CLI package, i.e. the command and its content (arguments and assigned variable if relevant).
     /// </summary>
     public class CommandPackage
     {
@@ -242,7 +235,7 @@ namespace Threadle.CLIconsole.Parsing
         /// <returns>The Enum value of the argument for Enum T, or the default value if the argument is not found.</returns>
         internal T GetArgumentParseEnum<T>(string key, T defaultValue) where T : struct, Enum
         {
-            if (Enum.TryParse<T>(GetArgument(key),true, out var value))
+            if (Enum.TryParse<T>(GetArgument(key), true, out var value))
                 return value;
             return defaultValue;
         }

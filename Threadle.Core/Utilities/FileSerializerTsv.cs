@@ -1,12 +1,8 @@
-﻿using Threadle.Core.Model;
-using Threadle.Core.Model.Enums;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Utilities
 {
@@ -58,7 +54,7 @@ namespace Threadle.Core.Utilities
         {
             using var fileStream = File.Create(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
-            using var writer = new StreamWriter(stream, Utf8NoBom);            
+            using var writer = new StreamWriter(stream, Utf8NoBom);
             WriteNodesetToFile(nodeset, writer);
             nodeset.Filepath = filepath;
             nodeset.IsModified = false;
@@ -124,7 +120,7 @@ namespace Threadle.Core.Utilities
         {
             writer.WriteLine("# Network Metadata");
             writer.WriteLine($"Name: {network.Name}");
-                
+
             writer.WriteLine($"NodesetFile: {network.Nodeset.Filepath}");
             var sb = new StringBuilder();
             foreach ((string layerName, ILayer layer) in network.Layers)
@@ -169,7 +165,7 @@ namespace Threadle.Core.Utilities
         private static StructureResult ReadNetworkFromFile(string filepath, StreamReader reader)
         {
             var network = new Network("");
-            
+
             string? nodesetFileReference = null;
             string? line;
             ILayer? currentLayer = null;
@@ -270,7 +266,7 @@ namespace Threadle.Core.Utilities
                     //layerTwoMode.AddHyperedge(hyperName, Misc.SplitStringToUintArray(parts[1], '\t'));
                     else
                         layerTwoMode._addHyperedge(hyperName);
-                        //layerTwoMode.AddHyperedge(hyperName, null);
+                    //layerTwoMode.AddHyperedge(hyperName, null);
                 }
             }
             if (currentLayer != null)
@@ -339,7 +335,7 @@ namespace Threadle.Core.Utilities
             var columns = header.Split('\t');
             var nodeset = new Nodeset { Name = columns[0], Filepath = filepath, IsModified = false };
             int nbrCols = columns.Length;
-            string[] attributeNames = new string[nbrCols-1];
+            string[] attributeNames = new string[nbrCols - 1];
             for (int i = 1; i < nbrCols; i++)
             {
                 var parts = columns[i].Split(':', 2);

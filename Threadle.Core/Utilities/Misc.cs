@@ -1,11 +1,5 @@
 ﻿using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 using Threadle.Core.Processing.Enums;
 
 namespace Threadle.Core.Utilities
@@ -279,7 +273,7 @@ namespace Threadle.Core.Utilities
             double u = Random.NextDouble();
             int left = 0;
             int right = cdf.Length - 1;
-            while (left<right)
+            while (left < right)
             {
                 int mid = left + (right - left) / 2;
                 if (u <= cdf[mid])
@@ -377,7 +371,7 @@ namespace Threadle.Core.Utilities
             list.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
 
             int write = 1;
-            for (int read=1; read<list.Count;read++)
+            for (int read = 1; read < list.Count; read++)
             {
                 uint v = list[read].partnerNodeId;
                 if (v != list[read - 1].partnerNodeId)
@@ -400,7 +394,7 @@ namespace Threadle.Core.Utilities
                 return null;
             string[] parts = charstring.Split(sep);
             List<char> chars = [];
-            for (int i=0;i<parts.Length;i++)
+            for (int i = 0; i < parts.Length; i++)
             {
                 string trimmed = parts[i].Trim();
                 if (trimmed.Length != 1)

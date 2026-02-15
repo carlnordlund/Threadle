@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Threadle.Core.Utilities
+﻿namespace Threadle.Core.Utilities
 {
     /// <summary>
     /// Static class holding various system settings that affects how Threadle works and

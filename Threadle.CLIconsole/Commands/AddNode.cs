@@ -1,12 +1,4 @@
-﻿using Threadle.Core.Model;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using System.Reflection.Metadata.Ecma335;
-using Threadle.CLIconsole.Parsing;
+﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 
@@ -40,7 +32,7 @@ namespace Threadle.CLIconsole.Commands
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
-                return commandResult;                
+                return commandResult;
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             return CommandResult.FromOperationResult(nodeset!.AddNode(nodeId));
         }

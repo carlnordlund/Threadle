@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Threadle.CLIconsole.Parsing;
+﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Model;
@@ -43,7 +38,7 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             int offset = command.GetArgumentParseInt("offset", 0);
             int limit = command.GetArgumentParseInt("limit", 1000);
-            OperationResult<List<Dictionary<string,object>>> result = network.GetAllEdges(layerName, offset, limit);
+            OperationResult<List<Dictionary<string, object>>> result = network.GetAllEdges(layerName, offset, limit);
             return CommandResult.FromOperationResult(result, result.Value);
         }
     }

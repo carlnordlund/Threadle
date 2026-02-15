@@ -1,11 +1,5 @@
 ﻿using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Text.Json;
 
 namespace Threadle.Core.Model
 {
@@ -101,7 +95,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <returns></returns>
         internal IEnumerable<(byte Index, string AttrName, NodeAttributeType AttrType)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Value, kvp.Key, _indexToType[kvp.Value]));
-        
+
         /// <summary>
         /// Returns a (deep) clone of this <see cref="NodeAttributeDefinitionManager"/> object.
         /// Used for instance when creating a subset Nodeset where all node attributes should be cloned.
@@ -142,7 +136,7 @@ namespace Threadle.Core.Model
         /// <returns>A dictionary with details about the defined node attributes.</returns>
         internal List<Dictionary<string, object>> GetMetadataList()
         {
-            return _nameToIndex.Select(kvp => new Dictionary<string,object>
+            return _nameToIndex.Select(kvp => new Dictionary<string, object>
             {
                 ["Name"] = kvp.Key,
                 ["Type"] = _indexToType[kvp.Value].ToString()
