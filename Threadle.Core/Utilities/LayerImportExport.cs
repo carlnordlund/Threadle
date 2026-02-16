@@ -285,45 +285,6 @@ namespace Threadle.Core.Utilities
                         if (data[r - 1, c - 1] != 0)
                             network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
             }
-
-
-            //try
-            //{
-            //    string[,] cells = ReadCells(filepath, separator);
-            //    int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
-            //    if (nbrRows != nbrCols)
-            //        return OperationResult.Fail("FileFormatError", $"Matrix '{filepath}' not square-shaped.");
-            //    uint[] rowIds = new uint[nbrRows - 1];
-            //    uint[] colIds = new uint[nbrCols - 1];
-            //    for (int i = 1; i < nbrCols; i++)
-            //    {
-            //        if (!uint.TryParse(cells[0, i], out colIds[i - 1]))
-            //            return OperationResult.Fail("FileFormatError", $"Column header '{cells[0, i]}' in file '{filepath}' not an unsigned integer.");
-            //        if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
-            //            return OperationResult.Fail("FileFormatError", $"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
-            //    }
-            //    float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
-            //    bool hasSelfties = layerOneMode.Selfties;
-            //    if (layerOneMode.Directionality == EdgeDirectionality.Directed)
-            //    {
-            //        for (int r = 1; r < nbrRows; r++)
-            //            for (int c = 1; c < nbrCols; c++)
-            //                if (data[r - 1, c - 1] != 0)
-            //                    network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
-            //    }
-            //    else
-            //    {
-            //        for (int r = 1; r < nbrRows; r++)
-            //            for (int c = r; c < nbrCols; c++)
-            //                if (data[r - 1, c - 1] != 0)
-            //                    network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
-            //    }
-            //    return OperationResult.Ok();
-            //}
-            //catch (Exception e)
-            //{
-            //    return OperationResult.Fail("UnexpectedImportError", e.Message);
-            //}
         }
 
         /// <summary>
@@ -433,33 +394,6 @@ namespace Threadle.Core.Utilities
                     if (data[r, c] > 0)
                         network.AddAffiliation(layerTwoMode, colNames[c], rowIds[r], addMissingNodes, true);
             }
-
-            //try
-            //{
-            //    string[,] cells = ReadCells(filepath, separator);
-            //    int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
-            //    uint[] rowIds = new uint[nbrRows - 1];
-            //    string[] colNames = new string[nbrCols - 1];
-            //    for (int i = 1; i < nbrRows; i++)
-            //        if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
-            //            return OperationResult.Fail("FileFormatError", $"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
-            //    for (int i = 1; i < nbrCols; i++)
-            //        colNames[i - 1] = cells[0, i];
-            //    float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
-            //    for (int c = 0; c < colNames.Length; c++)
-            //    {
-            //        List<uint> nodeIds = [];
-            //        for (int r = 0; r < rowIds.Length; r++)
-            //            if (data[r, c] > 0)
-            //                nodeIds.Add(rowIds[r]);
-            //        network.AddHyperedge(layerTwoMode, colNames[c], nodeIds.ToArray(), addMissingNodes);
-            //    }
-            //    return OperationResult.Ok();
-            //}
-            //catch (Exception e)
-            //{
-            //    return OperationResult.Fail("UnexpectedImportError", e.Message);
-            //}
         }
         #endregion
 
