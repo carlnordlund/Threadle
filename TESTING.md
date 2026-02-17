@@ -3,7 +3,7 @@
 
 The repository contains two CLIconsole scripts to test some basic features in Threadle
 Note that these scripts are Threadle scripts, meaning that they are text files containing
-a sequence of Threadle-specific CLI commands that can be entered into the Socnet.se CLI console.
+a sequence of Threadle-specific CLI commands that can be entered into the Threadle.CLIconsole client.
 
 However, it is easier to use the CLI command `loadscript(..)` to load and execute a script file.
 
