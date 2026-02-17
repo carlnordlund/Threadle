@@ -5,12 +5,6 @@ tags:
 - C\#/.NET
 - multilevel networks
 - multimode networks
-date: "2026-02-17"
-output:
-  pdf_document: default
-  word_document: default
-license: MIT
-repository: https://github.com/carlnordlund/Threadle
 affiliations:
 - name: The Institute for Analytical Sociology, Department of Management and Engineering,
     Linköping University, Norrköping, Sweden
@@ -23,6 +17,7 @@ authors:
 - name: Yukun Jiao
   orcid: "0009-0009-4826-4682"
   affiliation: 1
+date: "17 February 2026"
 bibliography: paper.bib
 ---
 # Summary
