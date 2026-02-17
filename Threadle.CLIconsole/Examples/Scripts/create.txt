@@ -103,15 +103,12 @@ density(net, friends)
 #   - happy (Type=Bool)
 
 # > getattr(nodes, 13, gender)
-# Success
 # f
 
 # > getattr(nodes, 37, height)
-# Success
 # 174.6
 
 # > getattr(net, 10, height)
-# Success
 # 132.5
 ## Note: a Network can also be provided to attribute-related commands: they will then
 ## operate on the Nodeset that the specified Network refers to
@@ -121,63 +118,48 @@ density(net, friends)
 ## Note: if an attribute is not set for a specified node, nothing is returned
 
 # > checkedge(net,friends,1,2)
-# Success
 # false
 
 # > checkedge(net,friends,10,11)
-# Success
 # true
 
 # > checkedge(net,friends,11,10)
-# Success
 # false
 
 # > getedge(net, nbr_calls, 10,11)
-# Success
 # 17
 
 # > checkedge(net, nbr_calls, 10,11)
-# Success
 # true
 
 # > checkedge(net, clubs, 10,11)
-# Success
 # false
 
 # > checkedge(net, clubs, 18,13)
-# Success
 # true
 
 # > getedge(net, clubs, 18,13)
-# Success
 # 2
 ## Note: this is the number of shared affiliations, i.e. this being the typical symmetric value when
 ## projecting 2-mode data. Though this data is not projected.
 
-# > getnodealters(net,nbr_calls,10)
-# Success
+# > getnodealters(net,10,layernames=nbr_calls)
 # [11, 13]
 
-# > getnodealters(net,friends,14,direction=out)
-# Success
+# > getnodealters(net,14, layernames=friends,direction=out)
 # [10, 18, 20]
 
-# > getnodealters(net,friends,14,direction=in)
-# Success
+# > getnodealters(net,14, layernames=friends,direction=in)
 # [10]
 
 # > getrandomalter(net,14)
-# Success
 # 20
 
 # > getrandomalter(net,20)
-# Success
 # 14
 
 # > getrandomalter(net,14)
-# Success
 # 11
 
 # > getrandomalter(net,11)
-# Success
 # 10
