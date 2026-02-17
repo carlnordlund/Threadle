@@ -77,9 +77,6 @@ addaff(net,clubs,17,"chalmers_fc")
 # Create density
 density(net, friends)
 
-i
-
-density(net, friends)
 
 #########
 ## Validating created data

@@ -256,8 +256,19 @@ namespace Threadle.Core.Model
         public List<string> FormatEdges(uint egoNodeId, int maxCount)
         {
             List<string> lines = new(maxCount);
-            foreach (uint alterNodeId in _connections.Take(maxCount))
-                lines.Add($"{egoNodeId} <-> {alterNodeId}");
+            //foreach (uint alterNodeId in _connections.Take(maxCount))
+            //    lines.Add($"{egoNodeId} <-> {alterNodeId}");
+
+            foreach (uint nodeId in _connections)
+            {
+                if (nodeId > egoNodeId)
+                {
+                    lines.Add($"{egoNodeId} <-> {nodeId}");
+                    if (lines.Count >= maxCount)
+                        break;
+                }
+
+            }
             return lines;
         }
 

@@ -275,12 +275,14 @@ namespace Threadle.Core.Model
         public List<string> FormatEdges(uint egoNodeId, int maxCount)
         {
             List<string> lines = new(maxCount);
-            int count = 0;
             foreach (var conn in _connections)
             {
-                if (count >= maxCount)
-                    break;
-                lines.Add($"{egoNodeId} <-> {conn.partnerNodeId} ({conn.value})");
+                if (conn.partnerNodeId > egoNodeId)
+                {
+                    lines.Add($"{egoNodeId} <-> {conn.partnerNodeId} ({conn.value})");
+                    if (lines.Count >= maxCount)
+                        break;
+                }
             }
             return lines;
         }
