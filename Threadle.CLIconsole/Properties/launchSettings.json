@@ -2,7 +2,6 @@
   "profiles": {
     "Threadle.CLIconsole": {
       "commandName": "Project",
-      "commandLineArgs": "--json",
       "workingDirectory": "$(ProjectDir)\\Examples"
     }
   }
