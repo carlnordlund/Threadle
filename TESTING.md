@@ -1,11 +1,10 @@
 # Threadle: Test scripts
+(For testing threadleR, please check the available scripts on its GitHub repository: [https://github.com/YukunJiao/threadleR/](https://github.com/YukunJiao/threadleR/))
 ## Introduction to testing Threadle
 
 The repository contains two CLIconsole scripts to test some basic features in Threadle
 Note that these scripts are Threadle scripts, meaning that they are text files containing
 a sequence of Threadle-specific CLI commands that can be entered into the Threadle.CLIconsole client.
-
-For testing threadleR, please check the available scripts on its GitHub repository: [https://github.com/YukunJiao/threadleR/](https://github.com/YukunJiao/threadleR/)
 
 However, it is easier to use the CLI command `loadscript(..)` to load and execute a script file.
 
