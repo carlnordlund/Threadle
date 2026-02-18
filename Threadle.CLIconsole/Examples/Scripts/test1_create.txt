@@ -4,10 +4,10 @@
 # Run this script by using the CLI command:
 
 # Text-based input:
-# loadscript("Scripts/create.txt")
+# loadscript("Scripts/test1_create.txt")
 
 # Json-based input:
-# {"command":"loadscript", args: {"file":"Scripts/create.txt" }}
+# {"command":"loadscript", "args": {"file":"Scripts/test1_create.txt" }}
 
 # Start with deleting all existing structures
 deleteall()
