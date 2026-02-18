@@ -41,9 +41,9 @@ General-purpose libraries such as igraph [@igraph], NetworkX [@networkx], Networ
 - Relations are typically stored as unipartite graphs where all relations across layers and edge types must be represented as 1-mode relations
 - Two-mode (bipartite) data are commonly projected to their one-mode form, expanding each affiliation of $k$ nodes into $k(k−1)/2$ pairwise edges, which is memory-prohibitive for large bipartite datasets
 - Node attributes are often stored in general-purpose metadata containers in R or Python rather than the graph engine itself
-- Repeated sampling workflows involving ego-network intersections rapidly exhaust memory during projection.
+- Many commonly used methods and metrics—such as betweenness centrality, closeness centrality, and community detection—become computationally infeasible for very large networks due to their time and memory complexity, although approximation algorithms exist for some measures [cf. @staudt_networkit_2016].
 
-Faced with these shortcomings, Threadle was developed to provide a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes. Threadle is not an alternative to *igraph*, *NetworkX*, or similar network-analytical frameworks — it is an alternative storage and query layer for large, feature-rich networks. Analytical methods, which by necessity are typically sample- and traversal-based due to network size, are instead implemented in *threadleR*, which uses Threadle to access the network data.
+Given these constraints, analyses on population-scale networks necessarily rely on sample- and traversal-based methods, making efficient storage and fast neighborhood retrieval the critical requirements. Threadle was developed to address this need, providing a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes. Threadle is not an alternative to igraph, NetworkX, or similar network-analytical frameworks — it is an alternative storage and query layer for large, feature-rich networks. Analytical methods are instead implemented in threadleR, which uses Threadle to access the network data.
 
 # Software design and key features
 
