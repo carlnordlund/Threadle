@@ -105,8 +105,10 @@ namespace Threadle.Core.Model
         /// <returns>The value of the projected edge, i.e. the number of shared affiliations they have.</returns>
         public float GetEdgeValue(uint node1Id, uint node2Id)
         {
-            if (!HyperEdgeCollections.TryGetValue(node1Id, out var sourceCollection) || !HyperEdgeCollections.TryGetValue(node2Id, out var targetCollection))
+            /// Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return 0.
+            if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection sourceCollection || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection targetCollection)
                 return 0f;
+            /// Go through the set of Hyperedge objects of node1Id and check how many of these have node2Id in their node id array. This is the value of the projected edge.
             return (sourceCollection.HyperEdges.Intersect(targetCollection.HyperEdges)).Count();
         }
 
@@ -120,11 +122,14 @@ namespace Threadle.Core.Model
         /// <returns>Returns true if the two nodes share at least one affiliation (hyperedge).</returns>
         public bool CheckEdgeExists(uint node1Id, uint node2Id)
         {
-            if (!HyperEdgeCollections.TryGetValue(node1Id, out var hyperEdgeCollection))
+            // Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return false.
+            if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection hyperEdgeCollection || GetNonEmptyHyperedgeCollection(node2Id) is null)
                 return false;
+            // Go through the set of Hyperedge objects of node1Id and check if node2Id is in any of these. If so, return true. If not, return false.
             foreach (Hyperedge hyperedge in hyperEdgeCollection.HyperEdges)
                 if (hyperedge.NodeIds.Contains(node2Id))
                     return true;
+            // If we get here, there is no shared hyperedge, so return false.
             return false;
         }
 
@@ -147,11 +152,17 @@ namespace Threadle.Core.Model
         /// <returns>An array of node ids.</returns>
         public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
         {
-            if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperEdgeCollection) || hyperEdgeCollection.HyperEdges.Count == 0)
+            /// Note that the edgeTraversal parameter is only relevant in the implementation in LayerOneMode.
+            /// Check that the node id is part of any hyperedges at all, and that these hyperedges have any node ids. If not, return an empty array.
+            if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hyperEdgeCollection)
                 return [];
+            // Prepare a set of alters, i.e. the unique node ids of all Hyperedge objects of this node id, minus the actual ego node id.
+            // As this is a HashSet, it will automatically filter out duplicates.
             HashSet<uint> alters = [];
+            // Go through the Hyperedge objects of this node id and add their node ids to the set of alters.
             foreach (Hyperedge hyperEdge in hyperEdgeCollection.HyperEdges)
                 alters.UnionWith(hyperEdge.NodeIds);
+            // Remove the actual ego node id from the set of alters, which will have been added in the previous step.
             alters.Remove(nodeId);
             return [.. alters];
         }
@@ -229,6 +240,21 @@ namespace Threadle.Core.Model
 
 
         #region Methods (private, internal)
+
+        /// <summary>
+        /// Support function.
+        /// Returns a HashSet of Hyperedge objects that a node is part of. If the node lacks a collection of hyperedges, or
+        /// if the collection is empty, return null.
+        /// </summary>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>HashSet of Hyperedges, or null </returns>
+        internal HyperedgeCollection? GetNonEmptyHyperedgeCollection(uint nodeId)
+        {
+            if (HyperEdgeCollections.TryGetValue(nodeId, out var collection) && collection.HyperEdges.Count > 0)
+                return collection;
+            return null;
+        }
+
         /// <summary>
         /// Retrieves a hyperedge with the specified name from the collection of all hyperedges.
         /// </summary>
