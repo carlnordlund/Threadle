@@ -17,7 +17,7 @@ authors:
 - name: Yukun Jiao
   orcid: "0009-0009-4826-4682"
   affiliation: 1
-date: "17 February 2026"
+date: "18 February 2026"
 bibliography: paper.bib
 ---
 
@@ -29,19 +29,72 @@ Unlike existing general-purpose network libraries that emphasize analytical algo
 
 Threadle natively supports multilayer structures, with relational data stored in respective layers according to their specific properties. Layers can be either 1-mode (unipartite) or 2-mode (bipartite), the latter storing collections of hyperedges and node affiliations. A core innovative feature is how 2-mode layers are queried as if they were 1-mode layers, without ever performing the memory-intensive projections required by established network management systems. Threadle also implements a memory-efficient system for storing node attributes of four data types (integer, floating-point, character, and boolean), optimized for heterogeneous distributions where certain attributes exist only for subsets of nodes.
 
-The base functionality is implemented in the Threadle.Core module. A command-line console application (Threadle.CLIconsole) provides direct interaction using a 50+ command scripting language, and can operate in JSON mode for interoperability with other languages. We provide an R library frontend, **threadleR** ([GitHub](https://github.com/YukunJiao/threadleR)), enabling researchers to conduct advanced sampling- and traversal-based workflows on very large networks directly from R.
+The base functionality is implemented in the Threadle.Core module. A command-line console application (Threadle.CLIconsole) provides direct interaction using a Threadle-specific scripting language, and can operate in JSON mode for interoperability with other languages. We provide an R library frontend, **threadleR** ([GitHub](https://github.com/YukunJiao/threadleR)), enabling researchers to conduct advanced sampling- and traversal-based workflows on very large networks directly from R.
 
 # Statement of need
 
-Large-scale administrative register data, such as the Swedish population registers for research, represent large, temporal, and structurally complex networks containing multiple relational layers (kinship, residence, employment, education, etc.), many of which are two-mode (affiliation) structures. Research applications involving multilayer random-walker models, simulation-based methods, and repeated sampling of ego networks across layers require very fast retrieval of neighboring alters and node attributes, while maintaining a memory footprint small enough to allow population-scale networks for multiple years to be simultaneously loaded into RAM.
+Large-scale administrative register data, such as the Swedish population registers for research, can be represented and approached as large, temporal, and structurally complex networks containing multiple relational layers (kinship, residence, employment, education, etc.), many of which are two-mode (affiliation) structures. Research applications involving multilayer random-walker models, simulation-based methods, and repeated sampling of ego networks across layers require very fast retrieval of neighboring alters and node attributes, while maintaining a memory footprint small enough to allow population-scale networks for multiple years to be simultaneously loaded into RAM.
 
-General-purpose libraries such as igraph [@igraph], NetworkX [@networkx], NetworKit [@staudt_networkit_2016], and graph-tool [@peixoto_graph-tool_2017] offer extensive analytical toolsets, but their internal data models are not designed to support the structural and memory requirements of multilayer and mixed-mode data found in full-population register data. Specifically, in these existing libraries: multilayer networks must typically be represented by attaching attributes to edges rather than storing them natively in the engine, with substantial memory overhead; relations are typically stored as unipartite graphs where all relations across layers and edge types must be represented as 1-mode relations; two-mode (bipartite) data are commonly projected to their one-mode form, expanding each affiliation of $k$ nodes into $k(k−1)/2$ pairwise edges, which is memory-prohibitive for large bipartite datasets; node attributes are often stored in general-purpose metadata containers in R or Python rather than the graph engine itself; and repeated sampling workflows involving ego-network intersections rapidly exhaust memory during projection.
+General-purpose libraries such as igraph [@igraph], NetworkX [@networkx], NetworKit [@staudt_networkit_2016], and graph-tool [@peixoto_graph-tool_2017] offer extensive analytical toolsets, but their internal data models are not designed to support the structural and memory requirements of multilayer and mixed-mode data found in full-population register data. Specifically, we note the following set of features of these existing libraries that are not optimal for working with more heterogeneous, feature-rich network data:
 
-Faced with these shortcomings, Threadle was developed to provide a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes. Threadle is not an alternative to *igraph*, *NetworkX*, or similar network-analytical frameworks — it is an alternative storage and query layer for large, feature-rich networks. Analytical methods, which by necessity are typically sample- and traversal-based due to network size, are instead implemented in *threadleR*, which uses Threadle to access the network data.
+- Multilayer networks are typically represented by attaching attributes to edges rather than storing them natively within layers in the engine, with substantial memory overhead
+- Relations are typically stored as unipartite graphs where all relations across layers and edge types must be represented as node-pairs in a single one-mode edgelist
+- Two-mode (bipartite) data are commonly projected to their one-mode form, expanding each affiliation of $k$ nodes into $k(k−1)/2$ pairwise edges, which is memory-prohibitive for large bipartite datasets
+- Node attributes are often stored in general-purpose metadata containers in R or Python rather than the graph engine itself
+- Many commonly used methods and metrics—such as betweenness centrality, closeness centrality, and community detection—become computationally infeasible for very large networks due to their time and memory complexity, although approximation algorithms exist for some measures [cf. @staudt_networkit_2016].
+
+Given these constraints, where analyses on population-scale networks necessarily rely on sample- and traversal-based methods, it is efficient storage and fast querying and data retrieval that are the critical requirements for working with such networks. Threadle was developed to address this need, providing a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes. Threadle is thus not an alternative to igraph, NetworkX, NetworKit or similar network-analytical frameworks — but it is an alternative storage and query engine for large, feature-rich networks, where sample- and traversal-based analytical methods instead are implemented in the threadleR frontend.
 
 # Software design and key features
 
-Threadle's architecture comprises two principal components. *Threadle.Core* is a .NET 8.0 library implementing all data models, storage structures, processors, methods, and file I/O. The two fundamental object types in Core are Network and Nodeset. A Nodeset is a lightweight collection of node identifiers, plus optional node attributes attached to nodes. A Network, referencing a Nodeset, consists of layers of relations, where each node owns its edges or hyperedge memberships within each layer. Layers within a Network are defined as either 1-mode (with configurable directionality and edge valuation) or 2-mode (storing affiliations as hyperedges). This node-distributed edge ownership enables constant-time neighbor retrieval and minimal memory overhead.
+Threadle's architecture comprises two principal components. *Threadle.Core* is a .NET 8.0 library implementing all data models, storage structures, processors, methods, and file I/O. Implementing a shared interface, the two fundamental structure types in Threadle are Nodesets and Networks.
+
+A Nodeset is a lightweight collection of node identifiers, plus optional node attributes attached to nodes. Idenfitied by their unique unsigned integers, nodes are either stored in a hashset or a dictionary structure depending on whether they have node attributes, automatically switching between these two collections as they gain or lose attributes.
+
+A Network, referencing a Nodeset, consists of layers of relations, where each node owns its edges or hyperedge memberships within each layer. Layers within a Network are defined as either 1-mode, with configurable directionality, edge valuation, and self-tie allowance) or 2-mode (storing affiliations as hyperedges). One-mode layers store edges in the form of nodelists, i.e. where each node has references to its out- and inbound edges, but where the specific type of storage depends on whether the layer is binary or valued, and directional or symmetric. For layers with directional edges, both incoming and outgoing edges are stored by default, but in case only outbound edges are of interest, e.g. as with random walker algorithms, it is possible to disable the storage of inbound edges, thus reducing the necessary memory almost by a half.
+
+Two-mode layers store a set of named hyperedges, each holding a collection of node ID's that are connected by the hyperedge, supplemented by a dictionary to quickly access the collections of hyperedges that a node is connected to. This allows for quickly finding the node alters of a node - as the union of its hyperedges' nodes - and to quickly check whether two nodes are connected - by traversing the collection of hyperedges of one of the nodes searching for the first occurrence of the other. The cardinality of the intersection of the hyperedges of two nodes results in the value of the symmetrical tie that would emerge from the classical type of 2-mode-to-1-mode projection.  As the classes for both one-mode and two-mode layers implement a shared interface with the same method signatures for querying edges, two-mode layers can efficiently be queried as if they were projected into their one-mode counterparts - such as the methods for checking edges, getting edges, and getting node alters as implemented in the LayerTwoMode class for two-mode layers:
+
+```bash
+public bool CheckEdgeExists(uint node1Id, uint node2Id)
+{
+    // Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return false.
+    if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection hyperEdgeCollection || GetNonEmptyHyperedgeCollection(node2Id) is null)
+        return false;
+    // Go through the set of Hyperedge objects of node1Id and check if node2Id is in any of these. If so, return true. If not, return false.
+    foreach (Hyperedge hyperedge in hyperEdgeCollection.HyperEdges)
+        if (hyperedge.NodeIds.Contains(node2Id))
+            return true;
+    // If we get here, there is no shared hyperedge, so return false.
+    return false;
+}
+
+public float GetEdgeValue(uint node1Id, uint node2Id)
+{
+    /// Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return 0.
+    if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection sourceCollection || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection targetCollection)
+        return 0f;
+    /// Go through the set of Hyperedge objects of node1Id and check how many of these have node2Id in their node id array. This is the value of the projected edge.
+    return (sourceCollection.HyperEdges.Intersect(targetCollection.HyperEdges)).Count();
+}
+
+public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+{
+    /// Note that the edgeTraversal parameter is only relevant in the implementation in LayerOneMode.
+    /// Check that the node id is part of any hyperedges at all, and that these hyperedges have any node ids. If not, return an empty array.
+    if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hyperEdgeCollection)
+        return [];
+    // Prepare a set of alters, i.e. the unique node ids of all Hyperedge objects of this node id, minus the actual ego node id.
+    // As this is a HashSet, it will automatically filter out duplicates.
+    HashSet<uint> alters = [];
+    // Go through the Hyperedge objects of this node id and add their node ids to the set of alters.
+    foreach (Hyperedge hyperEdge in hyperEdgeCollection.HyperEdges)
+        alters.UnionWith(hyperEdge.NodeIds);
+    // Remove the actual ego node id from the set of alters, which will have been added in the previous step.
+    alters.Remove(nodeId);
+    return [.. alters];
+}
+```
 
 *Threadle.CLIconsole* is a cross-platform command-line application exposing Core functionality through a scripting language. It operates in two modes: a human-readable text mode for interactive use, and a JSON mode enabling programmatic control from external systems. The *threadleR* package leverages JSON mode to provide seamless R integration, wrapping Threadle commands in R functions and enabling users to combine Threadle's efficient storage with R's statistical capabilities and conditional program flows.
 

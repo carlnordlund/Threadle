@@ -53,7 +53,7 @@ namespace Threadle.CLIconsole.Runtime
                     payloads[$"[{i + 1}] {pkt.CommandName}"] = lineResult.Payload;
                 if (lineResult.Assigned != null)
                     foreach (var kv in lineResult.Assigned)
-                        assigned[$"{kv.Key}:"] = kv.Value;
+                        assigned[kv.Key] = kv.Value;
             }
             return CommandResult.Ok($"Script '{filePath}' executed successfully", payload: payloads, assignments: assigned);
         }

@@ -1,0 +1,107 @@
+# Create a large nodeset and network, create layers, and generate random data in these layers
+# Do some shortest path calculations between nodes
+
+# *** WARNING ***
+# This script might take a couple of minutes to run!
+# This is because of the random network generators: creating these do take some time,
+# especially the Erdös-Renyi
+# Also note that this will occupy a bit of RAM memory
+
+# Run this script by using the CLI command:
+
+# Text-based input:
+# loadscript("Scripts/test2_generate.txt")
+
+# Json-based input:
+# {"command":"loadscript", "args": {"file":"Scripts/test2_generate.txt" }}
+
+# Start with deleting all existing structures
+deleteall()
+
+# Set the random seed to the default seed
+randomseed()
+
+# Creates a nodeset called 'Many nodes' with 12 million nodes, storing this in variable 'nodes10M'
+nodes1M = createnodeset(name = "Many nodes", createnodes = 1000000)
+
+# Creates a network called "Large net" using the nodeset above
+net100M = createnetwork(nodeset = nodes1M, name = "Large net")
+
+# Add three 1-mode layers and one 2-mode layer
+# ws, ab: symmetric; er: directional; twomode: 2-mode
+addlayer(net100M, layername="ws", mode=1)
+addlayer(net100M, layername="ba", mode=1)
+addlayer(net100M, layername="er", mode=1, directed=true)
+addlayer(net100M, layername="twomode", mode=2)
+
+# Generate random networks on these layers
+# Generate Watts-Strogatz network: ring with node degree 50, rewiring probability 0.01
+generate(net100M, layername=ws, type=ws, k=50, beta=0.01)
+# Generate Barabasi-Albert network: 
+generate(net100M, layername=ba, type=ba, m=20)
+# Generate Erdös-Renyi network: 
+generate(net100M, layername=er, type=er, p=0.00005)
+# Generate random 2-mode data: 50k hyperedges (affiliations), each node having
+# on average 25 affiliations (Poisson-distribution):
+generate(net100M, twomode, 2mode, h=50000,a=25)
+# ...this corresponding to ~6 billion 1-mode edges (taking overlaps into account)
+
+# Querying the network:
+# Get node alters to 12345 from layer 'ws'
+
+getnodealters(net100M, nodeid=12345, layernames=ws)
+# Should output 50 node alters in the range 12320-12370, except 12345
+# and then also 758593 which is a rewired bridging tie
+
+getnodealters(net100M,nodeid=950000,layernames=ba)
+# Should return these from layer Barabasi-Albert
+# [37, 40, 8850, 11980, 24100, 31833, 99193, 111685, 182600, 250809, 283569,
+# 352208, 432149, 541112, 640936, 697058, 719991, 801819, 869685, 908157, 994349]
+
+getnodealters(net100M,nodeid=950000,layernames=ba;ws)
+# Now getting node alters from both the 'ws' and the 'ba' layer
+# Only keeping unique ones (though there are no overlaps here):
+# Should produce the same node ids as above [37, 40, 8850 etc]
+# but also bring in the sequence of node ids from 949975-950024, plus 994349
+
+# Calculating shortest paths between two nodes:
+# First per layer:
+shortestpath(net100M, node1id=12345, node2id=567890, layername=ws)
+# 5 steps
+shortestpath(net100M, node1id=12345, node2id=567890, layername=ba)
+# 4 steps
+shortestpath(net100M, node1id=12345, node2id=567890, layername=er)
+# 3 steps
+shortestpath(net100M, node1id=12345, node2id=567890, layername=twomode)
+# 2 steps
+
+# All layers:
+shortestpath(net100M, node1id=12345, node2id=567890)
+# 2 steps (i.e. finding the path on the pseudo-projected 2-mode layer 'twomode')
+
+# Calculate degree centralities for all nodes in the 'ba' layer:
+degree(net100M, ba)
+# This will place node degrees in a new int-type node attribute called 'ba_degree'
+
+# NOTE: Don't use degree() with the 'twomode' layer: that will take a lot of time!
+# For 2-mode layers: Degree distributions are better determined by sampling;
+# individual degrees by getting node alters
+
+# Get a summary about the 'ba_degree' node attribute
+getattrsummary(nodes1M,ba_degree)
+
+# Create a new nodeset that only contains the nodes from 'nodes1M' whose
+# value for the 'ba_degree' attribute is greater than 40:
+nodes2 = filter(nodes1M, attrname=ba_degree, cond=gt, attrvalue=40)
+
+# Get some info about this nodeset:
+info(nodes2)
+
+# Create a subnet 'net2' of the original network that only contains these nodes:
+net2 = subnet(net100M, nodeset= nodes2)
+# This will take some time, this being due to the 'twomode' layer
+# But recall that this contains the equivalent of 6 billion ties
+
+# Check info about this new network structure:
+info(net2)
+# As expected, fewer edges in this smaller network
