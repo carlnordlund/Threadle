@@ -82,9 +82,6 @@ public float GetEdgeValue(uint node1Id, uint node2Id)
     col2.HyperEdges.Count(h => col1.HyperEdges.Contains(h));
 }
 
-/// Gets the set of nodes with which a node shares hyperedge membership
-/// Note: edgeTraversal: ILayer interface requirement for 1-mode layers
-
 /// Gets all nodes sharing hyperedge membership with the given node
 /// (pseudo-projected alters). Note: edgeTraversal parameter required
 /// by ILayer interface for 1-mode compatibility
