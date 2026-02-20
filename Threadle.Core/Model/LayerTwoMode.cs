@@ -108,8 +108,12 @@ namespace Threadle.Core.Model
             /// Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return 0.
             if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection sourceCollection || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection targetCollection)
                 return 0f;
-            /// Go through the set of Hyperedge objects of node1Id and check how many of these have node2Id in their node id array. This is the value of the projected edge.
-            return (sourceCollection.HyperEdges.Intersect(targetCollection.HyperEdges)).Count();
+            // Return the number of shared Hyperedge objects that these two node ids have, as such reflecting the value that would emerge
+            // when a 2-mode network is projected to a 1-mode counterpart. To optimize this, we go through the smaller set of Hyperedge
+            // objects and check if these are in the larger set, instead of going through both sets and checking for each if they are in the other.
+            return sourceCollection.HyperEdges.Count < targetCollection.HyperEdges.Count ?
+                sourceCollection.HyperEdges.Count(h => targetCollection.HyperEdges.Contains(h)) :
+                targetCollection.HyperEdges.Count(h => sourceCollection.HyperEdges.Contains(h));
         }
 
         /// <summary>
@@ -123,14 +127,11 @@ namespace Threadle.Core.Model
         public bool CheckEdgeExists(uint node1Id, uint node2Id)
         {
             // Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return false.
-            if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection hyperEdgeCollection || GetNonEmptyHyperedgeCollection(node2Id) is null)
+            if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection hyperEdgeCollection1 || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection hyperEdgeCollection2)
                 return false;
-            // Go through the set of Hyperedge objects of node1Id and check if node2Id is in any of these. If so, return true. If not, return false.
-            foreach (Hyperedge hyperedge in hyperEdgeCollection.HyperEdges)
-                if (hyperedge.NodeIds.Contains(node2Id))
-                    return true;
-            // If we get here, there is no shared hyperedge, so return false.
-            return false;
+            // Return true if there is at least one Hyperedge where both exist. To optimize this, we check if the two sets of
+            // Hyperedge objects overlap, which is more efficient than going through both sets and checking for each if they are in the other.
+            return hyperEdgeCollection1.HyperEdges.Overlaps(hyperEdgeCollection2.HyperEdges);
         }
 
         /// <summary>
