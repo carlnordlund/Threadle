@@ -70,23 +70,24 @@ public float GetEdgeValue(uint node1Id, uint node2Id)
 {
     // Early exit if either node has no affiliations/hyperedges
     if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection col1
-        || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection col2)
+      || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection col2)
         return 0f;
 
     // O(min(n,m)) - iterates smaller set, O(1) lookup in larger
     return col1.HyperEdges.Count < col2.HyperEdges.Count ?
-        col1.HyperEdges.Count(h => col2.HyperEdges.Contains(h)) :
-        col2.HyperEdges.Count(h => col1.HyperEdges.Contains(h));
+      col1.HyperEdges.Count(h => col2.HyperEdges.Contains(h)) :
+      col2.HyperEdges.Count(h => col1.HyperEdges.Contains(h));
 }
 
-public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
+public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal)
 {
+    // Note: edgeTraversal: ILayer interface requirement for 1-mode layers
     // Exits with empty set if node has no affiliations/hyperedges
-    if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hyperEdgeCollection)
+    if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection col)
         return [];
     HashSet<uint> alters = [];
     // Iterates all node hyperedges, creates union of alters
-    foreach (Hyperedge hyperEdge in hyperEdgeCollection.HyperEdges)
+    foreach (Hyperedge hyperEdge in col.HyperEdges)
         alters.UnionWith(hyperEdge.NodeIds);
     // Remove ego node
     alters.Remove(nodeId);
