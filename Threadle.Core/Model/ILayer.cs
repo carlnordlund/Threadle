@@ -33,7 +33,7 @@ namespace Threadle.Core.Model
         HashSet<uint> GetMentionedNodeIds();
 
         /// <summary>
-        /// Returns the value of a potential edge between two nodes. If no edge
+        /// Returns the value of a potential edge (or would-be projected edge) between two nodes. If no such edge
         /// exists, returns zero. For 1-mode layers, returns 1 for binary layers and the edge
         /// value for valued layers. For 2-mode layers, returns the number of affiliations (hyperedges)
         /// that the two nodes share.
@@ -44,8 +44,8 @@ namespace Threadle.Core.Model
         float GetEdgeValue(uint node1Id, uint node2Id);
 
         /// <summary>
-        /// Checks if an edge exists between the two nodes. For 2-mode layers, returns true if the two
-        /// nodes share at leasts one affil
+        /// Checks if an edge (or would-be projected edge) exists between the two nodes. For 2-mode layers, returns true if the two
+        /// nodes share at least one affiliation (hyperedge). For 1-mode layers, returns true if the edge value is not zero.
         /// </summary>
         /// <param name="node1Id">The first node id.</param>
         /// <param name="node2Id">The second node id.</param>
@@ -53,10 +53,11 @@ namespace Threadle.Core.Model
         bool CheckEdgeExists(uint node1Id, uint node2Id);
 
         /// <summary>
-        /// Returns an array of node ids for the alters for a specified ego node.
+        /// Returns an array of node ids for the alters for a specified ego node. For 1-mode layers, the alters are the nodes that are connected to the ego node by an edge (either in- or outbound, depending on the specified EdgeTraversal value). For 2-mode layers, the alters are the nodes that share at least one affiliation (hyperedge) with the ego node. Note that for 2-mode layers, the edgeTraversal parameter is not applicable and will be ignored.
         /// </summary>
         /// <param name="nodeId">The ego node id.</param>
-        /// <param name="edgeTraversal">An <see cref="EdgeTraversal"/> value specifying whether in- or outbound edges should be included (or both).</param>
+        /// <param name="edgeTraversal">An <see cref="EdgeTraversal"/> value specifying whether in- or outbound edges should be included (or both). Only applicable
+        /// for 1-mode layers.</param>
         /// <returns></returns>
         uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal);
 

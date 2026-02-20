@@ -32,7 +32,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="LayerOneMode"/> class, setting its name
+        /// Initializes a new instance of the <see cref="LayerTwoMode"/> class, setting its name
         /// </summary>
         /// <param name="name"></param>
         public LayerTwoMode(string name)

@@ -3,8 +3,9 @@
     /// <summary>
     /// Describes an affiliation, e.g. like a specific school class, a specific workplace or similar
     /// which is then an Hyperedge: a collection of Nodes that are connected.
-    /// Each such affiliation should have a label (e.g. arbplatsId), but that is stored
-    /// in LayerTwomode.AllHyperEdges dictionary, not in the actual Hyperedge object.
+    /// Each such affiliation should have a label (e.g. arbplatsId), which is stored both here and in the
+    /// AllHyperedges dictionary in LayerTwoMode, to allow for easy retrieval of the hyperedge by its label.
+    /// The label is required to be unique within a specific LayerTwoMode.
     /// </summary>
     public class Hyperedge
     {
