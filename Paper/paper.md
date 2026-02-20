@@ -55,42 +55,40 @@ A Network, referencing a Nodeset, consists of layers of relations, where each no
 
 Two-mode layers store a set of named hyperedges, each holding a collection of node ID's that are connected by the hyperedge, supplemented by a dictionary to quickly access the collections of hyperedges that a node is connected to. This allows for quickly finding the node alters of a node - as the union of its hyperedges' nodes - and to quickly check whether two nodes are connected - by traversing the collection of hyperedges of one of the nodes searching for the first occurrence of the other. The cardinality of the intersection of the hyperedges of two nodes results in the value of the symmetrical tie that would emerge from the classical type of 2-mode-to-1-mode projection.  As the classes for both one-mode and two-mode layers implement a shared interface with the same method signatures for querying edges, two-mode layers can efficiently be queried as if they were projected into their one-mode counterparts - such as the methods for checking edges, getting edges, and getting node alters as implemented in the LayerTwoMode class for two-mode layers:
 
-```bash
+```csharp
 public bool CheckEdgeExists(uint node1Id, uint node2Id)
 {
-    // Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return false.
-    if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection hyperEdgeCollection || GetNonEmptyHyperedgeCollection(node2Id) is null)
+    // Early exit if either node has no affiliations/hyperedges
+    if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection col1
+        || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection col2)
         return false;
-    // Go through the set of Hyperedge objects of node1Id and check if node2Id is in any of these. If so, return true. If not, return false.
-    foreach (Hyperedge hyperedge in hyperEdgeCollection.HyperEdges)
-        if (hyperedge.NodeIds.Contains(node2Id))
-            return true;
-    // If we get here, there is no shared hyperedge, so return false.
-    return false;
+    // O(min(n,m)) check using HashSet.Overlaps(), stops at first match
+    return col1.HyperEdges.Overlaps(col2.HyperEdges);
 }
 
 public float GetEdgeValue(uint node1Id, uint node2Id)
 {
-    /// Check that both node ids are part of any hyperedges at all, and that these hyperedges have any node ids. If not, return 0.
-    if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection sourceCollection || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection targetCollection)
+    // Early exit if either node has no affiliations/hyperedges
+    if (GetNonEmptyHyperedgeCollection(node1Id) is not HyperedgeCollection col1
+        || GetNonEmptyHyperedgeCollection(node2Id) is not HyperedgeCollection col2)
         return 0f;
-    /// Go through the set of Hyperedge objects of node1Id and check how many of these have node2Id in their node id array. This is the value of the projected edge.
-    return (sourceCollection.HyperEdges.Intersect(targetCollection.HyperEdges)).Count();
+
+    // O(min(n,m)) - iterates smaller set, O(1) lookup in larger
+    return col1.HyperEdges.Count < col2.HyperEdges.Count ?
+        col1.HyperEdges.Count(h => col2.HyperEdges.Contains(h)) :
+        col2.HyperEdges.Count(h => col1.HyperEdges.Contains(h));
 }
 
 public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal = EdgeTraversal.Both)
 {
-    /// Note that the edgeTraversal parameter is only relevant in the implementation in LayerOneMode.
-    /// Check that the node id is part of any hyperedges at all, and that these hyperedges have any node ids. If not, return an empty array.
+    // Exits with empty set if node has no affiliations/hyperedges
     if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hyperEdgeCollection)
         return [];
-    // Prepare a set of alters, i.e. the unique node ids of all Hyperedge objects of this node id, minus the actual ego node id.
-    // As this is a HashSet, it will automatically filter out duplicates.
     HashSet<uint> alters = [];
-    // Go through the Hyperedge objects of this node id and add their node ids to the set of alters.
+    // Iterates all node hyperedges, creates union of alters
     foreach (Hyperedge hyperEdge in hyperEdgeCollection.HyperEdges)
         alters.UnionWith(hyperEdge.NodeIds);
-    // Remove the actual ego node id from the set of alters, which will have been added in the previous step.
+    // Remove ego node
     alters.Remove(nodeId);
     return [.. alters];
 }
