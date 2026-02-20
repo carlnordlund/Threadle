@@ -43,19 +43,22 @@ General-purpose libraries such as igraph [@igraph], NetworkX [@networkx], Networ
 - Node attributes are often stored in general-purpose metadata containers in R or Python rather than the graph engine itself
 - Many commonly used methods and metrics—such as betweenness centrality, closeness centrality, and community detection—become computationally infeasible for very large networks due to their time and memory complexity, although approximation algorithms exist for some measures [cf. @staudt_networkit_2016].
 
+Given these constraints, analyses on population-scale networks necessarily rely on sample- and traversal-based methods, making efficient storage and fast querying the critical requirements for working with such networks.
+
 Given these constraints, where analyses on population-scale networks necessarily rely on sample- and traversal-based methods, it is efficient storage and fast querying and data retrieval that are the critical requirements for working with such networks. Threadle was developed to address this need, providing a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes. Threadle is thus not an alternative to igraph, NetworkX, NetworKit or similar network-analytical frameworks — but it is an alternative storage and query engine for large, feature-rich networks, where sample- and traversal-based analytical methods instead are implemented in the threadleR frontend.
 
 # Software design and key features
 
 Threadle's architecture comprises two principal components. *Threadle.Core* is a .NET 8.0 library implementing all data models, storage structures, processors, methods, and file I/O. Implementing a shared interface, the two fundamental structure types in Threadle are Nodesets and Networks.
 
-A Nodeset is a lightweight collection of node identifiers, plus optional node attributes attached to nodes. Idenfitied by their unique unsigned integers, nodes are either stored in a hashset or a dictionary structure depending on whether they have node attributes, automatically switching between these two collections as they gain or lose attributes.
+A Nodeset is a lightweight collection of node identifiers, plus optional node attributes attached to nodes. Identified by their unique unsigned integers, nodes are either stored in a hashset or a dictionary structure depending on whether they have node attributes, automatically switching between these two collections as they gain or lose attributes.
 
 A Network, referencing a Nodeset, consists of layers of relations, where each node owns its edges or hyperedge memberships within each layer. Layers within a Network are defined as either 1-mode, each layer with its own configurable directionality, edge valuation, and self-tie allowance, or 2-mode, storing affiliations as hyperedges. One-mode layers store edges in the form of nodelists, i.e. where each node has references to its out- and inbound edges, but where the specific type of storage depends on whether the layer is binary or valued, and directional or symmetric. For layers with directional edges, both incoming and outgoing edges are stored by default, but in case only outbound edges are of interest, e.g. as with random walker algorithms, it is possible to disable the storage of inbound edges using the `setting(onlyoutboundedges, true)` command, thus reducing the necessary memory almost by a half.
 
 A two-mode layer stores a set of named hyperedges, each hyperedge holding a collection of node ID's that are connected by the hyperedge. A supplementary dictionary connecting nodes to collections of hyperedges provides fast access to the hyperedges each node is connected with. This allows for quickly finding the alters of a node (as the union of its hyperedges' nodes) and to quickly check whether two nodes are connected (by finding overlaps in their respective hyperedge collections). The number of shared hyperedge memberships that two nodes have is equal to the symmetrical tie that would emerge from the classical 2-mode-to-1-mode projection.  As the classes for both one-mode and two-mode layers implement a shared interface with the same method signatures for querying edges, two-mode layers can efficiently be queried as if they were projected into their one-mode counterparts - such as the layer-agnostic methods for checking edges, getting edge values and node alters as implemented in the LayerTwoMode class for two-mode layers:
 
 ```csharp
+/// Checks if two nodes share at least one hyperedge (pseudo-projected edge)
 public bool CheckEdgeExists(uint node1Id, uint node2Id)
 {
   // Early exit if either node has no affiliations/hyperedges
@@ -66,6 +69,7 @@ public bool CheckEdgeExists(uint node1Id, uint node2Id)
   return col1.HyperEdges.Overlaps(col2.HyperEdges);
 }
 
+/// Gets the number of hyperedges shared by two nodes (pseudo-projected edge value)
 public float GetEdgeValue(uint node1Id, uint node2Id)
 {
   // Early exit if either node has no affiliations/hyperedges
@@ -78,9 +82,14 @@ public float GetEdgeValue(uint node1Id, uint node2Id)
     col2.HyperEdges.Count(h => col1.HyperEdges.Contains(h));
 }
 
+/// Gets the set of nodes with which a node shares hyperedge membership
+/// Note: edgeTraversal: ILayer interface requirement for 1-mode layers
+
+/// Gets all nodes sharing hyperedge membership with the given node
+/// (pseudo-projected alters). Note: edgeTraversal parameter required
+/// by ILayer interface for 1-mode compatibility
 public uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal)
 {
-  // Note: edgeTraversal: ILayer interface requirement for 1-mode layers
   // Exits with empty set if node has no affiliations/hyperedges
   if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection col)
     return [];
@@ -102,11 +111,11 @@ Threadle supports both human-readable text file formats and a compact binary for
 
 Threadle was developed within *The Complete Network of Sweden* ([NetReg.se](https://netreg.se)) research environment, which aims to construct and analyze the comprehensive, full-population network of social exposure in Sweden using administrative register data. This network encompasses data on kinships, households, families, and affiliations (schools, workplaces, residential areas) for approximately 15 million individuals from 1990 onward, representing one of the most complete, multi-domain population-scale social network datasets available for research.
 
-The fundamental research challenge that motivated Threadle's development is the impossibility of projecting large-scale 2-mode affiliation data using existing tools. For instance, representing workplace co-affiliation as projected 1-mode edges for Sweden's entire working population would require storing billions of edges, exhausting available RAM. Storing co-residency in a similar way would likely produce 1-mode edges of magnitudes more. Threadle's pseudo-projection approach — querying 2-mode data as if projected without materializing the projection — makes such analyses computationally tractable.
+The fundamental research challenge that motivated Threadle's development is the impossibility of projecting large-scale 2-mode affiliation data using existing tools. For instance, representing workplace co-affiliation as projected 1-mode edges for Sweden's entire working population would require storing billions of edges, exhausting available RAM. Storing co-residency in a similar way would produce orders of magnitude more 1-mode edges. Threadle's pseudo-projection approach — querying 2-mode data as if projected without materializing the projection — makes such analyses computationally tractable.
 
 Using Threadle, we are also testing various random-walker methodologies for measuring network properties across multilayer population networks. These methods, implemented in threadleR, enable researchers to estimate network statistics through sampling and traversal rather than exhaustive computation, which is essential for networks of this scale.
 
-Beyond the specific application that inspired its development, Threadle could also be useful in other scientific contexts and datasets, i.e. where very large multilayer networks consisting of both 1-mode (unipartite) and 2-mode (bipartite) data has to be queried as if the 2-mode data was projected.
+Beyond the specific application that inspired its development, Threadle could also be useful in other scientific contexts and datasets, i.e. where very large multilayer networks consisting of both 1-mode (unipartite) and 2-mode (bipartite) data have to be queried as if the 2-mode data was projected.
 
 # Use of AI statement
 
