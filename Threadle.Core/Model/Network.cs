@@ -397,7 +397,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="layerName">The name of the 2-mode layer.</param>
         /// <param name="nodeId">The node id.</param>
-        /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names that this node is affiliated to.</returns></returns>
+        /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names that this node is affiliated to.</returns>
         public OperationResult<string[]> GetNodeHyperedges(string layerName, uint nodeId)
         {
             if (!Nodeset.CheckThatNodeExists(nodeId))
@@ -478,7 +478,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Creates a layer of relations (see <see cref="ILayer"/>) with the specified name.
         /// </summary>
-        /// <param name="layerName">The name of the layer<./param>
+        /// <param name="layerName">The name of the layer.</param>
         /// <param name="layer">The <see cref="ILayer"/> object.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult AddLayer(string layerName, ILayer layer)

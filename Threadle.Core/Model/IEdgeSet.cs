@@ -119,10 +119,6 @@ namespace Threadle.Core.Model
         uint[] GetAlterIds(EdgeTraversal edgeTraversal);
 
         /// <summary>
-        /// </summary>
-
-
-        /// <summary>
         /// Returns a collection of tuples containing the node ids of the alters along with the values for those
         /// edges. For binary layers, the value is thus 1.
         /// As symmetric edges should only be stored once in this format, I thus have to pass along
@@ -176,8 +172,15 @@ namespace Threadle.Core.Model
         /// </summary>
         void _deduplicate();
 
+        /// <summary>
+        /// Sorts the Edgeset by partner node id
+        /// </summary>
         void _sort();
 
+        /// <summary>
+        /// Sets the capacity of the collection for storing partner node ids.
+        /// </summary>
+        /// <param name="capacity">Expected number of partner node ids.</param>
         void _setCapacity(int capacity);
         #endregion
     }

@@ -185,8 +185,6 @@ namespace Threadle.Core.Analysis
             componentInfo["NbrComponents"] = nbrComponents;
             componentInfo["ComponentSizes"] = componentSizes.OrderByDescending(c => c).ToList();
             return OperationResult<Dictionary<string, object>>.Ok(componentInfo);
-
-            //return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
         }
 
 
@@ -300,7 +298,7 @@ namespace Threadle.Core.Analysis
         /// Selects a random node identifier from the specified nodeset.
         /// </summary>
         /// <param name="nodeset">The nodeset from which to select a random node. Must contain at least one node.</param>
-        /// <returns>An <see cref="OperationResult{T}"/> containing the identifier of the randomly selected node uf syccessful, otherwise, an error message.</returns>
+        /// <returns>An <see cref="OperationResult{T}"/> containing the identifier of the randomly selected node if successful, otherwise, an error message.</returns>
         public static OperationResult<uint> GetRandomNode(Nodeset nodeset)
         {
             if (nodeset.Count == 0)

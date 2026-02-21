@@ -434,11 +434,8 @@ namespace Threadle.Core.Utilities
                 // Node id (4)
                 writer.Write(nodeId);
 
-                // Get node attributes for this node
-                //Dictionary<string, NodeAttributeValue> nodeAttrValues = nodeset.GetNodeAttributeValues(nodeId);
-
+                // Get node attribute info for this node
                 var attributes = nodeset.GetNodeAttributeTuple(nodeId)!;
-
 
                 // Nbr of node attributes
                 writer.Write((byte)attributes.Value.AttrIndexes.Count);
@@ -562,7 +559,6 @@ namespace Threadle.Core.Utilities
                 else if (layer.Value is LayerTwoMode layerTwoMode)
                 {
                     // LAYER IS 2-MODE
-                    ///////////
 
                     // Write mode (2)
                     writer.Write((byte)2);
@@ -620,6 +616,5 @@ namespace Threadle.Core.Utilities
             return Encoding.ASCII.GetString(bytes);
         }
         #endregion
-
     }
 }

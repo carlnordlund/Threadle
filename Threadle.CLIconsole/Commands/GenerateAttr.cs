@@ -42,17 +42,17 @@ namespace Threadle.CLIconsole.Commands
                 case NodeAttributeType.Int:
                     int minInt = command.GetArgumentParseInt("min", 0);
                     int maxInt = command.GetArgumentParseInt("max", 100);
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateIntAttr(nodeset!, attrName, minInt, maxInt));
+                    return CommandResult.FromOperationResult(Generators.GenerateIntAttr(nodeset!, attrName, minInt, maxInt));
                 case NodeAttributeType.Float:
                     float minFloat = command.GetArgumentParseFloat("min", 0);
                     float maxFloat = command.GetArgumentParseFloat("max", 1);
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateFloatAttr(nodeset!, attrName, minFloat, maxFloat));
+                    return CommandResult.FromOperationResult(Generators.GenerateFloatAttr(nodeset!, attrName, minFloat, maxFloat));
                 case NodeAttributeType.Bool:
                     double p = command.GetArgumentParseDouble("p", 0.5);
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateBoolAttr(nodeset!, attrName, p));
+                    return CommandResult.FromOperationResult(Generators.GenerateBoolAttr(nodeset!, attrName, p));
                 case NodeAttributeType.Char:
                     string charstring = command.GetArgumentParseString("chars", "m;f;o");
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateCharAttr(nodeset!, attrName, charstring));
+                    return CommandResult.FromOperationResult(Generators.GenerateCharAttr(nodeset!, attrName, charstring));
                 default:
                     return CommandResult.Fail("AttributeTypeNotFound", $"Node attribute type '{attrType}' not implemented.");
             }

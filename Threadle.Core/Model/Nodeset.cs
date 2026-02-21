@@ -613,7 +613,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Initialize the capacity of the Díctionary storing nodes with attributes
+        /// Initialize the capacity of the Dictionary storing nodes with attributes
         /// </summary>
         /// <param name="nbrNodesWithAttributes">Upper range of number of nodes</param>
         internal void InitSizeNodesWithAttributes(int nbrNodesWithAttributes)

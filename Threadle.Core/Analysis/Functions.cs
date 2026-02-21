@@ -116,7 +116,6 @@ namespace Threadle.Core.Analysis
             }
             else
             {
-                //stats["Mode"] = null;
                 stats["Mode_Count"] = 0;
             }
             return stats;

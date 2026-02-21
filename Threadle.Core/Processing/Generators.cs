@@ -10,7 +10,15 @@ namespace Threadle.Core.Processing
     public static class NetworkGenerators
     {
         #region Methods (public)
-
+        /// <summary>
+        /// Generate an integer-type node attribute that is uniformly distributed between
+        /// the two specified values, storing the value in the specified node attribute name.
+        /// </summary>
+        /// <param name="nodeset">The nodeset to create the node attribute in.</param>
+        /// <param name="attrName">The name of the attribute.</param>
+        /// <param name="minValue">Minimum integer value.</param>
+        /// <param name="maxValue">Maximum integer value.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateIntAttr(Nodeset nodeset, string attrName, int minValue, int maxValue)
         {
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Int);
@@ -23,6 +31,15 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (integer) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
         }
 
+        /// <summary>
+        /// Generate a float-type node attribute that is uniformly distributed between
+        /// the two specified values, storing the value in the specified node attribute name.
+        /// </summary>
+        /// <param name="nodeset">The nodeset to create the node attribute in.</param>
+        /// <param name="attrName">The name of the attribute.</param>
+        /// <param name="minValue">Minimum float value.</param>
+        /// <param name="maxValue">Maximum float value.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateFloatAttr(Nodeset nodeset, string attrName, float minValue, float maxValue)
         {
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Float);
@@ -35,6 +52,13 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (float) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
         }
 
+        /// <summary>
+        /// Generate a random boolean node attribute with the probability p to be true.
+        /// </summary>
+        /// <param name="nodeset">The nodeset to create the node attribute in.</param>
+        /// <param name="attrName">The name of the attribute.</param>
+        /// <param name="p">The probability of the value being true.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateBoolAttr(Nodeset nodeset, string attrName, double p)
         {
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Bool);
@@ -47,6 +71,14 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (bool) defined and true assigned to all nodes by probability {p}.");
         }
 
+        /// <summary>
+        /// Generate a char-type node attribute uniformly picked among the characters in the
+        /// provided string.
+        /// </summary>
+        /// <param name="nodeset">The nodeset to create the node attribute in.</param>
+        /// <param name="attrName">The name of the attribute.</param>
+        /// <param name="charString">A string of semicolon-separated characters to pick from.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateCharAttr(Nodeset nodeset, string attrName, string charString)
         {
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Char);
@@ -66,6 +98,17 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (char) defined and specified random characters assigned to all nodes.");
         }
 
+        /// <summary>
+        /// Generates random affiliation data in the specified network and 2-mode layer, with
+        /// the specified number of hyperedges (affiliations) and the average number of affiliations
+        /// each node should have. The number of affiliations is taken from the Poisson
+        /// cumulative distribution function.
+        /// </summary>
+        /// <param name="network">The network in which to generate data.</param>
+        /// <param name="layerName">The 2-mode layer to populate</param>
+        /// <param name="h">The number of hyperedges to generate (automatically named aff_[0-(h-1)])</param>
+        /// <param name="averageNbrAffiliations">Average number of affiliations each node should have.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateRandomTwoModeLayer(Network network, string layerName, int h, int averageNbrAffiliations)
         {
             var layerResult = network.GetLayer(layerName);
@@ -104,6 +147,14 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Randomized 2-mode network with h={h} hyperedges and a={averageNbrAffiliations} average number of affiliations per node generated in layer '{layerName}' in network '{network.Name}'.");
         }
 
+        /// <summary>
+        /// Generates a Barabasi-Albert network in the provided network and layer name. The layer must alread exist and be binary and symmetric.
+        /// Any would-be existing ties in that layer will first be deleted.
+        /// </summary>
+        /// <param name="network">The network to generate the data in.</param>
+        /// <param name="layerName">The layer to create the random network in (must be 1-mode, binary and symmetric)</param>
+        /// <param name="m">The m parameter.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateBarabasiAlbertLayer(Network network, string layerName, int m)
         {
             var layerResult = network.GetLayer(layerName);
@@ -165,7 +216,18 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Barabasi-Albert network with m={m} generated in layer '{layerName}' in network '{network.Name}'.");
         }
 
-
+        /// <summary>
+        /// Generate a Watts-Strogatz small-world-syle random network in an existing 1-mode layer,
+        /// that is binary and symmetric. It works by first generating a ring lattice (with the
+        /// specified degree k), and then rewiring edges with the beta probability.
+        /// The k must be an even number: it will then create edges with the k/2 preceding node ids
+        /// and with the k/2 following node ids.
+        /// </summary>
+        /// <param name="network">The network to generate the data in.</param>
+        /// <param name="layerName">The 1-mode binary and symmetric layer to create the WS network in.</param>
+        /// <param name="k">The k parameter (node degree) - must be an even number!</param>
+        /// <param name="beta">The probability of rewiring a forward-looking edge.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateWattsStrogatzLayer(Network network, string layerName, int k, double beta)
         {
             if (k % 2 != 0)
@@ -184,8 +246,6 @@ namespace Threadle.Core.Processing
             if (layer.Selfties)
                 return OperationResult.Fail("ConstraintLayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
 
-
-
             layer.ClearLayer();
 
             Nodeset nodeset = network.Nodeset;
@@ -199,15 +259,17 @@ namespace Threadle.Core.Processing
                 for (int j = 1; j <= k / 2; j++)
                     layer._addEdge(nodeIds[i], nodeIds[(i + j) % n]);
 
-            // Then: rewiring - but return for now to check how it looks
+            // Then: rewiring!
             uint source, oldTarget, newTarget;
             for (int i = 0; i < n; i++)
             {
                 source = nodeIds[i];
+                // For rewiring: check the forward-oriented edges (will wrap around the edge)
                 for (int j = 1; j <= k / 2; j++)
                 {
                     if (Misc.Random.NextDouble() < beta)
                     {
+                        // Note how modulus by size of nodeset will make the wrap!
                         oldTarget = nodeIds[(i + j) % n];
                         do
                         {
@@ -332,14 +394,6 @@ namespace Threadle.Core.Processing
             else
                 return (uint)(row + offsetInRow + (selfties ? 0 : 1));
         }
-
-
-
-
-
-
-
-
         #endregion
     }
 }

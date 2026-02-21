@@ -13,7 +13,7 @@ namespace Threadle.Core.Model
     {
         #region Fields
         /// <summary>
-        /// The collection of Edgesets associated by unique node nodeIdAlter.
+        /// The collection of Edgesets associated by unique nodes.
         /// </summary>
         private Dictionary<uint, IEdgeset> _edgesets = [];
 
@@ -119,7 +119,7 @@ namespace Threadle.Core.Model
         };
 
         /// <summary>
-        /// Returns the dictionary of Edgeset objects by node nodeIdAlter.
+        /// Returns the dictionary of Edgeset objects by node id.
         /// </summary>
         public Dictionary<uint, IEdgeset> Edgesets => _edgesets;
 
@@ -132,10 +132,10 @@ namespace Threadle.Core.Model
 
         #region Methods (public)
         /// <summary>
-        /// Removes any edge in the Edgeset that includes this node nodeIdAlter.
+        /// Removes any edge in the Edgeset that includes this node id.
         /// Used for cleaning up relational layers for invalid edges after a node has been removed.
         /// </summary>
-        /// <param name="nodeId">The node nodeIdAlter whose edges are to be removed.</param>
+        /// <param name="nodeId">The node id whose edges are to be removed.</param>
         public void RemoveNodeEdges(uint nodeId)
         {
             Edgesets.Remove(nodeId);
@@ -146,8 +146,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Gets the edge value between node1Id and node2Id if this exists (from node1Id to node2Id for directed layers).
         /// </summary>
-        /// <param name="node1Id">The first (source) node nodeIdAlter.</param>
-        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) node id.</param>
+        /// <param name="node2Id">The second (destination) node id.</param>
         /// <returns>The value of the edge if it exists, otherwise zero.</returns>
         public float GetEdgeValue(uint node1Id, uint node2Id)
         {
@@ -159,8 +159,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Checks if an edge exists between node1Id and node2Id (from node1Id to node2Id for directed layers).
         /// </summary>
-        /// <param name="node1Id">The first (source) node nodeIdAlter.</param>
-        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) node id.</param>
+        /// <param name="node2Id">The second (destination) node id.</param>
         /// <returns>Returns true if there is an edge, false otherwise.</returns>
         public bool CheckEdgeExists(uint node1Id, uint node2Id)
         {
@@ -170,7 +170,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Returns an array of node ids in the edgeset for a particular node nodeIdAlter, i.e. the set of alters.
+        /// Returns an array of node ids in the edgeset for a particular node id, i.e. the set of alters.
         /// For directional data, this could either be outbound, inbound, or both, as dictated by
         /// the <paramref name="edgeTraversal"/> parameter.
         /// </summary>
@@ -314,8 +314,8 @@ namespace Threadle.Core.Model
         /// If Directional and UserSetting is set to only add outbound edges, no inbound edge is stored at the destination node.
         /// Returns an OperationResult informing how it all went.
         /// </summary>
-        /// <param name="node1Id">The first (source) bode nodeIdAlter.</param>
-        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) node id.</param>
+        /// <param name="node2Id">The second (destination) node id.</param>
         /// <param name="value">The value of the edge (defaults to 1; moot for binary layers).</param>
         /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
         internal OperationResult AddEdge(uint node1Id, uint node2Id, float value = 1)
@@ -410,8 +410,8 @@ namespace Threadle.Core.Model
         /// Removes an (the) edge between node1Id and node2Id. Returns a fail if no such edge is found.
         /// (First checks if there indeed are any Edgeset recorded for these, then checks if there are any corresponding edges recorded)
         /// </summary>
-        /// <param name="node1Id">The first (source) node nodeIdAlter.</param>
-        /// <param name="node2Id">The second (destination) node nodeIdAlter.</param>
+        /// <param name="node1Id">The first (source) node id.</param>
+        /// <param name="node2Id">The second (destination) node id.</param>
         /// <returns>An <see cref="OperationResult"/> informing how well this went.</returns>
         internal OperationResult RemoveEdge(uint node1Id, uint node2Id)
         {
@@ -423,9 +423,9 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets an existing Edgeset object for a node nodeIdAlter, or creates it first if not existing.
+        /// Gets an existing Edgeset object for a node id, or creates it first if not existing.
         /// </summary>
-        /// <param name="nodeId">The node nodeIdAlter whose Edgeset is to be obtained.</param>
+        /// <param name="nodeId">The node id whose Edgeset is to be obtained.</param>
         /// <returns></returns>
         internal IEdgeset GetOrCreateEdgeset(uint nodeId)
         {
@@ -445,10 +445,10 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the outdegree (i.e. number of outbound edges) for a node nodeIdAlter.
+        /// Gets the outdegree (i.e. number of outbound edges) for a node id.
         /// </summary>
-        /// <param name="nodeId">The node nodeIdAlter.</param>
-        /// <returns>The number of outbound edges this node nodeIdAlter has.</returns>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>The number of outbound edges this node id has.</returns>
         internal uint GetOutDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
@@ -457,10 +457,10 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the indegree (i.e. number of inbound edges) for a node nodeIdAlter.
+        /// Gets the indegree (i.e. number of inbound edges) for a node id.
         /// </summary>
-        /// <param name="nodeId">The node nodeIdAlter.</param>
-        /// <returns>The number of inbound edges this node nodeIdAlter has.</returns>
+        /// <param name="nodeId">The node id.</param>
+        /// <returns>The number of inbound edges this node id has.</returns>
         internal uint GetInDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))

@@ -45,14 +45,6 @@ namespace Threadle.CLIconsole.Commands
             if (!network.Layers.TryGetValue(layerName, out var layer))
                 return CommandResult.Fail("LayerNotFound", $"!Error: Layer '{layerName}' not found.");
             result = FileManager.ExportLayerEdgelist(layer, filepath, separator, header);
-
-            //if (layer is LayerOneMode layerOneMode)
-            //    result = FileManager.ExportOneModeEdgeList(layerOneMode, filepath, separator, header);
-            //else if (layer is LayerTwoMode layerTwoMode)
-            //    result = FileManager.ExportTwoModeEdgeList(layerTwoMode, filepath, separator, header);
-            //else
-            //    return CommandResult.Fail("NotImplemented", $"Exporting layer type not implemented: {layer.GetType().Name}");
-
             return CommandResult.FromOperationResult(result);
         }
     }

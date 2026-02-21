@@ -41,18 +41,18 @@ namespace Threadle.CLIconsole.Commands
             {
                 case "er":
                     double p = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("p", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateErdosRenyiLayer(network, layerName, p));
+                    return CommandResult.FromOperationResult(Generators.GenerateErdosRenyiLayer(network, layerName, p));
                 case "ws":
                     int k = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("k", null);
                     double beta = command.GetArgumentParseDoubleThrowExceptionIfMissingOrNull("beta", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateWattsStrogatzLayer(network, layerName, k, beta));
+                    return CommandResult.FromOperationResult(Generators.GenerateWattsStrogatzLayer(network, layerName, k, beta));
                 case "ba":
                     int m = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("m", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateBarabasiAlbertLayer(network, layerName, m));
+                    return CommandResult.FromOperationResult(Generators.GenerateBarabasiAlbertLayer(network, layerName, m));
                 case "2mode":
                     int h = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("h", null);
                     int a = command.GetArgumentParseIntThrowExceptionIfMissingOrNull("a", null);
-                    return CommandResult.FromOperationResult(NetworkGenerators.GenerateRandomTwoModeLayer(network, layerName, h, a));
+                    return CommandResult.FromOperationResult(Generators.GenerateRandomTwoModeLayer(network, layerName, h, a));
                 default:
                     return CommandResult.Fail("NetworkTypeNotFound", $"Random network type '{type}' not recognized.");
 
