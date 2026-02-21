@@ -28,7 +28,7 @@ namespace Threadle.CLIconsole.Runtime
 
                 return new()
                 {
-                    $"\u001b[36mThreadle CLI Console v1.0.0.0   |   Threadle Core v1.0.0.0\u001b[0m\r\n" +
+                    $"\u001b[36mThreadle CLI Console v1.0.0     |   Threadle Core v1.0.0\u001b[0m\r\n" +
                     $"\u001b[90m--------------------------------------------------------------------------\u001b[0m\r\n" +
                     $"\r\n" +
                     $"  Developed by: \u001b[36mCarl Nordlund\u001b[0m\r\n" +

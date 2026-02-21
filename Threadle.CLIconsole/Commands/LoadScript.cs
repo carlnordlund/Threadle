@@ -5,7 +5,7 @@ using Threadle.CLIconsole.Runtime;
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'addedge' CLI command.
+    /// Class representing the 'loadscript' CLI command.
     /// </summary>
     public class LoadScript : ICommand
     {

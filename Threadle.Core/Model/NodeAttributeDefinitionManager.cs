@@ -33,7 +33,7 @@ namespace Threadle.Core.Model
         private readonly Dictionary<byte, string> _indexToName = new();
 
         /// <summary>
-        /// Dictionary to map node attribute indices to their node attribyte types.
+        /// Dictionary to map node attribute indices to their node attribute types.
         /// </summary>
         private readonly Dictionary<byte, NodeAttributeType> _indexToType = new();
         #endregion
@@ -56,8 +56,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Defines a new node attribute with the given attrName and <see cref="NodeAttributeType"/> attrType.
         /// </summary>
-        /// <param attrName="attrName">The attrName of the node attribute.</param>
-        /// <param attrName="attrType">The <see cref="NodeAttributeType"/> of the node attribute.</param>
+        /// <param name="attrName">The attrName of the node attribute.</param>
+        /// <param name="attrType">The <see cref="NodeAttributeType"/> of the node attribute.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, including the node attribute index if successful.</returns>
         internal OperationResult<byte> DefineNewNodeAttribute(string attrName, NodeAttributeType attrType)
         {
@@ -75,25 +75,23 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Tries to get the node attribute index of the specified node attribute.
         /// </summary>
-        /// <param attrName="attrName">The attrName of the node attribute.</param>
-        /// <param attrName="index">The (outbound) index of the attribute.</param>
+        /// <param name="attrName">The attrName of the node attribute.</param>
+        /// <param name="index">The (outbound) index of the attribute.</param>
         /// <returns>Returns true if the node attribute was found, false otherwise.</returns>
         internal bool TryGetAttributeIndex(string attrName, out byte index) => _nameToIndex.TryGetValue(attrName, out index);
 
         /// <summary>
         /// Tries to get the node attribute attrType of the node attribute at the specified node attribute index.
         /// </summary>
-        /// <param attrName="index">The node attribute index.</param>
-        /// <param attrName="attrType">The (outbound) <see cref="NodeAttributeType"/> of the node attribute.</param>
+        /// <param name="index">The node attribute index.</param>
+        /// <param name="attrType">The (outbound) <see cref="NodeAttributeType"/> of the node attribute.</param>
         /// <returns>Returns true if the node attribute was found, false otherwise.</returns>
         internal bool TryGetAttributeType(byte index, out NodeAttributeType attrType) => _indexToType.TryGetValue(index, out attrType);
 
-        internal bool TryGetAttributeName(byte index, out string attrName) => _indexToName.TryGetValue(index, out attrName!);
-
         /// <summary>
-        /// Returns a collection of tuples of node attribute names and <see cref="NodeAttributeType"/> values for all defined node attributes.
+        /// Returns a collection of info about attributes.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>A collection of byte-string-NodeAttributeType tuples.</returns>
         internal IEnumerable<(byte Index, string AttrName, NodeAttributeType AttrType)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Value, kvp.Key, _indexToType[kvp.Value]));
 
         /// <summary>
@@ -117,7 +115,7 @@ namespace Threadle.Core.Model
         /// Discards (un-defines) an existing (defined) node attribute.
         /// If successfully removed, the index of the node attribute is placed on the recycling heap.
         /// </summary>
-        /// <param attrName="attrName">The attrName of the node attribute to discard (undefine).</param>
+        /// <param name="attrName">The attrName of the node attribute to discard (undefine).</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, including the index of the node attribute that was now removed.</returns>
         internal OperationResult<byte> UndefineNodeAttribute(string attrName)
         {
@@ -146,7 +144,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Support method to check if there is an attribute with this attrName
         /// </summary>
-        /// <param attrName="attrName">The attribute attrName to test.</param>
+        /// <param name="attrName">The attribute attrName to test.</param>
         /// <returns>Returns true if there is an attribute with this attrName, false otherwise.</returns>
         internal bool CheckIfAttributeNameExists(string attrName)
         {

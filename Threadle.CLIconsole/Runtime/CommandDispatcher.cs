@@ -23,7 +23,6 @@ namespace Threadle.CLIconsole.Runtime
         private static readonly Dictionary<string, ICommand> _commands = new Dictionary<string, ICommand>
         {
             ["addaff"] = new AddAffiliation(),
-            ["addaff"] = new AddAffiliation(),
             ["addedge"] = new AddEdge(),
             ["addhyper"] = new AddHyper(),
             ["addlayer"] = new AddLayer(),

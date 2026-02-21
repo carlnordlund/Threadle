@@ -62,7 +62,7 @@ namespace Threadle.Core.Utilities
         /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
         /// <returns><see langword="true"/> if the condition is satisfied based on the comparison; otherwise, <see
         /// langword="false"/>.</returns>
-        public static bool EvalutateCondition(NodeAttributeValue nodeValue, string comparisonValue, ConditionType condition)
+        public static bool EvaluateCondition(NodeAttributeValue nodeValue, string comparisonValue, ConditionType condition)
         {
             switch (nodeValue.Type)
             {
@@ -160,8 +160,8 @@ namespace Threadle.Core.Utilities
         /// Rather than a switch statement, this could also be done using a Enum.TryParse() statement, but
         /// the switch was chosen for clarity.
         /// </remarks>
-        /// <param name="attributetype">The textual representation of this node attribute type (either 'char','int','float', or 'bool').</param>
-        /// <returns>The corresponding <see cref="NodeAttributeType"> value.</returns>
+        /// <param name="attributeTypeName">The textual representation of this node attribute type (either 'char','int','float', or 'bool').</param>
+        /// <returns>The corresponding <see cref="NodeAttributeType"/> value.</returns>
         public static NodeAttributeType? GetAttributeType(string attributeTypeName)
             => attributeTypeName.ToLowerInvariant() switch
             {

@@ -5,7 +5,7 @@ using Threadle.CLIconsole.Runtime;
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'removeall' CLI command.
+    /// Class representing the 'deleteall' CLI command.
     /// </summary>
     public class DeleteAll : ICommand
     {

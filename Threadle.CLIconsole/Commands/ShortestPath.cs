@@ -7,7 +7,7 @@ using Threadle.Core.Model;
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'getwd' CLI command.
+    /// Class representing the 'shortestpath' CLI command.
     /// </summary>
     public class ShortestPath : ICommand
     {

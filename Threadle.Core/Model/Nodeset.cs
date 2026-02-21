@@ -613,7 +613,7 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Initialize the capacity of the Díctionary storing nodes wit attributes
+        /// Initialize the capacity of the Díctionary storing nodes with attributes
         /// </summary>
         /// <param name="nbrNodesWithAttributes">Upper range of number of nodes</param>
         internal void InitSizeNodesWithAttributes(int nbrNodesWithAttributes)
@@ -650,7 +650,8 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes the specified attribute from a attribute tuple and shifts .
+        /// Removes the specified attribute from a attribute tuple and 'shifts' the items
+        /// (places the last item where this was).
         /// </summary>
         /// <param name="nodeId">The node id</param>
         /// <param name="attributeIndex">The attribute index</param>

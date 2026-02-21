@@ -25,9 +25,9 @@ namespace Threadle.Core.Processing
         /// Note that symmetrization creates a new layer, without modifying anything in the layer that was symmetrized.
         /// </summary>
         /// <param name="network">The Network object.</param>
-        /// <param name="layerName">The name of the 1-mode valued layer to dichotomize.</param>
+        /// <param name="layerName">The name of the 1-mode valued layer to symmetrize.</param>
         /// <param name="method">The <see cref="SymmetrizeMethod"/> to use when symmetrizing.</param>
-        /// <param name="newLayerName">The name of the new 1-mode binary layer to store the dichotomized data in.</param>
+        /// <param name="newLayerName">The name of the new 1-mode binary layer to store the symmetrized data in.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult SymmetrizeLayer(Network network, string layerName, SymmetrizeMethod method, string newLayerName)
         {

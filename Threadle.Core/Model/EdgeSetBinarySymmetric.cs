@@ -57,8 +57,8 @@ namespace Threadle.Core.Model
 
         #region Methods
         /// <summary>
-        /// Adds an (inbound) edge to this edgeset. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an (inbound) edge to this edgeset, continuing to the generic AddEdge
+        /// method for these binary symmetric edges. Returns an OperationResult.
         /// </summary>
         /// <param name="partnerNodeId">The id of the partner node.</param>
         /// <param name="value">The value of the edge (has no effect here).</param>
@@ -69,8 +69,8 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an (outbound) edge to this edgeset. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an (outbound) edge to this edgeset, continuing to the generic AddEdge
+        /// method for these binary symmetric edges. Returns an OperationResult.
         /// </summary>
         /// <param name="partnerNodeId">The id of the partner node.</param>
         /// <param name="value">The value of the edge (has no effect here).</param>
@@ -81,7 +81,8 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Private helper method for adding an edge, only used by the in- and outbound edge adder methods.
+        /// Private helper method for adding an edge, only used by the in- and outbound
+        /// edge adder methods.
         /// </summary>
         /// <param name="partnerNodeId">The id of the partner node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
@@ -93,52 +94,64 @@ namespace Threadle.Core.Model
             return OperationResult.Ok();
         }
 
+        /// <summary>
+        /// Adds an (inbound) edge to this edgeset, continuing to the generic AddEdge
+        /// method for these binary symmetric edges. Returns void.
+        /// </summary>
+        /// <param name="partnerNodeId">The id of the partner node.</param>
+        /// <param name="value">The value of the edge (has no effect here).</param>
         public void _addInboundEdge(uint partnerNodeId, float value = 1)
         {
             _connections.Add(partnerNodeId);
         }
 
+        /// <summary>
+        /// Adds an (outbound) edge to this edgeset, continuing to the generic AddEdge
+        /// method for these binary symmetric edges. Returns void.
+        /// </summary>
+        /// <param name="partnerNodeId">The id of the partner node.</param>
+        /// <param name="value">The value of the edge (has no effect here).</param>
         public void _addOutboundEdge(uint partnerNodeId, float value = 1)
         {
             _connections.Add(partnerNodeId);
         }
 
+        /// <summary>
+        /// Deduplicates the list of binary connections.
+        /// </summary>
         public void _deduplicate()
         {
             Misc.DeduplicateUintList(_connections);
         }
 
+        /// <summary>
+        /// Sorts the list of connections.
+        /// </summary>
         public void _sort()
         {
             _connections.Sort();
         }
 
-
-
         /// <summary>
-        /// Removes an (inbound) edge from this edgeset.
+        /// Removes an (inbound) edge to this edgeset, continuing to the generic RemoveEdge
+        /// method for these binary symmetric edges. Returns an OperationResult.
         /// </summary>
         /// <param name="partnerNodeId">The id of the source node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveInboundEdge(uint partnerNodeId)
         {
             return RemoveEdge(partnerNodeId);
-            //if (_connections.Remove(partnerNodeId))
-            //    return OperationResult.Ok();
-            //return OperationResult.Fail("EdgeNotFound", "Edge not found.");
         }
 
         /// <summary>
-        /// Removes an (outbound) edge from this edgeset.
+        /// Removes an (inbound) edge to this edgeset, continuing to the generic RemoveEdge
+        /// method for these binary symmetric edges. Returns an OperationResult.
         /// </summary>
         /// <param name="partnerNodeId">The id of the destination node.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveOutboundEdge(uint partnerNodeId)
         {
             return RemoveEdge(partnerNodeId);
-            //if (_connections.Remove(partnerNodeId))
-            //    return OperationResult.Ok();
-            //return OperationResult.Fail("EdgeNotFound", "Edge not found.");
         }
 
         /// <summary>
@@ -256,9 +269,6 @@ namespace Threadle.Core.Model
         public List<string> FormatEdges(uint egoNodeId, int maxCount)
         {
             List<string> lines = new(maxCount);
-            //foreach (uint alterNodeId in _connections.Take(maxCount))
-            //    lines.Add($"{egoNodeId} <-> {alterNodeId}");
-
             foreach (uint nodeId in _connections)
             {
                 if (nodeId > egoNodeId)
@@ -267,7 +277,6 @@ namespace Threadle.Core.Model
                     if (lines.Count >= maxCount)
                         break;
                 }
-
             }
             return lines;
         }
@@ -294,6 +303,11 @@ namespace Threadle.Core.Model
             return edgeset;
         }
 
+        /// <summary>
+        /// Sets an initial capacity for the Edgeset, to reduce buffering when
+        /// adding many edges.
+        /// </summary>
+        /// <param name="capacity">The expected number of alters (i.e. degree) of the node.</param>
         public void _setCapacity(int capacity)
         {
             _connections = new(capacity);

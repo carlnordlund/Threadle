@@ -37,7 +37,7 @@ namespace Threadle.CLIconsole.Commands
             if (!command.TrimNameAndCheckValidity(attrName, out string attributeNameVerified))
                 return CommandResult.Fail("InvalidAttributeName", $"Error: Attribute name '{attrName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
             string attrType = command.GetArgumentThrowExceptionIfMissingOrNull("attrtype", "arg2");
-            return CommandResult.FromOperationResult(nodeset!.DefineNodeAttribute(attrName, attrType));
+            return CommandResult.FromOperationResult(nodeset!.DefineNodeAttribute(attributeNameVerified, attrType));
         }
     }
 }

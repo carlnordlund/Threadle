@@ -97,22 +97,38 @@ namespace Threadle.Core.Model
             return OperationResult.Ok();
         }
 
+        /// <summary>
+        /// Adds an inbound edge to this edgeset. Returns void.
+        /// </summary>
+        /// <param name="partnerNodeId">The id of the partner node.</param>
+        /// <param name="value">The value of the edge (defaults to 1).</param>
         public void _addInboundEdge(uint partnerNodeId, float value = 1)
         {
             _inbound.Add(new Connection(partnerNodeId, value));
         }
 
+        /// <summary>
+        /// Adds an outbound edge to this edgeset. Returns void.
+        /// </summary>
+        /// <param name="partnerNodeId">The id of the partner node.</param>
+        /// <param name="value">The value of the edge (defaults to 1).</param>
         public void _addOutboundEdge(uint partnerNodeId, float value = 1)
         {
             _outbound.Add(new Connection(partnerNodeId, value));
         }
 
+        /// <summary>
+        /// Deduplicates the lists of valued connections, i.e. both inbound and outbound.
+        /// </summary>
         public void _deduplicate()
         {
             Misc.DeduplicateConnectionList(_inbound);
             Misc.DeduplicateConnectionList(_outbound);
         }
 
+        /// <summary>
+        /// Sorts the lists of inbound and outbound connections.
+        /// </summary>
         public void _sort()
         {
             _inbound.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
@@ -314,6 +330,11 @@ namespace Threadle.Core.Model
             return edgeset;
         }
 
+        /// <summary>
+        /// Sets an initial capacity for the Edgeset, to reduce buffering when
+        /// adding many edges.
+        /// </summary>
+        /// <param name="capacity">The expected number of alters (i.e. degree) of the node.</param>
         public void _setCapacity(int capacity)
         {
             _outbound = new(capacity);

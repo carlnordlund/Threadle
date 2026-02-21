@@ -6,7 +6,7 @@ using Threadle.Core.Utilities;
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'getwd' CLI command.
+    /// Class representing the 'randomseed' CLI command.
     /// </summary>
     public class RandomSeed : ICommand
     {

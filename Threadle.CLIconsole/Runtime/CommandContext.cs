@@ -48,7 +48,7 @@ namespace Threadle.CLIconsole.Runtime
         /// <summary>
         /// Removes the structure and variable stored in the console variable memory with the provided <paramref name="name"/>.
         /// </summary>
-        /// <param name="name">The variable´name.</param>
+        /// <param name="name">The variable name.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         //internal OperationResult DeleteStructure(string name)
         internal CommandResult DeleteStructure(string name)
@@ -110,7 +110,7 @@ namespace Threadle.CLIconsole.Runtime
             while (true)
             {
                 if (!Variables.ContainsKey(baseName + i))
-                    return "Untitled-" + i;
+                    return baseName + i;
                 i++;
             }
         }

@@ -5,7 +5,7 @@ using Threadle.Core.Utilities;
 namespace Threadle.Core.Processing
 {
     /// <summary>
-    /// Various methods for processing Nodesetstructures
+    /// Various methods for processing Nodeset structures
     /// </summary>
     public static class NodesetProcessor
     {
@@ -45,7 +45,7 @@ namespace Threadle.Core.Processing
                     true => condition switch
                     {
                         ConditionType.notnull => true,  // Existing attribute counts as 'notnull'
-                        _ => Misc.EvalutateCondition(result.Value, attrValueStr!, condition), // Evaluate condition here
+                        _ => Misc.EvaluateCondition(result.Value, attrValueStr!, condition), // Evaluate condition here
                     },
                     false => condition switch
                     {

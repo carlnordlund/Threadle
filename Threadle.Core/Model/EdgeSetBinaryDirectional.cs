@@ -72,23 +72,38 @@ namespace Threadle.Core.Model
             return OperationResult.Ok();
         }
 
+        /// <summary>
+        /// Adds an inbound edge to this edgeset. Returns void.
+        /// </summary>
+        /// <param name="partnerNodeId">The id of the partner node.</param>
+        /// <param name="value">The value of the edge (has no effect here).</param>
         public void _addInboundEdge(uint partnerNodeId, float value = 1)
         {
             _inbound.Add(partnerNodeId);
         }
 
+        /// <summary>
+        /// Adds an outbound edge to this edgeset. Returns void.
+        /// </summary>
+        /// <param name="partnerNodeId">The id of the partner node.</param>
+        /// <param name="value">The value of the edge (has no effect here).</param>
         public void _addOutboundEdge(uint partnerNodeId, float value = 1)
         {
             _outbound.Add(partnerNodeId);
         }
 
+        /// <summary>
+        /// Deduplicates the lists of binary connections, i.e. both inbound and outbound.
+        /// </summary>
         public void _deduplicate()
         {
             Misc.DeduplicateUintList(_outbound);
             Misc.DeduplicateUintList(_inbound);
-
         }
 
+        /// <summary>
+        /// Sorts the lists of inbound and outbound connections.
+        /// </summary>
         public void _sort()
         {
             _outbound.Sort();
@@ -275,11 +290,16 @@ namespace Threadle.Core.Model
             return edgeset;
         }
 
+        /// <summary>
+        /// Sets an initial capacity for the Edgeset, to reduce buffering when
+        /// adding many edges.
+        /// </summary>
+        /// <param name="capacity">The expected number of alters (i.e. degree) of the node.</param>
         public void _setCapacity(int capacity)
         {
             _outbound = new(capacity);
-            //if (!UserSettings.OnlyOutboundEdges)
-            _inbound = new(capacity);
+            if (!UserSettings.OnlyOutboundEdges)
+                _inbound = new(capacity);
         }
         #endregion
     }
