@@ -116,7 +116,7 @@ Using Threadle, we are also testing various random-walker methodologies for meas
 
 Beyond the specific application that inspired its development, Threadle could also be useful in other scientific contexts and datasets, i.e. where very large multilayer networks consisting of both 1-mode (unipartite) and 2-mode (bipartite) data have to be queried as if the 2-mode data was projected.
 
-# Use of AI statement
+# AI usage disclosure
 
 AI assistance (Claude Code) was occasionally used as an external discussant and stress-tester of architectural design ideas, as well as for knowledge-related queries (e.g., anatomy of InnoSetup files, buffer handling when decompressing Gzip streams, and parametrization of Watts-Strogatz random graph generation). Claude and the Microsoft Word readability tool were also used for proofreading and to improve readability of this article.
 
