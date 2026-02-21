@@ -7,7 +7,7 @@ namespace Threadle.Core.Processing
     /// <summary>
     /// Various network generator methods.
     /// </summary>
-    public static class NetworkGenerators
+    public static class Generators
     {
         #region Methods (public)
         /// <summary>
