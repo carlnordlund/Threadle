@@ -35,6 +35,10 @@ The base functionality is implemented in the Threadle.Core module. A command-lin
 
 Large-scale administrative register data, such as the Swedish population registers for research, can be represented and approached as large, temporal, and structurally complex networks containing multiple relational layers (kinship, residence, employment, education, etc.), many of which are two-mode (affiliation) structures. Research applications involving multilayer random-walker models, simulation-based methods, and repeated sampling of ego networks across layers require very fast retrieval of neighboring alters and node attributes, while maintaining a memory footprint small enough to allow population-scale networks for multiple years to be simultaneously loaded into RAM.
 
+Given these constraints, analyses on population-scale networks necessarily rely on sample- and traversal-based methods, making efficient storage and fast querying the critical requirements for working with such networks. Threadle was developed to address this need, providing a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes.
+
+# State of the field
+
 General-purpose libraries such as igraph [@igraph], NetworkX [@networkx], NetworKit [@staudt_networkit_2016], and graph-tool [@peixoto_graph-tool_2017] offer extensive analytical toolsets, but their internal data models are not designed to support the structural and memory requirements of multilayer and mixed-mode data found in full-population register data. Specifically, we note the following set of features of these existing libraries that are not optimal for working with more heterogeneous, feature-rich network data:
 
 - Multilayer networks are typically represented by attaching attributes to edges rather than storing them natively within layers in the engine, with substantial memory overhead
@@ -43,7 +47,7 @@ General-purpose libraries such as igraph [@igraph], NetworkX [@networkx], Networ
 - Node attributes are often stored in general-purpose metadata containers in R or Python rather than the graph engine itself
 - Many commonly used methods and metrics—such as betweenness centrality, closeness centrality, and community detection—become computationally infeasible for very large networks due to their time and memory complexity, although approximation algorithms exist for some measures [cf. @staudt_networkit_2016].
 
-Given these constraints, analyses on population-scale networks necessarily rely on sample- and traversal-based methods, making efficient storage and fast querying the critical requirements for working with such networks. Threadle was developed to address this need, providing a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes. Threadle is thus not an alternative to igraph, NetworkX, NetworKit or similar network-analytical frameworks — but it is an alternative storage and query engine for large, feature-rich networks, where sample- and traversal-based analytical methods instead are implemented in the threadleR frontend.
+These limitations are architectural rather than incidental: the existing libraries are designed around unipartite graph representations with analytical algorithms as their primary focus. Contributing native multilayer and mixed-mode storage to these established codebases would require fundamental restructuring of their core data models. Threadle therefore takes a complementary approach: rather than replacing these analytical frameworks, it provides an alternative storage and query layer optimized for large, feature-rich networks, where sample- and traversal-based analytical methods are implemented in the threadleR frontend.
 
 # Software design and key features
 
