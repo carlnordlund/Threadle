@@ -143,7 +143,6 @@ namespace Threadle.Core.Processing
                 for (int j = 0; j < nbrAffs; j++)
                     layer._addAffiliation(nodeIds[i], hyperNames[j]);
             }
-            //return OperationResult.Ok();
             return OperationResult.Ok($"Randomized 2-mode network with h={h} hyperedges and a={averageNbrAffiliations} average number of affiliations per node generated in layer '{layerName}' in network '{network.Name}'.");
         }
 

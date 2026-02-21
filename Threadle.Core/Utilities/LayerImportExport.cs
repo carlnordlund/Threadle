@@ -101,7 +101,7 @@ namespace Threadle.Core.Utilities
             uint node1Id, node2Id;
             if (layerOneMode.IsBinary)
             {
-                // Importing binary datac
+                // Importing binary data
                 if (addMissingNodes)
                 {
                     // Add nodes if missing from Nodeset
