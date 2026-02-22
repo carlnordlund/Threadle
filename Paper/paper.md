@@ -35,7 +35,7 @@ The base functionality is implemented in the Threadle.Core module. A command-lin
 
 Large-scale administrative register data, such as the Swedish population registers for research, can be represented and approached as large, temporal, and structurally complex networks containing multiple relational layers (kinship, residence, employment, education, etc.), many of which are two-mode (affiliation) structures. Research applications involving multilayer random-walker models, simulation-based methods, and repeated sampling of ego networks across layers require very fast retrieval of neighboring alters and node attributes, while maintaining a memory footprint small enough to allow population-scale networks for multiple years to be simultaneously loaded into RAM.
 
-Given these constraints, analyses on population-scale networks necessarily rely on sample- and traversal-based methods, making efficient storage and fast querying the critical requirements for working with such networks. Threadle was developed to address this need, providing a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes.
+Given these requirements, analyses on population-scale networks necessarily rely on sample- and traversal-based methods, making efficient storage and fast querying the critical requirements for working with such networks. Threadle was developed to address this need, providing a dedicated backend for representation and querying of full-population, feature-rich networks with multiple relational layers of different properties and modes.
 
 # State of the field
 
