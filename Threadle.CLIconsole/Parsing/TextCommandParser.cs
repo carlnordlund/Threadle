@@ -55,18 +55,20 @@ namespace Threadle.CLIconsole.Parsing
                 if (argMatch.Groups[1].Success)
                 {
                     string key = argMatch.Groups[1].Value.Trim().ToLowerInvariant();
+                    // Quoted values (groups 2, 3) are taken literally; unquoted (group 4) is trimmed.
                     string val = argMatch.Groups[2].Success ? argMatch.Groups[2].Value :
                         argMatch.Groups[3].Success ? argMatch.Groups[3].Value :
-                        argMatch.Groups[4].Value;
-                    cmd.NamedArgs[key] = val.Trim();
+                        argMatch.Groups[4].Value.Trim();
+                    cmd.NamedArgs[key] = val;
                 }
                 else
                 {
+                    // Quoted values (groups 5, 6) are taken literally; unquoted (group 7) is trimmed.
                     string val = argMatch.Groups[5].Success ? argMatch.Groups[5].Value :
                         argMatch.Groups[6].Success ? argMatch.Groups[6].Value :
-                        argMatch.Groups[7].Value;
+                        argMatch.Groups[7].Value.Trim();
                     string key = $"arg{cmd.NamedArgs.Count}";
-                    cmd.NamedArgs[key] = val.Trim();
+                    cmd.NamedArgs[key] = val;
                 }
             }
             return cmd;
