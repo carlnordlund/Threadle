@@ -2,6 +2,7 @@
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Model;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -36,6 +37,8 @@ namespace Threadle.CLIconsole.Commands
             if (CommandHelpers.TryGetVariable<Nodeset>(context, command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
             string nameNetwork = command.GetArgumentParseString("name", variableName);
+            if (!Misc.IsNameWithinBinaryLimit(nameNetwork))
+                return CommandResult.Fail("NameTooLong", $"The network name - '{nameNetwork}' - is too long; can max be 255 UTF8 bytes.");
             Network network = new Network(nameNetwork, nodeset);
             context.SetVariable(variableName, network);
 

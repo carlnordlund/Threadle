@@ -2,6 +2,7 @@
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Model;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -37,6 +38,8 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg2");
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg3");
+            if (!Misc.IsNameWithinBinaryLimit(hyperName))
+                return CommandResult.Fail("NameTooLong", $"The hyperedge name - '{hyperName}' - is too long; can max be 255 UTF8 bytes.");
             bool addMissingNode = command.GetArgumentParseBool("addmissingnodes", true);
             bool addMissingAffiliation = command.GetArgumentParseBool("addmissingaffiliations", true);
             return CommandResult.FromOperationResult(network.AddAffiliation(layerName, hyperName, nodeId, addMissingNode, addMissingAffiliation));

@@ -569,7 +569,7 @@ namespace Threadle.Core.Utilities
                     foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
                     {
                         // Write the name of the hyperedge
-                        writer.Write(hyperName);
+                        WriteString(writer, hyperName);
 
                         // Write the number of affiliated nodes to this hyperedge
                         writer.Write(hyperedge.NbrNodes);
@@ -588,15 +588,18 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="writer">The binarywriter to write to</param>
         /// <param name="value">The string to write</param>
+        /// <exception cref="InvalidOperationException">Thrown if the string exceeds 255 UTF-8 bytes and cannot be saved in binary format.</exception>
         private static void WriteString(BinaryWriter writer, string? value)
         {
             if (value == null)
             {
-                writer.Write(-1);
+                writer.Write((byte)0);
                 return;
             }
 
             var bytes = Encoding.UTF8.GetBytes(value);
+            if (bytes.Length>255)
+                throw new InvalidOperationException($"Name '{value}' exceeds 255 UTF-8 bytes and cannot be saved in binary format.");
             writer.Write((byte)bytes.Length);
             writer.Write(bytes);
         }
