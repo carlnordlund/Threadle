@@ -62,7 +62,8 @@ namespace Threadle.Core.Utilities
         {
             using var fileStream = File.Create(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
-            using var writer = new BinaryWriter(stream);
+            using var buffered = new BufferedStream(stream, 1 << 20);
+            using var writer = new BinaryWriter(buffered);
             WriteNodesetToFile(nodeset, writer);
             nodeset.Filepath = filepath;
             nodeset.IsModified = false;
@@ -100,7 +101,8 @@ namespace Threadle.Core.Utilities
         {
             using var fileStream = File.Create(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Compress);
-            using var writer = new BinaryWriter(stream);
+            using var buffered = new BufferedStream(stream, 1 << 20);
+            using var writer = new BinaryWriter(buffered);
             WriteNetworkToFile(network, writer);
             network.Filepath = filepath;
             network.IsModified = false;
