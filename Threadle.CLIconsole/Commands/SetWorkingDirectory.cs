@@ -13,7 +13,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "setwd(dir = \"[str,'~','~documents','~examples']\")";
+        public string Syntax => "setwd(dir = \"[str,'~','~documents']\")";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
