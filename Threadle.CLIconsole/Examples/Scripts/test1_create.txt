@@ -77,6 +77,8 @@ addaff(net,clubs,17,"chalmers_fc")
 # Create density
 density(net, friends)
 
+# Try loading the same script again in this script: should fail
+loadscript(test1_create.txt)
 
 #########
 ## Validating created data

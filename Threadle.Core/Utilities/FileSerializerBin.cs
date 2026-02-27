@@ -618,7 +618,7 @@ namespace Threadle.Core.Utilities
             if (len == 0)
                 return string.Empty;
             byte[] bytes = reader.ReadBytes(len);
-            return Encoding.ASCII.GetString(bytes);
+            return Encoding.UTF8.GetString(bytes);
         }
         #endregion
     }

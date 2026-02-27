@@ -47,7 +47,7 @@ namespace Threadle.CLIconsole.Runtime
                     return CommandResult.Fail("InvalidSyntax", $"Invalid command syntax at line {i + 1}.");
                 if (pkt.CommandName.Equals("loadscript", StringComparison.OrdinalIgnoreCase))
                 {
-                    payloads[$"[{i + 1}] {pkt.CommandName}"] = $"Nested script loading is not allowed, skipped (line {i + 1}).";
+                    payloads[$"[{i + 1}] {pkt.CommandName}"] = $"Nested script loading is not allowed (line {i + 1}).";
                     continue;
                 }
 
