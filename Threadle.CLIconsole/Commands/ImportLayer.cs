@@ -38,7 +38,7 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg2");
             string format = command.GetArgumentThrowExceptionIfMissingOrNull("format", "arg3");
-            char separator = command.GetArgumentParseString("sep", "\t")[0];
+            char separator = command.GetArgumentParseString("sep", "\t").FirstOrDefault('\t');
             bool addMissingNodes = command.GetArgumentParseBool("addmissingnodes", false);
             bool header = command.GetArgumentParseBool("header", false);
 
