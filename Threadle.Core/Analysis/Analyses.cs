@@ -20,7 +20,7 @@ namespace Threadle.Core.Analysis
         public static OperationResult<Dictionary<string, object>> GetAttributeSummary(Nodeset nodeset, string attrName)
         {
             if (!nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult<Dictionary<string, object>>.Fail("AttributeNotFound", $"Attribute '{attrName}' not found in nodeset '{nodeset.Name}'.");
+                return OperationResult<Dictionary<string, object>>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{nodeset.Name}'.");
             if (!nodeset.NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
                 return OperationResult<Dictionary<string, object>>.Fail("AttributeTypeNotFound", $"Type not found for attribute '{attrName}' in nodeset '{nodeset.Name}'.");
             int totalNodes = nodeset.Count;

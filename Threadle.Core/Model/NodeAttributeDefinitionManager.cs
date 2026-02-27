@@ -120,7 +120,7 @@ namespace Threadle.Core.Model
         internal OperationResult<byte> UndefineNodeAttribute(string attrName)
         {
             if (!_nameToIndex.TryGetValue(attrName, out byte attrIndex))
-                return OperationResult<byte>.Fail("AttributeNotFound", $"Node attribute '{attrName}' not found.");
+                return OperationResult<byte>.Fail("AttributeUnknown", $"Node attribute '{attrName}' not found.");
             _nameToIndex.Remove(attrName);
             _indexToName.Remove(attrIndex);
             _indexToType.Remove(attrIndex);

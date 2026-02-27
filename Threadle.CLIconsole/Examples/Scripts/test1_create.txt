@@ -108,13 +108,15 @@ density(net, friends)
 # > getattr(nodes, 37, height)
 # 174.6
 
-# > getattr(net, 10, height)
+# > getattr(net, 1, height)
+getattr(net, 1, height)
 # 132.5
 ## Note: a Network can also be provided to attribute-related commands: they will then
 ## operate on the Nodeset that the specified Network refers to
 
 # > getattr(nodes, 35, happy)
-# AttributeNotFound: Attribute 'happy' not set for node '35' in nodeset 'My nodes'.
+getattr(nodes, 35, happy)
+# AttributeNotSet: Attribute 'happy' not set for node '35' in nodeset 'My nodes'.
 ## Note: if an attribute is not set for a specified node, nothing is returned
 
 # > checkedge(net,friends,1,2)

@@ -277,7 +277,7 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
                 return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}': possibly corrupted.");
             if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, attrValueStr) is NodeAttributeValue attrValue))
@@ -297,16 +297,16 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult<NodeAttributeValue>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue>.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!(GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue attrValue))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             return OperationResult<NodeAttributeValue>.Ok(attrValue);
         }
 
         public OperationResult<Dictionary<uint, object?>> GetMultipleNodeAttributes(uint[] nodeIds, string attrName)
         {
             if (!NodeAttributeDefinitionManager.CheckIfAttributeNameExists(attrName))
-                return OperationResult<Dictionary<uint, object?>>.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult<Dictionary<uint, object?>>.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
 
             var result = new Dictionary<uint, object?>();
             foreach (uint nodeId in nodeIds)
@@ -334,9 +334,9 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             if (!_removeAttributeFromTuple(attributes, attrIndex))
             {
                 _nodesWithAttributes.Remove(nodeId);
