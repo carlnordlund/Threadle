@@ -15,7 +15,7 @@ namespace Threadle.Core.Utilities
         /// Catches all exceptions, converts to OperationResults.
         /// Note that file import methods use internal methods that bypass validation for performance.
         /// </summary>
-        /// <param name="filepath">The filepath to the file to load.</param>param>
+        /// <param name="filepath">The filepath to the file to load.</param>
         /// <param name="structureTypeString">The type of structure to load ('network' or 'nodeset')</param>
         /// <param name="format">The file format (currently only TsvGzip by default)</param>
         /// <returns>Returns an OperationResult with a StructureResult object holding the loaded structures.</returns>
