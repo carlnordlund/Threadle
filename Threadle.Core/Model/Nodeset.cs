@@ -277,7 +277,7 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
                 return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}': possibly corrupted.");
             if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, attrValueStr) is NodeAttributeValue attrValue))
@@ -297,16 +297,16 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult<NodeAttributeValue>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue>.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!(GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue attrValue))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             return OperationResult<NodeAttributeValue>.Ok(attrValue);
         }
 
         public OperationResult<Dictionary<uint, object?>> GetMultipleNodeAttributes(uint[] nodeIds, string attrName)
         {
             if (!NodeAttributeDefinitionManager.CheckIfAttributeNameExists(attrName))
-                return OperationResult<Dictionary<uint, object?>>.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult<Dictionary<uint, object?>>.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
 
             var result = new Dictionary<uint, object?>();
             foreach (uint nodeId in nodeIds)
@@ -334,9 +334,9 @@ namespace Threadle.Core.Model
             if (!CheckThatNodeExists(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult.Fail("AttributeNotFound", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+                return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotFound", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             if (!_removeAttributeFromTuple(attributes, attrIndex))
             {
                 _nodesWithAttributes.Remove(nodeId);
@@ -468,16 +468,6 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds a Node to the collection of nodes with attributes, though with no attributes yet.
-        /// To be used with loader where it is known that attributes will be added.
-        /// </summary>
-        /// <param name="nodeId">The node id.</param>
-        internal void _addNodeWithAttribute(uint nodeId)
-        {
-            _nodesWithAttributes.Add(nodeId, ([], []));
-        }
-
-        /// <summary>
         /// Checks if the Nodeset contains a node object with the specified id.
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be checked.</param>
@@ -485,20 +475,6 @@ namespace Threadle.Core.Model
         internal bool CheckThatNodeExists(uint nodeId)
         {
             return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
-        }
-
-        /// <summary>
-        /// Adds a node attribute directly, without any validation whatsoever.
-        /// Note that this does not check if the attribute index already exists.
-        /// Only to use with loaders where it is assumed that data is already validated.
-        /// </summary>
-        /// <param name="nodeId">The node id.</param>
-        /// <param name="attrIndex">The attribute index (as specified in NodeAttributeDefinitionManager).</param>
-        /// <param name="attrValue">The NodeAttributeValue attrValue</param>
-        internal void AddNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue attrValue)
-        {
-            _nodesWithAttributes[nodeId].AttrIndexes.Add(attrIndex);
-            _nodesWithAttributes[nodeId].AttrValues.Add(attrValue);
         }
 
         /// <summary>
@@ -586,21 +562,6 @@ namespace Threadle.Core.Model
             if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
                 return attributes;
             return null;
-        }
-
-        /// <summary>
-        /// Given an array of node ids, creates a new array of node ids that only includes each
-        /// node id once and where the node id is part of this Nodeset object.
-        /// </summary>
-        /// <param name="nodeIds">The array of node ids to check.</param>
-        /// <returns>An array of unique node ids that are also part of this Nodeset.</returns>
-        internal uint[] FilterOutNonExistingNodeIds(uint[] nodeIds)
-        {
-            HashSet<uint> existing = new();
-            foreach (uint nodeId in nodeIds)
-                if (CheckThatNodeExists(nodeId))
-                    existing.Add(nodeId);
-            return existing.ToArray();
         }
 
         /// <summary>

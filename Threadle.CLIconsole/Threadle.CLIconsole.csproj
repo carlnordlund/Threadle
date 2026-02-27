@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Application Metadata -->
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <AssemblyName>threadle</AssemblyName>
     <Product>Threadle</Product>
     <Description>Threadle CLI - High-performance network data management</Description>

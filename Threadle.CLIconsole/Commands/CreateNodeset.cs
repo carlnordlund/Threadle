@@ -2,6 +2,7 @@
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Model;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -34,6 +35,8 @@ namespace Threadle.CLIconsole.Commands
         {
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
             string name = command.GetArgumentParseString("name", variableName);
+            if (!Misc.IsNameWithinBinaryLimit(name))
+                return CommandResult.Fail("NameTooLong", $"The nodeset name - '{name}' - is too long; can max be 255 UTF8 bytes.");
             int createNodes = command.GetArgumentParseInt("createnodes", 0);
             if (createNodes < 0)
                 return CommandResult.Fail("InvalidArgument", "Number of created nodes can not be less than zero.");

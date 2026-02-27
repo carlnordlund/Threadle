@@ -39,7 +39,12 @@ namespace Threadle.CLIconsole.Commands
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg2");
             OperationResult<NodeAttributeValue> result = nodeset!.GetNodeAttribute(nodeId, attrName);
             if (!result.Success)
-                return CommandResult.Fail(result.Code, result.Message);
+            {
+                if (result.Code == "AttributeNotSet")
+                    return CommandResult.Ok(result.Message, string.Empty);
+                else
+                    return CommandResult.Fail(result.Code, result.Message);
+            }
             return CommandResult.Ok(result.Message, result.Value.GetValue());
         }
     }

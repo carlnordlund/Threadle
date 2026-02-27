@@ -37,6 +37,8 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg2");
+            if (!Misc.IsNameWithinBinaryLimit(hyperName))
+                return CommandResult.Fail("NameTooLong", $"The hyperedge name - '{hyperName}' - is too long; can max be 255 UTF8 bytes.");
             if (command.GetArgument("nodes") is string nodesString)
             {
                 uint[]? nodeIds = Misc.SplitStringToUintArray(nodesString);

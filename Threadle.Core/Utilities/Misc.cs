@@ -1,4 +1,5 @@
-﻿using Threadle.Core.Model;
+﻿using System.Text;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Processing.Enums;
 
@@ -50,6 +51,13 @@ namespace Threadle.Core.Utilities
         {
             _random = new Random(seed);
         }
+
+        /// <summary>
+        /// Returns true if the provided name is within the binary limit of 255 bytes when encoded in UTF-8, and false otherwise.
+        /// </summary>
+        /// <param name="str">The string to check</param>
+        /// <returns>True if the provided string is within the binary limit.</returns>
+        public static bool IsNameWithinBinaryLimit(string str) => Encoding.UTF8.GetByteCount(str) <= 255;
 
 
         /// <summary>

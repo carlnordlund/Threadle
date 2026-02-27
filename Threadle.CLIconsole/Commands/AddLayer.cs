@@ -39,6 +39,8 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             if (!command.TrimNameAndCheckValidity(layerName, out string layerNameVerified))
                 return CommandResult.Fail("InvalidLayerName", $"Layer name '{layerName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
+            if (!Misc.IsNameWithinBinaryLimit(layerNameVerified))
+                return CommandResult.Fail("NameTooLong", $"The layer name - '{layerNameVerified}' - is too long; can max be 255 UTF8 bytes.");
             char mode = command.GetArgumentThrowExceptionIfMissingOrNull("mode", "arg2")[0];
             OperationResult result;
             if (mode == '1')

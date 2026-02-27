@@ -39,12 +39,12 @@ addlayer(net, nbr_calls,1, directed=false, valuetype=valued)
 addlayer(net, clubs, 2)
 
 # Set some attributes for various nodes
-setattr(nodes,10,gender,'f')
-setattr(nodes,12,gender,'m')
-setattr(nodes,13,gender,'f')
+setattr(nodes,1,gender,'f')
+setattr(nodes,2,gender,'m')
+setattr(nodes,3,gender,'f')
 # Overwriting: previous 'f', now to 'o':
-setattr(nodes,12,gender,'o')
-setattr(nodes,10,height,132.5)
+setattr(nodes,2,gender,'o')
+setattr(nodes,1,height,132.5)
 setattr(nodes,15,age,42)
 setattr(nodes,10,age,13)
 setattr(nodes,38,gender,'m')
@@ -108,13 +108,15 @@ density(net, friends)
 # > getattr(nodes, 37, height)
 # 174.6
 
-# > getattr(net, 10, height)
+# > getattr(net, 1, height)
+getattr(net, 1, height)
 # 132.5
 ## Note: a Network can also be provided to attribute-related commands: they will then
 ## operate on the Nodeset that the specified Network refers to
 
 # > getattr(nodes, 35, happy)
-# AttributeNotFound: Attribute 'happy' not set for node '35' in nodeset 'My nodes'.
+getattr(nodes, 35, happy)
+# AttributeNotSet: Attribute 'happy' not set for node '35' in nodeset 'My nodes'.
 ## Note: if an attribute is not set for a specified node, nothing is returned
 
 # > checkedge(net,friends,1,2)

@@ -1,6 +1,7 @@
 ﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -36,6 +37,8 @@ namespace Threadle.CLIconsole.Commands
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
             if (!command.TrimNameAndCheckValidity(attrName, out string attributeNameVerified))
                 return CommandResult.Fail("InvalidAttributeName", $"Error: Attribute name '{attrName}' is not valid. It must start with a letter and contain only letters, digits, and underscores.");
+            if (!Misc.IsNameWithinBinaryLimit(attributeNameVerified))
+                return CommandResult.Fail("NameTooLong", $"The attribute name - '{attributeNameVerified}' - is too long; can max be 255 UTF8 bytes.");
             string attrType = command.GetArgumentThrowExceptionIfMissingOrNull("attrtype", "arg2");
             return CommandResult.FromOperationResult(nodeset!.DefineNodeAttribute(attributeNameVerified, attrType));
         }

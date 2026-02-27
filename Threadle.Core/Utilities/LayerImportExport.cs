@@ -326,6 +326,8 @@ namespace Threadle.Core.Utilities
                     hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
                     if (hyperedgeName.Length < 1)
                         continue;
+                    if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
+                        throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
                     if (!network.Nodeset.CheckThatNodeExists(nodeId))
                         network.Nodeset._addNodeWithoutAttribute(nodeId);
                     layerTwoMode._addAffiliation(nodeId, hyperedgeName);
@@ -347,6 +349,8 @@ namespace Threadle.Core.Utilities
                     hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
                     if (hyperedgeName.Length < 1)
                         continue;
+                    if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
+                        throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
                     layerTwoMode._addAffiliation(nodeId, hyperedgeName);
                 }
             }
@@ -385,7 +389,12 @@ namespace Threadle.Core.Utilities
                 if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
                     throw new Exception($"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
             for (int i = 1; i < nbrCols; i++)
+            {
                 colNames[i - 1] = cells[0, i].Trim();
+                if (!Misc.IsNameWithinBinaryLimit(colNames[i - 1]))
+                    throw new InvalidOperationException($"NameTooLong: {colNames[i - 1]}");
+
+            }
             float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
             for (int c = 0; c < colNames.Length; c++)
             {
