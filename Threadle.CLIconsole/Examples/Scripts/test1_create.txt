@@ -39,12 +39,12 @@ addlayer(net, nbr_calls,1, directed=false, valuetype=valued)
 addlayer(net, clubs, 2)
 
 # Set some attributes for various nodes
-setattr(nodes,10,gender,'f')
-setattr(nodes,12,gender,'m')
-setattr(nodes,13,gender,'f')
+setattr(nodes,1,gender,'f')
+setattr(nodes,2,gender,'m')
+setattr(nodes,3,gender,'f')
 # Overwriting: previous 'f', now to 'o':
-setattr(nodes,12,gender,'o')
-setattr(nodes,10,height,132.5)
+setattr(nodes,2,gender,'o')
+setattr(nodes,1,height,132.5)
 setattr(nodes,15,age,42)
 setattr(nodes,10,age,13)
 setattr(nodes,38,gender,'m')
