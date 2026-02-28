@@ -51,8 +51,14 @@ namespace Threadle.CLIconsole.Commands
             {
                 case (LayerOneMode layerOneMode, "edgelist"):
                     int node1col = command.GetArgumentParseInt("node1col", 0);
+                    if (node1col < 0)
+                        return CommandResult.Fail("InvalidColumnIndex", $"!Error: 'node1col' must be a non-negative integer.");
                     int node2col = command.GetArgumentParseInt("node2col", 1);
+                    if (node2col < 0)
+                        return CommandResult.Fail("InvalidColumnIndex", $"!Error: 'node2col' must be a non-negative integer.");
                     int valuecol = command.GetArgumentParseInt("valuecol", 2);
+                    if (valuecol < 0)
+                        return CommandResult.Fail("InvalidColumnIndex", $"!Error: 'valuecol' must be a non-negative integer.");
                     result = FileManager.ImportOneModeEdgeList(filepath, network, layerOneMode, node1col, node2col, valuecol, header, separator, addMissingNodes);
                     break;
                 case (LayerOneMode layerOneMode, "matrix"):
@@ -60,7 +66,11 @@ namespace Threadle.CLIconsole.Commands
                     break;
                 case (LayerTwoMode layerTwoMode, "edgelist"):
                     int nodeCol = command.GetArgumentParseInt("nodecol", 0);
+                    if (nodeCol < 0)
+                        return CommandResult.Fail("InvalidColumnIndex", $"!Error: 'nodecol' must be a non-negative integer.");
                     int affCol = command.GetArgumentParseInt("affcol", 1);
+                    if (affCol < 0)
+                        return CommandResult.Fail("InvalidColumnIndex", $"!Error: 'affcol' must be a non-negative integer.");
                     result = FileManager.ImportTwoModeEdgeList(filepath, network, layerTwoMode, nodeCol, affCol, header, separator, addMissingNodes);
                     break;
                 case (LayerTwoMode layerTwoMode, "matrix"):
