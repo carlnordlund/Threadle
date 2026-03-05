@@ -304,7 +304,7 @@ namespace Threadle.CLIconsole.Results
 
             var remaining = item
                 .Where(kvp => kvp.Key != "Name")
-                .Select(kvp => $"{kvp.Key}={kvp.Value}");
+                .Select(kvp => $"{kvp.Key}: {kvp.Value}");
 
             string details = string.Join("; ", remaining);
 

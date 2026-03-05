@@ -80,10 +80,7 @@ namespace Threadle.Core.Model
         /// The name of the layer.
         /// </summary>
         public string Name { get; set; } = "";
-        #endregion
 
-
-        #region Methods (public)
         /// <summary>
         /// Returns metadata about the layer (as a dictionary of objects).
         /// </summary>
@@ -91,14 +88,15 @@ namespace Threadle.Core.Model
         {
             ["Name"] = Name,
             ["Mode"] = 2,
-            ["Static"] = false//,
-            //["NbrHyperedges"] = NbrHyperedges
+            ["Static"] = true,
+            ["NbrHyperedges"] = _hyperedgeNames.Length,
+            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length
         };
 
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: ]";
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {_hyperedgeNames.Length}]";
 
         public bool IsStatic => true;
         #endregion
@@ -338,10 +336,22 @@ namespace Threadle.Core.Model
         /// <returns>A list of strings</returns>
         public List<string> GetNFirstEdges(int n = 10)
         {
-            throw new NotImplementedException();
+            List<string> lines = new(n);
+            foreach (var kvp in _nodeIdToIndexMapper)
+            {
+                if (lines.Count >= n)
+                    break;
+                uint nodeId = kvp.Key;
+                int nodeIndex = kvp.Value;
+                int start = _offsetsNodeIds[nodeIndex], end = _offsetsNodeIds[nodeIndex + 1];
+                for (int j = start; j < end && lines.Count < n; j++)
+                {
+                    int hIndex = _nodeIdHyperedgesFlat[j];
+                    lines.Add($"{nodeId} <-> {_hyperedgeNames[hIndex]}");
+                }
+            }
+            return lines;
         }
         #endregion
-
-
     }
 }
