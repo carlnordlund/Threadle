@@ -3,7 +3,10 @@
 namespace Threadle.Core.Model
 {
     /// <summary>
-    /// Specifies common features of relational layers - interface for LayerOneMode and LayerTwoMode
+    /// Base interface for all relational layers, covering mode-agnostic read and structural operations.
+    /// Implemented by all four layer types: <see cref="LayerOneMode"/>, <see cref="LayerOneModeCSR"/>,
+    /// <see cref="LayerTwoMode"/>, and <see cref="LayerTwoModeCSR"/>.
+    /// For mode-specific read operations use <see cref="ILayerOneMode"/> or <see cref="ILayerTwoMode"/>.
     /// </summary>
     public interface ILayer
     {

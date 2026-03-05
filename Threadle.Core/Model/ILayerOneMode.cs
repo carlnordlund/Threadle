@@ -1,8 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Model
@@ -25,7 +20,7 @@ namespace Threadle.Core.Model
         #endregion
 
 
-        # region Methodes
+        #region Methods
         /// <summary>
         /// Returns a paginated list of all edges in the layer, each edge described as a dictionary with
         /// keys "node1" and "node2" (and for valued layers also "value").
