@@ -347,7 +347,7 @@ namespace Threadle.Core.Model
         /// <returns>Returns an OperationResult object with the array of uint of alter ids.</returns>
         public OperationResult<uint[]> GetNodeAlters(string[]? layerNames, uint nodeId, EdgeTraversal edgeTraversal, bool unique)
         {
-            if (!Nodeset.CheckThatNodeExists(nodeId))
+            if (!Nodeset.Contains(nodeId))
                 return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
 
             List<ILayer> layerList = [];
@@ -400,7 +400,7 @@ namespace Threadle.Core.Model
         /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names that this node is affiliated to.</returns>
         public OperationResult<string[]> GetNodeHyperedges(string layerName, uint nodeId)
         {
-            if (!Nodeset.CheckThatNodeExists(nodeId))
+            if (!Nodeset.Contains(nodeId))
                 return OperationResult<string[]>.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'");
             var layerResult = GetTwoModeLayer(layerName);
             if (!layerResult.Success)
@@ -560,9 +560,9 @@ namespace Threadle.Core.Model
             {
                 if (addMissingNodes)
                 {
-                    if (!Nodeset.CheckThatNodeExists(node1Id))
+                    if (!Nodeset.Contains(node1Id))
                         Nodeset.AddNode(node1Id);
-                    if (!Nodeset.CheckThatNodeExists(node2Id))
+                    if (!Nodeset.Contains(node2Id))
                         Nodeset.AddNode(node2Id);
                 }
                 IsModified = true;
@@ -604,7 +604,7 @@ namespace Threadle.Core.Model
                 List<uint> existingNodeIds = [];
                 foreach (uint id in nodeIds)
                 {
-                    if (!Nodeset.CheckThatNodeExists(id))
+                    if (!Nodeset.Contains(id))
                     {
                         if (addMissingNodes)
                             Nodeset.AddNode(id);
@@ -648,7 +648,7 @@ namespace Threadle.Core.Model
         {
             if (!addMissingNode)
             {
-                if (!Nodeset.CheckThatNodeExists(nodeId))
+                if (!Nodeset.Contains(nodeId))
                     return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
             }
             if (!addMissingHyperedge)
@@ -659,7 +659,7 @@ namespace Threadle.Core.Model
             OperationResult result = layerTwoMode.AddAffiliation(nodeId, hyperName, addMissingHyperedge);
             if (result.Success)
             {
-                if (addMissingNode && !Nodeset.CheckThatNodeExists(nodeId))
+                if (addMissingNode && !Nodeset.Contains(nodeId))
                     Nodeset.AddNode(nodeId);
                 IsModified = true;
             }
@@ -675,7 +675,7 @@ namespace Threadle.Core.Model
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult RemoveAffiliation(LayerTwoMode layerTwoMode, string hyperName, uint nodeId)
         {
-            if (!Nodeset.CheckThatNodeExists(nodeId))
+            if (!Nodeset.Contains(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
             if (!layerTwoMode.CheckThatHyperedgeExists(hyperName))
                 return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{layerTwoMode.Name}'.");
@@ -699,13 +699,13 @@ namespace Threadle.Core.Model
         /// This is currently used by FileSerializerTsv when loading a network without an existing Nodeset. I might change that so that a network MUST have a reference to a saved
         /// Nodeset. Or that it creates Nodes on the fly.
         /// </remarks>
-        internal HashSet<uint> GetAllIdsMentioned()
-        {
-            HashSet<uint> ids = [];
-            foreach (ILayer layer in Layers.Values)
-                ids.UnionWith(layer.GetMentionedNodeIds());
-            return ids;
-        }
+        //internal HashSet<uint> GetAllIdsMentioned()
+        //{
+        //    HashSet<uint> ids = [];
+        //    foreach (ILayer layer in Layers.Values)
+        //        ids.UnionWith(layer.GetMentionedNodeIds());
+        //    return ids;
+        //}
 
         /// <summary>
         /// Returns all alters to a node in all layerNames. For single layer alters,

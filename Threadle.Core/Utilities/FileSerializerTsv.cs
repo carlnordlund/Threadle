@@ -61,20 +61,20 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Method for loading a Network from file (TSV format). Could possibly also
-        /// load a Nodeset object if that is specified in the file.
+        /// Method for loading a Network from file (TSV format). Will always also
+        /// load the specified Nodeset object, which must be specified in the file.
         /// Always attaches a buffered reader with the size 1 MB (1<<20).
         /// Could throw exceptions that must be caught.
         /// </summary>
         /// <param name="filepath">The filepath to the file.</param>
         /// <returns>A StructureResult object containing the Network object, and possibly also a Nodeset object.</returns>
-        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
+        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format, bool compactLayers = false)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new StreamReader(buffered, Utf8NoBom);
-            return ReadNetworkFromFile(filepath, reader);
+            return ReadNetworkFromFile(filepath, reader, compactLayers);
         }
 
         /// <summary>
@@ -157,16 +157,17 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Support method to read a Network object from file, and possibly also its Nodeset object.
+        /// Internal method to read a Network (and its Nodeset) from a tsv file. Note that the Nodeset is alays loaded.
         /// </summary>
         /// <param name="filepath">Filepath to the file.</param>
         /// <param name="reader">The StreamReader object</param>
         /// <returns>A StructureResult object containing the Network object, and possibly also a Nodeset object.</returns>
-        private static StructureResult ReadNetworkFromFile(string filepath, StreamReader reader)
+        private static StructureResult ReadNetworkFromFile(string filepath, StreamReader reader, bool compactLayers)
         {
             var network = new Network("");
 
-            string? nodesetFileReference = null;
+            //string? nodesetFileReference = null;
+            Nodeset? nodeset = null;
             string? line;
             ILayer? currentLayer = null;
             while ((line = reader.ReadLine()) != null)
@@ -181,13 +182,23 @@ namespace Threadle.Core.Utilities
                 }
                 if (line.StartsWith("NodesetFile:", StringComparison.OrdinalIgnoreCase))
                 {
-                    nodesetFileReference = line.Substring("NodesetFile:".Length).Trim();
+                    string nodesetFilepath = line.Substring("NodesetFile:".Length).Trim();
+                    FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFilepath);
+                    nodeset = LoadNodesetFromFile(nodesetFilepath, nodesetFormat);
                     continue;
                 }
                 if (line.StartsWith("LayerMode:", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (nodeset == null)
+                        throw new InvalidDataException("Nodeset file reference must be specified before layer definitions.");
+
                     if (currentLayer != null)
-                        network.Layers.Add(currentLayer.Name, currentLayer);
+                    {
+                        // if compactLayers == true: convert currentLayer to its CSR equivalent
+                        // If currentLayer is LayerOneMode => LayerOneModeCSR
+                        // If currentLayer is LayerTwoMode => LayerTwoModeCSR
+                        network.Layers.Add(currentLayer.Name, compactLayers ? Misc.ToLayerCSR(currentLayer) : currentLayer);
+                    }
                     string layerModeStr = line.Substring("LayerMode:".Length).Trim();
                     if (layerModeStr.Equals("1"))
                         currentLayer = new LayerOneMode();
@@ -268,26 +279,34 @@ namespace Threadle.Core.Utilities
                 }
             }
             if (currentLayer != null)
-                network.Layers.Add(currentLayer.Name, currentLayer);
+            {
+                //network.Layers.Add(currentLayer.Name, currentLayer);
+                network.Layers.Add(currentLayer.Name, compactLayers ? Misc.ToLayerCSR(currentLayer) : currentLayer);
+            }
             network.Filepath = filepath;
             network.IsModified = false;
-            Nodeset? nodeset = null;
-            if (nodesetFileReference != null)
-            {
-                FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFileReference);
-                nodeset = LoadNodesetFromFile(nodesetFileReference, nodesetFormat);
-                network.SetNodeset(nodeset);
-                return new StructureResult(network, new Dictionary<string, IStructure>
-                {
-                    { "nodeset", nodeset}
-                });
-            }
-            else
-            {
-                HashSet<uint> allIds = network.GetAllIdsMentioned();
-                nodeset = new Nodeset(network.Name + "_nodeset", allIds);
-                network.SetNodeset(nodeset);
-            }
+            if (nodeset == null)
+                throw new InvalidDataException("Nodeset file reference must be specified before layer definitions.");
+            network.SetNodeset(nodeset);
+
+
+            //Nodeset? nodeset = null;
+            //if (nodesetFileReference != null)
+            //{
+            //    FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFileReference);
+            //    nodeset = LoadNodesetFromFile(nodesetFileReference, nodesetFormat);
+            //    network.SetNodeset(nodeset);
+            //    return new StructureResult(network, new Dictionary<string, IStructure>
+            //    {
+            //        { "nodeset", nodeset}
+            //    });
+            //}
+            //else
+            //{
+            //    HashSet<uint> allIds = network.GetAllIdsMentioned();
+            //    nodeset = new Nodeset(network.Name + "_nodeset", allIds);
+            //    network.SetNodeset(nodeset);
+            //}
             nodeset.IsModified = false;
             return new StructureResult(network, new Dictionary<string, IStructure>
             {

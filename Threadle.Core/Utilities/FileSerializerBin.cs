@@ -80,13 +80,13 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">The file to load the Nodeset from.</param>
         /// <param name="format">The <see cref="FileFormat"/> to use.</param>
         /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset objects.</returns>
-        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
+        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format, bool compactLayers = false)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new BinaryReader(buffered);
-            return ReadNetworkFromFile(filepath, reader);
+            return ReadNetworkFromFile(filepath, reader, compactLayers);
         }
 
         /// <summary>
@@ -135,7 +135,7 @@ namespace Threadle.Core.Utilities
         /// <param name="reader">The binary reader to read from.</param>
         /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset.</returns>
         /// <exception cref="InvalidDataException">Thrown if the binary file isn't a Threadle Network file or if it is the wrong version.</exception>
-        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader)
+        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader, bool compactLayers)
         {
             // Check magic bytes - should be the MagicNetwork characters (TNTW)
             var magicBytes = reader.ReadBytes(4);

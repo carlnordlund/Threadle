@@ -335,7 +335,7 @@ namespace Threadle.Core.Analysis
                     {
                         uint current = queue.Dequeue();
                         componentIds[current] = currentComponentId;
-                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Both))
+                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
                         {
                             if (!visited.Contains(neighborId))
                             {

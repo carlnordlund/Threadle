@@ -19,14 +19,14 @@ namespace Threadle.Core.Utilities
         /// <param name="structureTypeString">The type of structure to load ('network' or 'nodeset')</param>
         /// <param name="format">The file format (currently only TsvGzip by default)</param>
         /// <returns>Returns an OperationResult with a StructureResult object holding the loaded structures.</returns>
-        public static OperationResult<StructureResult> Load(string filepath, string structureTypeString, FileFormat format = FileFormat.TsvGzip)
+        public static OperationResult<StructureResult> Load(string filepath, string structureTypeString, bool compactLayers = false)
         {
             try
             {
                 return structureTypeString.ToLower() switch
                 {
                     "nodeset" => LoadNodeset(filepath),
-                    "network" => LoadNetwork(filepath),
+                    "network" => LoadNetwork(filepath, compactLayers),
                     _ => OperationResult<StructureResult>.Fail("IOLoadError", $"Load not implemented for type '{structureTypeString}'.")
                 };
             }
@@ -454,7 +454,7 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="filepath">The filepath to load from.</param>
         /// <returns>An OperationResult, with a StructureResult containing a Network and a Nodeset if all went well.</returns>
-        private static OperationResult<StructureResult> LoadNetwork(string filepath)
+        private static OperationResult<StructureResult> LoadNetwork(string filepath, bool compactLayers = false)
         {
             try
             {
@@ -467,11 +467,11 @@ namespace Threadle.Core.Utilities
                 {
                     case FileFormat.Tsv:
                     case FileFormat.TsvGzip:
-                        structureResult = FileSerializerTsv.LoadNetworkFromFile(filepath, format);
+                        structureResult = FileSerializerTsv.LoadNetworkFromFile(filepath, format, compactLayers);
                         return OperationResult<StructureResult>.Ok(structureResult);
                     case FileFormat.Bin:
                     case FileFormat.BinGzip:
-                        structureResult = FileSerializerBin.LoadNetworkFromFile(filepath, format);
+                        structureResult = FileSerializerBin.LoadNetworkFromFile(filepath, format, compactLayers);
                         return OperationResult<StructureResult>.Ok(structureResult);
                 }
                 return OperationResult<StructureResult>.Fail("UnsupportedFileFormat", $"File ending '{Path.GetFileName(filepath)}' not supported for loading Network.");

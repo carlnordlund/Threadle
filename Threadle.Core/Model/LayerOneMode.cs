@@ -112,6 +112,7 @@ namespace Threadle.Core.Model
         {
             ["Name"] = Name,
             ["Mode"] = 1,
+            ["Static"] = false,
             ["Directionality"] = Directionality.ToString(),
             ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
@@ -127,6 +128,9 @@ namespace Threadle.Core.Model
         /// Returns a string with metadata info about the layer
         /// </summary>
         public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
+
+
+        public bool IsStatic => false;
         #endregion
 
 
@@ -234,13 +238,13 @@ namespace Threadle.Core.Model
         /// Returns a HashSet of all unique node ids mentioned in the Layer
         /// </summary>
         /// <returns>A HashSet of node ids.</returns>
-        public HashSet<uint> GetMentionedNodeIds()
-        {
-            HashSet<uint> ids = [];
-            foreach (IEdgeset edgeset in Edgesets.Values)
-                ids.UnionWith(edgeset.GetAllNodeIds);
-            return ids;
-        }
+        //public HashSet<uint> GetMentionedNodeIds()
+        //{
+        //    HashSet<uint> ids = [];
+        //    foreach (IEdgeset edgeset in Edgesets.Values)
+        //        ids.UnionWith(edgeset.GetAllNodeIds);
+        //    return ids;
+        //}
 
         /// <summary>
         /// Create a filtered copy of this Layer that only keeps edges whose nodes are present in
@@ -251,7 +255,7 @@ namespace Threadle.Core.Model
         public ILayer CreateFilteredCopy(Nodeset nodeset)
         {
             HashSet<uint> nodeIds = [.. nodeset.NodeIdArray];
-            LayerOneMode layerCopy = CreateEmptyCopy();
+            LayerOneMode layerCopy = new LayerOneMode(this.Name+"_filtered", this.Directionality, this.EdgeValueType, this.Selfties);
 
             foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
             {
@@ -466,15 +470,6 @@ namespace Threadle.Core.Model
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
                 return 0;
             return edgeset.NbrInboundEdges;
-        }
-
-        /// <summary>
-        /// Creates and returns an empty copy of this layer.
-        /// </summary>
-        /// <returns></returns>
-        private LayerOneMode CreateEmptyCopy()
-        {
-            return new LayerOneMode(this.Name, this.Directionality, this.EdgeValueType, this.Selfties);
         }
 
         /// <summary>

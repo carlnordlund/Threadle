@@ -195,6 +195,14 @@ namespace Threadle.Core.Utilities
                 _ => value
             };
 
+        public static ILayer ToLayerCSR(ILayer layer) => layer switch
+        {
+            LayerOneMode m => LayerOneModeCSR.FromDynamic(m),
+            LayerTwoMode m => LayerTwoModeCSR.FromDynamic(m),
+            _ => layer
+
+        };
+
         /// <summary>
         /// Converts/parses a 2d array of strings into a 2d array of floats with the provided top-left offset.
         /// Used by file importers.

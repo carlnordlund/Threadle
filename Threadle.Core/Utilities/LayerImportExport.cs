@@ -126,9 +126,9 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Add nodes that are missing
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id))
+                        if (!network.Nodeset.Contains(node1Id))
                             network.Nodeset._addNodeWithoutAttribute(node1Id);
-                        if (!network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node2Id))
                             network.Nodeset._addNodeWithoutAttribute(node2Id);
                         layerOneMode._addEdge(node1Id, node2Id);
                     }
@@ -157,7 +157,7 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip edges with nodes that are missing
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id) || !network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node1Id) || !network.Nodeset.Contains(node2Id))
                             continue;
                         layerOneMode._addEdge(node1Id, node2Id);
                     }
@@ -194,9 +194,9 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Add nodes that are missing                        
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id))
+                        if (!network.Nodeset.Contains(node1Id))
                             network.Nodeset._addNodeWithoutAttribute(node1Id);
-                        if (!network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node2Id))
                             network.Nodeset._addNodeWithoutAttribute(node2Id);
                         layerOneMode._addEdge(node1Id, node2Id, value);
                     }
@@ -224,7 +224,7 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip edges that have missing nodes
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id) || !network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node1Id) || !network.Nodeset.Contains(node2Id))
                             continue;
                         layerOneMode._addEdge(node1Id, node2Id, value);
                     }
@@ -328,7 +328,7 @@ namespace Threadle.Core.Utilities
                         continue;
                     if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
                         throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
-                    if (!network.Nodeset.CheckThatNodeExists(nodeId))
+                    if (!network.Nodeset.Contains(nodeId))
                         network.Nodeset._addNodeWithoutAttribute(nodeId);
                     layerTwoMode._addAffiliation(nodeId, hyperedgeName);
                 }
@@ -344,7 +344,7 @@ namespace Threadle.Core.Utilities
                         throw new Exception($"Invalid column count at line {lineNumber}");
                     if (!uint.TryParse(span.Slice(0, sepIndex), out nodeId))
                         continue;
-                    if (!network.Nodeset.CheckThatNodeExists(nodeId))
+                    if (!network.Nodeset.Contains(nodeId))
                         continue;
                     hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
                     if (hyperedgeName.Length < 1)

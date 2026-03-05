@@ -22,6 +22,8 @@ namespace Threadle.Core.Model
         /// Returns a string with metadata info about the layer
         /// </summary>
         string GetLayerInfo { get; }
+
+        bool IsStatic { get; }
         #endregion
 
 
@@ -30,7 +32,7 @@ namespace Threadle.Core.Model
         /// Returns a HashSet of all unique node ids mentioned in the Layer
         /// </summary>
         /// <returns>A HashSet of node ids.</returns>
-        HashSet<uint> GetMentionedNodeIds();
+        //HashSet<uint> GetMentionedNodeIds();
 
         /// <summary>
         /// Returns the value of a potential edge (or would-be projected edge) between two nodes. If no such edge

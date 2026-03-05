@@ -70,6 +70,7 @@ namespace Threadle.Core.Model
         {
             ["Name"] = Name,
             ["Mode"] = 2,
+            ["Static"] = false,
             ["NbrHyperedges"] = NbrHyperedges
         };
 
@@ -77,6 +78,8 @@ namespace Threadle.Core.Model
         /// Returns a string with metadata info about the layer
         /// </summary>
         public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {NbrHyperedges}]";
+
+        public bool IsStatic => false;
         #endregion
 
 
@@ -172,15 +175,15 @@ namespace Threadle.Core.Model
         /// Returns a HashSet of all unique node ids mentioned in the Layer
         /// </summary>
         /// <returns>A HashSet of node ids.</returns>
-        public HashSet<uint> GetMentionedNodeIds()
-        {
-            HashSet<uint> ids = [];
-            foreach (Hyperedge hyperEdge in AllHyperEdges.Values)
-            {
-                ids.UnionWith(hyperEdge.NodeIds);
-            }
-            return ids;
-        }
+        //public HashSet<uint> GetMentionedNodeIds()
+        //{
+        //    HashSet<uint> ids = [];
+        //    foreach (Hyperedge hyperEdge in AllHyperEdges.Values)
+        //    {
+        //        ids.UnionWith(hyperEdge.NodeIds);
+        //    }
+        //    return ids;
+        //}
 
         /// <summary>
         /// Clears the layer, i.e. clears all Edgeset objects and removes these.
@@ -200,7 +203,7 @@ namespace Threadle.Core.Model
         public ILayer CreateFilteredCopy(Nodeset nodeset)
         {
             HashSet<uint> allowedNodeIds = [.. nodeset.NodeIdArray];
-            LayerTwoMode layerCopy = CreateEmptyCopy();
+            LayerTwoMode layerCopy = new LayerTwoMode(this.Name + "_filtered");
             foreach (var (name, hyperedge) in AllHyperEdges)
             {
                 Hyperedge hyperedge_filtered = new(hyperedge.NodeIds.Intersect(allowedNodeIds).ToArray());
@@ -450,15 +453,6 @@ namespace Threadle.Core.Model
             offset = (offset < 0) ? 0 : offset;
             limit = (limit < 0) ? 0 : limit;
             return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
-        }
-
-        /// <summary>
-        /// Creates and returns an empty copy of this layer.
-        /// </summary>
-        /// <returns>A <see cref="LayerTwoMode"/> object.</returns>
-        private LayerTwoMode CreateEmptyCopy()
-        {
-            return new LayerTwoMode(this.Name);
         }
         #endregion
     }

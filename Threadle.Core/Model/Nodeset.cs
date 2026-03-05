@@ -186,7 +186,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddNode(uint nodeId)
         {
-            if (CheckThatNodeExists(nodeId))
+            if (Contains(nodeId))
                 return OperationResult.Fail("NodeAlreadyExists", $"Node with ID '{nodeId}' already exists in nodeset '{Name}'.");
             _nodesWithoutAttributes.Add(nodeId);
             _modified();
@@ -274,7 +274,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult SetNodeAttribute(uint nodeId, string attrName, string attrValueStr)
         {
-            if (!CheckThatNodeExists(nodeId))
+            if (!Contains(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
@@ -294,7 +294,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="NodeAttributeValue"/>.</returns>
         public OperationResult<NodeAttributeValue> GetNodeAttribute(uint nodeId, string attrName)
         {
-            if (!CheckThatNodeExists(nodeId))
+            if (!Contains(nodeId))
                 return OperationResult<NodeAttributeValue>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult<NodeAttributeValue>.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
@@ -311,7 +311,7 @@ namespace Threadle.Core.Model
             var result = new Dictionary<uint, object?>();
             foreach (uint nodeId in nodeIds)
             {
-                if (!CheckThatNodeExists(nodeId))
+                if (!Contains(nodeId))
                     continue;
                 var attrResult = GetNodeAttribute(nodeId, attrName);
                 if (attrResult.Success)
@@ -331,7 +331,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveNodeAttribute(uint nodeId, string attrName)
         {
-            if (!CheckThatNodeExists(nodeId))
+            if (!Contains(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
@@ -384,8 +384,8 @@ namespace Threadle.Core.Model
         /// <returns>An <see cref="OperationResult.Success"> if both are found, Fail otherwise.</returns>
         internal OperationResult CheckThatNodesExist(uint node1Id, uint node2Id)
         {
-            bool node1exists = CheckThatNodeExists(node1Id);
-            bool node2exists = CheckThatNodeExists(node2Id);
+            bool node1exists = Contains(node1Id);
+            bool node2exists = Contains(node2Id);
             if (node1exists && node2exists)
                 return OperationResult.Ok();
             if (!node1exists && !node2exists)
@@ -472,7 +472,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be checked.</param>
         /// <returns>True if the node id exists, false otherwise.</returns>
-        internal bool CheckThatNodeExists(uint nodeId)
+        internal bool Contains(uint nodeId)
         {
             return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
         }
