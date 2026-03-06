@@ -339,6 +339,17 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="n">Number of edges to return (defaults to 10)</param>
         /// <returns>A list of strings</returns>
+        internal IEnumerable<(string name, uint[] nodeIds)> GetAllHyperedgeData()
+        {
+            for (int h = 0; h < _hyperedgeNames.Length; h++)
+            {
+                int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
+                uint[] nodeIds = new uint[end - start];
+                Array.Copy(_hyperedgeNodeIdsFlat, start, nodeIds, 0, end - start);
+                yield return (_hyperedgeNames[h], nodeIds);
+            }
+        }
+
         public List<string> GetNFirstEdges(int n = 10)
         {
             List<string> lines = new(n);

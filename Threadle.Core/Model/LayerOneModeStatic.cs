@@ -290,6 +290,18 @@ namespace Threadle.Core.Model
         }
 
 
+        internal IEnumerable<(uint egoId, uint[] alters, float[]? values)> GetAllEgoData()
+        {
+            foreach (var (egoId, index) in _nodeIdToIndexMapper)
+            {
+                int start = _offsets[index], end = _offsets[index + 1];
+                uint[] alters = new uint[end - start];
+                Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
+                float[]? values = _values != null ? _values[start..end] : null;
+                yield return (egoId, alters, values);
+            }
+        }
+
         public List<string> GetNFirstEdges(int n = 10)
         {
             List<string> edges = new(n);

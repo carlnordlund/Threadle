@@ -335,6 +335,20 @@ namespace Threadle.Core.Utilities
         /// <param name="node1Id">The first node id.</param>
         /// <param name="node2Id">The second node id.</param>
         /// <returns>A string either expressing this as 'from [node1Id] to [node2Id]', or 'between [node1Id] and [node2Id]'.</returns>
+        internal static ILayer PackLayer(ILayer layer) => layer switch
+        {
+            LayerOneMode m => LayerOneModeCSR.FromDynamic(m),
+            LayerTwoMode m => LayerTwoModeCSR.FromDynamic(m),
+            _ => layer
+        };
+
+        internal static ILayer UnpackLayer(ILayer layer) => layer switch
+        {
+            LayerOneModeCSR m => LayerOneMode.FromStatic(m),
+            LayerTwoModeCSR m => LayerTwoMode.FromStatic(m),
+            _ => layer
+        };
+
         internal static string BetweenFromToText(EdgeDirectionality directionality, uint node1Id, uint node2Id)
         {
             return directionality == EdgeDirectionality.Directed ? $"from {node1Id} to {node2Id}" : $"between {node1Id} and {node2Id}";

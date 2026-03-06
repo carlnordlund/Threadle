@@ -288,6 +288,22 @@ namespace Threadle.Core.Model
         #endregion
 
 
+        public static LayerOneMode FromStatic(LayerOneModeCSR source)
+        {
+            var layer = new LayerOneMode(source.Name, source.Directionality, source.EdgeValueType, source.Selfties);
+            foreach (var (egoId, alters, values) in source.GetAllEgoData())
+            {
+                IEdgeset edgeset = layer.GetOrCreateEdgeset(egoId);
+                if (values != null)
+                    for (int i = 0; i < alters.Length; i++)
+                        edgeset._addOutboundEdge(alters[i], values[i]);
+                else
+                    foreach (uint alterId in alters)
+                        edgeset._addOutboundEdge(alterId, 1f);
+            }
+            return layer;
+        }
+
         #region Methods (private, internal)
         /// <summary>
         /// Support method attempting to initialize the edgesetFactory, i.e. the methods that is used to create new Edgeset instances.
