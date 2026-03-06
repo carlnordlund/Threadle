@@ -65,6 +65,7 @@ namespace Threadle.CLIconsole.Runtime
             ["info"] = new Info(),
             ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),
+            ["pack"] = new Pack(),
             ["preview"] = new Preview(),
             ["randomseed"] = new RandomSeed(),
             ["removeaff"] = new RemoveAffiliation(),
@@ -80,7 +81,8 @@ namespace Threadle.CLIconsole.Runtime
             ["shortestpath"] = new ShortestPath(),
             ["subnet"] = new Subnet(),
             ["symmetrize"] = new Symmetrize(),
-            ["undefineattr"] = new UndefineAttr()
+            ["undefineattr"] = new UndefineAttr(),
+            ["unpack"] = new Unpack()
         };
         #endregion
 

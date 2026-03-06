@@ -380,5 +380,19 @@ namespace Threadle.Core.Model
 
 
         #endregion
+
+
+        #region Methods (internal, private)
+        internal IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
+        {
+            for (int h=0; h<_hyperedgeNames.Length;h++)
+            {
+                int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
+                uint[] nodeIds = new uint[end - start];
+                Array.Copy(_hyperedgeNodeIdsFlat, start, nodeIds, 0, end - start);
+                yield return (_hyperedgeNames[h], nodeIds);
+            }
+        }
+        #endregion
     }
 }

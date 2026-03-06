@@ -195,12 +195,19 @@ namespace Threadle.Core.Utilities
                 _ => value
             };
 
-        public static ILayer ToLayerCSR(ILayer layer) => layer switch
+        public static ILayer PackLayer(ILayer layer) => layer switch
         {
             LayerOneMode m => LayerOneModeStatic.FromDynamic(m),
             LayerTwoMode m => LayerTwoModeStatic.FromDynamic(m),
             _ => layer
 
+        };
+
+        internal static ILayer UnpackLayer(ILayer layer) => layer switch
+        {
+            LayerOneModeStatic m => LayerOneMode.FromStatic(m),
+            LayerTwoModeStatic m => LayerTwoMode.FromStatic(m),
+            _ => layer
         };
 
         /// <summary>
@@ -430,6 +437,7 @@ namespace Threadle.Core.Utilities
         {
             return text.Trim(_quoteChars);
         }
+
 
         #endregion
     }

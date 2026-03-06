@@ -84,6 +84,14 @@ namespace Threadle.Core.Model
 
 
         #region Methods (public)
+        public static LayerTwoMode FromStatic(LayerTwoModeStatic source)
+        {
+            var layer = new LayerTwoMode(source.Name);
+            foreach (var (name, nodeIds) in source.GetAllHyperedgeData())
+                layer._addHyperedge(name, nodeIds.Length > 0 ? nodeIds : null);
+            return layer;
+        }
+
         /// <summary>
         /// Removes all Hyperedge references for a nodeId. Also goes through all existing Hyperedge objects
         /// and removes the references to this node ids. Used when a node is deleted and all edges must be

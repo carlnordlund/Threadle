@@ -506,7 +506,7 @@ namespace Threadle.Core.Model
             if (!Layers.TryGetValue(layerName, out var layer))
                 return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
             if (layer is LayerOneModeStatic)
-                return OperationResult<LayerOneMode>.Fail("LayerIsStatic", $"Layer '{layerName}' is a static (immutable) 1-mode layer.");
+                return OperationResult<LayerOneMode>.Fail("LayerIsPacked", $"Layer '{layerName}' is packed. Use 'unpack()' first.");
             if (!(layer is LayerOneMode layerOneMode))
                 return OperationResult<LayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
             return OperationResult<LayerOneMode>.Ok(layerOneMode);
@@ -705,6 +705,65 @@ namespace Threadle.Core.Model
             if (Layers.TryGetValue(layerName, out var layer))
                 return layer;
             return null;
+        }
+
+        /// <summary>
+        /// Packs one or all layers in  the network
+        /// </summary>
+        /// <param name="layerName"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public OperationResult Pack(string? layerName)
+        {
+            if (layerName != null)
+            {
+                if (_getLayer(layerName) is not ILayer layer)
+                    return OperationResult.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+                if (layer is LayerOneModeStatic || layer is LayerTwoModeStatic)
+                    return OperationResult.Fail("LayerAlreadyPacked", $"Layer '{layerName}' is already packed.");
+                var layerPacked = Misc.PackLayer(layer);
+                Layers[layerName] = layerPacked;
+                return OperationResult.Ok($"Layer '{layerName}' packed.");
+            }
+            else
+            {
+                foreach (string layerName2 in Layers.Keys)
+                {
+                    ILayer layer = Layers[layerName2];
+                    if (layer is LayerOneModeStatic || layer is LayerTwoModeStatic)
+                        continue;
+                    var layerPacked = Misc.PackLayer(Layers[layerName2]);
+                    Layers[layerName2] = layerPacked;
+                }
+                return OperationResult.Ok($"All layers in network '{Name}' packed.");
+            }
+        }
+
+        public OperationResult Unpack(string? layerName)
+        {
+            if (layerName!=null)
+            {
+                if (_getLayer(layerName) is not ILayer layer)
+                    return OperationResult.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+                if (layer is LayerOneMode || layer is LayerTwoMode)
+                    return OperationResult.Fail("LayerAlreadyUnpacked", $"Layer '{layerName}' is already unpacked.");
+                var layerUnpacked = Misc.UnpackLayer(layer);
+                Layers[layerName] = layerUnpacked;
+                return OperationResult.Ok($"Layer '{layerName}' unpacked.");
+            }
+            else
+            {
+                foreach (string layerName2 in Layers.Keys)
+                {
+                    ILayer layer = Layers[layerName2];
+                    if (layer is LayerOneMode || layer is LayerTwoMode)
+                        continue;
+                    var layerUnpacked = Misc.UnpackLayer(Layers[layerName2]);
+                    Layers[layerName2] = layerUnpacked;
+                }
+                return OperationResult.Ok($"All layers in network '{Name}' unpacked.");
+            }
+                throw new NotImplementedException();
         }
         #endregion
     }

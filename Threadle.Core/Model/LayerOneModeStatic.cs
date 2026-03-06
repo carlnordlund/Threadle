@@ -311,5 +311,21 @@ namespace Threadle.Core.Model
             return edges;
         }
         #endregion
+
+
+        #region Methods (internal, private)
+        internal IEnumerable<(uint egoId, uint[] alters, float[]? values)> GetAllEgoData()
+        {
+            // Iterate through all node Ids in this layer
+            foreach (var (egoId, index) in _nodeIdToIndexMapper)
+            {
+                int start = _offsets[index], end = _offsets[index + 1];
+                uint[] alters = new uint[end - start];
+                Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
+                float[]? values = _values != null ? _values[start..end] : null;
+                yield return (egoId, alters, values);
+            }
+        }
+        #endregion
     }
 }

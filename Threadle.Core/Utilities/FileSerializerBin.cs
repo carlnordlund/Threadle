@@ -231,7 +231,7 @@ namespace Threadle.Core.Utilities
                         }
                     }
                     // Add it to network's layers
-                    network.Layers.Add(layerName, compactLayers ? Misc.ToLayerCSR(layerOneMode) : layerOneMode);
+                    network.Layers.Add(layerName, compactLayers ? Misc.PackLayer(layerOneMode) : layerOneMode);
 
                 }
                 else if (mode == 2)
@@ -261,7 +261,7 @@ namespace Threadle.Core.Utilities
                     }
 
                     // Add it to network's layers
-                    network.Layers.Add(layerName, compactLayers ? Misc.ToLayerCSR(layerTwoMode) : layerTwoMode);
+                    network.Layers.Add(layerName, compactLayers ? Misc.PackLayer(layerTwoMode) : layerTwoMode);
                 }
                 else
                     throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");

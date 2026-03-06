@@ -127,6 +127,24 @@ namespace Threadle.Core.Model
 
 
         #region Methods (public)
+        public static LayerOneMode FromStatic(LayerOneModeStatic source)
+        {
+            var layer = new LayerOneMode(source.Name, source.Directionality, source.EdgeValueType, source.Selfties);
+            foreach (var (egoId, alters, values) in source.GetAllEgoData())
+            {
+                IEdgeset edgeset = layer.GetOrCreateEdgeset(egoId);
+                if (values != null)
+                    for (int i = 0; i < alters.Length; i++)
+                        edgeset._addOutboundEdge(alters[i], values[i]);
+                else
+                    for (int i = 0; i < alters.Length; i++)
+                        edgeset._addOutboundEdge(alters[i], 1f);
+            }
+            return layer;
+        }
+
+
+
         /// <summary>
         /// Removes any edge in the Edgeset that includes this node id.
         /// Used for cleaning up relational layers for invalid edges after a node has been removed.

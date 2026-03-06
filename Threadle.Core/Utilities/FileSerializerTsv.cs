@@ -185,7 +185,7 @@ namespace Threadle.Core.Utilities
                         new LayerTwoMode { Name = pendingName };
                 if (currentLayer!=null)
                 {
-                    collectedLayers.Add(currentLayer.Name, compactLayers ? Misc.ToLayerCSR(currentLayer) : currentLayer);
+                    collectedLayers.Add(currentLayer.Name, compactLayers ? Misc.PackLayer(currentLayer) : currentLayer);
                     currentLayer = null;
                 }
                 pendingName = null;
@@ -252,7 +252,7 @@ namespace Threadle.Core.Utilities
                 //        // if compactLayers == true: convert currentLayer to its CSR equivalent
                 //        // If currentLayer is LayerOneMode => LayerOneModeCSR
                 //        // If currentLayer is LayerTwoMode => LayerTwoModeCSR
-                //        network.Layers.Add(currentLayer.Name, compactLayers ? Misc.ToLayerCSR(currentLayer) : currentLayer);
+                //        network.Layers.Add(currentLayer.Name, compactLayers ? Misc.PackLayer(currentLayer) : currentLayer);
                 //    }
                 //    string layerModeStr = line.Substring("LayerMode:".Length).Trim();
                 //    if (layerModeStr.Equals("1"))
@@ -340,7 +340,7 @@ namespace Threadle.Core.Utilities
             //if (currentLayer != null)
             //{
             //    //network.Layers.Add(currentLayer.Name, currentLayer);
-            //    network.Layers.Add(currentLayer.Name, compactLayers ? Misc.ToLayerCSR(currentLayer) : currentLayer);
+            //    network.Layers.Add(currentLayer.Name, compactLayers ? Misc.PackLayer(currentLayer) : currentLayer);
             //}
             if (nodeset == null)
                 throw new InvalidDataException("Nodeset file reference must be specified before layer definitions.");
