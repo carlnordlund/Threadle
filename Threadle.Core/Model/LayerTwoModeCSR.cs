@@ -7,7 +7,7 @@ using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Model
 {
-    public class LayerTwoModeCSR : ILayer
+    public class LayerTwoModeCSR : ILayer, ILayerTwoMode
     {
         #region Fields
         /// <summary>
@@ -80,6 +80,11 @@ namespace Threadle.Core.Model
         /// The name of the layer.
         /// </summary>
         public string Name { get; set; } = "";
+
+        /// <summary>
+        /// Returns the number of Hyperedge objects in this layer.
+        /// </summary>
+        public uint NbrHyperedges { get => (uint)_hyperedgeNames.Length; }
 
         /// <summary>
         /// Returns metadata about the layer (as a dictionary of objects).
@@ -352,6 +357,28 @@ namespace Threadle.Core.Model
             }
             return lines;
         }
+
+        public string[] GetAllHyperedgeNames(int offset, int limit)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Returns the node ids affiliated to the specified hyperedge, sorted by ascending node id.
+        /// Returns an empty array if no hyperedge with that name exist, or if the hyperedge has no node ids
+        /// affiliated to it.
+        /// </summary>
+        public uint[] GetHyperedgeNodeIds(string hyperName)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string[] GetNodeHyperedgeNames(uint nodeId)
+        {
+            throw new NotImplementedException();
+        }
+
+
         #endregion
     }
 }

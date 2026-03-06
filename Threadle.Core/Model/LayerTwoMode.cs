@@ -8,7 +8,7 @@ namespace Threadle.Core.Model
     /// The 2-mode layer consists of a global collection of Hyperedge objects, and a dictionary
     /// of these Hyperedge objects by node id.
     /// </summary>
-    public class LayerTwoMode : ILayer
+    public class LayerTwoMode : ILayer, ILayerTwoMode
     {
         #region Fields
         /// <summary>
@@ -240,6 +240,32 @@ namespace Threadle.Core.Model
             }
             return lines;
         }
+
+        public string[] GetAllHyperedgeNames(int offset, int limit)
+        {
+            offset = (offset < 0) ? 0 : offset;
+            limit = (limit < 0) ? 0 : limit;
+            return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
+        }
+
+        /// <summary>
+        /// Returns the node ids affiliated to the specified hyperedge, sorted by ascending node id.
+        /// Returns an empty array if no hyperedge with that name exist, or if the hyperedge has no node ids
+        /// affiliated to it.
+        /// </summary>
+        public uint[] GetHyperedgeNodeIds(string hyperName)
+        {
+            if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
+                return [];
+            return hyperedge.NodeIds.ToArray();
+        }
+
+        public string[] GetNodeHyperedgeNames(uint nodeId)
+        {
+            if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperedgeCollection))
+                return [];
+            return hyperedgeCollection.HyperEdges.Select(x => x.Name).ToArray();
+        }
         #endregion
 
 
@@ -448,12 +474,6 @@ namespace Threadle.Core.Model
         /// <param name="limit">The maximum number of hyperedge names to retrieve. If less than zero, the value is treated as zero.</param>
         /// <returns>An array of strings containing the names of hyperedges, limited by the specified offset and limit. The array
         /// is empty if no hyperedges are available within the specified range.</returns>
-        internal string[] GetAllHyperedgeNames(int offset, int limit)
-        {
-            offset = (offset < 0) ? 0 : offset;
-            limit = (limit < 0) ? 0 : limit;
-            return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
-        }
         #endregion
     }
 }

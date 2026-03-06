@@ -7,7 +7,7 @@ using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Model
 {
-    public class LayerOneModeCSR : ILayer
+    public class LayerOneModeCSR : ILayer, ILayerOneMode
     {
         #region Fields
         /// <summary>
@@ -44,17 +44,17 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Directionality of edges in the layer.
         /// </summary>
-        public EdgeDirectionality Directionality;
+        public EdgeDirectionality Directionality { get; }
 
         /// <summary>
         /// Value type of edges in the layer.
         /// </summary>
-        public EdgeType EdgeValueType;
+        public EdgeType EdgeValueType { get; }
 
         /// <summary>
         /// Boolean indicating whether selfties are allowed.
         /// </summary>
-        public bool Selfties;
+        public bool Selfties { get; }
 
         /// <summary>
         /// Returns true if the layer is symmetric, otherwise false.
@@ -79,17 +79,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns the number of edges in the layer.
         /// </summary>
-        public uint NbrEdges
-        {
-            get
-            {
-                //uint nbrConnections = 0;
-                //foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
-                //    nbrConnections += edgeset.NbrEdges;
-                //return Directionality == EdgeDirectionality.Directed ? nbrConnections : nbrConnections / 2;
-                return 0;
-            }
-        }
+        public uint NbrEdges => (uint)(_neighborNodeIds.Length / (IsDirectional ? 1 : 2));
 
         /// <summary>
         /// Returns metadata about the layer (as a dictionary of objects).
@@ -187,6 +177,53 @@ namespace Threadle.Core.Model
             return uints;
         }
 
+        /// <summary>
+        /// Retrieves a collection of edges with their associated values, starting from a specified offset and limited
+        /// to a maximum number of results.
+        /// </summary>
+        /// <param name="offset">The number of edges to skip before beginning to collect results. Must be greater than or equal to 0.</param>
+        /// <param name="limit">The maximum number of edges to return. Must be greater than 0.</param>
+        /// <returns>A list of dictionaries, each containing the identifiers of two connected nodes and the associated value. The
+        /// list may be empty if no edges are available after applying the offset.</returns>
+        public List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 1000)
+        {
+            List<Dictionary<string, object>> edges = [];
+            int skipped = 0;
+            foreach (uint egoId in _nodeIdToIndexMapper.Keys.OrderBy(id => _nodeIdToIndexMapper[id])) // Ordered by incr egoId? Not needed actually, but nicer?
+            {
+                if (edges.Count >= limit)
+                    break;
+                int i = _nodeIdToIndexMapper[egoId];
+                int start = _offsets[i], end = _offsets[i + 1];
+                if (IsDirectional && skipped + end-start <= offset)
+                {
+                    skipped += end - start;
+                    continue;
+                }
+                for (int j = start; j < end; j++)
+                {
+                    if (IsSymmetric && _neighborNodeIds[j] <= egoId)
+                        continue;
+                    if (edges.Count >= limit)
+                        return edges;
+
+                    if (skipped<offset)
+                    {
+                        skipped++;
+                        continue;
+                    }
+                    edges.Add(new Dictionary<string, object>
+                    {
+                        ["node1"] = egoId,
+                        ["node2"] = _neighborNodeIds[j],
+                        ["value"] = _values != null ? _values[j] : 1f
+                    });
+                }
+            }
+            return edges;
+        }
+
+
         public void RemoveNodeEdges(uint nodeId)
         {
             var _newMapper = new Dictionary<uint, int>(_nodeIdToIndexMapper.Count);
@@ -256,7 +293,6 @@ namespace Threadle.Core.Model
         public List<string> GetNFirstEdges(int n = 10)
         {
             List<string> edges = new(n);
-            uint[] nodeIds = _nodeIdToIndexMapper.Keys.ToArray();
             string arrow = IsSymmetric ? "<->" : "->";
             foreach (uint egoId in _nodeIdToIndexMapper.Keys)
             {

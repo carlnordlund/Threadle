@@ -22,17 +22,6 @@ namespace Threadle.Core.Model
             Name = name;
             Nodeset = nodeset;
         }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Network"/> class
-        /// with the specified name. Also creating a nodeset. Used by TSV loader.
-        /// </summary>
-        /// <param name="name">The internal name of the network.</param>
-        public Network(string name)
-        {
-            Name = name;
-            Nodeset = new Nodeset(name + "_nodeset");
-        }
         #endregion
 
 
@@ -85,7 +74,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Gets the Nodeset that this Network uses
         /// </summary>
-        public Nodeset Nodeset { get; private set; }
+        public Nodeset Nodeset { get; }
 
         /// <summary>
         /// A dictionary of relational layerNames (ILayer), accessible by their unique names.
@@ -689,27 +678,6 @@ namespace Threadle.Core.Model
             return result;
         }
 
-        /// <summary>
-        /// Internal method for setting the Nodeset (only to be used by the loader)
-        /// </summary>
-        /// <param name="nodeset">The nodeset to set.</param>
-        internal void SetNodeset(Nodeset nodeset) => Nodeset = nodeset;
-
-        /// <summary>
-        /// Gets a collection of all unique node id values found in all existing relations in all <see cref="Layers"/>.
-        /// </summary>
-        /// <returns>A HashSet with all unique node ids currently existing in the <see cref="Network">.</returns>
-        /// <remarks>
-        /// This is currently used by FileSerializerTsv when loading a network without an existing Nodeset. I might change that so that a network MUST have a reference to a saved
-        /// Nodeset. Or that it creates Nodes on the fly.
-        /// </remarks>
-        //internal HashSet<uint> GetAllIdsMentioned()
-        //{
-        //    HashSet<uint> ids = [];
-        //    foreach (ILayer layer in Layers.Values)
-        //        ids.UnionWith(layer.GetMentionedNodeIds());
-        //    return ids;
-        //}
 
         /// <summary>
         /// Returns all alters to a node in all layerNames. For single layer alters,

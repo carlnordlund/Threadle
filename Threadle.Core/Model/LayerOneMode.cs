@@ -9,7 +9,7 @@ namespace Threadle.Core.Model
     /// specifies whether the layer has directional or symmetric ties, whether binary or valued, and
     /// whether self-ties are allowed.
     /// </summary>
-    public class LayerOneMode : ILayer
+    public class LayerOneMode : ILayer, ILayerOneMode
     {
         #region Fields
         /// <summary>
@@ -25,13 +25,6 @@ namespace Threadle.Core.Model
 
 
         #region Constructors
-        /// <summary>
-        /// Initializes a new instance of the <see cref="LayerOneMode"/> class
-        /// </summary>
-        public LayerOneMode()
-        {
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="LayerOneMode"/> class, with the specified properties.
         /// </summary>
@@ -59,17 +52,17 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Directionality of edges in the layer.
         /// </summary>
-        public EdgeDirectionality Directionality;
+        public EdgeDirectionality Directionality { get; }
 
         /// <summary>
         /// Value type of edges in the layer.
         /// </summary>
-        public EdgeType EdgeValueType;
+        public EdgeType EdgeValueType { get; }
 
         /// <summary>
         /// Boolean indicating whether selfties are allowed.
         /// </summary>
-        public bool Selfties;
+        public bool Selfties { get; }
 
         /// <summary>
         /// Returns true if the layer is symmetric, otherwise false.
@@ -128,7 +121,6 @@ namespace Threadle.Core.Model
         /// Returns a string with metadata info about the layer
         /// </summary>
         public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
-
 
         public bool IsStatic => false;
         #endregion
@@ -233,18 +225,6 @@ namespace Threadle.Core.Model
                 edgeset.ClearEdges();
             Edgesets.Clear();
         }
-
-        /// <summary>
-        /// Returns a HashSet of all unique node ids mentioned in the Layer
-        /// </summary>
-        /// <returns>A HashSet of node ids.</returns>
-        //public HashSet<uint> GetMentionedNodeIds()
-        //{
-        //    HashSet<uint> ids = [];
-        //    foreach (IEdgeset edgeset in Edgesets.Values)
-        //        ids.UnionWith(edgeset.GetAllNodeIds);
-        //    return ids;
-        //}
 
         /// <summary>
         /// Create a filtered copy of this Layer that only keeps edges whose nodes are present in
@@ -438,14 +418,6 @@ namespace Threadle.Core.Model
             IEdgeset newEdgeset = edgeSetFactory!();
             Edgesets[nodeId] = newEdgeset;
             return newEdgeset;
-        }
-
-        /// <summary>
-        /// Non-private method to try to initialize the Edgeset-creating factory.
-        /// </summary>
-        internal void TryInitFactory()
-        {
-            InitializeFactory();
         }
 
         /// <summary>
