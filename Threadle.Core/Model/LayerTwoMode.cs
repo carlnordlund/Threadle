@@ -277,7 +277,7 @@ namespace Threadle.Core.Model
         #endregion
 
 
-        public static LayerTwoMode FromStatic(LayerTwoModeCSR source)
+        public static LayerTwoMode FromStatic(LayerTwoModeStatic source)
         {
             var layer = new LayerTwoMode(source.Name);
             foreach (var (name, nodeIds) in source.GetAllHyperedgeData())

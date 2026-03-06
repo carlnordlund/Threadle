@@ -288,7 +288,7 @@ namespace Threadle.Core.Model
         #endregion
 
 
-        public static LayerOneMode FromStatic(LayerOneModeCSR source)
+        public static LayerOneMode FromStatic(LayerOneModeStatic source)
         {
             var layer = new LayerOneMode(source.Name, source.Directionality, source.EdgeValueType, source.Selfties);
             foreach (var (egoId, alters, values) in source.GetAllEgoData())

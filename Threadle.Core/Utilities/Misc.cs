@@ -337,15 +337,15 @@ namespace Threadle.Core.Utilities
         /// <returns>A string either expressing this as 'from [node1Id] to [node2Id]', or 'between [node1Id] and [node2Id]'.</returns>
         internal static ILayer PackLayer(ILayer layer) => layer switch
         {
-            LayerOneMode m => LayerOneModeCSR.FromDynamic(m),
-            LayerTwoMode m => LayerTwoModeCSR.FromDynamic(m),
+            LayerOneMode m => LayerOneModeStatic.FromDynamic(m),
+            LayerTwoMode m => LayerTwoModeStatic.FromDynamic(m),
             _ => layer
         };
 
         internal static ILayer UnpackLayer(ILayer layer) => layer switch
         {
-            LayerOneModeCSR m => LayerOneMode.FromStatic(m),
-            LayerTwoModeCSR m => LayerTwoMode.FromStatic(m),
+            LayerOneModeStatic m => LayerOneMode.FromStatic(m),
+            LayerTwoModeStatic m => LayerTwoMode.FromStatic(m),
             _ => layer
         };
 
