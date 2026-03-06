@@ -7,7 +7,7 @@ using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Model
 {
-    public class LayerTwoModeCSR : ILayer, ILayerTwoMode
+    public class LayerTwoModeStatic : ILayer, ILayerTwoMode
     {
         #region Fields
         /// <summary>
@@ -62,7 +62,7 @@ namespace Threadle.Core.Model
 
 
         #region Constructors
-        private LayerTwoModeCSR(string name, string[] hyperedgeNames, int[] offsetsHyperedges, uint[] hyperedgesNodeIdsFlat, Dictionary<uint,int> nodeIdToIndexMapper, int[] offsetsNodeIds, int[] nodeIdHypedgesFlat)
+        private LayerTwoModeStatic(string name, string[] hyperedgeNames, int[] offsetsHyperedges, uint[] hyperedgesNodeIdsFlat, Dictionary<uint,int> nodeIdToIndexMapper, int[] offsetsNodeIds, int[] nodeIdHypedgesFlat)
         {
             Name = name;
             _hyperedgeNames= hyperedgeNames;
@@ -108,7 +108,7 @@ namespace Threadle.Core.Model
 
 
         #region Methods (public)
-        public static LayerTwoModeCSR FromDynamic(LayerTwoMode source)
+        public static LayerTwoModeStatic FromDynamic(LayerTwoMode source)
         {
             var hyperedgeNames = source.AllHyperEdges.Keys.ToArray();
             var hyperedgeNameToIndex = hyperedgeNames.Select((name, i) => (name, i)).ToDictionary(x => x.name, x => x.i);
@@ -137,7 +137,7 @@ namespace Threadle.Core.Model
                     nodeIdHyperedgesList.Add(hyperedgeNameToIndex[hyperedge.Name]);
             }
             offsetNodeIds[sortedNodeIds.Length] = nodeIdHyperedgesList.Count;
-            return new LayerTwoModeCSR(source.Name, hyperedgeNames, offsetHyperedges, hyperedgeNodeIdsList.ToArray(), mapper, offsetNodeIds, nodeIdHyperedgesList.ToArray());
+            return new LayerTwoModeStatic(source.Name, hyperedgeNames, offsetHyperedges, hyperedgeNodeIdsList.ToArray(), mapper, offsetNodeIds, nodeIdHyperedgesList.ToArray());
 
         }
 
@@ -330,7 +330,7 @@ namespace Threadle.Core.Model
                     newNodeIdHyperedges.Add(newNodeIdHyperedges.Count);
             }
 
-            return new LayerTwoModeCSR(Name + "_filtered", _hyperedgeNames, newOffsetHyperedges, newHyperedgeNodeIds.ToArray(), newMapper, newOffsetNodeIds.ToArray(), newNodeIdHyperedges.ToArray());
+            return new LayerTwoModeStatic(Name + "_filtered", _hyperedgeNames, newOffsetHyperedges, newHyperedgeNodeIds.ToArray(), newMapper, newOffsetNodeIds.ToArray(), newNodeIdHyperedges.ToArray());
         }
 
         /// <summary>

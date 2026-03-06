@@ -505,7 +505,7 @@ namespace Threadle.Core.Model
         {
             if (!Layers.TryGetValue(layerName, out var layer))
                 return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-            if (layer is LayerOneModeCSR)
+            if (layer is LayerOneModeStatic)
                 return OperationResult<LayerOneMode>.Fail("LayerIsStatic", $"Layer '{layerName}' is a static (immutable) 1-mode layer.");
             if (!(layer is LayerOneMode layerOneMode))
                 return OperationResult<LayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
@@ -521,7 +521,7 @@ namespace Threadle.Core.Model
         {
             if (!Layers.TryGetValue(layerName, out var layer))
                 return OperationResult<LayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-            if (layer is LayerTwoModeCSR)
+            if (layer is LayerTwoModeStatic)
                 return OperationResult<LayerTwoMode>.Fail("LayerIsStatic", $"Layer '{layerName}' is a static (immutable) 2-mode layer.");
             if (!(layer is LayerTwoMode layerTwoMode))
                 return OperationResult<LayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");

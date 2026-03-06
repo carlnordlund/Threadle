@@ -7,7 +7,7 @@ using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Model
 {
-    public class LayerOneModeCSR : ILayer, ILayerOneMode
+    public class LayerOneModeStatic : ILayer, ILayerOneMode
     {
         #region Fields
         /// <summary>
@@ -21,7 +21,7 @@ namespace Threadle.Core.Model
 
 
         #region Constructors
-        private LayerOneModeCSR(string name, EdgeDirectionality directionality, EdgeType edgeValueType, bool selfties, Dictionary<uint, int> nodeIdToIndexMapper, int[] offsets, uint[] neighborNodeIds, float[]? values)
+        private LayerOneModeStatic(string name, EdgeDirectionality directionality, EdgeType edgeValueType, bool selfties, Dictionary<uint, int> nodeIdToIndexMapper, int[] offsets, uint[] neighborNodeIds, float[]? values)
         {
             Name = name;
             Directionality = directionality;
@@ -106,7 +106,7 @@ namespace Threadle.Core.Model
 
 
         #region Methods (public)
-        public static LayerOneModeCSR FromDynamic(LayerOneMode source)
+        public static LayerOneModeStatic FromDynamic(LayerOneMode source)
         {
             source._sortEdgesets();
             uint[] egoNodes = [.. source.Edgesets.Keys.Order()];
@@ -140,7 +140,7 @@ namespace Threadle.Core.Model
                         neighborNodeIds.Add(partnerNodeId);
                 }
             offsets[n] = neighborNodeIds.Count;
-            return new LayerOneModeCSR(source.Name, source.Directionality, source.EdgeValueType, source.Selfties, mapper, offsets, [.. neighborNodeIds], valueList.Count > 0 ? [.. valueList] : null);
+            return new LayerOneModeStatic(source.Name, source.Directionality, source.EdgeValueType, source.Selfties, mapper, offsets, [.. neighborNodeIds], valueList.Count > 0 ? [.. valueList] : null);
         }
 
         public float GetEdgeValue(uint node1Id, uint node2Id)
@@ -286,7 +286,7 @@ namespace Threadle.Core.Model
                 _newOffsets.Add(_newNeighborNodeIds.Count);
             }
 
-            return new LayerOneModeCSR(this.Name + "_filtered", this.Directionality, this.EdgeValueType, this.Selfties, _newMapper, [.. _newOffsets], [.. _newNeighborNodeIds], _newValues?.ToArray());
+            return new LayerOneModeStatic(this.Name + "_filtered", this.Directionality, this.EdgeValueType, this.Selfties, _newMapper, [.. _newOffsets], [.. _newNeighborNodeIds], _newValues?.ToArray());
         }
 
 

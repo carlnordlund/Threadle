@@ -197,8 +197,8 @@ namespace Threadle.Core.Utilities
 
         public static ILayer ToLayerCSR(ILayer layer) => layer switch
         {
-            LayerOneMode m => LayerOneModeCSR.FromDynamic(m),
-            LayerTwoMode m => LayerTwoModeCSR.FromDynamic(m),
+            LayerOneMode m => LayerOneModeStatic.FromDynamic(m),
+            LayerTwoMode m => LayerTwoModeStatic.FromDynamic(m),
             _ => layer
 
         };

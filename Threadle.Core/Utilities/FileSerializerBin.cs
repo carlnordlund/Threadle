@@ -180,9 +180,6 @@ namespace Threadle.Core.Utilities
                     // Create 1-mode layer
                     LayerOneMode layerOneMode = new LayerOneMode(layerName, edgeDirectionality, edgeType, selfties);
 
-                    // Add it to network's layers
-                    network.Layers.Add(layerName, layerOneMode);
-
                     // Get nbr of nodelist rows
                     int nbrEdgesets = reader.ReadInt32();
 
@@ -233,14 +230,14 @@ namespace Threadle.Core.Utilities
                             layerOneMode._addValuedEdges(nodeIdEgo, nodeIdsAlters);
                         }
                     }
+                    // Add it to network's layers
+                    network.Layers.Add(layerName, compactLayers ? Misc.ToLayerCSR(layerOneMode) : layerOneMode);
+
                 }
                 else if (mode == 2)
                 {
                     // Create 2-mode layer with the specified name
                     LayerTwoMode layerTwoMode = new LayerTwoMode(layerName);
-
-                    // Add it to network's layers
-                    network.Layers.Add(layerName, layerTwoMode);
 
                     // Get nbr of hyperedges in this layer
                     uint nbrHyperedges = reader.ReadUInt32();
@@ -262,6 +259,9 @@ namespace Threadle.Core.Utilities
                         // Create and add hyperedge to this layer
                         layerTwoMode._addHyperedge(hyperedgeName, nodeIds);
                     }
+
+                    // Add it to network's layers
+                    network.Layers.Add(layerName, compactLayers ? Misc.ToLayerCSR(layerTwoMode) : layerTwoMode);
                 }
                 else
                     throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");
