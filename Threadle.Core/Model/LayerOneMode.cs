@@ -110,7 +110,7 @@ namespace Threadle.Core.Model
             ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
             ["NbrEdges"] = NbrEdges,
-            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -293,7 +293,7 @@ namespace Threadle.Core.Model
             // Dict<uint,IEdgeset>: entries (has + next + key(4)+ value(8)=20 bytes each)+ buckets
             long bytes = (long)N * 20 + (long)(N / 0.72 + 1) * 4;
             foreach (var es in _edgesets.Values)
-                bytes += 72 * (long)es.NbrEdges * 4;
+                bytes += 72 + (long)es.NbrEdges * 4;
             return bytes;
         }
         #endregion

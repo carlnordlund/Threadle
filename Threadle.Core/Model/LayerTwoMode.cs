@@ -53,6 +53,8 @@ namespace Threadle.Core.Model
         /// </summary>
         public uint NbrHyperedges { get => (uint)_allHyperedges.Count; }
 
+        public long NbrAffiliations { get => _allHyperedges.Values.Sum(he => (long)he.NbrNodes); }
+
         /// <summary>
         /// Returns the dictionary of Hyperedge objects by node id
         /// </summary>
@@ -71,7 +73,9 @@ namespace Threadle.Core.Model
             ["Name"] = Name,
             ["Mode"] = 2,
             ["Static"] = false,
-            ["NbrHyperedges"] = NbrHyperedges
+            ["NbrHyperedges"] = NbrHyperedges,
+            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length,
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -273,8 +277,24 @@ namespace Threadle.Core.Model
         }
 
         public long GetEstimatedBytes()
-        {
-            return 0;
+        {            
+            int H = _allHyperedges.Count;
+            int N = _hyperedgeCollections.Count;
+            long nbrAffs = NbrAffiliations;
+            // Estimate average length of hyperedge names based on sampling up to 20
+            int nameSampleSize = Math.Min(H, 20);
+            double averageHyperedgeNameLength = nameSampleSize > 0 ? _allHyperedges.Keys.Take(nameSampleSize).Average(k => (double)k.Length) : 10.0;
+            long bytesPerName = 20 + (long)Math.Round(averageHyperedgeNameLength) * 2;
+            // Memory for dict<string,Hyperedge> AllHyperedges (note that hyperedge names are on heap
+            long bytes = (long)H * 24 + (long)(H / 0.72 + 1) * 4 + (long)H * bytesPerName;
+            // Hyperedge objects: header(16) + List<uint> nodeIds (32) + internal array (24 + count*4) = 72 + count*4
+            // NbrAffiliations is here number of nodeId<->Hyperedge connections, i.e. sum of the lenghts of all nodeIds lists in each hyperedge
+            bytes += (long)H * 72 + nbrAffs * 4;
+            // Dictionary<uint, HyperedgeCollection>: entires + buckets
+            bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
+            // HyperEdgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
+            bytes += (long)N * 72 + nbrAffs * 20;
+            return bytes;
         }
 
         #endregion

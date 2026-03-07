@@ -314,7 +314,18 @@ namespace Threadle.Core.Model
 
         public long GetEstimatedBytes()
         {
-            return 0;
+            int N = _nodeIdToIndexMapper.Count;
+            int M = _neighborNodeIds.Length;
+            // Memory for the node id to index lookup: _nodeIdToIndexMapper
+            long bytes = (long)N * 16 + (long)(N / 0.72 + 1) * 4;
+            // Memory for the _offsets[] array (+1 for the final cell)
+            bytes += (long)(N + 1) * 4;
+            // Memory for all partnerNodeIds: _ neighborNodeIds
+            bytes += (long)M * 4;
+            // Memory for valued array _values[] (only for valued layers)
+            if (_values != null)
+                bytes += (long)M * 4;
+            return bytes;
         }
         #endregion
 

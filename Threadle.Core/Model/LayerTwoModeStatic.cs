@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -86,6 +87,8 @@ namespace Threadle.Core.Model
         /// </summary>
         public uint NbrHyperedges { get => (uint)_hyperedgeNames.Length; }
 
+        public long NbrAffiliations { get => _hyperedgeNodeIdsFlat.Length; }
+
         /// <summary>
         /// Returns metadata about the layer (as a dictionary of objects).
         /// </summary>
@@ -95,7 +98,8 @@ namespace Threadle.Core.Model
             ["Mode"] = 2,
             ["Static"] = true,
             ["NbrHyperedges"] = _hyperedgeNames.Length,
-            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length
+            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length,
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -396,7 +400,25 @@ namespace Threadle.Core.Model
 
         public long GetEstimatedBytes()
         {
-            return 0;
+            int H = _hyperedgeNames.Length;
+            int N = _nodeIdToIndexMapper.Count;
+            int Mh = _hyperedgeNodeIdsFlat.Length;
+            int Mn = _nodeIdHyperedgesFlat.Length;
+            // Estimate average length of hyperedge names based on sampling up to 20
+            int nameSampleSize = Math.Min(H, 20);
+            double averageHyperedgeNameLength = nameSampleSize > 0 ? _hyperedgeNames.Take(nameSampleSize).Average(s => (double)s.Length) : 10.0;
+            long bytesPerName = 20 + (long)Math.Round(averageHyperedgeNameLength) * 2;
+            // string[] _hyperedgeNames: 8 bytes per ref + string objects (so pointing to the strings)
+            long bytes = (long)H * (8 + bytesPerName);
+            // int[] _offsetHyperedges
+            bytes += (long)(H + 1) * 4;
+            // uint[] _hyperedgeNodeIdsFlat:
+            bytes += (long)Mh * 4;
+            // int[] _offsetNodeIds
+            bytes += (long)(N + 1) * 4;
+            // int[] _nodeIdHyperedgesFlat
+            bytes += (long)Mn * 4;
+            return bytes;
         }
         #endregion
 

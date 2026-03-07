@@ -10,6 +10,12 @@ namespace Threadle.Core.Model
     {
         #region Properties
         uint NbrHyperedges { get; }
+
+        /// <summary>
+        /// Returns the number of node-to-hyperedge affiliations.
+        /// Can either be implemented exactly, or by sampling.
+        /// </summary>
+        long NbrAffiliations { get; }
         #endregion
 
 
