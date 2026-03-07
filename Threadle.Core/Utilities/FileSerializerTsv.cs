@@ -68,13 +68,13 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <param name="filepath">The filepath to the file.</param>
         /// <returns>A StructureResult object containing the Network object, and possibly also a Nodeset object.</returns>
-        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format, bool compactLayers = false)
+        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format, bool packLayers = false)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new StreamReader(buffered, Utf8NoBom);
-            return ReadNetworkFromFile(filepath, reader, compactLayers);
+            return ReadNetworkFromFile(filepath, reader, packLayers);
         }
 
         /// <summary>
@@ -249,10 +249,10 @@ namespace Threadle.Core.Utilities
 
                 //    if (currentLayer != null)
                 //    {
-                //        // if compactLayers == true: convert currentLayer to its CSR equivalent
+                //        // if packLayers == true: convert currentLayer to its CSR equivalent
                 //        // If currentLayer is LayerOneMode => LayerOneModeCSR
                 //        // If currentLayer is LayerTwoMode => LayerTwoModeCSR
-                //        network.Layers.Add(currentLayer.Name, compactLayers ? Misc.PackLayer(currentLayer) : currentLayer);
+                //        network.Layers.Add(currentLayer.Name, packLayers ? Misc.PackLayer(currentLayer) : currentLayer);
                 //    }
                 //    string layerModeStr = line.Substring("LayerMode:".Length).Trim();
                 //    if (layerModeStr.Equals("1"))
@@ -340,7 +340,7 @@ namespace Threadle.Core.Utilities
             //if (currentLayer != null)
             //{
             //    //network.Layers.Add(currentLayer.Name, currentLayer);
-            //    network.Layers.Add(currentLayer.Name, compactLayers ? Misc.PackLayer(currentLayer) : currentLayer);
+            //    network.Layers.Add(currentLayer.Name, packLayers ? Misc.PackLayer(currentLayer) : currentLayer);
             //}
             if (nodeset == null)
                 throw new InvalidDataException("Nodeset file reference must be specified before layer definitions.");

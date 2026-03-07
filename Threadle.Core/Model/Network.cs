@@ -370,16 +370,23 @@ namespace Threadle.Core.Model
         /// <returns>Returns an OperationResult object with the array of uint affiliated to this hyperedge.</returns>
         public OperationResult<uint[]> GetHyperedgeNodes(string layerName, string hyperName)
         {
-            var layerResult = GetTwoModeLayer(layerName);
+            var layerResult = GetTwoModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<uint[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
-            if (layerTwoMode.GetHyperedge(hyperName) is not Hyperedge hyperedge)
+            if (!layerTwoMode.ContainsHyperedge(hyperName))
                 return OperationResult<uint[]>.Fail("HyperedgeNotFound", $"Could not find hyperedge named '{hyperName}' in layer '{layerName}' of network {Name}.");
-            uint[] nodeIds = hyperedge.NodeIds.ToArray();
+            uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(hyperName);
             Array.Sort(nodeIds);
             return OperationResult<uint[]>.Ok(nodeIds, $"Hyperedge '{hyperName}' connects the following nodes in layer '{layerName}':");
+
+            //if (layerTwoMode.GetHyperedgeNodeIds(hyperName) is not Hyperedge hyperedge)
+            //    return OperationResult<uint[]>.Fail("HyperedgeNotFound", $"Could not find hyperedge named '{hyperName}' in layer '{layerName}' of network {Name}.");
+            //uint[] nodeIds = hyperedge.NodeIds.ToArray();
+            //Array.Sort(nodeIds);
+            //return OperationResult<uint[]>.Ok(nodeIds, $"Hyperedge '{hyperName}' connects the following nodes in layer '{layerName}':");
         }
+
 
         /// <summary>
         /// Returns an array with the hyperedge names that a node is connected to in a specific 2-mode layer.
@@ -391,11 +398,11 @@ namespace Threadle.Core.Model
         {
             if (!Nodeset.Contains(nodeId))
                 return OperationResult<string[]>.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'");
-            var layerResult = GetTwoModeLayer(layerName);
+            var layerResult = GetTwoModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<string[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
-            string[] hyperedgeNames = layerTwoMode.GetHyperedgeNames(nodeId);
+            string[] hyperedgeNames = layerTwoMode.GetNodeHyperedgeNames(nodeId);
             return OperationResult<string[]>.Ok(hyperedgeNames, $"Node '{nodeId}' is affiliated to the following hyperedges in layer '{layerName}':");
         }
 
@@ -412,7 +419,7 @@ namespace Threadle.Core.Model
         {
             offset = (offset < 0) ? 0 : offset;
             limit = (limit < 0) ? 0 : limit;
-            var layerResult = GetTwoModeLayer(layerName);
+            var layerResult = GetTwoModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<string[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
@@ -443,7 +450,7 @@ namespace Threadle.Core.Model
         {
             offset = (offset < 0) ? 0 : offset;
             limit = (limit < 0) ? 0 : limit;
-            var layerResult = GetOneModeLayer(layerName);
+            var layerResult = GetOneModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<List<Dictionary<string, object>>>.Fail(layerResult);
             var layerOneMode = layerResult.Value!;
@@ -512,6 +519,15 @@ namespace Threadle.Core.Model
             return OperationResult<LayerOneMode>.Ok(layerOneMode);
         }
 
+        internal OperationResult<ILayerOneMode> GetOneModeLayerForRead(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<ILayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is ILayerOneMode layerOneMode)
+                return OperationResult<ILayerOneMode>.Ok(layerOneMode);
+            return OperationResult<ILayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
+        }
+
         /// <summary>
         /// Gets the <see cref="LayerTwoMode"/> object for the specifed layer.
         /// </summary>
@@ -527,6 +543,16 @@ namespace Threadle.Core.Model
                 return OperationResult<LayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");
             return OperationResult<LayerTwoMode>.Ok(layerTwoMode);
         }
+
+        internal OperationResult<ILayerTwoMode> GetTwoModeLayerForRead(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<ILayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is ILayerTwoMode layerTwoMode)
+                return OperationResult<ILayerTwoMode>.Ok(layerTwoMode);
+            return OperationResult<ILayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");
+        }
+
 
         /// <summary>
         /// Adds an edge between node1Id and node2Id in the specified 1-mode layer.
@@ -646,7 +672,7 @@ namespace Threadle.Core.Model
             }
             if (!addMissingHyperedge)
             {
-                if (!layerTwoMode.CheckThatHyperedgeExists(hyperName))
+                if (!layerTwoMode.ContainsHyperedge(hyperName))
                     return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{layerTwoMode.Name}'.");
             }
             OperationResult result = layerTwoMode.AddAffiliation(nodeId, hyperName, addMissingHyperedge);
@@ -670,7 +696,7 @@ namespace Threadle.Core.Model
         {
             if (!Nodeset.Contains(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
-            if (!layerTwoMode.CheckThatHyperedgeExists(hyperName))
+            if (!layerTwoMode.ContainsHyperedge(hyperName))
                 return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{layerTwoMode.Name}'.");
             OperationResult result = layerTwoMode.RemoveAffiliation(nodeId, hyperName);
             if (result.Success)

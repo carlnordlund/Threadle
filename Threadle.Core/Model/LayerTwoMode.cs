@@ -150,10 +150,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="hyperName">The name of the hyperedge.</param>
         /// <returns>true if a hyperedge with the specified name exists; otherwise, false.</returns>
-        public bool CheckThatHyperedgeExists(string hyperName)
-        {
-            return AllHyperEdges.ContainsKey(hyperName);
-        }
+        public bool ContainsHyperedge(string hyperName) => AllHyperEdges.ContainsKey(hyperName);
 
         /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters.

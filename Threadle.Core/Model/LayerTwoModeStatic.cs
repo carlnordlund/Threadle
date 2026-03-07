@@ -214,6 +214,13 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Determines whether a hyperedge with the specified name exists in the collection.
+        /// </summary>
+        /// <param name="hyperName">The name of the hyperedge.</param>
+        /// <returns>true if a hyperedge with the specified name exists; otherwise, false.</returns>
+        public bool ContainsHyperedge(string hyperName) => _hyperedgeNames.Contains(hyperName);
+
+        /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters.
         /// As this is 2-mode data, this is the set of all unique node ids of the Hyperedge objects of a particular
         /// node id, minus the actual ego node id.
@@ -358,10 +365,7 @@ namespace Threadle.Core.Model
             return lines;
         }
 
-        public string[] GetAllHyperedgeNames(int offset, int limit)
-        {
-            throw new NotImplementedException();
-        }
+        public string[] GetAllHyperedgeNames(int offset, int limit) => _hyperedgeNames.Skip(offset).Take(limit).ToArray();
 
         /// <summary>
         /// Returns the node ids affiliated to the specified hyperedge, sorted by ascending node id.
@@ -370,12 +374,24 @@ namespace Threadle.Core.Model
         /// </summary>
         public uint[] GetHyperedgeNodeIds(string hyperName)
         {
-            throw new NotImplementedException();
+            int h = Array.IndexOf(_hyperedgeNames, hyperName);
+            if (h < 0)
+                return [];
+            int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
+            uint[] result = new uint[end - start];
+            Array.Copy(_hyperedgeNodeIdsFlat, start, result, 0, end - start);
+            return result;
         }
 
         public string[] GetNodeHyperedgeNames(uint nodeId)
         {
-            throw new NotImplementedException();
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex))
+                return [];
+            int start = _offsetsNodeIds[nodeIndex], end = _offsetsNodeIds[nodeIndex + 1];
+            string[] result = new string[end - start];
+            for (int j = 0; j < end - start; j++)
+                result[j] = _hyperedgeNames[_nodeIdHyperedgesFlat[start + j]];
+            return result;
         }
 
 

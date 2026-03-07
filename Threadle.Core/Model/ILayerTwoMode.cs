@@ -36,6 +36,11 @@ namespace Threadle.Core.Model
         /// <param name="limit"></param>
         /// <returns></returns>
         string[] GetAllHyperedgeNames(int offset, int limit);
+
+        /// <summary>
+        /// Returns true if the layer contains a hyperedge with a specific name
+        /// </summary>
+        bool ContainsHyperedge(string hypername);
         #endregion
     }
 }
