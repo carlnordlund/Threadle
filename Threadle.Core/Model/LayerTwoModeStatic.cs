@@ -119,8 +119,12 @@ namespace Threadle.Core.Model
             int N = _nodeIdToIndexMapper.Count;
             int Mh = _hyperedgeNodeIdsFlat.Length;
             int Mn = _nodeIdHyperedgesFlat.Length;
-            // string[] _hyperedgeNames: 8 bytes per ref + ~40 bytes per string object
-            long bytes = (long)H * 48;
+            // string[] _hyperedgeNames: 8 bytes per ref + string object (20B overhead + 2B per UTF-16 char).
+            // Sample up to 20 names evenly to estimate average name length.
+            int sampleSize = Math.Min(H, 20);
+            double avgNameLen = sampleSize > 0 ? _hyperedgeNames.Take(sampleSize).Average(s => (double)s.Length) : 10.0;
+            long bytesPerString = 20 + (long)Math.Round(avgNameLen) * 2;
+            long bytes = (long)H * (8 + bytesPerString);
             // int[] _offsetsHyperedges
             bytes += (long)(H + 1) * 4;
             // uint[] _hyperedgeNodeIdsFlat

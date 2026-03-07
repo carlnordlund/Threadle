@@ -94,9 +94,13 @@ namespace Threadle.Core.Model
             int N = _hyperedgeCollections.Count;
             // Dictionary<string, Hyperedge>: entries (hash+next+key(8)+value(8) = 24 bytes each) + buckets
             long bytes = (long)H * 24 + (long)(H / 0.72 + 1) * 4;
-            // Hyperedge objects: header (16) + List<uint> obj (32) + internal array (24 + count×4) + name string (~40)
+            // Hyperedge objects: header (16) + List<uint> obj (32) + internal array (24 + count×4) + name string.
+            // Name string: 20B overhead + 2B per UTF-16 char; sample up to 20 names to estimate average length.
+            int sampleSize = Math.Min(H, 20);
+            double avgNameLen = sampleSize > 0 ? _allHyperedges.Keys.Take(sampleSize).Average(k => (double)k.Length) : 10.0;
+            long bytesPerName = 20 + (long)Math.Round(avgNameLen) * 2;
             long totalMemberships = _allHyperedges.Values.Sum(he => (long)he.NbrNodes);
-            bytes += (long)H * 112 + totalMemberships * 4;
+            bytes += (long)H * (72 + bytesPerName) + totalMemberships * 4;
             // Dictionary<uint, HyperedgeCollection>: entries (hash+next+key(4)+value(8) = 20 bytes each) + buckets
             bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
             // HyperedgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
