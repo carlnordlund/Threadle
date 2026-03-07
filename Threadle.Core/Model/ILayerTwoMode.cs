@@ -4,6 +4,7 @@ namespace Threadle.Core.Model
     {
         #region Properties
         uint NbrHyperedges { get; }
+        long NbrAffiliations { get; }
         #endregion
 
 

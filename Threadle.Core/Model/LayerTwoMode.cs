@@ -52,6 +52,7 @@ namespace Threadle.Core.Model
         /// Returns the number of Hyperedge objects in this layer.
         /// </summary>
         public uint NbrHyperedges { get => (uint)_allHyperedges.Count; }
+        public long NbrAffiliations { get => _allHyperedges.Values.Sum(he => (long)he.NbrNodes); }
 
         /// <summary>
         /// Returns the dictionary of Hyperedge objects by node id
@@ -92,19 +93,20 @@ namespace Threadle.Core.Model
         {
             int H = _allHyperedges.Count;
             int N = _hyperedgeCollections.Count;
-            // Dictionary<string, Hyperedge>: entries (hash+next+key ref(8)+value ref(8) = 24 bytes each) + buckets
-            // + string key objects on heap (20B overhead + 2B per UTF-16 char); sample up to 20 names for avg length.
-            int sampleSize = Math.Min(H, 20);
-            double avgNameLen = sampleSize > 0 ? _allHyperedges.Keys.Take(sampleSize).Average(k => (double)k.Length) : 10.0;
-            long bytesPerName = 20 + (long)Math.Round(avgNameLen) * 2;
+            long nbrAffs = NbrAffiliations;
+            // Estimate average length of hyperedge names based on sampling up to 20
+            int nameSampleSize = Math.Min(H, 20);
+            double averageHyperedgeNameLength = nameSampleSize > 0 ? _allHyperedges.Keys.Take(nameSampleSize).Average(k => (double)k.Length) : 10.0;
+            long bytesPerName = 20 + (long)Math.Round(averageHyperedgeNameLength) * 2;
+            // Memory for dict<string,Hyperedge> AllHyperedges (note that hyperedge names are on heap)
             long bytes = (long)H * 24 + (long)(H / 0.72 + 1) * 4 + (long)H * bytesPerName;
-            // Hyperedge objects: header (16) + List<uint> obj (32) + internal array (24 + count×4)
-            long totalMemberships = _allHyperedges.Values.Sum(he => (long)he.NbrNodes);
-            bytes += (long)H * 72 + totalMemberships * 4;
-            // Dictionary<uint, HyperedgeCollection>: entries (hash+next+key(4)+value(8) = 20 bytes each) + buckets
+            // Hyperedge objects: header(16) + List<uint> nodeIds (32) + internal array (24 + count*4) = 72 + count*4
+            // NbrAffiliations is here number of nodeId<->Hyperedge connections, i.e. sum of the lengths of all nodeIds lists in each hyperedge
+            bytes += (long)H * 72 + nbrAffs * 4;
+            // Dictionary<uint, HyperedgeCollection>: entries + buckets
             bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
-            // HyperedgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
-            bytes += (long)N * 72 + totalMemberships * 20;
+            // HyperEdgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
+            bytes += (long)N * 72 + nbrAffs * 20;
             return bytes;
         }
 
