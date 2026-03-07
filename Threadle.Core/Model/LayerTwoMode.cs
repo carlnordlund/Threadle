@@ -104,8 +104,7 @@ namespace Threadle.Core.Model
             // Dictionary<uint, HyperedgeCollection>: entries (hash+next+key(4)+value(8) = 20 bytes each) + buckets
             bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
             // HyperedgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
-            long totalNodeMemberships = _hyperedgeCollections.Values.Sum(hc => (long)hc.HyperEdges.Count);
-            bytes += (long)N * 72 + totalNodeMemberships * 20;
+            bytes += (long)N * 72 + totalMemberships * 20;
             return bytes;
         }
 
