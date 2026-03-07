@@ -261,6 +261,8 @@ namespace Threadle.Core.Model
         /// Returns an empty array if no hyperedge with that name exist, or if the hyperedge has no node ids
         /// affiliated to it.
         /// </summary>
+        public bool ContainsHyperedge(string hyperName) => AllHyperEdges.ContainsKey(hyperName);
+
         public uint[] GetHyperedgeNodeIds(string hyperName)
         {
             if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))

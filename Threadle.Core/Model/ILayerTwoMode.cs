@@ -9,6 +9,11 @@ namespace Threadle.Core.Model
 
         #region Methods
         /// <summary>
+        /// Returns true if a hyperedge with the specified name exists in this layer.
+        /// </summary>
+        bool ContainsHyperedge(string hyperName);
+
+        /// <summary>
         /// Returns the node ids affiliated to the specified hyperedge, sorted by ascending node id.
         /// Returns an empty array if no hyperedge with that name exist, or if the hyperedge has no node ids
         /// affiliated to it.

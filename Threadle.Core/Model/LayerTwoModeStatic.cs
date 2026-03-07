@@ -371,7 +371,12 @@ namespace Threadle.Core.Model
 
         public string[] GetAllHyperedgeNames(int offset, int limit)
         {
-            throw new NotImplementedException();
+            return _hyperedgeNames.Skip(offset).Take(limit).ToArray();
+        }
+
+        public bool ContainsHyperedge(string hyperName)
+        {
+            return Array.IndexOf(_hyperedgeNames, hyperName) >= 0;
         }
 
         /// <summary>
@@ -381,12 +386,23 @@ namespace Threadle.Core.Model
         /// </summary>
         public uint[] GetHyperedgeNodeIds(string hyperName)
         {
-            throw new NotImplementedException();
+            int h = Array.IndexOf(_hyperedgeNames, hyperName);
+            if (h < 0) return [];
+            int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
+            uint[] result = new uint[end - start];
+            Array.Copy(_hyperedgeNodeIdsFlat, start, result, 0, end - start);
+            return result; // stored sorted ascending per FromDynamic
         }
 
         public string[] GetNodeHyperedgeNames(uint nodeId)
         {
-            throw new NotImplementedException();
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex))
+                return [];
+            int start = _offsetsNodeIds[nodeIndex], end = _offsetsNodeIds[nodeIndex + 1];
+            string[] result = new string[end - start];
+            for (int j = 0; j < end - start; j++)
+                result[j] = _hyperedgeNames[_nodeIdHyperedgesFlat[start + j]];
+            return result;
         }
 
 

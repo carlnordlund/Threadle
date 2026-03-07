@@ -374,9 +374,9 @@ namespace Threadle.Core.Model
             if (!layerResult.Success)
                 return OperationResult<uint[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
-            if (layerTwoMode.GetHyperedge(hyperName) is not Hyperedge hyperedge)
+            if (!layerTwoMode.ContainsHyperedge(hyperName))
                 return OperationResult<uint[]>.Fail("HyperedgeNotFound", $"Could not find hyperedge named '{hyperName}' in layer '{layerName}' of network {Name}.");
-            uint[] nodeIds = hyperedge.NodeIds.ToArray();
+            uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(hyperName);
             Array.Sort(nodeIds);
             return OperationResult<uint[]>.Ok(nodeIds, $"Hyperedge '{hyperName}' connects the following nodes in layer '{layerName}':");
         }
@@ -395,7 +395,7 @@ namespace Threadle.Core.Model
             if (!layerResult.Success)
                 return OperationResult<string[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
-            string[] hyperedgeNames = layerTwoMode.GetHyperedgeNames(nodeId);
+            string[] hyperedgeNames = layerTwoMode.GetNodeHyperedgeNames(nodeId);
             return OperationResult<string[]>.Ok(hyperedgeNames, $"Node '{nodeId}' is affiliated to the following hyperedges in layer '{layerName}':");
         }
 
@@ -513,18 +513,16 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the <see cref="LayerOneMode"/> object for the specified layer for read-only use.
-        /// If the layer is packed (<see cref="LayerOneModeStatic"/>), it is temporarily unpacked without modifying the network.
+        /// Gets the <see cref="ILayerOneMode"/> object for the specified layer for read-only use.
+        /// Accepts both mutable (<see cref="LayerOneMode"/>) and packed (<see cref="LayerOneModeStatic"/>) layers.
         /// </summary>
-        internal OperationResult<LayerOneMode> GetOneModeLayerForRead(string layerName)
+        internal OperationResult<ILayerOneMode> GetOneModeLayerForRead(string layerName)
         {
             if (!Layers.TryGetValue(layerName, out var layer))
-                return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-            if (layer is LayerOneModeStatic csr)
-                return OperationResult<LayerOneMode>.Ok(LayerOneMode.FromStatic(csr));
-            if (!(layer is LayerOneMode layerOneMode))
-                return OperationResult<LayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
-            return OperationResult<LayerOneMode>.Ok(layerOneMode);
+                return OperationResult<ILayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is not ILayerOneMode layerOneMode)
+                return OperationResult<ILayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
+            return OperationResult<ILayerOneMode>.Ok(layerOneMode);
         }
 
         /// <summary>
@@ -544,18 +542,16 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Gets the <see cref="LayerTwoMode"/> object for the specified layer for read-only use.
-        /// If the layer is packed (<see cref="LayerTwoModeStatic"/>), it is temporarily unpacked without modifying the network.
+        /// Gets the <see cref="ILayerTwoMode"/> object for the specified layer for read-only use.
+        /// Accepts both mutable (<see cref="LayerTwoMode"/>) and static (<see cref="LayerTwoModeStatic"/>) layers.
         /// </summary>
-        internal OperationResult<LayerTwoMode> GetTwoModeLayerForRead(string layerName)
+        internal OperationResult<ILayerTwoMode> GetTwoModeLayerForRead(string layerName)
         {
             if (!Layers.TryGetValue(layerName, out var layer))
-                return OperationResult<LayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
-            if (layer is LayerTwoModeStatic csr)
-                return OperationResult<LayerTwoMode>.Ok(LayerTwoMode.FromStatic(csr));
-            if (!(layer is LayerTwoMode layerTwoMode))
-                return OperationResult<LayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");
-            return OperationResult<LayerTwoMode>.Ok(layerTwoMode);
+                return OperationResult<ILayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is not ILayerTwoMode layerTwoMode)
+                return OperationResult<ILayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");
+            return OperationResult<ILayerTwoMode>.Ok(layerTwoMode);
         }
 
         /// <summary>
