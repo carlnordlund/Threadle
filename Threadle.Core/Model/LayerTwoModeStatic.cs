@@ -394,7 +394,10 @@ namespace Threadle.Core.Model
             return result;
         }
 
-
+        public long GetEstimatedBytes()
+        {
+            return 0;
+        }
         #endregion
 
 

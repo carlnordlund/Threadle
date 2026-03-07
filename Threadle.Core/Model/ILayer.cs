@@ -24,6 +24,8 @@ namespace Threadle.Core.Model
         string GetLayerInfo { get; }
 
         bool IsStatic { get; }
+
+        long GetEstimatedBytes();
         #endregion
 
 

@@ -438,6 +438,17 @@ namespace Threadle.Core.Utilities
             return text.Trim(_quoteChars);
         }
 
+        public static string FormatBytes(long bytes)
+        {
+            if (bytes >= 1L << 30)
+                return $"{bytes / (double)(1L << 30):F2} GB";
+            if (bytes >= 1L << 20)
+                return $"{bytes / (double)(1L << 20):F1} MB";
+            if (bytes >= 1L << 10)
+                return $"{bytes / (double)(1L << 10):F1} kB";
+            return $"{bytes} B";
+        }
+
 
         #endregion
     }

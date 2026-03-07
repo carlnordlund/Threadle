@@ -109,7 +109,8 @@ namespace Threadle.Core.Model
             ["Directionality"] = Directionality.ToString(),
             ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
-            ["NbrEdges"] = NbrEdges
+            ["NbrEdges"] = NbrEdges,
+            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -120,7 +121,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
+        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
 
         public bool IsStatic => false;
         #endregion
@@ -284,6 +285,16 @@ namespace Threadle.Core.Model
             }
 
             return edges;
+        }
+
+        public long GetEstimatedBytes()
+        {
+            int N = _edgesets.Count;
+            // Dict<uint,IEdgeset>: entries (has + next + key(4)+ value(8)=20 bytes each)+ buckets
+            long bytes = (long)N * 20 + (long)(N / 0.72 + 1) * 4;
+            foreach (var es in _edgesets.Values)
+                bytes += 72 * (long)es.NbrEdges * 4;
+            return bytes;
         }
         #endregion
 

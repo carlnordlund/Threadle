@@ -271,6 +271,12 @@ namespace Threadle.Core.Model
                 return [];
             return hyperedgeCollection.HyperEdges.Select(x => x.Name).ToArray();
         }
+
+        public long GetEstimatedBytes()
+        {
+            return 0;
+        }
+
         #endregion
 
 
