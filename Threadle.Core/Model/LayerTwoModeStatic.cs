@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -95,19 +96,44 @@ namespace Threadle.Core.Model
             ["Mode"] = 2,
             ["Static"] = true,
             ["NbrHyperedges"] = _hyperedgeNames.Length,
-            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length
+            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length,
+            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {_hyperedgeNames.Length}]";
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {_hyperedgeNames.Length}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
 
         public bool IsStatic => true;
         #endregion
 
 
         #region Methods (public)
+        /// <summary>
+        /// Returns a precise estimate of memory used by this layer's arrays and dictionary, in bytes.
+        /// </summary>
+        public long GetEstimatedBytes()
+        {
+            int H = _hyperedgeNames.Length;
+            int N = _nodeIdToIndexMapper.Count;
+            int Mh = _hyperedgeNodeIdsFlat.Length;
+            int Mn = _nodeIdHyperedgesFlat.Length;
+            // string[] _hyperedgeNames: 8 bytes per ref + ~40 bytes per string object
+            long bytes = (long)H * 48;
+            // int[] _offsetsHyperedges
+            bytes += (long)(H + 1) * 4;
+            // uint[] _hyperedgeNodeIdsFlat
+            bytes += (long)Mh * 4;
+            // Dictionary<uint, int>: entries (hash+next+key+value = 16 bytes each) + buckets
+            bytes += (long)N * 16 + (long)(N / 0.72 + 1) * 4;
+            // int[] _offsetsNodeIds
+            bytes += (long)(N + 1) * 4;
+            // int[] _nodeIdHyperedgesFlat
+            bytes += (long)Mn * 4;
+            return bytes;
+        }
+
         public static LayerTwoModeStatic FromDynamic(LayerTwoMode source)
         {
             var hyperedgeNames = source.AllHyperEdges.Keys.ToArray();

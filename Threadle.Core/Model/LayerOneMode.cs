@@ -109,7 +109,8 @@ namespace Threadle.Core.Model
             ["Directionality"] = Directionality.ToString(),
             ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
-            ["NbrEdges"] = NbrEdges
+            ["NbrEdges"] = NbrEdges,
+            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -120,13 +121,28 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
+        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
 
         public bool IsStatic => false;
         #endregion
 
 
         #region Methods (public)
+        /// <summary>
+        /// Returns an approximate estimate of memory used by this layer's data structures, in bytes.
+        /// Assumes List&lt;uint&gt; capacity equals count (valid for networks loaded using _setCapacity).
+        /// </summary>
+        public long GetEstimatedBytes()
+        {
+            int N = _edgesets.Count;
+            // Dictionary<uint, IEdgeset>: entries (hash+next+key(4)+value(8) = 20 bytes each) + buckets
+            long bytes = (long)N * 20 + (long)(N / 0.72 + 1) * 4;
+            // Per edgeset object: header (16) + List<uint> object (32) + internal array (24 + count×4)
+            foreach (var es in _edgesets.Values)
+                bytes += 72 + (long)es.NbrEdges * 4;
+            return bytes;
+        }
+
         public static LayerOneMode FromStatic(LayerOneModeStatic source)
         {
             var layer = new LayerOneMode(source.Name, source.Directionality, source.EdgeValueType, source.Selfties);

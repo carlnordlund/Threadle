@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -92,20 +93,39 @@ namespace Threadle.Core.Model
             ["Directionality"] = Directionality.ToString(),
             ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
-            ["NbrEdges"] = NbrEdges
+            ["NbrEdges"] = NbrEdges,
+            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
         };
 
 
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
+        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
 
         public bool IsStatic => true;
         #endregion
 
 
         #region Methods (public)
+        /// <summary>
+        /// Returns a precise estimate of memory used by this layer's arrays and dictionary, in bytes.
+        /// </summary>
+        public long GetEstimatedBytes()
+        {
+            int N = _nodeIdToIndexMapper.Count;
+            int M = _neighborNodeIds.Length;
+            // Dictionary<uint, int>: entries (hash+next+key+value = 16 bytes each) + buckets
+            long bytes = (long)N * 16 + (long)(N / 0.72 + 1) * 4;
+            // int[] _offsets
+            bytes += (long)(N + 1) * 4;
+            // uint[] _neighborNodeIds
+            bytes += (long)M * 4;
+            // float[] _values (valued layers only)
+            if (_values != null) bytes += (long)M * 4;
+            return bytes;
+        }
+
         public static LayerOneModeStatic FromDynamic(LayerOneMode source)
         {
             source._sortEdgesets();

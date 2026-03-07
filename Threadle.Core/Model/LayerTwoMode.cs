@@ -71,19 +71,40 @@ namespace Threadle.Core.Model
             ["Name"] = Name,
             ["Mode"] = 2,
             ["Static"] = false,
-            ["NbrHyperedges"] = NbrHyperedges
+            ["NbrHyperedges"] = NbrHyperedges,
+            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {NbrHyperedges}]";
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {NbrHyperedges}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
 
         public bool IsStatic => false;
         #endregion
 
 
         #region Methods (public)
+        /// <summary>
+        /// Returns an approximate estimate of memory used by this layer's data structures, in bytes.
+        /// </summary>
+        public long GetEstimatedBytes()
+        {
+            int H = _allHyperedges.Count;
+            int N = _hyperedgeCollections.Count;
+            // Dictionary<string, Hyperedge>: entries (hash+next+key(8)+value(8) = 24 bytes each) + buckets
+            long bytes = (long)H * 24 + (long)(H / 0.72 + 1) * 4;
+            // Hyperedge objects: header (16) + List<uint> obj (32) + internal array (24 + count×4) + name string (~40)
+            long totalMemberships = _allHyperedges.Values.Sum(he => (long)he.NbrNodes);
+            bytes += (long)H * 112 + totalMemberships * 4;
+            // Dictionary<uint, HyperedgeCollection>: entries (hash+next+key(4)+value(8) = 20 bytes each) + buckets
+            bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
+            // HyperedgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
+            long totalNodeMemberships = _hyperedgeCollections.Values.Sum(hc => (long)hc.HyperEdges.Count);
+            bytes += (long)N * 72 + totalNodeMemberships * 20;
+            return bytes;
+        }
+
         public static LayerTwoMode FromStatic(LayerTwoModeStatic source)
         {
             var layer = new LayerTwoMode(source.Name);

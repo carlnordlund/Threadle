@@ -90,6 +90,12 @@ namespace Threadle.Core.Model
         /// <param name="n">Number of edges to return (defaults to 10)</param>
         /// <returns>A list of strings</returns>
         List<string> GetNFirstEdges(int n = 10);
+
+        /// <summary>
+        /// Returns an estimate of the memory occupied by this layer's data structures, in bytes.
+        /// For static (CSR) layers this is precise; for dynamic layers it approximates List capacity as equal to count.
+        /// </summary>
+        long GetEstimatedBytes();
         #endregion
     }
 }

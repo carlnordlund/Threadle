@@ -453,6 +453,17 @@ namespace Threadle.Core.Utilities
         }
 
 
+        /// <summary>
+        /// Formats a byte count as a human-readable string using 1024-based units (KB, MB, GB).
+        /// </summary>
+        public static string FormatBytes(long bytes)
+        {
+            if (bytes >= 1L << 30) return $"{bytes / (double)(1L << 30):F2} GB";
+            if (bytes >= 1L << 20) return $"{bytes / (double)(1L << 20):F1} MB";
+            if (bytes >= 1L << 10) return $"{bytes / (double)(1L << 10):F1} KB";
+            return $"{bytes} B";
+        }
+
         #endregion
     }
 }
