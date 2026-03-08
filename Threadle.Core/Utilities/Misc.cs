@@ -335,20 +335,6 @@ namespace Threadle.Core.Utilities
         /// <param name="node1Id">The first node id.</param>
         /// <param name="node2Id">The second node id.</param>
         /// <returns>A string either expressing this as 'from [node1Id] to [node2Id]', or 'between [node1Id] and [node2Id]'.</returns>
-        internal static ILayer PackLayer(ILayer layer) => layer switch
-        {
-            LayerOneMode m => LayerOneModeStatic.FromDynamic(m),
-            LayerTwoMode m => LayerTwoModeStatic.FromDynamic(m),
-            _ => layer
-        };
-
-        internal static ILayer UnpackLayer(ILayer layer) => layer switch
-        {
-            LayerOneModeStatic m => LayerOneMode.FromStatic(m),
-            LayerTwoModeStatic m => LayerTwoMode.FromStatic(m),
-            _ => layer
-        };
-
         internal static string BetweenFromToText(EdgeDirectionality directionality, uint node1Id, uint node2Id)
         {
             return directionality == EdgeDirectionality.Directed ? $"from {node1Id} to {node2Id}" : $"between {node1Id} and {node2Id}";
@@ -452,17 +438,17 @@ namespace Threadle.Core.Utilities
             return text.Trim(_quoteChars);
         }
 
-
-        /// <summary>
-        /// Formats a byte count as a human-readable string using 1024-based units (KB, MB, GB).
-        /// </summary>
         public static string FormatBytes(long bytes)
         {
-            if (bytes >= 1L << 30) return $"{bytes / (double)(1L << 30):F2} GB";
-            if (bytes >= 1L << 20) return $"{bytes / (double)(1L << 20):F1} MB";
-            if (bytes >= 1L << 10) return $"{bytes / (double)(1L << 10):F1} KB";
+            if (bytes >= 1L << 30)
+                return $"{bytes / (double)(1L << 30):F2} GB";
+            if (bytes >= 1L << 20)
+                return $"{bytes / (double)(1L << 20):F1} MB";
+            if (bytes >= 1L << 10)
+                return $"{bytes / (double)(1L << 10):F1} kB";
             return $"{bytes} B";
         }
+
 
         #endregion
     }

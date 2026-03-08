@@ -52,6 +52,7 @@ namespace Threadle.Core.Model
         /// Returns the number of Hyperedge objects in this layer.
         /// </summary>
         public uint NbrHyperedges { get => (uint)_allHyperedges.Count; }
+
         public long NbrAffiliations { get => _allHyperedges.Values.Sum(he => (long)he.NbrNodes); }
 
         /// <summary>
@@ -73,43 +74,20 @@ namespace Threadle.Core.Model
             ["Mode"] = 2,
             ["Static"] = false,
             ["NbrHyperedges"] = NbrHyperedges,
-            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
+            ["NbrAffiliations"] = NbrAffiliations,
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {NbrHyperedges}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {NbrHyperedges}]";
 
         public bool IsStatic => false;
         #endregion
 
 
         #region Methods (public)
-        /// <summary>
-        /// Returns an approximate estimate of memory used by this layer's data structures, in bytes.
-        /// </summary>
-        public long GetEstimatedBytes()
-        {
-            int H = _allHyperedges.Count;
-            int N = _hyperedgeCollections.Count;
-            long nbrAffs = NbrAffiliations;
-            // Estimate average length of hyperedge names based on sampling up to 20
-            int nameSampleSize = Math.Min(H, 20);
-            double averageHyperedgeNameLength = nameSampleSize > 0 ? _allHyperedges.Keys.Take(nameSampleSize).Average(k => (double)k.Length) : 10.0;
-            long bytesPerName = 20 + (long)Math.Round(averageHyperedgeNameLength) * 2;
-            // Memory for dict<string,Hyperedge> AllHyperedges (note that hyperedge names are on heap)
-            long bytes = (long)H * 24 + (long)(H / 0.72 + 1) * 4 + (long)H * bytesPerName;
-            // Hyperedge objects: header(16) + List<uint> nodeIds (32) + internal array (24 + count*4) = 72 + count*4
-            // NbrAffiliations is here number of nodeId<->Hyperedge connections, i.e. sum of the lengths of all nodeIds lists in each hyperedge
-            bytes += (long)H * 72 + nbrAffs * 4;
-            // Dictionary<uint, HyperedgeCollection>: entries + buckets
-            bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
-            // HyperEdgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
-            bytes += (long)N * 72 + nbrAffs * 20;
-            return bytes;
-        }
-
         public static LayerTwoMode FromStatic(LayerTwoModeStatic source)
         {
             var layer = new LayerTwoMode(source.Name);
@@ -176,10 +154,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="hyperName">The name of the hyperedge.</param>
         /// <returns>true if a hyperedge with the specified name exists; otherwise, false.</returns>
-        public bool CheckThatHyperedgeExists(string hyperName)
-        {
-            return AllHyperEdges.ContainsKey(hyperName);
-        }
+        public bool ContainsHyperedge(string hyperName) => AllHyperEdges.ContainsKey(hyperName);
 
         /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters.
@@ -287,8 +262,6 @@ namespace Threadle.Core.Model
         /// Returns an empty array if no hyperedge with that name exist, or if the hyperedge has no node ids
         /// affiliated to it.
         /// </summary>
-        public bool ContainsHyperedge(string hyperName) => AllHyperEdges.ContainsKey(hyperName);
-
         public uint[] GetHyperedgeNodeIds(string hyperName)
         {
             if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
@@ -302,16 +275,30 @@ namespace Threadle.Core.Model
                 return [];
             return hyperedgeCollection.HyperEdges.Select(x => x.Name).ToArray();
         }
+
+        public long GetEstimatedBytes()
+        {            
+            int H = _allHyperedges.Count;
+            int N = _hyperedgeCollections.Count;
+            long nbrAffs = NbrAffiliations;
+            // Estimate average length of hyperedge names based on sampling up to 20
+            int nameSampleSize = Math.Min(H, 20);
+            double averageHyperedgeNameLength = nameSampleSize > 0 ? _allHyperedges.Keys.Take(nameSampleSize).Average(k => (double)k.Length) : 10.0;
+            long bytesPerName = 20 + (long)Math.Round(averageHyperedgeNameLength) * 2;
+            // Memory for dict<string,Hyperedge> AllHyperedges (note that hyperedge names are on heap
+            long bytes = (long)H * 24 + (long)(H / 0.72 + 1) * 4 + (long)H * bytesPerName;
+            // Hyperedge objects: header(16) + List<uint> nodeIds (32) + internal array (24 + count*4) = 72 + count*4
+            // NbrAffiliations is here number of nodeId<->Hyperedge connections, i.e. sum of the lenghts of all nodeIds lists in each hyperedge
+            bytes += (long)H * 72 + nbrAffs * 4;
+            // Dictionary<uint, HyperedgeCollection>: entires + buckets
+            bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
+            // HyperEdgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
+            bytes += (long)N * 72 + nbrAffs * 20;
+            return bytes;
+        }
+
         #endregion
 
-
-        public static LayerTwoMode FromStatic(LayerTwoModeStatic source)
-        {
-            var layer = new LayerTwoMode(source.Name);
-            foreach (var (name, nodeIds) in source.GetAllHyperedgeData())
-                layer._addHyperedge(name, nodeIds.Length > 0 ? nodeIds : null);
-            return layer;
-        }
 
         #region Methods (private, internal)
 

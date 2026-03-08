@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Threadle.Core.Model.Enums;
-using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
 {
@@ -108,24 +107,6 @@ namespace Threadle.Core.Model
 
 
         #region Methods (public)
-        /// <summary>
-        /// Returns a precise estimate of memory used by this layer's arrays and dictionary, in bytes.
-        /// </summary>
-        public long GetEstimatedBytes()
-        {
-            int N = _nodeIdToIndexMapper.Count;
-            int M = _neighborNodeIds.Length;
-            // Dictionary<uint, int>: entries (hash+next+key+value = 16 bytes each) + buckets
-            long bytes = (long)N * 16 + (long)(N / 0.72 + 1) * 4;
-            // int[] _offsets
-            bytes += (long)(N + 1) * 4;
-            // uint[] _neighborNodeIds
-            bytes += (long)M * 4;
-            // float[] _values (valued layers only)
-            if (_values != null) bytes += (long)M * 4;
-            return bytes;
-        }
-
         public static LayerOneModeStatic FromDynamic(LayerOneMode source)
         {
             source._sortEdgesets();
@@ -310,18 +291,6 @@ namespace Threadle.Core.Model
         }
 
 
-        internal IEnumerable<(uint egoId, uint[] alters, float[]? values)> GetAllEgoData()
-        {
-            foreach (var (egoId, index) in _nodeIdToIndexMapper)
-            {
-                int start = _offsets[index], end = _offsets[index + 1];
-                uint[] alters = new uint[end - start];
-                Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
-                float[]? values = _values != null ? _values[start..end] : null;
-                yield return (egoId, alters, values);
-            }
-        }
-
         public List<string> GetNFirstEdges(int n = 10)
         {
             List<string> edges = new(n);
@@ -341,6 +310,22 @@ namespace Threadle.Core.Model
                 }
             }
             return edges;
+        }
+
+        public long GetEstimatedBytes()
+        {
+            int N = _nodeIdToIndexMapper.Count;
+            int M = _neighborNodeIds.Length;
+            // Memory for the node id to index lookup: _nodeIdToIndexMapper
+            long bytes = (long)N * 16 + (long)(N / 0.72 + 1) * 4;
+            // Memory for the _offsets[] array (+1 for the final cell)
+            bytes += (long)(N + 1) * 4;
+            // Memory for all partnerNodeIds: _ neighborNodeIds
+            bytes += (long)M * 4;
+            // Memory for valued array _values[] (only for valued layers)
+            if (_values != null)
+                bytes += (long)M * 4;
+            return bytes;
         }
         #endregion
 

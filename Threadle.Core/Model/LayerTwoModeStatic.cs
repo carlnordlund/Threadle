@@ -87,6 +87,8 @@ namespace Threadle.Core.Model
         /// </summary>
         public uint NbrHyperedges { get => (uint)_hyperedgeNames.Length; }
 
+        public long NbrAffiliations { get => _hyperedgeNodeIdsFlat.Length; }
+
         /// <summary>
         /// Returns metadata about the layer (as a dictionary of objects).
         /// </summary>
@@ -97,47 +99,19 @@ namespace Threadle.Core.Model
             ["Static"] = true,
             ["NbrHyperedges"] = _hyperedgeNames.Length,
             ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length,
-            ["EstimatedMemory"] = Utilities.Misc.FormatBytes(GetEstimatedBytes())
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {_hyperedgeNames.Length}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {_hyperedgeNames.Length}]";
 
         public bool IsStatic => true;
         #endregion
 
 
         #region Methods (public)
-        /// <summary>
-        /// Returns a precise estimate of memory used by this layer's arrays and dictionary, in bytes.
-        /// </summary>
-        public long GetEstimatedBytes()
-        {
-            int H = _hyperedgeNames.Length;
-            int N = _nodeIdToIndexMapper.Count;
-            int Mh = _hyperedgeNodeIdsFlat.Length;
-            int Mn = _nodeIdHyperedgesFlat.Length;
-            // string[] _hyperedgeNames: 8 bytes per ref + string object (20B overhead + 2B per UTF-16 char).
-            // Sample up to 20 names evenly to estimate average name length.
-            int sampleSize = Math.Min(H, 20);
-            double avgNameLen = sampleSize > 0 ? _hyperedgeNames.Take(sampleSize).Average(s => (double)s.Length) : 10.0;
-            long bytesPerString = 20 + (long)Math.Round(avgNameLen) * 2;
-            long bytes = (long)H * (8 + bytesPerString);
-            // int[] _offsetsHyperedges
-            bytes += (long)(H + 1) * 4;
-            // uint[] _hyperedgeNodeIdsFlat
-            bytes += (long)Mh * 4;
-            // Dictionary<uint, int>: entries (hash+next+key+value = 16 bytes each) + buckets
-            bytes += (long)N * 16 + (long)(N / 0.72 + 1) * 4;
-            // int[] _offsetsNodeIds
-            bytes += (long)(N + 1) * 4;
-            // int[] _nodeIdHyperedgesFlat
-            bytes += (long)Mn * 4;
-            return bytes;
-        }
-
         public static LayerTwoModeStatic FromDynamic(LayerTwoMode source)
         {
             var hyperedgeNames = source.AllHyperEdges.Keys.ToArray();
@@ -244,6 +218,13 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Determines whether a hyperedge with the specified name exists in the collection.
+        /// </summary>
+        /// <param name="hyperName">The name of the hyperedge.</param>
+        /// <returns>true if a hyperedge with the specified name exists; otherwise, false.</returns>
+        public bool ContainsHyperedge(string hyperName) => _hyperedgeNames.Contains(hyperName);
+
+        /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters.
         /// As this is 2-mode data, this is the set of all unique node ids of the Hyperedge objects of a particular
         /// node id, minus the actual ego node id.
@@ -306,6 +287,7 @@ namespace Threadle.Core.Model
                     if (_hyperedgeNodeIdsFlat[j] != nodeId)
                         newHyperedgeNodeIds.Add(_hyperedgeNodeIdsFlat[j]);
             }
+            newOffsetHyperedges[_hyperedgeNames.Length] = newHyperedgeNodeIds.Count;
 
             var newMapper = new Dictionary<uint, int>(_nodeIdToIndexMapper.Count);
             var newOffsetNodeIds = new List<int> { 0 };
@@ -318,7 +300,8 @@ namespace Threadle.Core.Model
                 int i = _nodeIdToIndexMapper[egoId];
                 newMapper[egoId] = newMapper.Count;
                 for (int k = _offsetsNodeIds[i]; k < _offsetsNodeIds[i + 1]; k++)
-                    newNodeIdHyperedges.Add(newNodeIdHyperedges.Count);
+                    newNodeIdHyperedges.Add(_nodeIdHyperedgesFlat[k]);
+                newOffsetNodeIds.Add(newNodeIdHyperedges.Count);
             }
 
             _offsetsHyperedges = newOffsetHyperedges;
@@ -342,9 +325,10 @@ namespace Threadle.Core.Model
             {
                 newOffsetHyperedges[h] = newHyperedgeNodeIds.Count;
                 for (int j = _offsetsHyperedges[h]; j < _offsetsHyperedges[h + 1]; j++)
-                    if (!nodeset.Contains(_hyperedgeNodeIdsFlat[j]))
+                    if (nodeset.Contains(_hyperedgeNodeIdsFlat[j]))
                         newHyperedgeNodeIds.Add(_hyperedgeNodeIdsFlat[j]);
             }
+            newOffsetHyperedges[_hyperedgeNames.Length] = newHyperedgeNodeIds.Count;
 
             var newMapper = new Dictionary<uint, int>(_nodeIdToIndexMapper.Count);
             var newOffsetNodeIds = new List<int> { 0 };
@@ -357,7 +341,8 @@ namespace Threadle.Core.Model
                 int i = _nodeIdToIndexMapper[egoId];
                 newMapper[egoId] = newMapper.Count;
                 for (int k = _offsetsNodeIds[i]; k < _offsetsNodeIds[i + 1]; k++)
-                    newNodeIdHyperedges.Add(newNodeIdHyperedges.Count);
+                    newNodeIdHyperedges.Add(_nodeIdHyperedgesFlat[k]);
+                newOffsetNodeIds.Add(newNodeIdHyperedges.Count);
             }
 
             return new LayerTwoModeStatic(Name + "_filtered", _hyperedgeNames, newOffsetHyperedges, newHyperedgeNodeIds.ToArray(), newMapper, newOffsetNodeIds.ToArray(), newNodeIdHyperedges.ToArray());
@@ -369,17 +354,6 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="n">Number of edges to return (defaults to 10)</param>
         /// <returns>A list of strings</returns>
-        internal IEnumerable<(string name, uint[] nodeIds)> GetAllHyperedgeData()
-        {
-            for (int h = 0; h < _hyperedgeNames.Length; h++)
-            {
-                int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
-                uint[] nodeIds = new uint[end - start];
-                Array.Copy(_hyperedgeNodeIdsFlat, start, nodeIds, 0, end - start);
-                yield return (_hyperedgeNames[h], nodeIds);
-            }
-        }
-
         public List<string> GetNFirstEdges(int n = 10)
         {
             List<string> lines = new(n);
@@ -399,15 +373,7 @@ namespace Threadle.Core.Model
             return lines;
         }
 
-        public string[] GetAllHyperedgeNames(int offset, int limit)
-        {
-            return _hyperedgeNames.Skip(offset).Take(limit).ToArray();
-        }
-
-        public bool ContainsHyperedge(string hyperName)
-        {
-            return Array.IndexOf(_hyperedgeNames, hyperName) >= 0;
-        }
+        public string[] GetAllHyperedgeNames(int offset, int limit) => _hyperedgeNames.Skip(offset).Take(limit).ToArray();
 
         /// <summary>
         /// Returns the node ids affiliated to the specified hyperedge, sorted by ascending node id.
@@ -417,11 +383,12 @@ namespace Threadle.Core.Model
         public uint[] GetHyperedgeNodeIds(string hyperName)
         {
             int h = Array.IndexOf(_hyperedgeNames, hyperName);
-            if (h < 0) return [];
+            if (h < 0)
+                return [];
             int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
             uint[] result = new uint[end - start];
             Array.Copy(_hyperedgeNodeIdsFlat, start, result, 0, end - start);
-            return result; // stored sorted ascending per FromDynamic
+            return result;
         }
 
         public string[] GetNodeHyperedgeNames(uint nodeId)
@@ -435,7 +402,30 @@ namespace Threadle.Core.Model
             return result;
         }
 
-
+        public long GetEstimatedBytes()
+        {
+            int H = _hyperedgeNames.Length;
+            int N = _nodeIdToIndexMapper.Count;
+            int Mh = _hyperedgeNodeIdsFlat.Length;
+            int Mn = _nodeIdHyperedgesFlat.Length;
+            // Estimate average length of hyperedge names based on sampling up to 20
+            int nameSampleSize = Math.Min(H, 20);
+            double averageHyperedgeNameLength = nameSampleSize > 0 ? _hyperedgeNames.Take(nameSampleSize).Average(s => (double)s.Length) : 10.0;
+            long bytesPerName = 20 + (long)Math.Round(averageHyperedgeNameLength) * 2;
+            // string[] _hyperedgeNames: 8 bytes per ref + string objects (so pointing to the strings)
+            long bytes = (long)H * (8 + bytesPerName);
+            // int[] _offsetsHyperedges
+            bytes += (long)(H + 1) * 4;
+            // uint[] _hyperedgeNodeIdsFlat
+            bytes += (long)Mh * 4;
+            // Dictionary<uint, int> _nodeIdToIndexMapper: entries (uint key 4 + int value 4 + overhead 8 = 16) + buckets
+            bytes += (long)N * 16 + (long)(N / 0.72 + 1) * 4;
+            // int[] _offsetsNodeIds
+            bytes += (long)(N + 1) * 4;
+            // int[] _nodeIdHyperedgesFlat
+            bytes += (long)Mn * 4;
+            return bytes;
+        }
         #endregion
 
 
