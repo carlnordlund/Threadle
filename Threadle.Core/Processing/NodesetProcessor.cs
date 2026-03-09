@@ -1,4 +1,5 @@
-﻿using Threadle.Core.Model;
+﻿using System.Xml.Linq;
+using Threadle.Core.Model;
 using Threadle.Core.Processing.Enums;
 using Threadle.Core.Utilities;
 
@@ -34,7 +35,8 @@ namespace Threadle.Core.Processing
                 return OperationResult<Nodeset>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{sourceNodeset.Name}'.");
             if ((attrValueStr == null || attrValueStr.Length == 0) && condition != ConditionType.notnull && condition != ConditionType.isnull)
                 return OperationResult<Nodeset>.Fail("MissingAttributeValue", $"Attribute value must be set for '{condition}' condition.");
-
+            if (!sourceNodeset.NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out var attrType))
+                return OperationResult<Nodeset>.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{sourceNodeset.Name}': possibly corrupted.");
             Nodeset filtered = new Nodeset(sourceNodeset.Name + "_clone") { NodeAttributeDefinitionManager = sourceNodeset.NodeAttributeDefinitionManager.Clone() };
 
             foreach (uint nodeId in sourceNodeset.NodeIdArray)
@@ -45,7 +47,7 @@ namespace Threadle.Core.Processing
                     true => condition switch
                     {
                         ConditionType.notnull => true,  // Existing attribute counts as 'notnull'
-                        _ => Misc.EvaluateCondition(result.Value, attrValueStr!, condition), // Evaluate condition here
+                        _ => Misc.EvaluateCondition(result.Value.Value, result.Value.Type, attrValueStr!, condition), // Evaluate condition here
                     },
                     false => condition switch
                     {

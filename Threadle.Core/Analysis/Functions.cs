@@ -87,9 +87,9 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Char)
+                if (attrValue != null)
                 {
-                    char charValue = (char)attrValue.Value.GetValue()!;
+                    char charValue = (char)attrValue.Value.GetValue(NodeAttributeType.Char)!;
                     if (frequency.TryGetValue(charValue, out int count))
                         frequency[charValue] = count + 1;
                     else
@@ -134,9 +134,9 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Bool)
+                if (attrValue != null)
                 {
-                    if ((bool)attrValue.Value.GetValue()!)
+                    if ((bool)attrValue.Value.GetValue(NodeAttributeType.Bool)!)
                         countTrue++;
                     else
                         countFalse++;
@@ -166,8 +166,8 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Float)
-                    values.Add((float)attrValue.Value.GetValue()!);
+                if (attrValue != null)
+                    values.Add((float)attrValue.Value.GetValue(NodeAttributeType.Float)!);
             }
             countWithValue = values.Count;
             Dictionary<string, object> stats = [];
@@ -205,8 +205,8 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Int)
-                    values.Add((int)attrValue.Value.GetValue()!);
+                if (attrValue != null)
+                    values.Add((int)attrValue.Value.GetValue(NodeAttributeType.Int)!);
             }
             countWithValues = values.Count;
             Dictionary<string, object> stats = [];

@@ -70,26 +70,26 @@ namespace Threadle.Core.Utilities
         /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
         /// <returns><see langword="true"/> if the condition is satisfied based on the comparison; otherwise, <see
         /// langword="false"/>.</returns>
-        public static bool EvaluateCondition(NodeAttributeValue nodeValue, string comparisonValue, ConditionType condition)
+        public static bool EvaluateCondition(NodeAttributeValue2 AttrValue,NodeAttributeType AttrType, string comparisonValue, ConditionType condition)
         {
-            switch (nodeValue.Type)
+            switch (AttrType)
             {
                 case NodeAttributeType.Int:
                     if (!int.TryParse(comparisonValue, out int intVal))
                         return false;
-                    return CompareValues(Convert.ToInt32(nodeValue.GetValue()), intVal, condition);
+                    return CompareValues(Convert.ToInt32(AttrValue.GetValue(AttrType)), intVal, condition);
                 case NodeAttributeType.Float:
                     if (!float.TryParse(comparisonValue, out float floatVal))
                         return false;
-                    return CompareValues(Convert.ToSingle(nodeValue.GetValue()), floatVal, condition);
+                    return CompareValues(Convert.ToSingle(AttrValue.GetValue(AttrType)), floatVal, condition);
                 case NodeAttributeType.Bool:
                     if (!bool.TryParse(comparisonValue, out bool boolVal))
                         return false;
-                    return CompareValues(Convert.ToBoolean(nodeValue.GetValue()), boolVal, condition);
+                    return CompareValues(Convert.ToBoolean(AttrValue.GetValue(AttrType)), boolVal, condition);
                 case NodeAttributeType.Char:
                     if (comparisonValue.Length != 1)
                         return false;
-                    return CompareValues(Convert.ToChar(nodeValue.GetValue()), comparisonValue[0], condition);
+                    return CompareValues(Convert.ToChar(AttrValue.GetValue(AttrType)), comparisonValue[0], condition);
                 default:
                     return false;
             }
@@ -130,17 +130,29 @@ namespace Threadle.Core.Utilities
         /// <param name="valueStr">The value (in string format) of the attribute for the specific node.</param>
         /// <returns>A <see cref="NodeAttributeValue"/> struct with the specified attribute type (<see cref="NodeAttributeType">) and provided value.
         /// Returns null if the <paramref name="valueStr"/> can not be parsed to the specified <see cref="NodeAttributeType"/>.</returns>
-        public static NodeAttributeValue? CreateNodeAttributeValueFromAttributeTypeAndValueString(NodeAttributeType attrType, string valueStr)
+        //public static NodeAttributeValue? CreateNodeAttributeValueFromAttributeTypeAndValueString(NodeAttributeType attrType, string valueStr)
+        //{
+        //    if (attrType == NodeAttributeType.Int && Int32.TryParse(valueStr, out int i))
+        //        return new NodeAttributeValue(i);
+        //    if (attrType == NodeAttributeType.Float && float.TryParse(valueStr, out float f))
+        //        return new NodeAttributeValue(f);
+        //    if (attrType == NodeAttributeType.Char && char.TryParse(valueStr, out char c))
+        //        return new NodeAttributeValue(c);
+        //    if (attrType == NodeAttributeType.Bool && bool.TryParse(valueStr, out bool b))
+        //        return new NodeAttributeValue(b);
+        //    return null;
+        //}
+
+        internal static NodeAttributeValue2? CreateNodeAttributeValue2FromTypeAndString(NodeAttributeType type, string valueStr)
         {
-            if (attrType == NodeAttributeType.Int && Int32.TryParse(valueStr, out int i))
-                return new NodeAttributeValue(i);
-            if (attrType == NodeAttributeType.Float && float.TryParse(valueStr, out float f))
-                return new NodeAttributeValue(f);
-            if (attrType == NodeAttributeType.Char && char.TryParse(valueStr, out char c))
-                return new NodeAttributeValue(c);
-            if (attrType == NodeAttributeType.Bool && bool.TryParse(valueStr, out bool b))
-                return new NodeAttributeValue(b);
-            return null;
+            return type switch
+            {
+                NodeAttributeType.Int => int.TryParse(valueStr, out int i) ? new NodeAttributeValue2(i) : null,
+                NodeAttributeType.Float => float.TryParse(valueStr, out float f)? new NodeAttributeValue2(f): null,
+                NodeAttributeType.Bool => bool.TryParse(valueStr, out bool b)? new NodeAttributeValue2(b):null,
+                NodeAttributeType.Char => valueStr.Length==1? new NodeAttributeValue2(valueStr[0]):null,
+                _ => null
+            };
         }
 
         /// <summary>

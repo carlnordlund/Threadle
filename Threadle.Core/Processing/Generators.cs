@@ -27,7 +27,7 @@ namespace Threadle.Core.Processing
             byte attrIndex = attrDefineResult.Value;
             uint[] nodeIdArray = nodeset.NodeIdArray;
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(Misc.Random.Next(minValue, maxValue + 1)));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(Misc.Random.Next(minValue, maxValue + 1)));
             return OperationResult.Ok($"Node attribute '{attrName}' (integer) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
         }
 
@@ -48,7 +48,7 @@ namespace Threadle.Core.Processing
             byte attrIndex = attrDefineResult.Value;
             uint[] nodeIdArray = nodeset.NodeIdArray;
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(minValue + (float)(Misc.Random.NextDouble() * (maxValue - minValue))));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(minValue + (float)(Misc.Random.NextDouble() * (maxValue - minValue))));
             return OperationResult.Ok($"Node attribute '{attrName}' (float) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
         }
 
@@ -67,7 +67,7 @@ namespace Threadle.Core.Processing
             byte attrIndex = attrDefineResult.Value;
             uint[] nodeIdArray = nodeset.NodeIdArray;
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(Misc.Random.NextDouble() < p));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(Misc.Random.NextDouble() < p));
             return OperationResult.Ok($"Node attribute '{attrName}' (bool) defined and true assigned to all nodes by probability {p}.");
         }
 
@@ -94,7 +94,7 @@ namespace Threadle.Core.Processing
             uint[] nodeIdArray = nodeset.NodeIdArray;
 
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(chars[Misc.Random.Next(0, nbrChars)]));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(chars[Misc.Random.Next(0, nbrChars)]));
             return OperationResult.Ok($"Node attribute '{attrName}' (char) defined and specified random characters assigned to all nodes.");
         }
 

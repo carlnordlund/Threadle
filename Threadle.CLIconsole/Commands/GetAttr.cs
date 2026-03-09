@@ -2,6 +2,7 @@
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
@@ -37,7 +38,8 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg2");
-            OperationResult<NodeAttributeValue> result = nodeset!.GetNodeAttribute(nodeId, attrName);
+            OperationResult<(NodeAttributeValue2 AttrValue ,NodeAttributeType AttrType)> result = nodeset!.GetNodeAttribute(nodeId, attrName);
+            
             if (!result.Success)
             {
                 if (result.Code == "AttributeNotSet")
@@ -45,7 +47,7 @@ namespace Threadle.CLIconsole.Commands
                 else
                     return CommandResult.Fail(result.Code, result.Message);
             }
-            return CommandResult.Ok(result.Message, result.Value.GetValue());
+            return CommandResult.Ok(result.Message, result.Value.AttrValue.GetValue(result.Value.AttrType));
         }
     }
 }
