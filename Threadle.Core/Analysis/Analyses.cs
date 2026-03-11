@@ -323,7 +323,8 @@ namespace Threadle.Core.Analysis
             var layer = layerResult.Value!;
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            if (nodeIds.Length <= 1)
+            bool selfiesAllowed = layer is ILayerOneMode om && om.Selfties;
+            if (nodeIds.Length == 0 || (nodeIds.Length == 1 && !selfiesAllowed))
                 return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Network has fewer than 2 nodes and thus no edges.");
 
             Dictionary<string, object>? randomEdge = Functions.GetRandomEdge(layer, nodeIds, maxAttempts);
