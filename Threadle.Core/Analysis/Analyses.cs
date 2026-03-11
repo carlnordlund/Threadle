@@ -323,8 +323,8 @@ namespace Threadle.Core.Analysis
             var layer = layerResult.Value!;
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            if (nodeIds.Length <= 1)
-                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Network has 0-1 nodes, and thus no edges.");
+            if (nodeIds.Length < 1)
+                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Network has no nodes, and thus no edges.");
 
             Dictionary<string, object>? randomEdge = Functions.GetRandomEdge(layer, nodeIds, maxAttempts);
 
