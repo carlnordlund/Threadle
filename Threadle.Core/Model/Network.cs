@@ -762,7 +762,7 @@ namespace Threadle.Core.Model
             }
             else
             {
-                foreach (string layerName2 in Layers.Keys)
+                foreach (string layerName2 in Layers.Keys.ToList())
                 {
                     ILayer layer = Layers[layerName2];
                     if (layer is LayerOneModeStatic || layer is LayerTwoModeStatic)
@@ -788,7 +788,7 @@ namespace Threadle.Core.Model
             }
             else
             {
-                foreach (string layerName2 in Layers.Keys)
+                foreach (string layerName2 in Layers.Keys.ToList())
                 {
                     ILayer layer = Layers[layerName2];
                     if (layer is LayerOneMode || layer is LayerTwoMode)
@@ -798,7 +798,6 @@ namespace Threadle.Core.Model
                 }
                 return OperationResult.Ok($"All layers in network '{Name}' unpacked.");
             }
-                throw new NotImplementedException();
         }
         #endregion
     }
