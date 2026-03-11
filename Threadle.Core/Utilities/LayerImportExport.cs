@@ -302,7 +302,7 @@ namespace Threadle.Core.Utilities
         /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, char separator, bool addMissingNodes)
+        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, bool hasHeader, char separator, bool addMissingNodes)
         {
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");
@@ -311,19 +311,23 @@ namespace Threadle.Core.Utilities
             int lineNumber = 0;
             uint nodeId;
             string hyperedgeName;
+            int maxColIndex = Math.Max(nodeCol, affCol);
             // Distinguish between whether unknown nodes should be added or ignored: to speed up loading
             if (addMissingNodes)
             {
                 while ((line = reader.ReadLine()) != null)
                 {
                     lineNumber++;
-                    ReadOnlySpan<char> span = line.AsSpan();
-                    int sepIndex = span.IndexOf(separator);
-                    if (sepIndex < 0)
-                        throw new Exception($"Invalid column count at line {lineNumber}");
-                    if (!uint.TryParse(span.Slice(0, sepIndex), out nodeId))
+                    if (lineNumber == 1 && hasHeader)
                         continue;
-                    hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
+                    string[] columns = line.Split(separator);
+                    if (columns.Length <= maxColIndex)
+                        continue;
+                    if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
+                        continue;
+                    hyperedgeName = Misc.TrimQuotes(columns[affCol]).Trim();
                     if (hyperedgeName.Length < 1)
                         continue;
                     if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
@@ -338,15 +342,18 @@ namespace Threadle.Core.Utilities
                 while ((line = reader.ReadLine()) != null)
                 {
                     lineNumber++;
-                    ReadOnlySpan<char> span = line.AsSpan();
-                    int sepIndex = span.IndexOf(separator);
-                    if (sepIndex < 0)
-                        throw new Exception($"Invalid column count at line {lineNumber}");
-                    if (!uint.TryParse(span.Slice(0, sepIndex), out nodeId))
+                    if (lineNumber == 1 && hasHeader)
+                        continue;
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
+                    string[] columns = line.Split(separator);
+                    if (columns.Length <= maxColIndex)
+                        continue;
+                    if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
                         continue;
                     if (!network.Nodeset.Contains(nodeId))
                         continue;
-                    hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
+                    hyperedgeName = Misc.TrimQuotes(columns[affCol]).Trim();
                     if (hyperedgeName.Length < 1)
                         continue;
                     if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
@@ -397,12 +404,9 @@ namespace Threadle.Core.Utilities
             }
             float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
             for (int c = 0; c < colNames.Length; c++)
-            {
-                List<uint> nodeIds = [];
                 for (int r = 0; r < rowIds.Length; r++)
                     if (data[r, c] > 0)
                         network.AddAffiliation(layerTwoMode, colNames[c], rowIds[r], addMissingNodes, true);
-            }
         }
         #endregion
 
@@ -437,8 +441,12 @@ namespace Threadle.Core.Utilities
             }
             string[,] cells = new string[listOfCells.Count, nbrCols];
             for (int r = 0; r < listOfCells.Count; r++)
+            {
                 for (int c = 0; c < listOfCells[r].Length; c++)
                     cells[r, c] = listOfCells[r][c].Trim();
+                for (int c = listOfCells[r].Length; c < nbrCols; c++)
+                    cells[r, c] = "";
+            }
             return cells;
         }
         #endregion

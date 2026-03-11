@@ -132,7 +132,7 @@ namespace Threadle.Core.Utilities
         {
             try
             {
-                LayerImportExport.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, addMissingNodes);
+                LayerImportExport.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, hasHeader, separator, addMissingNodes);
                 return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
             }
             catch (Exception ex)

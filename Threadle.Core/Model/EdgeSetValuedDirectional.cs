@@ -218,10 +218,10 @@ namespace Threadle.Core.Model
         /// <returns>A tab-separated string with node ids and edge values.</returns>
         public string GetNodelistAlterString(uint egoNodeId)
         {
-            string ret = "";
+            var sb = new System.Text.StringBuilder();
             foreach (Connection connection in _outbound)
-                ret += $"\t{connection.partnerNodeId};{connection.value}";
-            return ret;
+                sb.Append('\t').Append(connection.partnerNodeId).Append(';').Append(connection.value);
+            return sb.ToString();
         }
 
         /// <summary>
