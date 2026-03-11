@@ -356,7 +356,7 @@ namespace Threadle.Core.Analysis
             {
                 uint node1 = nodeIds[Misc.Random.Next(nodeIds.Length)];
                 uint node2 = nodeIds[Misc.Random.Next(nodeIds.Length)];
-                if (node1 == node2)
+                if (node1 == node2 && !(layer is ILayerOneMode oneModeLayer && oneModeLayer.Selfties))
                     continue;
                 float value = layer.GetEdgeValue(node1, node2);
                 if (value > 0)
