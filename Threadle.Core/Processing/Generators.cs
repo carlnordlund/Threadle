@@ -272,10 +272,10 @@ namespace Threadle.Core.Processing
                         oldTarget = nodeIds[(i + j) % n];
                         do
                         {
-                            newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length - 1)];
+                            newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
 
                         }
-                        while (newTarget == i || layer.CheckEdgeExists(source, newTarget));
+                        while (newTarget == source || layer.CheckEdgeExists(source, newTarget));
                         layer.RemoveEdge(source, oldTarget);
                         layer.AddEdge(source, newTarget);
                     }

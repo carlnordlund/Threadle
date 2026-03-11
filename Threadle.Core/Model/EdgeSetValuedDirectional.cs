@@ -300,6 +300,7 @@ namespace Threadle.Core.Model
                 if (count >= maxCount)
                     break;
                 lines.Add($"{egoNodeId} -> {conn.partnerNodeId} ({conn.value})");
+                count++;
             }
             return lines;
         }
