@@ -298,6 +298,10 @@ namespace Threadle.Core.Processing
         /// <returns></returns>
         public static OperationResult GenerateErdosRenyiLayer(Network network, string layerName, double p)
         {
+            if (p < 0 || p > 1)
+                return OperationResult.Fail("InvalidParameter", $"Edge probability p must be in the range [0,1], got {p}.");
+
+
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return layerResult;
@@ -323,13 +327,16 @@ namespace Threadle.Core.Processing
             layer._initEdgesets(nodeIds, edgesetCapacity);
 
             ulong totalEdges = Misc.GetNbrPotentialEdges(n, layer.Directionality, layer.Selfties);
+
+            if (p == 0 || totalEdges == 0)
+                return OperationResult.Ok($"Erdös-Renyi network with p={p} generated in layer '{layerName}' in network '{network.Name}'.");
             ulong index = 0;
             uint row = 0;
             ulong rowStartindex = 0;
             uint rowLength = GetRowLength(row, n, layer.Directionality, layer.Selfties);
             while (index < totalEdges)
             {
-                ulong skip = Misc.SampleGeometric(p);
+                ulong skip = p < 1 ? Misc.SampleGeometric(p) : 0;
                 index += skip;
                 if (index >= totalEdges)
                     break;

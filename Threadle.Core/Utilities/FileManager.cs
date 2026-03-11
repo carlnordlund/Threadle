@@ -208,7 +208,9 @@ namespace Threadle.Core.Utilities
                 if (baseDirectory != null)
                 {
                     string fullBase = Path.GetFullPath(baseDirectory);
-                    if (!fullPath.StartsWith(fullBase, StringComparison.OrdinalIgnoreCase))
+                    string fullBaseWithSep = fullBase.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    bool isWithinBase = fullPath.Equals(fullBase, StringComparison.Ordinal) || fullPath.StartsWith(fullBaseWithSep, StringComparison.Ordinal);
+                    if (!isWithinBase)
                         return OperationResult.Fail("UnauthorizedFilepath", $"Path '{fullPath}' is outside the allowed base directory '{fullBase}'.");
                 }
                 if (!Directory.Exists(fullPath))
