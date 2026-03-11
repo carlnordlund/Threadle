@@ -208,11 +208,11 @@ namespace Threadle.Core.Model
         /// <returns>A tab-separated string with node ids.</returns>
         public string GetNodelistAlterString(uint egoNodeId)
         {
-            string ret = "";
+            var sb = new System.Text.StringBuilder();
             foreach (uint alterNodeId in _connections)
                 if (alterNodeId > egoNodeId)
-                    ret += "\t" + alterNodeId;
-            return ret;
+                    sb.Append('\t').Append(alterNodeId);
+            return sb.ToString();
         }
 
         /// <summary>
