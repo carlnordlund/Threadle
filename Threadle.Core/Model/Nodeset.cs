@@ -128,7 +128,8 @@ namespace Threadle.Core.Model
             ["Filepath"] = Filepath,
             ["isModified"] = IsModified,
             ["NbrNodes"] = Count,
-            ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList()
+            ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList(),
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -383,6 +384,40 @@ namespace Threadle.Core.Model
             else
                 message = $"Returning nodes {offset + 1} - {offset + nodes.Count} of {total} in nodeset '{Name}':";
             return OperationResult<List<uint>>.Ok(nodes, message);
+        }
+
+        public long GetEstimatedBytes()
+        {
+            int Na = _nodesWithAttributes.Count;
+            int Nw = _nodesWithoutAttributes.Count;
+            // _ nodesWithAttributes: dictionary entries + buckets
+            long bytes = (long)Na * 28 + (long)(Na / 0.72 + 1) * 4;
+            // per attributed node:
+            // - List<byte>: 32 (object) + 16 (array) + 4 = 52 bytes
+            // - List<NodeAttributeValue2>: 32 (object) + 16(array) + 4*4 = 64 bytes
+            // total: 116 bytes
+            bytes += (long)Na * 116;
+            // Sample up to 100 attributed nodes to estimate average attribute count,
+            // then calculate: 1 byte (attribute index) + 4 byte (NodeAttributeValue2) per attribute
+            if (Na > 0)
+            {
+                int sampleSize = Math.Min(100, Na);
+                int totalAttrs = 0;
+                int sampled = 0;
+                foreach (var attrs in _nodesWithAttributes.Values)
+                {
+                    totalAttrs += attrs.AttrIndexes.Count;
+                    if (++sampled >= sampleSize)
+                        break;
+                }
+                double avgAttrs = (double)totalAttrs / sampled;
+                bytes += (long)(Na * avgAttrs * 5);
+            }
+            // nodesWithoutAttributes: just hashset entries + buckets
+            bytes += (long)Nw * 12 + (long)(Nw / 0.72 + 1) * 4;
+            if (_nodeIdCache != null)
+                bytes += 16 + (long)_nodeIdCache.Length * 4;
+            return bytes;
         }
         #endregion
 

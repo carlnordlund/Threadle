@@ -68,7 +68,8 @@ namespace Threadle.Core.Model
             ["Filepath"] = Filepath,
             ["isModified"] = IsModified,
             ["Nodeset"] = Nodeset.Name,
-            ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata)
+            ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata),
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -466,6 +467,14 @@ namespace Threadle.Core.Model
             else
                 message = $"Returning edges {offset + 1} - {offset + edges.Count} of {total} in layer '{layerName}':";
             return OperationResult<List<Dictionary<string, object>>>.Ok(edges, message);
+        }
+
+        public long GetEstimatedBytes()
+        {
+            long total = Nodeset.GetEstimatedBytes();
+            foreach (var layer in Layers.Values)
+                total += layer.GetEstimatedBytes();
+            return total;
         }
         #endregion
 

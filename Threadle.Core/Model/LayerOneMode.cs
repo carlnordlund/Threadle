@@ -121,7 +121,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}; ~{Utilities.Misc.FormatBytes(GetEstimatedBytes())}]";
+        public string GetLayerInfo => $" {Name} [1-mode; {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
 
         public bool IsStatic => false;
         #endregion

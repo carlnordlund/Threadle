@@ -105,7 +105,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {_hyperedgeNames.Length}]";
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges:{_hyperedgeNames.Length}]";
 
         public bool IsStatic => true;
         #endregion
