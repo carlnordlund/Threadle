@@ -302,64 +302,49 @@ namespace Threadle.Core.Utilities
         /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, bool hasHeader, char separator, bool addMissingNodes)
+        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, char separator, bool hasHeader, bool addMissingNodes)
         {
+            // Check that file exists
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");
+            // Prepare reader, counters, temp vars
             using var reader = new StreamReader(filepath);
             string? line;
             int lineNumber = 0;
+            // Get max col index referred to
+            int maxColIndex = Math.Max(nodeCol, affCol);
             uint nodeId;
             string hyperedgeName;
-            int maxColIndex = Math.Max(nodeCol, affCol);
-            // Distinguish between whether unknown nodes should be added or ignored: to speed up loading
-            if (addMissingNodes)
+            while ((line = reader.ReadLine()) != null)
             {
-                while ((line = reader.ReadLine()) != null)
+                lineNumber++;
+                if (lineNumber == 1 && hasHeader)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+                // Split up the line by separator character
+                string[] columns = line.Split(separator);
+                // Check that it contains necessary columns
+                if (columns.Length <= maxColIndex)
+                    continue;
+                // Silent continue if not able to parse nodeId
+                if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
+                    continue;
+                // Get hyperedge name
+                hyperedgeName = Misc.TrimQuotes(columns[affCol]).Trim();
+                // Silent continue if no name
+                if (hyperedgeName.Length < 1)
+                    continue;
+                if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
+                    throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
+                if (!network.Nodeset.Contains(nodeId))
                 {
-                    lineNumber++;
-                    if (lineNumber == 1 && hasHeader)
+                    if (!addMissingNodes)
                         continue;
-                    if (string.IsNullOrWhiteSpace(line))
-                        continue;
-                    string[] columns = line.Split(separator);
-                    if (columns.Length <= maxColIndex)
-                        continue;
-                    if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
-                        continue;
-                    hyperedgeName = Misc.TrimQuotes(columns[affCol]).Trim();
-                    if (hyperedgeName.Length < 1)
-                        continue;
-                    if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
-                        throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
-                    if (!network.Nodeset.Contains(nodeId))
-                        network.Nodeset._addNodeWithoutAttribute(nodeId);
-                    layerTwoMode._addAffiliation(nodeId, hyperedgeName);
+                    network.Nodeset._addNodeWithoutAttribute(nodeId);
                 }
-            }
-            else
-            {
-                while ((line = reader.ReadLine()) != null)
-                {
-                    lineNumber++;
-                    if (lineNumber == 1 && hasHeader)
-                        continue;
-                    if (string.IsNullOrWhiteSpace(line))
-                        continue;
-                    string[] columns = line.Split(separator);
-                    if (columns.Length <= maxColIndex)
-                        continue;
-                    if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
-                        continue;
-                    if (!network.Nodeset.Contains(nodeId))
-                        continue;
-                    hyperedgeName = Misc.TrimQuotes(columns[affCol]).Trim();
-                    if (hyperedgeName.Length < 1)
-                        continue;
-                    if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
-                        throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
-                    layerTwoMode._addAffiliation(nodeId, hyperedgeName);
-                }
+                layerTwoMode._addAffiliation(nodeId, hyperedgeName);
             }
         }
 
@@ -404,9 +389,11 @@ namespace Threadle.Core.Utilities
             }
             float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
             for (int c = 0; c < colNames.Length; c++)
+            {
                 for (int r = 0; r < rowIds.Length; r++)
                     if (data[r, c] > 0)
                         network.AddAffiliation(layerTwoMode, colNames[c], rowIds[r], addMissingNodes, true);
+            }
         }
         #endregion
 
@@ -446,6 +433,7 @@ namespace Threadle.Core.Utilities
                     cells[r, c] = listOfCells[r][c].Trim();
                 for (int c = listOfCells[r].Length; c < nbrCols; c++)
                     cells[r, c] = "";
+
             }
             return cells;
         }

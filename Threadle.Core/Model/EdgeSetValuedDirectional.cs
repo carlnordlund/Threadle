@@ -219,8 +219,8 @@ namespace Threadle.Core.Model
         public string GetNodelistAlterString(uint egoNodeId)
         {
             var sb = new System.Text.StringBuilder();
-            foreach (Connection connection in _outbound)
-                sb.Append('\t').Append(connection.partnerNodeId).Append(';').Append(connection.value);
+            foreach (Connection conn in _outbound)
+                sb.Append('\t').Append(conn.partnerNodeId).Append(';').Append(conn.value);
             return sb.ToString();
         }
 
@@ -294,11 +294,13 @@ namespace Threadle.Core.Model
         public List<string> FormatEdges(uint egoNodeId, int maxCount)
         {
             List<string> lines = new(maxCount);
+            int count = 0;
             foreach (var conn in _outbound)
             {
-                if (lines.Count >= maxCount)
+                if (count >= maxCount)
                     break;
                 lines.Add($"{egoNodeId} -> {conn.partnerNodeId} ({conn.value})");
+                count++;
             }
             return lines;
         }

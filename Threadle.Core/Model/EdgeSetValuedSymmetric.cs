@@ -228,9 +228,9 @@ namespace Threadle.Core.Model
         public string GetNodelistAlterString(uint egoNodeId)
         {
             var sb = new System.Text.StringBuilder();
-            foreach (Connection connection in _connections)
-                if (connection.partnerNodeId > egoNodeId)
-                    sb.Append('\t').Append(connection.partnerNodeId).Append(';').Append(connection.value);
+            foreach (Connection conn in _connections)
+                if (conn.partnerNodeId>egoNodeId)
+                    sb.Append('\t').Append(conn.partnerNodeId).Append(';').Append(conn.value);
             return sb.ToString();
         }
 

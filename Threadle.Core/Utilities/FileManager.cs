@@ -132,7 +132,7 @@ namespace Threadle.Core.Utilities
         {
             try
             {
-                LayerImportExport.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, hasHeader, separator, addMissingNodes);
+                LayerImportExport.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, hasHeader, addMissingNodes);
                 return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
             }
             catch (Exception ex)
@@ -209,8 +209,7 @@ namespace Threadle.Core.Utilities
                 {
                     string fullBase = Path.GetFullPath(baseDirectory);
                     string fullBaseWithSep = fullBase.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                    bool isWithinBase = fullPath.Equals(fullBase, StringComparison.Ordinal)
-                                     || fullPath.StartsWith(fullBaseWithSep, StringComparison.Ordinal);
+                    bool isWithinBase = fullPath.Equals(fullBase, StringComparison.Ordinal) || fullPath.StartsWith(fullBaseWithSep, StringComparison.Ordinal);
                     if (!isWithinBase)
                         return OperationResult.Fail("UnauthorizedFilepath", $"Path '{fullPath}' is outside the allowed base directory '{fullBase}'.");
                 }

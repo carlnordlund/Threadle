@@ -66,7 +66,7 @@ namespace Threadle.Core.Analysis
         internal static double Density(Network network, LayerTwoMode layer)
         {
             int nbrNodes = network.Nodeset.Count;
-            ulong nbrPotentialEdges = (ulong)(nbrNodes * (nbrNodes - 1));
+            ulong nbrPotentialEdges = (ulong)nbrNodes * (ulong)(nbrNodes - 1);
 
             ulong nbrExistingEdges = 0;
             foreach (uint nodeId in network.Nodeset.NodeIdArray)
@@ -372,7 +372,9 @@ namespace Threadle.Core.Analysis
 
         internal static Dictionary<string, object>? GetRandomEdgeSweepOneMode(LayerOneMode layerOneMode)
         {
-            int totalEdges = (int)layerOneMode.NbrEdges;
+            if (layerOneMode.NbrEdges == 0)
+                return null;
+            int totalEdges = (int)Math.Min(layerOneMode.NbrEdges, int.MaxValue);
             int randomIndex = Misc.Random.Next(totalEdges);
             foreach (var kvp in layerOneMode.Edgesets)
             {

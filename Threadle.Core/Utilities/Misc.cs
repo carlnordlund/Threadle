@@ -67,14 +67,14 @@ namespace Threadle.Core.Utilities
         /// <returns>Returns an array of unsigned integers.</returns>
         public static uint[]? SplitStringToUintArray(string nodesString, char sep = ';')
         {
-            string[] parts = nodesString.Split(sep);
-            uint[] result = new uint[parts.Length];
-            for (int i = 0; i < parts.Length; i++)
+            try
             {
-                if (!uint.TryParse(parts[i], out result[i]))
-                    return null;
+                return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
             }
-            return result;
+            catch (Exception)
+            {
+                return null;
+            }            
         }
         #endregion
 
