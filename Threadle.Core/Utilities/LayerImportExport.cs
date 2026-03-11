@@ -332,14 +332,18 @@ namespace Threadle.Core.Utilities
                 if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
                     continue;
                 // Get hyperedge name
-                hyperedgeName = columns[affCol];
+                hyperedgeName = Misc.TrimQuotes(columns[affCol]);
                 // Silent continue of no name
                 if (hyperedgeName.Length < 1)
                     continue;
                 if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
                     throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
-                if (!network.Nodeset.Contains(nodeId) && addMissingNodes)
+                if (!network.Nodeset.Contains(nodeId))
+                {
+                    if (!addMissingNodes)
+                        continue;                        
                     network.Nodeset._addNodeWithoutAttribute(nodeId);
+                }
                 layerTwoMode._addAffiliation(nodeId, hyperedgeName);
             }
         }
