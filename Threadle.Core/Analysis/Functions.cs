@@ -356,6 +356,7 @@ namespace Threadle.Core.Analysis
             {
                 uint node1 = nodeIds[Misc.Random.Next(nodeIds.Length)];
                 uint node2 = nodeIds[Misc.Random.Next(nodeIds.Length)];
+                // If nodes are the same, i.e. a selftie, and this is not a 1-mode layer that allows selfties, then continue:
                 if (node1 == node2 && !(layer is ILayerOneMode oneModeLayer && oneModeLayer.Selfties))
                     continue;
                 float value = layer.GetEdgeValue(node1, node2);
