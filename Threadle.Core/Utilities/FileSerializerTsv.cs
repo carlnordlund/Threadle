@@ -398,7 +398,7 @@ namespace Threadle.Core.Utilities
                 foreach (var attrDef in attributeDefs)
                 {
                     var attr = nodeset.GetNodeAttribute(node, attrDef.AttrName);
-                    row.Add(attr.Success ? attr.Value.ToString() : "");
+                    row.Add(attr.Success ? attr.Value.Value.ToString(attr.Value.Type) : "");
                 }
                 writer.WriteLine(string.Join("\t", row));
             }
