@@ -154,7 +154,7 @@ namespace Threadle.Core.Model
 
 
 
-            return new LayerOneModeStatic(source.Name, source.Directionality, source.EdgeValueType, source.Selfties, mapper, offsets, [.. neighborNodeIds], valueList.Count > 0 ? [.. valueList] : null, inOffsets, inNeighborNodeIds);
+            return new LayerOneModeStatic(source.Name, source.Directionality, source.EdgeValueType, source.Selfties, mapper, offsets, finalNeighborNodeIds, valueList.Count > 0 ? [.. valueList] : null, inOffsets, inNeighborNodeIds);
         }
 
         public float GetEdgeValue(uint node1Id, uint node2Id)
