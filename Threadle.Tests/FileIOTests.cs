@@ -262,6 +262,95 @@ public class FileIOTests : IDisposable
         Assert.Equal(99, (int)nav.GetValue(type));
     }
 
+    [Fact]
+    public void SaveLoadNodeset_Bin_FloatAttribute_Preserved()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("score", "float");
+        ns.SetNodeAttribute(1, "score", "3.14");
+
+        string path = TempFile(".bin");
+        FileManager.Save(ns, path);
+
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
+        var r = loaded.GetNodeAttribute(1, "score");
+        Assert.True(r.Success);
+        var (nav, type) = r.Value;
+        Assert.Equal(3.14f, (float)nav.GetValue(type), precision: 4);
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Bin_BoolAttribute_Preserved()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("active", "bool");
+        ns.SetNodeAttribute(1, "active", "true");
+        ns.SetNodeAttribute(2, "active", "false");
+
+        string path = TempFile(".bin");
+        FileManager.Save(ns, path);
+
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
+
+        var r1 = loaded.GetNodeAttribute(1, "active");
+        Assert.True(r1.Success);
+        var (nav1, type1) = r1.Value;
+        Assert.True((bool)nav1.GetValue(type1));
+
+        var r2 = loaded.GetNodeAttribute(2, "active");
+        var (nav2, type2) = r2.Value;
+        Assert.False((bool)nav2.GetValue(type2));
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Bin_CharAttribute_Preserved()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("gender", "char");
+        ns.SetNodeAttribute(1, "gender", "m");
+        ns.SetNodeAttribute(2, "gender", "f");
+
+        string path = TempFile(".bin");
+        FileManager.Save(ns, path);
+
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
+
+        var r1 = loaded.GetNodeAttribute(1, "gender");
+        Assert.True(r1.Success);
+        var (nav1, type1) = r1.Value;
+        Assert.Equal('m', (char)nav1.GetValue(type1));
+
+        var r2 = loaded.GetNodeAttribute(2, "gender");
+        var (nav2, type2) = r2.Value;
+        Assert.Equal('f', (char)nav2.GetValue(type2));
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Bin_MultipleAttributes_AllPreserved()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("age", "int");
+        ns.DefineNodeAttribute("score", "float");
+        ns.DefineNodeAttribute("active", "bool");
+        ns.SetNodeAttribute(1, "age", "30");
+        ns.SetNodeAttribute(1, "score", "9.5");
+        ns.SetNodeAttribute(1, "active", "true");
+
+        string path = TempFile(".bin");
+        FileManager.Save(ns, path);
+
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
+
+        var (navAge, tAge) = loaded.GetNodeAttribute(1, "age").Value;
+        Assert.Equal(30, (int)navAge.GetValue(tAge));
+
+        var (navScore, tScore) = loaded.GetNodeAttribute(1, "score").Value;
+        Assert.Equal(9.5f, (float)navScore.GetValue(tScore), precision: 4);
+
+        var (navActive, tActive) = loaded.GetNodeAttribute(1, "active").Value;
+        Assert.True((bool)navActive.GetValue(tActive));
+    }
+
     // ── Network save/load (TSV) ────────────────────────────────────────────────
 
     [Fact]
@@ -413,6 +502,166 @@ public class FileIOTests : IDisposable
         var edgeVal = loadedNet.GetEdge("weighted", 1, 2);
         Assert.True(edgeVal.Success);
         Assert.Equal(2.5f, edgeVal.Value, precision: 4);
+    }
+
+    // ── Binary network: multiple 1-mode layers ────────────────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_MultipleOneModes_AllLayersPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddLayerOneMode("follows", EdgeDirectionality.Directed, EdgeType.Binary, false);
+        net.AddEdge("follows", 3, 4);
+        net.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        net.AddEdge("trust", 1, 3, value: 0.8f);
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("follows", 3, 4).Value);
+        Assert.False(loadedNet.CheckEdgeExists("follows", 4, 3).Value);  // directed
+        Assert.Equal(0.8f, loadedNet.GetEdge("trust", 1, 3).Value, precision: 4);
+    }
+
+    // ── Binary network: 2-mode layer ──────────────────────────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_TwoModeLayer_HyperedgesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "club1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "club2", new uint[] { 2, 4 });
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.Layers.ContainsKey("clubs"));
+
+        var nodes1 = loadedNet.GetHyperedgeNodes("clubs", "club1");
+        Assert.True(nodes1.Success);
+        Assert.Contains(1u, nodes1.Value);
+        Assert.Contains(2u, nodes1.Value);
+        Assert.Contains(3u, nodes1.Value);
+
+        var nodes2 = loadedNet.GetHyperedgeNodes("clubs", "club2");
+        Assert.True(nodes2.Success);
+        Assert.Contains(2u, nodes2.Value);
+        Assert.Contains(4u, nodes2.Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_TwoModeLayer_NodeHyperedgesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "club1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "club2", new uint[] { 2, 3 });
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        // Node 2 belongs to both clubs
+        var hyperedges = loadedNet.GetNodeHyperedges("clubs", 2);
+        Assert.True(hyperedges.Success);
+        Assert.Contains("club1", hyperedges.Value);
+        Assert.Contains("club2", hyperedges.Value);
+
+        // Node 1 belongs only to club1
+        var hyperedges1 = loadedNet.GetNodeHyperedges("clubs", 1);
+        Assert.Single(hyperedges1.Value);
+        Assert.Contains("club1", hyperedges1.Value);
+    }
+
+    // ── Binary network: mixed 1-mode and 2-mode layers ─────────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_MixedLayers_BothPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 3, 4);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "clubA", new uint[] { 1, 3, 5 });
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.Layers.ContainsKey("friends"));
+        Assert.True(loadedNet.Layers.ContainsKey("clubs"));
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 3, 4).Value);
+        Assert.False(loadedNet.CheckEdgeExists("friends", 1, 3).Value);
+
+        var clubNodes = loadedNet.GetHyperedgeNodes("clubs", "clubA");
+        Assert.True(clubNodes.Success);
+        Assert.Contains(1u, clubNodes.Value);
+        Assert.Contains(3u, clubNodes.Value);
+        Assert.Contains(5u, clubNodes.Value);
+    }
+
+    // ── Binary network: load with packLayers ──────────────────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_PackLayers_LayerIsStatic()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network", packLayers: true).Value!.MainStructure;
+
+        Assert.True(loadedNet.Layers["friends"].IsStatic);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_PackLayers_EdgesStillQueryable()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network", packLayers: true).Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 2, 3).Value);
+        Assert.False(loadedNet.CheckEdgeExists("friends", 1, 3).Value);
     }
 
     // ── Directed layer round-trip ──────────────────────────────────────────────
