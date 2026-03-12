@@ -337,7 +337,8 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("ConstraintSelftiesNotAllowed", $"Layer {Name} does not allow for selfties.");
             IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1Id);
             IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2Id);
-            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+            bool isSelfTie = node1Id == node2Id;
+            if ((IsSymmetric || !UserSettings.OnlyOutboundEdges) && !(isSelfTie && IsSymmetric))
                 if (!edgeSetNode2.AddInboundEdge(node1Id, value).Success)
                     return OperationResult.Fail("EdgeAlreadyExists", $"Inbound edge to {node2Id} from {node1Id} already exists.");
             if (!edgeSetNode1.AddOutboundEdge(node2Id, value).Success)
