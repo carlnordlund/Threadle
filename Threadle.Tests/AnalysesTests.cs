@@ -561,4 +561,212 @@ public class AnalysesTests
         var result = Analyses.GetRandomEdge(net, "layer", maxAttempts: 0);
         Assert.False(result.Success);
     }
+
+    // ── Density: static layers ────────────────────────────────────────────────────
+
+    [Fact]
+    public void Density_StaticUndirectedOneMode_MatchesDynamic()
+    {
+        // 3 nodes: 1-2, 2-3 → density = 2/3
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var dynResult = Analyses.Density(net, "layer");
+        net.Pack("layer");
+        var staticResult = Analyses.Density(net, "layer");
+
+        Assert.True(dynResult.Success);
+        Assert.True(staticResult.Success);
+        Assert.Equal(dynResult.Value, staticResult.Value, 10);
+    }
+
+    [Fact]
+    public void Density_StaticDirectedOneMode_MatchesDynamic()
+    {
+        // 3 nodes, directed: 1→2, 2→3 → density = 2/6
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var dynResult = Analyses.Density(net, "layer");
+        net.Pack("layer");
+        var staticResult = Analyses.Density(net, "layer");
+
+        Assert.True(dynResult.Success);
+        Assert.True(staticResult.Success);
+        Assert.Equal(dynResult.Value, staticResult.Value, 10);
+    }
+
+    [Fact]
+    public void Density_StaticTwoMode_MatchesDynamic()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var dynResult = Analyses.Density(net, "clubs");
+        net.Pack("clubs");
+        var staticResult = Analyses.Density(net, "clubs");
+
+        Assert.True(dynResult.Success);
+        Assert.True(staticResult.Success);
+        Assert.Equal(dynResult.Value, staticResult.Value, 10);
+    }
+
+    // ── ShortestPath: static layers ───────────────────────────────────────────────
+
+    [Fact]
+    public void ShortestPath_StaticLayer_DirectlyConnected_ReturnsOne()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.Pack("layer");
+
+        var result = Analyses.ShortestPath(net, "layer", 1, 2);
+        Assert.True(result.Success);
+        Assert.Equal(1, result.Value);
+    }
+
+    [Fact]
+    public void ShortestPath_StaticLayer_IndirectPath_ReturnsCorrectDistance()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.Pack("layer");
+
+        var result = Analyses.ShortestPath(net, "layer", 1, 3);
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Value);
+    }
+
+    [Fact]
+    public void ShortestPath_StaticLayer_NoPath_ReturnsNegativeOne()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        // node 3 is isolated
+        net.Pack("layer");
+
+        var result = Analyses.ShortestPath(net, "layer", 1, 3);
+        Assert.True(result.Success);
+        Assert.Equal(-1, result.Value);
+    }
+
+    [Fact]
+    public void ShortestPath_StaticLayer_MatchesDynamic()
+    {
+        // Chain 1-2-3-4: shortest path from 1 to 4 is 3
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 4);
+
+        var dynResult = Analyses.ShortestPath(net, "layer", 1, 4);
+        net.Pack("layer");
+        var staticResult = Analyses.ShortestPath(net, "layer", 1, 4);
+
+        Assert.True(dynResult.Success);
+        Assert.True(staticResult.Success);
+        Assert.Equal(dynResult.Value, staticResult.Value);
+    }
+
+    [Fact]
+    public void ShortestPath_StaticDirectedLayer_RespectsDirection()
+    {
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.Pack("layer");
+
+        var forward = Analyses.ShortestPath(net, "layer", 1, 3);
+        var reverse = Analyses.ShortestPath(net, "layer", 3, 1);
+
+        Assert.True(forward.Success);
+        Assert.Equal(2, forward.Value);
+        Assert.True(reverse.Success);
+        Assert.Equal(-1, reverse.Value);
+    }
+
+    // ── ConnectedComponents: static and two-mode layers ───────────────────────────
+
+    [Fact]
+    public void ConnectedComponents_StaticLayer_MatchesDynamic()
+    {
+        // 1-2 connected, 3-4 connected, 5 isolated → 3 components
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 3, 4);
+
+        var dynResult = Analyses.ConnectedComponents(net, "layer", "comp_dyn");
+        net.Pack("layer");
+        var staticResult = Analyses.ConnectedComponents(net, "layer", "comp_static");
+
+        Assert.True(dynResult.Success);
+        Assert.True(staticResult.Success);
+        Assert.Equal((int)dynResult.Value!["NbrComponents"], (int)staticResult.Value!["NbrComponents"]);
+
+        // Nodes 1 and 2 must be in the same component in both
+        Assert.Equal(GetIntAttr(net, 1, "comp_dyn"), GetIntAttr(net, 2, "comp_dyn"));
+        Assert.Equal(GetIntAttr(net, 1, "comp_static"), GetIntAttr(net, 2, "comp_static"));
+        // Nodes 1 and 3 must be in different components in both
+        Assert.NotEqual(GetIntAttr(net, 1, "comp_dyn"), GetIntAttr(net, 3, "comp_dyn"));
+        Assert.NotEqual(GetIntAttr(net, 1, "comp_static"), GetIntAttr(net, 3, "comp_static"));
+    }
+
+    [Fact]
+    public void ConnectedComponents_StaticLayer_TwoComponents_CorrectCount()
+    {
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 3, 4);
+        net.Pack("layer");
+
+        var result = Analyses.ConnectedComponents(net, "layer");
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrComponents"]);
+    }
+
+    [Fact]
+    public void ConnectedComponents_DynamicTwoMode_ReturnsComponents()
+    {
+        // Two-mode: club1={1,2}, club2={3,4} → nodes 1,2 in one component; 3,4 in another
+        var net = MakeNetwork(4);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4 });
+
+        var result = Analyses.ConnectedComponents(net, "clubs");
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrComponents"]);
+    }
+
+    [Fact]
+    public void ConnectedComponents_StaticTwoMode_MatchesDynamic()
+    {
+        // club1={1,2,3}, club2={4} → nodes 1,2,3 connected; 4 isolated → 2 components
+        var net = MakeNetwork(4);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+
+        var dynResult = Analyses.ConnectedComponents(net, "clubs");
+        net.Pack("clubs");
+        var staticResult = Analyses.ConnectedComponents(net, "clubs");
+
+        Assert.True(dynResult.Success);
+        Assert.True(staticResult.Success);
+        Assert.Equal((int)dynResult.Value!["NbrComponents"], (int)staticResult.Value!["NbrComponents"]);
+    }
 }
