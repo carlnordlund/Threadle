@@ -144,7 +144,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The network containing the layer.</param>
         /// <param name="layerName">The name of the layer.</param>
         /// <returns>An OperationResult containing the density value if successful; otherwise, an error message.</returns>
-        public static OperationResult<double> Density(Network network, string layerName)
+        public static OperationResult<double> Density(Network network, string layerName, int sampleSize = 200)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
@@ -152,7 +152,7 @@ namespace Threadle.Core.Analysis
             if (layerResult.Value is ILayerOneMode layerOneMode)
                 return OperationResult<double>.Ok(Functions.Density(network, layerOneMode));
             if (layerResult.Value is ILayerTwoMode layerTwoMode)
-                return OperationResult<double>.Ok(Functions.Density(network, layerTwoMode));
+                return OperationResult<double>.Ok(Functions.Density(network, layerTwoMode, sampleSize));
             return OperationResult<double>.Fail("UnexpectedError", $"Error calculating density of layer '{layerName}'");
         }
 

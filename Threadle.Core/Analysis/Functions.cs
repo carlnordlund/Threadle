@@ -63,15 +63,23 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layer">The 2-mode layer object.</param>
         /// <returns>Density (as a double value)</returns>
-        internal static double Density(Network network, ILayerTwoMode layer)
+        internal static double Density(Network network, ILayerTwoMode layer, int sampleSize = 200)
         {
             int nbrNodes = network.Nodeset.Count;
-            ulong nbrPotentialEdges = (ulong)nbrNodes * (ulong)(nbrNodes - 1);
+            if (nbrNodes <= 1)
+                return 0.0;
 
-            ulong nbrExistingEdges = 0;
-            foreach (uint nodeId in network.Nodeset.NodeIdArray)
-                nbrExistingEdges += (ulong)layer.GetNodeAlters(nodeId, EdgeTraversal.Out).Length;
-            return (double)nbrExistingEdges / nbrPotentialEdges;
+            ulong nbrPotentialEdges = (ulong)nbrNodes * (ulong)(nbrNodes - 1);
+            uint[] allNodeIds = network.Nodeset.NodeIdArray;
+            int actualSample = Math.Min(nbrNodes, sampleSize);
+            uint[] ids = (uint[])allNodeIds.Clone();
+            Misc.SampleWithoutReplacementInPlace(ids, actualSample);
+            ulong sumAlters = 0;
+            for (int i = 0; i < actualSample; i++)
+                sumAlters += (ulong)layer.GetNodeAlters(ids[i], EdgeTraversal.Out).Length;
+
+            double meanAlters = (double)sumAlters / actualSample;
+            return meanAlters*nbrNodes/(double)nbrPotentialEdges;
         }
 
         /// <summary>
