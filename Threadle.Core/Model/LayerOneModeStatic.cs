@@ -437,9 +437,15 @@ namespace Threadle.Core.Model
             foreach (var (egoId, index) in _nodeIdToIndexMapper)
             {
                 int start = _offsets[index], end = _offsets[index + 1];
-                yield return (egoId,
-                    _neighborNodeIds.AsMemory(start, end - start),
-                    _values != null ? _values.AsMemory(start, end - start) : ReadOnlyMemory<float>.Empty);
+                uint[] alters = new uint[end - start];       // allocates N arrays
+                Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
+                float[]? values = _values != null ? _values[start..end] : null;  // N more
+                yield return (egoId, alters, values);
+
+                //int start = _offsets[index], end = _offsets[index + 1];
+                //yield return (egoId,
+                //    _neighborNodeIds.AsMemory(start, end - start),
+                //    _values != null ? _values.AsMemory(start, end - start) : ReadOnlyMemory<float>.Empty);
 
                 //uint[] alters = new uint[end - start];
                 //Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
@@ -456,10 +462,14 @@ namespace Threadle.Core.Model
             Dictionary<uint, int> mapper, int[] outOffsets, uint[] outNeighborNodeIds)
         {
             int n = mapper.Count;
-            uint[] egoIds = [.. mapper.Keys.OrderBy(id => mapper[id])];
+
+            uint[] egoIds = new uint[n];
+            foreach (var (nodeId, index) in mapper)
+                egoIds[index] = nodeId;
 
             var inNeighborsPerNode = new List<uint>[n];
-            for (int i = 0; i < n; i++) inNeighborsPerNode[i] = [];
+            for (int i = 0; i < n; i++)
+                inNeighborsPerNode[i] = [];
 
             for (int i = 0; i < n; i++)
             {
@@ -477,7 +487,8 @@ namespace Threadle.Core.Model
             for (int i = 0; i < n; i++)
             {
                 inOffsets[i] = inNeighborList.Count;
-                inNeighborList.AddRange(inNeighborsPerNode[i].Order());
+                inNeighborsPerNode[i].Sort();
+                inNeighborList.AddRange(inNeighborsPerNode[i]);
             }
             inOffsets[n] = inNeighborList.Count;
             return ([.. inOffsets], [.. inNeighborList]);
