@@ -150,7 +150,10 @@ namespace Threadle.Core.Model
             int[]? inOffsets = null;
             uint[]? inNeighborNodeIds = null;
             if (source.IsDirectional)
-                (inOffsets, inNeighborNodeIds) = _buildInboundFromOutbound(mapper, offsets, finalNeighborNodeIds);
+                (inOffsets,inNeighborNodeIds) = _buildInboundFromOutbound(mapper, offsets, finalNeighborNodeIds);
+
+
+
             return new LayerOneModeStatic(source.Name, source.Directionality, source.EdgeValueType, source.Selfties, mapper, offsets, finalNeighborNodeIds, valueList.Count > 0 ? [.. valueList] : null, inOffsets, inNeighborNodeIds);
         }
 
@@ -192,26 +195,27 @@ namespace Threadle.Core.Model
                 return uints;
             }
 
-            if (edgeTraversal == EdgeTraversal.In)
+            if (edgeTraversal== EdgeTraversal.In)
             {
-                if (_inOffsets == null || _inNeighborNodeIds == null) return [];
+                if (_inOffsets == null || _inNeighborNodeIds == null)
+                    return [];
                 int start = _inOffsets[index], end = _inOffsets[index + 1];
                 uint[] uints = new uint[end - start];
                 Array.Copy(_inNeighborNodeIds, start, uints, 0, end - start);
                 return uints;
             }
 
-            // EdgeTraversal.Both: union of out- and in-neighbors (deduplicated for self-tie cases)
-            {
-                int outStart = _offsets[index], outEnd = _offsets[index + 1];
-                int inStart = _inOffsets != null ? _inOffsets[index] : 0;
-                int inEnd = _inOffsets != null ? _inOffsets[index + 1] : 0;
-                var result = new HashSet<uint>(outEnd - outStart + inEnd - inStart);
-                for (int j = outStart; j < outEnd; j++) result.Add(_neighborNodeIds[j]);
-                if (_inNeighborNodeIds != null)
-                    for (int j = inStart; j < inEnd; j++) result.Add(_inNeighborNodeIds[j]);
-                return [.. result];
-            }
+            // Otherwise, edgetraversal.both: union of out- and in-neighbors (deduplicated)
+            int outStart = _offsets[index], outEnd = _offsets[index + 1];
+            int inStart = _inOffsets != null ? _inOffsets[index] : 0;
+            int inEnd = _inOffsets != null ? _inOffsets[index+1] : 0;
+            var result = new HashSet<uint>(outEnd - outStart + inEnd - inStart);
+            for (int j = outStart; j < outEnd; j++)
+                result.Add(_neighborNodeIds[j]);
+            if (_inNeighborNodeIds != null)
+                for (int j = inStart; j < inEnd; j++)
+                    result.Add(_inNeighborNodeIds[j]);
+            return [.. result];
         }
 
         /// <summary>
@@ -326,6 +330,13 @@ namespace Threadle.Core.Model
                 }
                 _newOffsets.Add(_newNeighborNodeIds.Count);
             }
+            uint[] filteredNeighborNodeIds = [.. _newNeighborNodeIds];
+            int[] filteredOffsets = [.. _newOffsets];
+            int[]? filteredInOffsets = null;
+            uint[]? filteredInNeighborNodeIds = null;
+            if (IsDirectional)
+                (filteredInOffsets, filteredInNeighborNodeIds) = _buildInboundFromOutbound(_newMapper, filteredOffsets, filteredNeighborNodeIds);
+
 
             uint[] filteredNeighborNodeIds = [.. _newNeighborNodeIds];
             int[] filteredOffsets = [.. _newOffsets];
@@ -377,6 +388,38 @@ namespace Threadle.Core.Model
 
 
         #region Methods (internal, private)
+
+        private static (int[] inOffsets, uint[] inNeighborIds) _buildInboundFromOutbound(Dictionary<uint,int> mapper, int[] outOffsets, uint[] outNeighborNodeIds)
+        {
+            int n = mapper.Count;
+            uint[] egoIds = [.. mapper.Keys.OrderBy(id => mapper[id])];
+
+            var inNeighborsPerNode = new List<uint>[n];
+            for (int i = 0; i < n; i++)
+                inNeighborsPerNode[i] = [];
+            for (int i=0;i<n;i++)
+            {
+                int start = outOffsets[i], end = outOffsets[i + 1];
+                for (int j=start; j<end; j++)
+                {
+                    uint neighborId = outNeighborNodeIds[j];
+                    if (mapper.TryGetValue(neighborId, out int neighborIdx))
+                        inNeighborsPerNode[neighborIdx].Add(egoIds[i]);
+                }
+            }
+
+            var inOffsets = new int[n + 1];
+            var inNeighborList = new List<uint>();
+            for (int i=0;i<n;i++)
+            {
+                inOffsets[i] = inNeighborList.Count;
+                inNeighborList.AddRange(inNeighborsPerNode[i].Order());
+            }
+            inOffsets[n] = inNeighborList.Count;
+            return ([.. inOffsets], [.. inNeighborList]);
+
+        }
+
         internal IEnumerable<(uint egoId, uint[] alters, float[]? values)> GetAllEgoData()
         {
             // Iterate through all node Ids in this layer
