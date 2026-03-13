@@ -11,13 +11,13 @@ namespace Threadle.Core.Model
     {
         #region Fields
         /// <summary>
-        /// 
+        ///
         /// </summary>
         private Dictionary<uint, int> _nodeIdToIndexMapper;
         private int[] _offsets;
         private uint[] _neighborNodeIds;
         private float[]? _values;
-        // The two below are for directional edges: needed to get inbound edges to a given node.
+        // For directed layers: reverse CSR storing inbound neighbors per node
         private int[]? _inOffsets;
         private uint[]? _inNeighborNodeIds;
         #endregion
@@ -186,9 +186,9 @@ namespace Threadle.Core.Model
             if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int index))
                 return [];
 
+            // For undirected layers traversal direction is irrelevant — just return stored neighbors
             if (!IsDirectional || edgeTraversal == EdgeTraversal.Out)
             {
-
                 int start = _offsets[index], end = _offsets[index + 1];
                 uint[] uints = new uint[end - start];
                 Array.Copy(_neighborNodeIds, start, uints, 0, end - start);
@@ -338,6 +338,12 @@ namespace Threadle.Core.Model
                 (filteredInOffsets, filteredInNeighborNodeIds) = _buildInboundFromOutbound(_newMapper, filteredOffsets, filteredNeighborNodeIds);
 
 
+            uint[] filteredNeighborNodeIds = [.. _newNeighborNodeIds];
+            int[] filteredOffsets = [.. _newOffsets];
+            int[]? filteredInOffsets = null;
+            uint[]? filteredInNeighborNodeIds = null;
+            if (IsDirectional)
+                (filteredInOffsets, filteredInNeighborNodeIds) = _buildInboundFromOutbound(_newMapper, filteredOffsets, filteredNeighborNodeIds);
             return new LayerOneModeStatic(this.Name + "_filtered", this.Directionality, this.EdgeValueType, this.Selfties, _newMapper, filteredOffsets, filteredNeighborNodeIds, _newValues?.ToArray(), filteredInOffsets, filteredInNeighborNodeIds);
         }
 
@@ -425,6 +431,41 @@ namespace Threadle.Core.Model
                 float[]? values = _values != null ? _values[start..end] : null;
                 yield return (egoId, alters, values);
             }
+        }
+
+        /// <summary>
+        /// Builds the inbound CSR from the current outbound CSR. For each out-edge X→Y,
+        /// Y gains X as an inbound neighbor. Only called for directed layers.
+        /// </summary>
+        private static (int[] inOffsets, uint[] inNeighborIds) _buildInboundFromOutbound(
+            Dictionary<uint, int> mapper, int[] outOffsets, uint[] outNeighborNodeIds)
+        {
+            int n = mapper.Count;
+            uint[] egoIds = [.. mapper.Keys.OrderBy(id => mapper[id])];
+
+            var inNeighborsPerNode = new List<uint>[n];
+            for (int i = 0; i < n; i++) inNeighborsPerNode[i] = [];
+
+            for (int i = 0; i < n; i++)
+            {
+                int start = outOffsets[i], end = outOffsets[i + 1];
+                for (int j = start; j < end; j++)
+                {
+                    uint neighborId = outNeighborNodeIds[j];
+                    if (mapper.TryGetValue(neighborId, out int neighborIdx))
+                        inNeighborsPerNode[neighborIdx].Add(egoIds[i]);
+                }
+            }
+
+            var inOffsets = new int[n + 1];
+            var inNeighborList = new List<uint>();
+            for (int i = 0; i < n; i++)
+            {
+                inOffsets[i] = inNeighborList.Count;
+                inNeighborList.AddRange(inNeighborsPerNode[i].Order());
+            }
+            inOffsets[n] = inNeighborList.Count;
+            return ([.. inOffsets], [.. inNeighborList]);
         }
         #endregion
     }
