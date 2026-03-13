@@ -46,9 +46,6 @@ namespace Threadle.Core.Model
         /// <returns></returns>
         List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 10000);
 
-        uint GetOutDegree(uint nodeId);
-
-        uint GetInDegree(uint nodeId);
         #endregion
 
     }
