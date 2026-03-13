@@ -456,7 +456,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         /// <returns>The number of outbound edges this node id has.</returns>
-        internal uint GetOutDegree(uint nodeId)
+        public uint GetOutDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
                 return 0;
@@ -468,7 +468,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         /// <returns>The number of inbound edges this node id has.</returns>
-        internal uint GetInDegree(uint nodeId)
+        public uint GetInDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
                 return 0;

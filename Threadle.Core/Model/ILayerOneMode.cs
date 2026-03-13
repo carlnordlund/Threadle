@@ -25,7 +25,7 @@ namespace Threadle.Core.Model
         #endregion
 
 
-        # region Methodes
+        #region Methods
         /// <summary>
         /// Returns a paginated list of all edges in the layer, each edge described as a dictionary with
         /// keys "node1" and "node2" (and for valued layers also "value").
@@ -35,6 +35,10 @@ namespace Threadle.Core.Model
         /// <param name="limit"></param>
         /// <returns></returns>
         List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 10000);
+
+        uint GetOutDegree(uint nodeId);
+
+        uint GetInDegree(uint nodeId);
         #endregion
 
     }

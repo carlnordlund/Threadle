@@ -149,9 +149,9 @@ namespace Threadle.Core.Analysis
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<double>.Fail(layerResult);
-            if (layerResult.Value is LayerOneMode layerOneMode)
+            if (layerResult.Value is ILayerOneMode layerOneMode)
                 return OperationResult<double>.Ok(Functions.Density(network, layerOneMode));
-            if (layerResult.Value is LayerTwoMode layerTwoMode)
+            if (layerResult.Value is ILayerTwoMode layerTwoMode)
                 return OperationResult<double>.Ok(Functions.Density(network, layerTwoMode));
             return OperationResult<double>.Fail("UnexpectedError", $"Error calculating density of layer '{layerName}'");
         }
@@ -205,23 +205,18 @@ namespace Threadle.Core.Analysis
                 return OperationResult<string>.Fail(layerResult);
             ILayer layer = layerResult.Value!;
             Dictionary<uint, uint> degreeMapping = [];
-            if (layer is LayerOneMode layerOneMode)
+            if (layer is ILayerOneMode layerOneMode)
             {
-                string dirString = layerOneMode switch
+                string dirString = layerOneMode.IsSymmetric ? "degree" : edgeTraversal switch
                 {
-                    LayerOneMode { IsSymmetric: true } => "degree",
-                    LayerOneMode { IsSymmetric: false } => edgeTraversal switch
-                    {
-                        EdgeTraversal.Out => "outdegree",
-                        EdgeTraversal.In => "indegree",
-                        _ => "grossdegree"
-                    },
-                    _ => "degree"
+                    EdgeTraversal.Out => "outdegree",
+                    EdgeTraversal.In => "indegree",
+                    _ => "grossdegree"
                 };
                 attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_" + dirString;
                 degreeMapping = Functions.DegreeCentrality(network, layerOneMode, edgeTraversal);
             }
-            else if (layer is LayerTwoMode layerTwoMode)
+            else if (layer is ILayerTwoMode layerTwoMode)
             {
                 attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_degree";
                 degreeMapping = Functions.DegreeCentrality(network, layerTwoMode);
@@ -332,9 +327,9 @@ namespace Threadle.Core.Analysis
             if (randomEdge != null)
                 return OperationResult<Dictionary<string, object>>.Ok(randomEdge, "Random edge found through polling.");
 
-            if (layer is LayerOneMode layerOneMode)
+            if (layer is ILayerOneMode layerOneMode)
                 randomEdge = Functions.GetRandomEdgeSweepOneMode(layerOneMode);
-            else if (layer is LayerTwoMode layerTwoMode)
+            else if (layer is ILayerTwoMode layerTwoMode)
                 randomEdge = Functions.GetRandomEdgeWeightedTwoMode(layerTwoMode);
 
             if (randomEdge == null)

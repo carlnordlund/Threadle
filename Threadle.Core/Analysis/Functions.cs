@@ -17,7 +17,7 @@ namespace Threadle.Core.Analysis
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <param name="edgeTraversal">A <see cref="EdgeTraversal"/> value specifying whether indegree, outdegree or grossdegree should be calculated.</param>
         /// <returns>Returns a dictionary with degree centrality measures by node id.</returns>
-        internal static Dictionary<uint, uint> DegreeCentrality(Network network, LayerOneMode layerOneMode, EdgeTraversal edgeTraversal)
+        internal static Dictionary<uint, uint> DegreeCentrality(Network network, ILayerOneMode layerOneMode, EdgeTraversal edgeTraversal)
         {
             Dictionary<uint, uint> degreeCentrality = edgeTraversal switch
             {
@@ -34,11 +34,11 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 2-mode layer object.</param>
         /// <returns>Returns a dictionary with outdegree centrality measures by node id.</returns>
-        internal static Dictionary<uint, uint> DegreeCentrality(Network network, LayerTwoMode layerTwoMode)
+        internal static Dictionary<uint, uint> DegreeCentrality(Network network, ILayerTwoMode layerTwoMode)
         {
             Dictionary<uint, uint> degreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
-                degreeCentrality[nodeId] = (uint)layerTwoMode.GetNodeAlters(nodeId).Length;
+                degreeCentrality[nodeId] = (uint)layerTwoMode.GetNodeAlters(nodeId, EdgeTraversal.Out).Length;
             return degreeCentrality;
         }
 
@@ -48,7 +48,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layer">The 1-mode layer object.</param>
         /// <returns>Density (as a double value).</returns>
-        internal static double Density(Network network, LayerOneMode layer)
+        internal static double Density(Network network, ILayerOneMode layer)
         {
             ulong nbrPotentialEdges = Misc.GetNbrPotentialEdges((ulong)network.Nodeset.Count, layer.Directionality, layer.Selfties);
             ulong nbrExistingEdges = layer.NbrEdges;
@@ -63,14 +63,14 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layer">The 2-mode layer object.</param>
         /// <returns>Density (as a double value)</returns>
-        internal static double Density(Network network, LayerTwoMode layer)
+        internal static double Density(Network network, ILayerTwoMode layer)
         {
             int nbrNodes = network.Nodeset.Count;
             ulong nbrPotentialEdges = (ulong)nbrNodes * (ulong)(nbrNodes - 1);
 
             ulong nbrExistingEdges = 0;
             foreach (uint nodeId in network.Nodeset.NodeIdArray)
-                nbrExistingEdges += (ulong)layer.GetNodeAlters(nodeId).Length;
+                nbrExistingEdges += (ulong)layer.GetNodeAlters(nodeId, EdgeTraversal.Out).Length;
             return (double)nbrExistingEdges / nbrPotentialEdges;
         }
 
@@ -278,7 +278,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <returns>Returns a dictionary with gross degree centrality measures by node id.</returns>
-        private static Dictionary<uint, uint> GrossDegreeCentrality(Network network, LayerOneMode layerOneMode)
+        private static Dictionary<uint, uint> GrossDegreeCentrality(Network network, ILayerOneMode layerOneMode)
         {
             Dictionary<uint, uint> grossDegreeCentrality = [];
             if (layerOneMode.IsSymmetric)
@@ -296,7 +296,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <returns>Returns a dictionary with indegree centrality measures by node id.</returns>
-        private static Dictionary<uint, uint> InDegreeCentrality(Network network, LayerOneMode layerOneMode)
+        private static Dictionary<uint, uint> InDegreeCentrality(Network network, ILayerOneMode layerOneMode)
         {
             Dictionary<uint, uint> inDegreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
@@ -310,7 +310,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <returns>Returns a dictionary with outdegree centrality measures by node id.</returns>
-        private static Dictionary<uint, uint> OutDegreeCentrality(Network network, LayerOneMode layerOneMode)
+        private static Dictionary<uint, uint> OutDegreeCentrality(Network network, ILayerOneMode layerOneMode)
         {
             Dictionary<uint, uint> outDegreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
@@ -371,46 +371,34 @@ namespace Threadle.Core.Analysis
             return null;
         }
 
-        internal static Dictionary<string, object>? GetRandomEdgeSweepOneMode(LayerOneMode layerOneMode)
+        internal static Dictionary<string, object>? GetRandomEdgeSweepOneMode(ILayerOneMode layerOneMode)
         {
             if (layerOneMode.NbrEdges == 0)
                 return null;
             int totalEdges = (int)Math.Min(layerOneMode.NbrEdges, int.MaxValue);
             int randomIndex = Misc.Random.Next(totalEdges);
-            foreach (var kvp in layerOneMode.Edgesets)
-            {
-                if (randomIndex < kvp.Value.NbrEdges)
-                {
-                    uint node1 = kvp.Key;
-                    uint node2 = kvp.Value.GetOutboundNodeIds.ElementAt(randomIndex);
-                    float value = layerOneMode.GetEdgeValue(node1, node2);
-                    return new Dictionary<string, object>
-                    {
-                        ["node1"] = node1,
-                        ["node2"] = node2,
-                        ["value"] = value
-                    };
-                }
-                randomIndex -= (int)kvp.Value.NbrEdges;
-            }
-            return null;
+            var edges = layerOneMode.GetAllEdges(randomIndex, 1);
+            return edges.Count > 0 ? edges[0] : null;
         }
 
-        internal static Dictionary<string, object>? GetRandomEdgeWeightedTwoMode(LayerTwoMode layerTwoMode)
+        internal static Dictionary<string, object>? GetRandomEdgeWeightedTwoMode(ILayerTwoMode layerTwoMode)
         {
-            var validHyperedges = layerTwoMode.AllHyperEdges.Values.Where(h => h.NbrNodes >= 2).ToList();
-            if (validHyperedges.Count == 0)
-                return null;
-            List<int> weights = new(validHyperedges.Count);
-            Int64 totalWeight = 0;
-            foreach (var hyperedge in validHyperedges)
-            {
-                int k = hyperedge.NbrNodes;
-                int weight = k * (k - 1) / 2;
-                weights.Add(weight);
-                totalWeight += weight;
-            }
+            string[] allNames = layerTwoMode.GetAllHyperedgeNames(0, (int)Math.Min(layerTwoMode.NbrHyperedges, int.MaxValue));
+            List<string> validNames = [];
+            List<int> weights = [];
+            long totalWeight = 0;
 
+            foreach (string name in allNames)
+            {
+                int k = layerTwoMode.GetHyperedgeNodeIds(name).Length;
+                if (k>=2)
+                {
+                    int weight = k * (k - 1) / 2;
+                    validNames.Add(name);
+                    weights.Add(weight);
+                    totalWeight += weight;
+                }
+            }
             if (totalWeight == 0)
                 return null;
             Int64 randomWeight = Misc.Random.NextInt64(totalWeight);
@@ -426,19 +414,18 @@ namespace Threadle.Core.Analysis
                 randomWeight -= weights[i];
             }
 
-            Hyperedge selectedHyperedge = validHyperedges[selectedIndex];
-            var Nodeids = selectedHyperedge.NodeIds.ToArray();
-            int idx1 = Misc.Random.Next(Nodeids.Length);
+            uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(validNames[selectedIndex]);
+            int idx1 = Misc.Random.Next(nodeIds.Length);
             int idx2;
             do
             {
-                idx2 = Misc.Random.Next(Nodeids.Length);
+                idx2 = Misc.Random.Next(nodeIds.Length);
             } while (idx2 == idx1);
             return new Dictionary<string, object>
             {
-                ["node1"] = Nodeids[idx1],
-                ["node2"] = Nodeids[idx2],
-                ["value"] = layerTwoMode.GetEdgeValue(Nodeids[idx1], Nodeids[idx2])
+                ["node1"] = nodeIds[idx1],
+                ["node2"] = nodeIds[idx2],
+                ["value"] = layerTwoMode.GetEdgeValue(nodeIds[idx1], nodeIds[idx2])
             };
         }
         #endregion

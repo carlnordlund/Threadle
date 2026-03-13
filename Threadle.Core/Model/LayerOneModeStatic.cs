@@ -264,6 +264,22 @@ namespace Threadle.Core.Model
             return edges;
         }
 
+        public uint GetOutDegree(uint nodeId)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int index))
+                return 0;
+            return (uint)(_offsets[index + 1] - _offsets[index]);
+        }
+
+        public uint GetInDegree(uint nodeId)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int index))
+                return 0;
+            if (!IsDirectional || _inOffsets == null)
+                return (uint)(_offsets[index + 1] - _offsets[index]);
+            return (uint)(_inOffsets[index + 1] - _inOffsets[index]);
+        }
+
 
         public void RemoveNodeEdges(uint nodeId)
         {
