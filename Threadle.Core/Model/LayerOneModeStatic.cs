@@ -226,6 +226,22 @@ namespace Threadle.Core.Model
         /// <param name="limit">The maximum number of edges to return. Must be greater than 0.</param>
         /// <returns>A list of dictionaries, each containing the identifiers of two connected nodes and the associated value. The
         /// list may be empty if no edges are available after applying the offset.</returns>
+        public uint GetOutDegree(uint nodeId)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int index))
+                return 0;
+            return (uint)(_offsets[index + 1] - _offsets[index]);
+        }
+
+        public uint GetInDegree(uint nodeId)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int index))
+                return 0;
+            if (!IsDirectional || _inOffsets == null)
+                return (uint)(_offsets[index + 1] - _offsets[index]);
+            return (uint)(_inOffsets[index + 1] - _inOffsets[index]);
+        }
+
         public List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 1000)
         {
             List<Dictionary<string, object>> edges = [];
