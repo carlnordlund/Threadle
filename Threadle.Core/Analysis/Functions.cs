@@ -387,11 +387,10 @@ namespace Threadle.Core.Analysis
             List<string> validNames = [];
             List<int> weights = [];
             long totalWeight = 0;
-
             foreach (string name in allNames)
             {
                 int k = layerTwoMode.GetHyperedgeNodeIds(name).Length;
-                if (k>=2)
+                if (k >= 2)
                 {
                     int weight = k * (k - 1) / 2;
                     validNames.Add(name);
@@ -401,8 +400,7 @@ namespace Threadle.Core.Analysis
             }
             if (totalWeight == 0)
                 return null;
-            Int64 randomWeight = Misc.Random.NextInt64(totalWeight);
-
+            long randomWeight = Misc.Random.NextInt64(totalWeight);
             int selectedIndex = 0;
             for (int i = 0; i < weights.Count; i++)
             {
@@ -413,7 +411,6 @@ namespace Threadle.Core.Analysis
                 }
                 randomWeight -= weights[i];
             }
-
             uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(validNames[selectedIndex]);
             int idx1 = Misc.Random.Next(nodeIds.Length);
             int idx2;
