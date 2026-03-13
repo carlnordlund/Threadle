@@ -15,7 +15,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "degree(network = [var:network], layername = [str], *attrname = [str], *direction = ['in','out'(default),'both'])";
+        public string Syntax => "degree(network = [var:network], layername = [str], *attrname = [str], *direction = ['both','in','out'(default)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
