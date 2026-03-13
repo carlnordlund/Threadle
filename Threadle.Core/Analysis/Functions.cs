@@ -38,7 +38,7 @@ namespace Threadle.Core.Analysis
         {
             Dictionary<uint, uint> degreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
-                degreeCentrality[nodeId] = (uint)layerTwoMode.GetNodeAlters(nodeId, EdgeTraversal.Out).Length;
+                degreeCentrality[nodeId] = (uint)layerTwoMode.GetNodeAlters(nodeId, EdgeTraversal.Both).Length;
             return degreeCentrality;
         }
 

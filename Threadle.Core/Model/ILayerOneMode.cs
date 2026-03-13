@@ -27,6 +27,16 @@ namespace Threadle.Core.Model
 
         #region Methods
         /// <summary>
+        /// Returns the number of outbound edges for the specified node. For undirected layers, equals the degree.
+        /// </summary>
+        uint GetOutDegree(uint nodeId);
+
+        /// <summary>
+        /// Returns the number of inbound edges for the specified node. For undirected layers, equals the degree.
+        /// </summary>
+        uint GetInDegree(uint nodeId);
+
+        /// <summary>
         /// Returns a paginated list of all edges in the layer, each edge described as a dictionary with
         /// keys "node1" and "node2" (and for valued layers also "value").
         /// For undirected layers, each edge is returned only once (lower node id first).
