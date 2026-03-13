@@ -131,15 +131,18 @@ namespace Threadle.Core.Model
         public static LayerOneMode FromStatic(LayerOneModeStatic source)
         {
             var layer = new LayerOneMode(source.Name, source.Directionality, source.EdgeValueType, source.Selfties);
+            layer._initSizeEdgesetDictionary(source.NodeCount);
             foreach (var (egoId, alters, values) in source.GetAllEgoData())
             {
                 IEdgeset edgeset = layer.GetOrCreateEdgeset(egoId);
-                if (values != null)
+                edgeset._setCapacity(alters.Length);
+                ReadOnlySpan<uint> altersSpan = alters.Span;
+                if (!values.IsEmpty)
                     for (int i = 0; i < alters.Length; i++)
-                        edgeset._addOutboundEdge(alters[i], values[i]);
+                        edgeset._addOutboundEdge(altersSpan[i], altersSpan[i]);
                 else
                     for (int i = 0; i < alters.Length; i++)
-                        edgeset._addOutboundEdge(alters[i], 1f);
+                        edgeset._addOutboundEdge(altersSpan[i], 1f);
             }
             return layer;
         }

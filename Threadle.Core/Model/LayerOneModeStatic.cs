@@ -86,6 +86,8 @@ namespace Threadle.Core.Model
         /// </summary>
         public uint NbrEdges => (uint)(_neighborNodeIds.Length / (IsDirectional ? 1 : 2));
 
+        public int NodeCount => _nodeIdToIndexMapper.Count;
+
         /// <summary>
         /// Returns metadata about the layer (as a dictionary of objects).
         /// </summary>
@@ -429,16 +431,20 @@ namespace Threadle.Core.Model
 
         //}
 
-        internal IEnumerable<(uint egoId, uint[] alters, float[]? values)> GetAllEgoData()
+        internal IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
         {
             // Iterate through all node Ids in this layer
             foreach (var (egoId, index) in _nodeIdToIndexMapper)
             {
                 int start = _offsets[index], end = _offsets[index + 1];
-                uint[] alters = new uint[end - start];
-                Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
-                float[]? values = _values != null ? _values[start..end] : null;
-                yield return (egoId, alters, values);
+                yield return (egoId,
+                    _neighborNodeIds.AsMemory(start, end - start),
+                    _values != null ? _values.AsMemory(start, end - start) : ReadOnlyMemory<float>.Empty);
+
+                //uint[] alters = new uint[end - start];
+                //Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
+                //float[]? values = _values != null ? _values[start..end] : null;
+                //yield return (egoId, alters, values);
             }
         }
 
