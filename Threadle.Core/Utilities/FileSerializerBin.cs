@@ -1,4 +1,6 @@
-﻿using System.IO.Compression;
+﻿using System.Buffers.Binary;
+using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Text;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -199,11 +201,13 @@ namespace Threadle.Core.Utilities
 
                             // Prepare array of alters
                             uint[] nodeIdsAlters = new uint[nbrAlters];
+                            reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
 
-                            for (uint k = 0; k < nbrAlters; k++)
-                            {
-                                nodeIdsAlters[k] = reader.ReadUInt32();
-                            }
+
+                            //for (uint k = 0; k < nbrAlters; k++)
+                            //{
+                            //    nodeIdsAlters[k] = reader.ReadUInt32();
+                            //}
                             layerOneMode._addBinaryEdges(nodeIdEgo, nodeIdsAlters);
                         }
                     }
@@ -253,8 +257,17 @@ namespace Threadle.Core.Utilities
 
                         // Create an array of node ids connected to this hyperedge
                         uint[] nodeIds = new uint[nbrNodes];
-                        for (uint k = 0; k < nbrNodes; k++)
-                            nodeIds[k] = reader.ReadUInt32();
+
+                        // Below is quite costly: reading one node at a time. better to bulk read and then pull straight
+                        // into array
+                        //for (uint k = 0; k < nbrNodes; k++)
+                        //    nodeIds[k] = reader.ReadUInt32();
+
+                        reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
+                        if (!BitConverter.IsLittleEndian)
+                            for (int k = 0; k < nodeIds.Length; k++)
+                                nodeIds[k] = BinaryPrimitives.ReverseEndianness(nodeIds[k]);
+
 
                         // Create and add hyperedge to this layer
                         layerTwoMode._addHyperedge(hyperedgeName, nodeIds);
