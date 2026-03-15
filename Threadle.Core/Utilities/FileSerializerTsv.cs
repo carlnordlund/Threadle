@@ -127,29 +127,45 @@ namespace Threadle.Core.Utilities
             {
                 writer.WriteLine();
                 writer.WriteLine("# Layer");
-                if (layer is LayerOneMode layerOneMode)
+                if (layer is ILayerOneMode layerOneMode)
                 {
                     writer.WriteLine($"LayerMode: 1");
                     writer.WriteLine($"LayerName: {layerOneMode.Name}");
                     writer.WriteLine($"Directionality: {layerOneMode.Directionality.ToString().ToLower()}");
                     writer.WriteLine($"ValueType: {layerOneMode.EdgeValueType.ToString().ToLower()}");
                     writer.WriteLine($"Selfties: {layerOneMode.Selfties.ToString().ToLower()}");
-                    string nodelist = string.Empty;
-                    foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
-                        if ((nodelist = edgeset.GetNodelistAlterString(nodeId)).Length > 0)
-                            writer.WriteLine($"{nodeId}{nodelist}");
+                    bool isValued = layerOneMode.IsValued;
+                    foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
+                    {
+                        ReadOnlySpan<uint> alterSpan = alters.Span;
+                        if (alterSpan.IsEmpty)
+                            continue;
+                        sb.Clear();
+                        sb.Append(egoId);
+                        if (isValued)
+                        {
+                            ReadOnlySpan<float> valSpan = values.Span;
+                            for (int k = 0; k < alterSpan.Length; k++)
+                                sb.Append($"\t{alterSpan[k]};{valSpan[k].ToString(CultureInfo.InvariantCulture)}");
+                        }
+                        else
+                        {
+                            for (int k = 0; k < alterSpan.Length; k++)
+                                sb.Append($"\t{alterSpan[k]}");
+                        }
+                        writer.WriteLine(sb.ToString());
+                    }
                 }
-                else if (layer is LayerTwoMode layerTwoMode)
+                else if (layer is ILayerTwoMode layerTwoMode)
                 {
                     writer.WriteLine($"LayerMode: 2");
                     writer.WriteLine($"LayerName: {layerTwoMode.Name}");
-
-                    foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
+                    foreach (var (hyperName, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                     {
                         sb.Clear();
                         sb.Append(hyperName);
-                        if (hyperedge.NodeIds.Count > 0)
-                            sb.Append("\t" + string.Join("\t", hyperedge.NodeIds));
+                        if (nodeIds.Length > 0)
+                            sb.Append("\t" + string.Join("\t", nodeIds));
                         writer.WriteLine(sb.ToString());
                     }
                 }
