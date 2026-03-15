@@ -134,7 +134,9 @@ namespace Threadle.Core.Utilities
                     writer.WriteLine($"Directionality: {layerOneMode.Directionality.ToString().ToLower()}");
                     writer.WriteLine($"ValueType: {layerOneMode.EdgeValueType.ToString().ToLower()}");
                     writer.WriteLine($"Selfties: {layerOneMode.Selfties.ToString().ToLower()}");
+
                     bool isValued = layerOneMode.IsValued;
+
                     foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     {
                         ReadOnlySpan<uint> alterSpan = alters.Span;
@@ -160,6 +162,7 @@ namespace Threadle.Core.Utilities
                 {
                     writer.WriteLine($"LayerMode: 2");
                     writer.WriteLine($"LayerName: {layerTwoMode.Name}");
+
                     foreach (var (hyperName, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                     {
                         sb.Clear();
