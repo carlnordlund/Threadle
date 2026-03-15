@@ -957,4 +957,115 @@ public class FileIOTests : IDisposable
         Assert.Contains(3u, clubNodes.Value);
         Assert.Contains(5u, clubNodes.Value);
     }
+
+    // ── Export edgelist: static layers ────────────────────────────────────────
+
+    [Fact]
+    public void ExportLayerEdgelist_StaticOneModeUndirectedBinary_WritesCorrectRows()
+    {
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 3, 4);
+        net.Pack("friends");
+
+        string path = TempFile(".csv");
+        var result = FileManager.ExportLayerEdgelist(net.Layers["friends"], path, ',', false);
+
+        Assert.True(result.Success);
+        var lines = File.ReadAllLines(path);
+        Assert.Equal(2, lines.Length);
+        Assert.Contains(lines, l => l == "1,2" || l == "2,1");
+        Assert.Contains(lines, l => l == "3,4" || l == "4,3");
+    }
+
+    [Fact]
+    public void ExportLayerEdgelist_StaticOneModeValued_WritesThreeColumns()
+    {
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        net.AddEdge("trust", 1, 2, 0.8f);
+        net.Pack("trust");
+
+        string path = TempFile(".csv");
+        var result = FileManager.ExportLayerEdgelist(net.Layers["trust"], path, ',', false);
+
+        Assert.True(result.Success);
+        var lines = File.ReadAllLines(path);
+        Assert.Single(lines);
+        var parts = lines[0].Split(',');
+        Assert.Equal(3, parts.Length);
+        Assert.Equal(0.8f, float.Parse(parts[2]));
+    }
+
+    [Fact]
+    public void ExportLayerEdgelist_StaticTwoMode_WritesNodeAffiliationRows()
+    {
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "A", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "B", new uint[] { 3 });
+        net.Pack("clubs");
+
+        string path = TempFile(".csv");
+        var result = FileManager.ExportLayerEdgelist(net.Layers["clubs"], path, ',', false);
+
+        Assert.True(result.Success);
+        var lines = File.ReadAllLines(path);
+        Assert.Equal(3, lines.Length);
+        Assert.Contains(lines, l => l == "1,A");
+        Assert.Contains(lines, l => l == "2,A");
+        Assert.Contains(lines, l => l == "3,B");
+    }
+
+    [Fact]
+    public void ExportLayerEdgelist_StaticAndDynamic_OneModeProduceIdenticalOutput()
+    {
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("dyn", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddLayerOneMode("packed", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        foreach (var name in new[] { "dyn", "packed" })
+        {
+            net.AddEdge(name, 1, 2);
+            net.AddEdge(name, 3, 4);
+        }
+        net.Pack("packed");
+
+        string pathDyn = TempFile(".csv");
+        string pathPacked = TempFile(".csv");
+        FileManager.ExportLayerEdgelist(net.Layers["dyn"], pathDyn, ',', false);
+        FileManager.ExportLayerEdgelist(net.Layers["packed"], pathPacked, ',', false);
+
+        var linesDyn = File.ReadAllLines(pathDyn).OrderBy(x => x).ToArray();
+        var linesPacked = File.ReadAllLines(pathPacked).OrderBy(x => x).ToArray();
+        Assert.Equal(linesDyn, linesPacked);
+    }
+
+    [Fact]
+    public void ExportLayerEdgelist_StaticAndDynamic_TwoModeProduceIdenticalOutput()
+    {
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerTwoMode("dyn");
+        net.AddLayerTwoMode("packed");
+        foreach (var name in new[] { "dyn", "packed" })
+        {
+            net.AddHyperedge(name, "A", new uint[] { 1, 2 });
+            net.AddHyperedge(name, "B", new uint[] { 3 });
+        }
+        net.Pack("packed");
+
+        string pathDyn = TempFile(".csv");
+        string pathPacked = TempFile(".csv");
+        FileManager.ExportLayerEdgelist(net.Layers["dyn"], pathDyn, ',', false);
+        FileManager.ExportLayerEdgelist(net.Layers["packed"], pathPacked, ',', false);
+
+        var linesDyn = File.ReadAllLines(pathDyn).OrderBy(x => x).ToArray();
+        var linesPacked = File.ReadAllLines(pathPacked).OrderBy(x => x).ToArray();
+        Assert.Equal(linesDyn, linesPacked);
+    }
 }
