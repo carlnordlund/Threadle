@@ -121,7 +121,7 @@ public class NetworkProcessorTests
         net.AddEdge("trust", 2, 3, 1f);
         net.AddEdge("trust", 3, 4, 5f);
 
-        var result = NetworkProcessor.DichotomizeLayer(net, "trust", ConditionType.gte, 3f, 1f, 0f, "binary");
+        var result = NetworkProcessor.DichotomizeLayer(net, "trust", ConditionType.ge, 3f, 1f, 0f, "binary");
 
         Assert.True(result.Success);
         Assert.True(net.Layers["binary"].CheckEdgeExists(1, 2));
@@ -139,7 +139,7 @@ public class NetworkProcessorTests
         net.AddEdge("trust", 3, 4, 5f);
         net.Pack("trust");
 
-        var result = NetworkProcessor.DichotomizeLayer(net, "trust", ConditionType.gte, 3f, 1f, 0f, "binary");
+        var result = NetworkProcessor.DichotomizeLayer(net, "trust", ConditionType.ge, 3f, 1f, 0f, "binary");
 
         Assert.True(result.Success);
         Assert.True(net.Layers["binary"].CheckEdgeExists(1, 2));
@@ -161,8 +161,8 @@ public class NetworkProcessorTests
         }
         net.Pack("packed");
 
-        NetworkProcessor.DichotomizeLayer(net, "dyn", ConditionType.gte, 3f, 1f, 0f, "dich_dyn");
-        NetworkProcessor.DichotomizeLayer(net, "packed", ConditionType.gte, 3f, 1f, 0f, "dich_packed");
+        NetworkProcessor.DichotomizeLayer(net, "dyn", ConditionType.ge, 3f, 1f, 0f, "dich_dyn");
+        NetworkProcessor.DichotomizeLayer(net, "packed", ConditionType.ge, 3f, 1f, 0f, "dich_packed");
 
         var dynLayer = net.Layers["dich_dyn"];
         var packedLayer = net.Layers["dich_packed"];
@@ -179,7 +179,7 @@ public class NetworkProcessorTests
         net.AddEdge("trust", 1, 2, 5f);
         net.Pack("trust");
 
-        NetworkProcessor.DichotomizeLayer(net, "trust", ConditionType.gte, 1f, 1f, 0f, "binary");
+        NetworkProcessor.DichotomizeLayer(net, "trust", ConditionType.ge, 1f, 1f, 0f, "binary");
 
         Assert.False(net.Layers["binary"].IsStatic);
     }
