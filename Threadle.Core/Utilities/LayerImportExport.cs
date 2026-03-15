@@ -20,7 +20,7 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">File to write the edgelist to</param>
         /// <param name="sep">The separator to use</param>
         /// <param name="header">Boolean whether the first line is to contain headers.</param>
-        internal static void ExportOneModeEdgeList(LayerOneMode layerOneMode, string filepath, char sep, bool header)
+        internal static void ExportOneModeEdgeList(ILayerOneMode layerOneMode, string filepath, char sep, bool header)
         {
             using var writer = new StreamWriter(filepath);
 
@@ -31,19 +31,17 @@ namespace Threadle.Core.Utilities
                 writer.WriteLine(headerLine);
             }
             if (layerOneMode.IsBinary)
-                foreach (var kvp in layerOneMode.Edgesets)
-                {
-                    uint egoId = kvp.Key;
-                    foreach (var alterId in kvp.Value.GetOutboundNodeIds)
+            {
+                foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
+                    foreach (var alterId in alters.Span)
                         writer.WriteLine($"{egoId}{sep}{alterId}");
-                }
+            }
             else
-                foreach (var kvp in layerOneMode.Edgesets)
-                {
-                    uint egoId = kvp.Key;
-                    foreach (var (alterId, value) in kvp.Value.GetOutboundEdgesWithValues(egoId))
-                        writer.WriteLine($"{egoId}{sep}{alterId}{sep}{value}");
-                }
+            {
+                foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
+                    for (int i = 0; i < alters.Length; i++)
+                        writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
+            }
         }
 
         /// <summary>
@@ -55,17 +53,14 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">File to write the edgelist to</param>
         /// <param name="sep">The separator to use</param>
         /// <param name="header">Boolean whether the first line is to contain headers.</param>
-        internal static void ExportTwoModeEdgeList(LayerTwoMode layerTwoMode, string filepath, char sep, bool header)
+        internal static void ExportTwoModeEdgeList(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header)
         {
             using var writer = new StreamWriter(filepath);
             if (header)
                 writer.WriteLine($"node{sep}affiliation");
-            foreach (var kvp in layerTwoMode.HyperEdgeCollections)
-            {
-                uint egoId = kvp.Key;
-                foreach (var hyperedge in kvp.Value.HyperEdges)
-                    writer.WriteLine($"{egoId}{sep}{hyperedge.Name}");
-            }
+            foreach (var (hypername, nodeIds) in layerTwoMode.GetAllHyperedgeData())
+                foreach (var nodeId in nodeIds)
+                    writer.WriteLine($"{nodeId}{sep}{hypername}]");
         }
 
         /// <summary>
