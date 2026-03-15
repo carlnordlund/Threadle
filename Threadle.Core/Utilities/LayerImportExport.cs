@@ -34,13 +34,15 @@ namespace Threadle.Core.Utilities
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     foreach (var alterId in alters.Span)
-                        writer.WriteLine($"{egoId}{sep}{alterId}");
+                        if (layerOneMode.IsDirectional || alterId > egoId)
+                            writer.WriteLine($"{egoId}{sep}{alterId}");
             }
             else
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     for (int i = 0; i < alters.Length; i++)
-                        writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
+                        if (layerOneMode.IsDirectional || alters.Span[i] > egoId)
+                            writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
             }
         }
 

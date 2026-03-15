@@ -975,11 +975,10 @@ public class FileIOTests : IDisposable
 
         Assert.True(result.Success);
         var lines = File.ReadAllLines(path);
-        Assert.Equal(4, lines.Length);
+        // Undirected edges are exported once each
+        Assert.Equal(2, lines.Length);
         Assert.Contains(lines, l => l == "1,2");
-        Assert.Contains(lines, l => l == "2,1");
         Assert.Contains(lines, l => l == "3,4");
-        Assert.Contains(lines, l => l == "4,3");
     }
 
     [Fact]
@@ -996,8 +995,8 @@ public class FileIOTests : IDisposable
 
         Assert.True(result.Success);
         var lines = File.ReadAllLines(path);
-        // Undirected layers store both directions, so 1 valued edge → 2 rows
-        Assert.Equal(2, lines.Length);
+        // Undirected edges are exported once each
+        Assert.Single(lines);
         Assert.All(lines, l =>
         {
             var parts = l.Split(',');
