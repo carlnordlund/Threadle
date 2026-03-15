@@ -178,9 +178,9 @@ namespace Threadle.Core.Utilities
         {
             try
             {
-                if (layer is LayerOneMode layerOneMode)
+                if (layer is ILayerOneMode layerOneMode)
                     LayerImportExport.ExportOneModeEdgeList(layerOneMode, filepath, separator, header);
-                else if (layer is LayerTwoMode layerTwoMode)
+                else if (layer is ILayerTwoMode layerTwoMode)
                     LayerImportExport.ExportTwoModeEdgeList(layerTwoMode, filepath, separator, header);
                 else
                     return OperationResult.Fail("IOExportError", $"Did not recognize layer type of layer '{layer.Name}'.");
