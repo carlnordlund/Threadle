@@ -689,4 +689,272 @@ public class FileIOTests : IDisposable
         var reverse = loadedNet.CheckEdgeExists("follows", 2, 1);
         Assert.False(reverse.Value);  // 2→1 does not exist
     }
+
+    // ── Save/load with pre-packed (static) layers — TSV ───────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_Tsv_Packed_OneModeUndirectedBinary_EdgesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 2, 3);
+        net.AddEdge("friends", 4, 5);
+        net.Pack("friends");
+
+        string netPath = TempFile(".tsv");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 2, 3).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 4, 5).Value);
+        Assert.False(loadedNet.CheckEdgeExists("friends", 1, 3).Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Tsv_Packed_OneModeDirectedBinary_DirectionalityPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("follows", EdgeDirectionality.Directed, EdgeType.Binary, false);
+        net.AddEdge("follows", 1, 2);
+        net.AddEdge("follows", 3, 1);
+        net.Pack("follows");
+
+        string netPath = TempFile(".tsv");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("follows", 1, 2).Value);
+        Assert.False(loadedNet.CheckEdgeExists("follows", 2, 1).Value);  // directed
+        Assert.True(loadedNet.CheckEdgeExists("follows", 3, 1).Value);
+        Assert.False(loadedNet.CheckEdgeExists("follows", 1, 3).Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Tsv_Packed_OneModeValued_EdgeValuesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        net.AddEdge("trust", 1, 2, value: 0.5f);
+        net.AddEdge("trust", 2, 3, value: 1.5f);
+        net.Pack("trust");
+
+        string netPath = TempFile(".tsv");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.Equal(0.5f, loadedNet.GetEdge("trust", 1, 2).Value, precision: 4);
+        Assert.Equal(1.5f, loadedNet.GetEdge("trust", 2, 3).Value, precision: 4);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Tsv_Packed_TwoMode_HyperedgesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "club1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "club2", new uint[] { 2, 4 });
+        net.Pack("clubs");
+
+        string netPath = TempFile(".tsv");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        var nodes1 = loadedNet.GetHyperedgeNodes("clubs", "club1");
+        Assert.True(nodes1.Success);
+        Assert.Contains(1u, nodes1.Value);
+        Assert.Contains(2u, nodes1.Value);
+        Assert.Contains(3u, nodes1.Value);
+
+        var nodes2 = loadedNet.GetHyperedgeNodes("clubs", "club2");
+        Assert.True(nodes2.Success);
+        Assert.Contains(2u, nodes2.Value);
+        Assert.Contains(4u, nodes2.Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Tsv_Packed_MixedLayers_AllPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 3, 4);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "clubA", new uint[] { 1, 3, 5 });
+        net.Pack(null);  // pack all
+
+        string netPath = TempFile(".tsv");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 3, 4).Value);
+        Assert.False(loadedNet.CheckEdgeExists("friends", 1, 3).Value);
+
+        var clubNodes = loadedNet.GetHyperedgeNodes("clubs", "clubA");
+        Assert.True(clubNodes.Success);
+        Assert.Contains(1u, clubNodes.Value);
+        Assert.Contains(3u, clubNodes.Value);
+        Assert.Contains(5u, clubNodes.Value);
+    }
+
+    // ── Save/load with pre-packed (static) layers — BIN ───────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_Packed_OneModeUndirectedBinary_EdgesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 2, 3);
+        net.AddEdge("friends", 4, 5);
+        net.Pack("friends");
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 2, 3).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 4, 5).Value);
+        Assert.False(loadedNet.CheckEdgeExists("friends", 1, 3).Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_Packed_OneModeDirectedBinary_DirectionalityPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("follows", EdgeDirectionality.Directed, EdgeType.Binary, false);
+        net.AddEdge("follows", 1, 2);
+        net.AddEdge("follows", 3, 1);
+        net.Pack("follows");
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("follows", 1, 2).Value);
+        Assert.False(loadedNet.CheckEdgeExists("follows", 2, 1).Value);  // directed
+        Assert.True(loadedNet.CheckEdgeExists("follows", 3, 1).Value);
+        Assert.False(loadedNet.CheckEdgeExists("follows", 1, 3).Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_Packed_OneModeValued_EdgeValuesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        net.AddEdge("trust", 1, 2, value: 0.5f);
+        net.AddEdge("trust", 2, 3, value: 1.5f);
+        net.Pack("trust");
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.Equal(0.5f, loadedNet.GetEdge("trust", 1, 2).Value, precision: 4);
+        Assert.Equal(1.5f, loadedNet.GetEdge("trust", 2, 3).Value, precision: 4);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_Packed_TwoMode_HyperedgesPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "club1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "club2", new uint[] { 2, 4 });
+        net.Pack("clubs");
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        var nodes1 = loadedNet.GetHyperedgeNodes("clubs", "club1");
+        Assert.True(nodes1.Success);
+        Assert.Contains(1u, nodes1.Value);
+        Assert.Contains(2u, nodes1.Value);
+        Assert.Contains(3u, nodes1.Value);
+
+        var nodes2 = loadedNet.GetHyperedgeNodes("clubs", "club2");
+        Assert.True(nodes2.Success);
+        Assert.Contains(2u, nodes2.Value);
+        Assert.Contains(4u, nodes2.Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_Packed_MixedLayers_AllPreserved()
+    {
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 3, 4);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "clubA", new uint[] { 1, 3, 5 });
+        net.Pack(null);  // pack all
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 3, 4).Value);
+        Assert.False(loadedNet.CheckEdgeExists("friends", 1, 3).Value);
+
+        var clubNodes = loadedNet.GetHyperedgeNodes("clubs", "clubA");
+        Assert.True(clubNodes.Success);
+        Assert.Contains(1u, clubNodes.Value);
+        Assert.Contains(3u, clubNodes.Value);
+        Assert.Contains(5u, clubNodes.Value);
+    }
 }
