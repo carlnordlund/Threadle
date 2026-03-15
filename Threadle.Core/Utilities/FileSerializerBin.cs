@@ -1,6 +1,6 @@
 ﻿using System.Buffers.Binary;
+using System.Dynamic;
 using System.IO.Compression;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using Threadle.Core.Model;
@@ -512,27 +512,48 @@ namespace Threadle.Core.Utilities
                     // Write selfties boolean as a byte (0:false, 1:true)
                     writer.Write(layerOneMode.Selfties);
 
-                    // Materialise ego data so we can write the count before the rows
+                    // Get egodata (like nodelist2)
                     var egoData = layerOneMode.GetAllEgoData().ToList();
+
+
+                    // Get nbr of edgesets (nodelist rows)
+                    //int nbrEdgesets = layerOneMode.Edgesets.Count;
+
+                    // Write nbr of nodelist rows
                     writer.Write(egoData.Count);
 
+                    // Iterate all egoData
                     foreach (var (egoId, alters, values) in egoData)
                     {
+                        // Write ego node id
                         writer.Write(egoId);
+
                         ReadOnlySpan<uint> alterSpan = alters.Span;
+
+                        // Write nbr of alters this node id has
                         writer.Write(alterSpan.Length);
+
+                        
                         if (layerOneMode.IsValued)
                         {
+                            // Layer in valued
+
                             ReadOnlySpan<float> valSpan = values.Span;
+                            // Iterate over all alters
                             for (int k = 0; k < alterSpan.Length; k++)
                             {
+                                // Write the alter id
                                 writer.Write(alterSpan[k]);
+                                // Write edge value (float)
                                 writer.Write(valSpan[k]);
                             }
                         }
                         else
                         {
+                            // Layer is binary
+                            // Iterate over all alters
                             for (int k = 0; k < alterSpan.Length; k++)
+                                // Write alter id
                                 writer.Write(alterSpan[k]);
                         }
                     }
@@ -547,13 +568,29 @@ namespace Threadle.Core.Utilities
                     // Write the number of hyperedges in this layer
                     writer.Write(layerTwoMode.NbrHyperedges);
 
+                    // Get all hyperedge data and iterate over all hyperedges
                     foreach (var (hyperName, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                     {
+                        // Write the hyperedge name
                         WriteString(writer, hyperName);
+                        // Write the number of nodes affiliated to this hyperedge
                         writer.Write((uint)nodeIds.Length);
+                        // Iterate over all nodes and write their ids
                         foreach (uint nodeId in nodeIds)
                             writer.Write(nodeId);
                     }
+
+                    //foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
+                    //{
+                    //    // Write the name of the hyperedge
+                    //    WriteString(writer, hyperName);
+
+                    //    // Write the number of affiliated nodes to this hyperedge
+                    //    writer.Write(hyperedge.NbrNodes);
+
+                    //    foreach (uint nodeId in hyperedge.NodeIds)
+                    //        writer.Write(nodeId);
+                    //}
                 }
             }
         }

@@ -257,12 +257,6 @@ namespace Threadle.Core.Model
             return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
         }
 
-        public IEnumerable<(string hyperName, uint[] nodeIds)> GetAllHyperedgeData()
-        {
-            foreach (var (name, hyperedge) in AllHyperEdges)
-                yield return (name, [.. hyperedge.NodeIds]);
-        }
-
         /// <summary>
         /// Returns the node ids affiliated to the specified hyperedge, sorted by ascending node id.
         /// Returns an empty array if no hyperedge with that name exist, or if the hyperedge has no node ids
@@ -273,6 +267,12 @@ namespace Threadle.Core.Model
             if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
                 return [];
             return hyperedge.NodeIds.ToArray();
+        }
+
+        public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
+        {
+            foreach (var (name, hyperedge) in AllHyperEdges)
+                yield return (name, [.. hyperedge.NodeIds]);
         }
 
         public string[] GetNodeHyperedgeNames(uint nodeId)

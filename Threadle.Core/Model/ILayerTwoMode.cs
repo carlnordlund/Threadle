@@ -51,7 +51,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Iterates all hyperedges, yielding the name and affiliated node ids for each.
         /// </summary>
-        IEnumerable<(string hyperName, uint[] nodeIds)> GetAllHyperedgeData();
+        IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData();
         #endregion
     }
 }
