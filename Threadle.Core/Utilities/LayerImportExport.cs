@@ -30,19 +30,19 @@ namespace Threadle.Core.Utilities
                 headerLine += layerOneMode.IsValued ? $"{sep}value" : "";
                 writer.WriteLine(headerLine);
             }
-            bool deduplicateSymmetric = !layerOneMode.IsDirectional && layerOneMode.IsStatic;
+            bool symmetric = !layerOneMode.IsDirectional;
             if (layerOneMode.IsBinary)
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     foreach (var alterId in alters.Span)
-                        if (!deduplicateSymmetric || alterId > egoId)
+                        if (!symmetric || alterId > egoId)
                             writer.WriteLine($"{egoId}{sep}{alterId}");
             }
             else
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     for (int i = 0; i < alters.Length; i++)
-                        if (!deduplicateSymmetric || alters.Span[i] > egoId)
+                        if (!symmetric || alters.Span[i] > egoId)
                             writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
             }
         }
