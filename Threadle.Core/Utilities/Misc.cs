@@ -36,7 +36,7 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Gets a shared instance of the <see cref="Random"/> class for generating random numbers.
         /// </summary>
-        public static Random Random => _random;
+        internal static Random Random => _random;
         #endregion
 
 
@@ -59,7 +59,27 @@ namespace Threadle.Core.Utilities
         /// <returns>True if the provided string is within the binary limit.</returns>
         public static bool IsNameWithinBinaryLimit(string str) => Encoding.UTF8.GetByteCount(str) <= 255;
 
+        /// <summary>
+        /// Converts a string of char-separated node ids into an array of these uint values.
+        /// </summary>
+        /// <param name="nodesString">A string with char-separated integer values.</param>
+        /// <param name="sep">The separator character that should be used (default is semicolon ;)</param>
+        /// <returns>Returns an array of unsigned integers.</returns>
+        public static uint[]? SplitStringToUintArray(string nodesString, char sep = ';')
+        {
+            try
+            {
+                return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
+            }
+            catch (Exception)
+            {
+                return null;
+            }            
+        }
+        #endregion
 
+
+        #region Methods (internal)
         /// <summary>
         /// Evaluates a condition by comparing the value of a node attribute to a specified comparison value using the
         /// provided condition type.
@@ -70,26 +90,26 @@ namespace Threadle.Core.Utilities
         /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
         /// <returns><see langword="true"/> if the condition is satisfied based on the comparison; otherwise, <see
         /// langword="false"/>.</returns>
-        public static bool EvaluateCondition(NodeAttributeValue nodeValue, string comparisonValue, ConditionType condition)
+        internal static bool EvaluateCondition(NodeAttributeValue2 AttrValue,NodeAttributeType AttrType, string comparisonValue, ConditionType condition)
         {
-            switch (nodeValue.Type)
+            switch (AttrType)
             {
                 case NodeAttributeType.Int:
                     if (!int.TryParse(comparisonValue, out int intVal))
                         return false;
-                    return CompareValues(Convert.ToInt32(nodeValue.GetValue()), intVal, condition);
+                    return CompareValues(Convert.ToInt32(AttrValue.GetValue(AttrType)), intVal, condition);
                 case NodeAttributeType.Float:
                     if (!float.TryParse(comparisonValue, out float floatVal))
                         return false;
-                    return CompareValues(Convert.ToSingle(nodeValue.GetValue()), floatVal, condition);
+                    return CompareValues(Convert.ToSingle(AttrValue.GetValue(AttrType)), floatVal, condition);
                 case NodeAttributeType.Bool:
                     if (!bool.TryParse(comparisonValue, out bool boolVal))
                         return false;
-                    return CompareValues(Convert.ToBoolean(nodeValue.GetValue()), boolVal, condition);
+                    return CompareValues(Convert.ToBoolean(AttrValue.GetValue(AttrType)), boolVal, condition);
                 case NodeAttributeType.Char:
                     if (comparisonValue.Length != 1)
                         return false;
-                    return CompareValues(Convert.ToChar(nodeValue.GetValue()), comparisonValue[0], condition);
+                    return CompareValues(Convert.ToChar(AttrValue.GetValue(AttrType)), comparisonValue[0], condition);
                 default:
                     return false;
             }
@@ -107,7 +127,7 @@ namespace Threadle.Core.Utilities
         /// <param name="condition">The condition to evaluate the comparison. Must be one of the values defined in <see cref="ConditionType"/>.</param>
         /// <returns><see langword="true"/> if the comparison satisfies the specified condition; otherwise, <see
         /// langword="false"/>.</returns>
-        public static bool CompareValues<T>(T nodeVal, T compVal, ConditionType condition) where T : IComparable<T>
+        internal static bool CompareValues<T>(T nodeVal, T compVal, ConditionType condition) where T : IComparable<T>
         {
             int cmp = nodeVal.CompareTo(compVal);
             return condition switch
@@ -122,25 +142,16 @@ namespace Threadle.Core.Utilities
             };
         }
 
-        /// <summary>
-        /// Creates and returns a <see cref="NodeAttributeValue"/> struct based on the given <see cref="NodeAttributeType"/> and value string.
-        /// If the value string can't be parsed to the specified attribute type, null is returned.
-        /// </summary>
-        /// <param name="attrType">The <see cref="NodeAttributeType"/> of this node attribute.</param>
-        /// <param name="valueStr">The value (in string format) of the attribute for the specific node.</param>
-        /// <returns>A <see cref="NodeAttributeValue"/> struct with the specified attribute type (<see cref="NodeAttributeType">) and provided value.
-        /// Returns null if the <paramref name="valueStr"/> can not be parsed to the specified <see cref="NodeAttributeType"/>.</returns>
-        public static NodeAttributeValue? CreateNodeAttributeValueFromAttributeTypeAndValueString(NodeAttributeType attrType, string valueStr)
+        internal static NodeAttributeValue2? CreateNodeAttributeValue2FromTypeAndString(NodeAttributeType type, string valueStr)
         {
-            if (attrType == NodeAttributeType.Int && Int32.TryParse(valueStr, out int i))
-                return new NodeAttributeValue(i);
-            if (attrType == NodeAttributeType.Float && float.TryParse(valueStr, out float f))
-                return new NodeAttributeValue(f);
-            if (attrType == NodeAttributeType.Char && char.TryParse(valueStr, out char c))
-                return new NodeAttributeValue(c);
-            if (attrType == NodeAttributeType.Bool && bool.TryParse(valueStr, out bool b))
-                return new NodeAttributeValue(b);
-            return null;
+            return type switch
+            {
+                NodeAttributeType.Int => int.TryParse(valueStr, out int i) ? new NodeAttributeValue2(i) : null,
+                NodeAttributeType.Float => float.TryParse(valueStr, out float f)? new NodeAttributeValue2(f): null,
+                NodeAttributeType.Bool => bool.TryParse(valueStr, out bool b)? new NodeAttributeValue2(b):null,
+                NodeAttributeType.Char => valueStr.Length==1? new NodeAttributeValue2(valueStr[0]):null,
+                _ => null
+            };
         }
 
         /// <summary>
@@ -152,7 +163,7 @@ namespace Threadle.Core.Utilities
         /// <param name="selfties">A boolean value indicating whether self-loops are allowed.</param>
         /// <returns>The total number of potential edges in the graph. This value is calculated based on the  specified number of
         /// nodes, directionality, and self-loop allowance.</returns>
-        public static ulong GetNbrPotentialEdges(ulong n, EdgeDirectionality directionality, bool selfties)
+        internal static ulong GetNbrPotentialEdges(ulong n, EdgeDirectionality directionality, bool selfties)
         {
             if (directionality == EdgeDirectionality.Directed)
                 return selfties ? n * n : n * (n - 1);
@@ -170,7 +181,7 @@ namespace Threadle.Core.Utilities
         /// </remarks>
         /// <param name="attributeTypeName">The textual representation of this node attribute type (either 'char','int','float', or 'bool').</param>
         /// <returns>The corresponding <see cref="NodeAttributeType"/> value.</returns>
-        public static NodeAttributeType? GetAttributeType(string attributeTypeName)
+        internal static NodeAttributeType? GetAttributeType(string attributeTypeName)
             => attributeTypeName.ToLowerInvariant() switch
             {
                 "char" => NodeAttributeType.Char,
@@ -188,12 +199,27 @@ namespace Threadle.Core.Utilities
         /// adjustment, or other types for no modification.</param>
         /// <returns>The adjusted connection value. For <see cref="EdgeType.Binary"/>, returns 1 if <paramref name="value"/> is
         /// greater than 0; otherwise, 0.  For other edge types, returns the original <paramref name="value"/>.</returns>
-        public static float FixConnectionValue(float value, EdgeType valueType)
+        internal static float FixConnectionValue(float value, EdgeType valueType)
             => valueType switch
             {
                 EdgeType.Binary => value > 0 ? 1 : 0,
                 _ => value
             };
+
+        internal static ILayer PackLayer(ILayer layer) => layer switch
+        {
+            LayerOneMode m => LayerOneModeStatic.FromDynamic(m),
+            LayerTwoMode m => LayerTwoModeStatic.FromDynamic(m),
+            _ => layer
+
+        };
+
+        internal static ILayer UnpackLayer(ILayer layer) => layer switch
+        {
+            LayerOneModeStatic m => LayerOneMode.FromStatic(m),
+            LayerTwoModeStatic m => LayerTwoMode.FromStatic(m),
+            _ => layer
+        };
 
         /// <summary>
         /// Converts/parses a 2d array of strings into a 2d array of floats with the provided top-left offset.
@@ -202,7 +228,7 @@ namespace Threadle.Core.Utilities
         /// <param name="cells">A 2d array of strings.</param>
         /// <param name="startOffset">The top-left offset (use 1 to ignore the first row and column).</param>
         /// <returns>Returns a 2d array of parsed float values.</returns>
-        public static float[,] ConvertStringCellsToFloatCells(string[,] cells, int startOffset)
+        internal static float[,] ConvertStringCellsToFloatCells(string[,] cells, int startOffset)
         {
             int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
             float[,] data = new float[nbrRows - startOffset, nbrCols - startOffset];
@@ -210,27 +236,6 @@ namespace Threadle.Core.Utilities
                 for (int c = 0; c < nbrCols - startOffset; c++)
                     float.TryParse(cells[r + startOffset, c + startOffset], out data[r, c]);
             return data;
-        }
-
-        /// <summary>
-        /// Converts a string of char-separated node ids into an array of these uint values.
-        /// </summary>
-        /// <param name="nodesString">A string with char-separated integer values.</param>
-        /// <param name="sep">The separator character that should be used (default is semicolon ;)</param>
-        /// <returns>Returns an array of unsigned integers.</returns>
-        public static uint[]? SplitStringToUintArray(string nodesString, char sep = ';')
-        {
-            return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray() ?? null;
-        }
-
-        /// <summary>
-        /// Convenience function for converting a boolean value to its lower-case textual representation.
-        /// </summary>
-        /// <param name="check"></param>
-        /// <returns></returns>
-        public static string BooleanAsString(bool check)
-        {
-            return check ? "true" : "false";
         }
 
         /// <summary>
@@ -423,6 +428,16 @@ namespace Threadle.Core.Utilities
             return text.Trim(_quoteChars);
         }
 
+        internal static string FormatBytes(long bytes)
+        {
+            if (bytes >= 1L << 30)
+                return $"{bytes / (double)(1L << 30):F2} GB";
+            if (bytes >= 1L << 20)
+                return $"{bytes / (double)(1L << 20):F1} MB";
+            if (bytes >= 1L << 10)
+                return $"{bytes / (double)(1L << 10):F1} kB";
+            return $"{bytes} B";
+        }
         #endregion
     }
 }

@@ -15,12 +15,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "degree(network = [var:network], layername = [str], *attrname = [str], *direction = ['in'(default),'out','both'])";
+        public string Syntax => "degree(network = [var:network], layername = [str], *attrname = [str], *direction = ['both','in','out'(default)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates the degree centrality for the specified layer and network, and storing the result as a node attribute. The optional direction parameter decides whether the inbound (default) or the outbound ties should be counted, or - for layers with directional relations - if both in- and outbound ties should be counted. The node attribute is automatically named to the layername and the direction, but this can be overridden with the attrName parameter. For 2-mode layers, the direction argument is moot.";
+        public string Description => "Calculates the degree centrality for the specified layer and network, and storing the result as a node attribute. The optional direction parameter decides whether the inbound or the outbound (default) ties should be counted, or - for layers with directional relations - if both in- and outbound ties should be counted. For symmetric layers (and 2-mode layers), this is a moot option. The node attribute is automatically named to the layername and the direction, but this can be overridden with the attrName parameter.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -38,7 +38,7 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string? attrName = command.GetArgument("attrname");
-            EdgeTraversal direction = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.In);
+            EdgeTraversal direction = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Out);
             return CommandResult.FromOperationResult(Analyses.DegreeCentralities(network, layerName, attrName, direction));
         }
     }

@@ -13,7 +13,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Storage container for nodes WITH attributes
         /// </summary>
-        private Dictionary<uint, (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)> _nodesWithAttributes = new();
+        //private Dictionary<uint, (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)> _nodesWithAttributes = new();
+        private Dictionary<uint, (List<byte> AttrIndexes, List<NodeAttributeValue2> AttrValues)> _nodesWithAttributes = new();
 
         /// <summary>
         /// Storage container for nodes WITHOUT attributes
@@ -94,7 +95,13 @@ namespace Threadle.Core.Model
                     lines.Add($"Node {nodeId}");
                     if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
                         for (int i = 0; i < attributes.AttrIndexes.Count; i++)
-                            lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attributes.AttrIndexes[i]]}: {attributes.AttrValues[i]}");
+                        {
+                            byte attrIndex = attributes.AttrIndexes[i];
+                            NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType);
+                            lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attrIndex]}: {attributes.AttrValues[i].ToString(attrType)}");
+
+                        }
+                            //lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attributes.AttrIndexes[i]]}: {attributes.AttrValues[i]}");
                     count--;
                 }
                 return lines;
@@ -121,7 +128,8 @@ namespace Threadle.Core.Model
             ["Filepath"] = Filepath,
             ["isModified"] = IsModified,
             ["NbrNodes"] = Count,
-            ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList()
+            ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList(),
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -186,7 +194,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddNode(uint nodeId)
         {
-            if (CheckThatNodeExists(nodeId))
+            if (Contains(nodeId))
                 return OperationResult.Fail("NodeAlreadyExists", $"Node with ID '{nodeId}' already exists in nodeset '{Name}'.");
             _nodesWithoutAttributes.Add(nodeId);
             _modified();
@@ -274,16 +282,16 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult SetNodeAttribute(uint nodeId, string attrName, string attrValueStr)
         {
-            if (!CheckThatNodeExists(nodeId))
+            if (!Contains(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
                 return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}': possibly corrupted.");
-            if (!(Misc.CreateNodeAttributeValueFromAttributeTypeAndValueString(attrType, attrValueStr) is NodeAttributeValue attrValue))
+            if (!(Misc.CreateNodeAttributeValue2FromTypeAndString(attrType, attrValueStr) is NodeAttributeValue2 attrValue))
                 return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{attrValueStr}' to type '{attrType}'.");
             SetNodeAttribute(nodeId, attrIndex, attrValue);
-            return OperationResult.Ok($"Attribute '{attrName}' for node {nodeId} set to {attrValue}.");
+            return OperationResult.Ok($"Attribute '{attrName}' for node {nodeId} set to {attrValue.ToString(attrType)}.");
         }
 
         /// <summary>
@@ -292,15 +300,18 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The unique id of the node.</param>
         /// <param name="attrName">The name of the node attribute.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, with the requested <see cref="NodeAttributeValue"/>.</returns>
-        public OperationResult<NodeAttributeValue> GetNodeAttribute(uint nodeId, string attrName)
+        public OperationResult<(NodeAttributeValue2 Value,NodeAttributeType Type)> GetNodeAttribute(uint nodeId, string attrName)
         {
-            if (!CheckThatNodeExists(nodeId))
-                return OperationResult<NodeAttributeValue>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+            if (!Contains(nodeId))
+                return OperationResult<(NodeAttributeValue2, NodeAttributeType)>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
-            if (!(GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue attrValue))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
-            return OperationResult<NodeAttributeValue>.Ok(attrValue);
+                return OperationResult<(NodeAttributeValue2, NodeAttributeType)>.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+            if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
+                return OperationResult<(NodeAttributeValue2, NodeAttributeType)>.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}' - possibly corrupted.");
+            
+            if (!(GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue2 attrValue))
+                return OperationResult<(NodeAttributeValue2, NodeAttributeType)>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
+            return OperationResult<(NodeAttributeValue2, NodeAttributeType)>.Ok((attrValue, attrType));
         }
 
         public OperationResult<Dictionary<uint, object?>> GetMultipleNodeAttributes(uint[] nodeIds, string attrName)
@@ -311,11 +322,14 @@ namespace Threadle.Core.Model
             var result = new Dictionary<uint, object?>();
             foreach (uint nodeId in nodeIds)
             {
-                if (!CheckThatNodeExists(nodeId))
+                if (!Contains(nodeId))
                     continue;
                 var attrResult = GetNodeAttribute(nodeId, attrName);
                 if (attrResult.Success)
-                    result[nodeId] = attrResult.Value.GetValue();
+                {
+                    var (nav, type) = attrResult.Value;
+                    result[nodeId] = nav.GetValue(type);
+                }
                 else
                     result[nodeId] = null;
             }
@@ -331,12 +345,12 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveNodeAttribute(uint nodeId, string attrName)
         {
-            if (!CheckThatNodeExists(nodeId))
+            if (!Contains(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
+                return OperationResult<NodeAttributeValue2>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             if (!_removeAttributeFromTuple(attributes, attrIndex))
             {
                 _nodesWithAttributes.Remove(nodeId);
@@ -371,6 +385,40 @@ namespace Threadle.Core.Model
                 message = $"Returning nodes {offset + 1} - {offset + nodes.Count} of {total} in nodeset '{Name}':";
             return OperationResult<List<uint>>.Ok(nodes, message);
         }
+
+        public long GetEstimatedBytes()
+        {
+            int Na = _nodesWithAttributes.Count;
+            int Nw = _nodesWithoutAttributes.Count;
+            // _ nodesWithAttributes: dictionary entries + buckets
+            long bytes = (long)Na * 28 + (long)(Na / 0.72 + 1) * 4;
+            // per attributed node:
+            // - List<byte>: 32 (object) + 16 (array) + 4 = 52 bytes
+            // - List<NodeAttributeValue2>: 32 (object) + 16(array) + 4*4 = 64 bytes
+            // total: 116 bytes
+            bytes += (long)Na * 116;
+            // Sample up to 100 attributed nodes to estimate average attribute count,
+            // then calculate: 1 byte (attribute index) + 4 byte (NodeAttributeValue2) per attribute
+            if (Na > 0)
+            {
+                int sampleSize = Math.Min(100, Na);
+                int totalAttrs = 0;
+                int sampled = 0;
+                foreach (var attrs in _nodesWithAttributes.Values)
+                {
+                    totalAttrs += attrs.AttrIndexes.Count;
+                    if (++sampled >= sampleSize)
+                        break;
+                }
+                double avgAttrs = (double)totalAttrs / sampled;
+                bytes += (long)(Na * avgAttrs * 5);
+            }
+            // nodesWithoutAttributes: just hashset entries + buckets
+            bytes += (long)Nw * 12 + (long)(Nw / 0.72 + 1) * 4;
+            if (_nodeIdCache != null)
+                bytes += 16 + (long)_nodeIdCache.Length * 4;
+            return bytes;
+        }
         #endregion
 
 
@@ -384,8 +432,8 @@ namespace Threadle.Core.Model
         /// <returns>An <see cref="OperationResult.Success"> if both are found, Fail otherwise.</returns>
         internal OperationResult CheckThatNodesExist(uint node1Id, uint node2Id)
         {
-            bool node1exists = CheckThatNodeExists(node1Id);
-            bool node2exists = CheckThatNodeExists(node2Id);
+            bool node1exists = Contains(node1Id);
+            bool node2exists = Contains(node2Id);
             if (node1exists && node2exists)
                 return OperationResult.Ok();
             if (!node1exists && !node2exists)
@@ -459,7 +507,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id to add.</param>
         /// <param name="nodeAttributes">A tuple with index and attrValue lists for attributes.</param>
-        internal void _addNodeWithAttributes(uint nodeId, (List<byte> attrIndexes, List<NodeAttributeValue> attrValues)? nodeAttributes)
+        internal void _addNodeWithAttributes(uint nodeId, (List<byte> attrIndexes, List<NodeAttributeValue2> attrValues)? nodeAttributes)
         {
             if (nodeAttributes != null && nodeAttributes.Value.attrIndexes.Count > 0)
                 _nodesWithAttributes[nodeId] = (nodeAttributes.Value.attrIndexes, nodeAttributes.Value.attrValues);
@@ -472,7 +520,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be checked.</param>
         /// <returns>True if the node id exists, false otherwise.</returns>
-        internal bool CheckThatNodeExists(uint nodeId)
+        internal bool Contains(uint nodeId)
         {
             return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
         }
@@ -486,7 +534,7 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id.</param>
         /// <param name="attrIndex">The attribute index.</param>
         /// <param name="attrValue">The <see cref="NodeAttributeValue"/> to set the attribute to.</param>
-        internal void SetNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue attrValue)
+        internal void SetNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue2 attrValue)
         {
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
             {
@@ -513,7 +561,7 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id.</param>
         /// <param name="attrIndex">The attribute index.</param>
         /// <returns>Returns a <see cref="NodeAttributeValue"/>, or null if attribute is missing.</returns>
-        internal NodeAttributeValue? GetNodeAttribute(uint nodeId, byte attrIndex)
+        internal NodeAttributeValue2? GetNodeAttribute(uint nodeId, byte attrIndex)
         {
             if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
                 return null;
@@ -543,11 +591,11 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id</param>
         /// <returns>The attribute tuple, or null if missing.</returns>
-        internal (List<byte>, List<NodeAttributeValue>)? CloneNodeAttributeTuple(uint nodeId)
+        internal (List<byte>, List<NodeAttributeValue2>)? CloneNodeAttributeTuple(uint nodeId)
         {
             if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
             {
-                return (new List<byte>(attributes.AttrIndexes), new List<NodeAttributeValue>(attributes.AttrValues));
+                return (new List<byte>(attributes.AttrIndexes), new List<NodeAttributeValue2>(attributes.AttrValues));
             }
             return null;
         }
@@ -557,7 +605,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id</param>
         /// <returns>The attribute tuple, or null if missing.</returns>
-        internal (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)? GetNodeAttributeTuple(uint nodeId)
+        internal (List<byte> AttrIndexes, List<NodeAttributeValue2> AttrValues)? GetNodeAttributeTuple(uint nodeId)
         {
             if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
                 return attributes;
@@ -617,7 +665,7 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id</param>
         /// <param name="attributeIndex">The attribute index</param>
         /// <returns>Returns true if it still has attributes left, false if all attributes are gone now.</returns>
-        private bool _removeAttributeFromTuple((List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues) attributes, byte attributeIndex)
+        private bool _removeAttributeFromTuple((List<byte> AttrIndexes, List<NodeAttributeValue2> AttrValues) attributes, byte attributeIndex)
         {
             int index = attributes.AttrIndexes.IndexOf(attributeIndex);
             if (index >= 0)

@@ -8,7 +8,7 @@ namespace Threadle.Core.Model
     /// The 2-mode layer consists of a global collection of Hyperedge objects, and a dictionary
     /// of these Hyperedge objects by node id.
     /// </summary>
-    public class LayerTwoMode : ILayer
+    public class LayerTwoMode : ILayer, ILayerTwoMode
     {
         #region Fields
         /// <summary>
@@ -53,6 +53,8 @@ namespace Threadle.Core.Model
         /// </summary>
         public uint NbrHyperedges { get => (uint)_allHyperedges.Count; }
 
+        public long NbrAffiliations { get => _allHyperedges.Values.Sum(he => (long)he.NbrNodes); }
+
         /// <summary>
         /// Returns the dictionary of Hyperedge objects by node id
         /// </summary>
@@ -70,17 +72,30 @@ namespace Threadle.Core.Model
         {
             ["Name"] = Name,
             ["Mode"] = 2,
-            ["NbrHyperedges"] = NbrHyperedges
+            ["Static"] = false,
+            ["NbrHyperedges"] = NbrHyperedges,
+            ["NbrAffiliations"] = NbrAffiliations,
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges: {NbrHyperedges}]";
+        public string GetLayerInfo => $" {Name} [2-mode; Nbr hyperedges:{NbrHyperedges}]";
+
+        public bool IsStatic => false;
         #endregion
 
 
         #region Methods (public)
+        public static LayerTwoMode FromStatic(LayerTwoModeStatic source)
+        {
+            var layer = new LayerTwoMode(source.Name);
+            foreach (var (name, nodeIds) in source.GetAllHyperedgeData())
+                layer._addHyperedge(name, nodeIds.Length > 0 ? nodeIds : null);
+            return layer;
+        }
+
         /// <summary>
         /// Removes all Hyperedge references for a nodeId. Also goes through all existing Hyperedge objects
         /// and removes the references to this node ids. Used when a node is deleted and all edges must be
@@ -139,10 +154,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="hyperName">The name of the hyperedge.</param>
         /// <returns>true if a hyperedge with the specified name exists; otherwise, false.</returns>
-        public bool CheckThatHyperedgeExists(string hyperName)
-        {
-            return AllHyperEdges.ContainsKey(hyperName);
-        }
+        public bool ContainsHyperedge(string hyperName) => AllHyperEdges.ContainsKey(hyperName);
 
         /// <summary>
         /// Returns an array of node ids in the edgeset, i.e. the set of alters.
@@ -172,15 +184,15 @@ namespace Threadle.Core.Model
         /// Returns a HashSet of all unique node ids mentioned in the Layer
         /// </summary>
         /// <returns>A HashSet of node ids.</returns>
-        public HashSet<uint> GetMentionedNodeIds()
-        {
-            HashSet<uint> ids = [];
-            foreach (Hyperedge hyperEdge in AllHyperEdges.Values)
-            {
-                ids.UnionWith(hyperEdge.NodeIds);
-            }
-            return ids;
-        }
+        //public HashSet<uint> GetMentionedNodeIds()
+        //{
+        //    HashSet<uint> ids = [];
+        //    foreach (Hyperedge hyperEdge in AllHyperEdges.Values)
+        //    {
+        //        ids.UnionWith(hyperEdge.NodeIds);
+        //    }
+        //    return ids;
+        //}
 
         /// <summary>
         /// Clears the layer, i.e. clears all Edgeset objects and removes these.
@@ -200,7 +212,7 @@ namespace Threadle.Core.Model
         public ILayer CreateFilteredCopy(Nodeset nodeset)
         {
             HashSet<uint> allowedNodeIds = [.. nodeset.NodeIdArray];
-            LayerTwoMode layerCopy = CreateEmptyCopy();
+            LayerTwoMode layerCopy = new LayerTwoMode(this.Name + "_filtered");
             foreach (var (name, hyperedge) in AllHyperEdges)
             {
                 Hyperedge hyperedge_filtered = new(hyperedge.NodeIds.Intersect(allowedNodeIds).ToArray());
@@ -237,6 +249,60 @@ namespace Threadle.Core.Model
             }
             return lines;
         }
+
+        public string[] GetAllHyperedgeNames(int offset, int limit)
+        {
+            offset = (offset < 0) ? 0 : offset;
+            limit = (limit < 0) ? 0 : limit;
+            return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
+        }
+
+        /// <summary>
+        /// Returns the node ids affiliated to the specified hyperedge, sorted by ascending node id.
+        /// Returns an empty array if no hyperedge with that name exist, or if the hyperedge has no node ids
+        /// affiliated to it.
+        /// </summary>
+        public uint[] GetHyperedgeNodeIds(string hyperName)
+        {
+            if (!AllHyperEdges.TryGetValue(hyperName, out var hyperedge))
+                return [];
+            return hyperedge.NodeIds.ToArray();
+        }
+
+        public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
+        {
+            foreach (var (name, hyperedge) in AllHyperEdges)
+                yield return (name, [.. hyperedge.NodeIds]);
+        }
+
+        public string[] GetNodeHyperedgeNames(uint nodeId)
+        {
+            if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperedgeCollection))
+                return [];
+            return hyperedgeCollection.HyperEdges.Select(x => x.Name).ToArray();
+        }
+
+        public long GetEstimatedBytes()
+        {            
+            int H = _allHyperedges.Count;
+            int N = _hyperedgeCollections.Count;
+            long nbrAffs = NbrAffiliations;
+            // Estimate average length of hyperedge names based on sampling up to 20
+            int nameSampleSize = Math.Min(H, 20);
+            double averageHyperedgeNameLength = nameSampleSize > 0 ? _allHyperedges.Keys.Take(nameSampleSize).Average(k => (double)k.Length) : 10.0;
+            long bytesPerName = 20 + (long)Math.Round(averageHyperedgeNameLength) * 2;
+            // Memory for dict<string,Hyperedge> AllHyperedges (note that hyperedge names are on heap
+            long bytes = (long)H * 24 + (long)(H / 0.72 + 1) * 4 + (long)H * bytesPerName;
+            // Hyperedge objects: header(16) + List<uint> nodeIds (32) + internal array (24 + count*4) = 72 + count*4
+            // NbrAffiliations is here number of nodeId<->Hyperedge connections, i.e. sum of the lenghts of all nodeIds lists in each hyperedge
+            bytes += (long)H * 72 + nbrAffs * 4;
+            // Dictionary<uint, HyperedgeCollection>: entires + buckets
+            bytes += (long)N * 20 + (long)(N / 0.72 + 1) * 4;
+            // HyperEdgeCollection objects: header (16) + HashSet<Hyperedge> obj (~56) + entries (~20 per ref)
+            bytes += (long)N * 72 + nbrAffs * 20;
+            return bytes;
+        }
+
         #endregion
 
 
@@ -445,21 +511,6 @@ namespace Threadle.Core.Model
         /// <param name="limit">The maximum number of hyperedge names to retrieve. If less than zero, the value is treated as zero.</param>
         /// <returns>An array of strings containing the names of hyperedges, limited by the specified offset and limit. The array
         /// is empty if no hyperedges are available within the specified range.</returns>
-        internal string[] GetAllHyperedgeNames(int offset, int limit)
-        {
-            offset = (offset < 0) ? 0 : offset;
-            limit = (limit < 0) ? 0 : limit;
-            return AllHyperEdges.Keys.Skip(offset).Take(limit).ToArray();
-        }
-
-        /// <summary>
-        /// Creates and returns an empty copy of this layer.
-        /// </summary>
-        /// <returns>A <see cref="LayerTwoMode"/> object.</returns>
-        private LayerTwoMode CreateEmptyCopy()
-        {
-            return new LayerTwoMode(this.Name);
-        }
         #endregion
     }
 }

@@ -22,17 +22,6 @@ namespace Threadle.Core.Model
             Name = name;
             Nodeset = nodeset;
         }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Network"/> class
-        /// with the specified name. Also creating a nodeset. Used by TSV loader.
-        /// </summary>
-        /// <param name="name">The internal name of the network.</param>
-        public Network(string name)
-        {
-            Name = name;
-            Nodeset = new Nodeset(name + "_nodeset");
-        }
         #endregion
 
 
@@ -79,13 +68,14 @@ namespace Threadle.Core.Model
             ["Filepath"] = Filepath,
             ["isModified"] = IsModified,
             ["Nodeset"] = Nodeset.Name,
-            ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata)
+            ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata),
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
         /// Gets the Nodeset that this Network uses
         /// </summary>
-        public Nodeset Nodeset { get; private set; }
+        public Nodeset Nodeset { get; }
 
         /// <summary>
         /// A dictionary of relational layerNames (ILayer), accessible by their unique names.
@@ -347,7 +337,7 @@ namespace Threadle.Core.Model
         /// <returns>Returns an OperationResult object with the array of uint of alter ids.</returns>
         public OperationResult<uint[]> GetNodeAlters(string[]? layerNames, uint nodeId, EdgeTraversal edgeTraversal, bool unique)
         {
-            if (!Nodeset.CheckThatNodeExists(nodeId))
+            if (!Nodeset.Contains(nodeId))
                 return OperationResult<uint[]>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
 
             List<ILayer> layerList = [];
@@ -381,16 +371,23 @@ namespace Threadle.Core.Model
         /// <returns>Returns an OperationResult object with the array of uint affiliated to this hyperedge.</returns>
         public OperationResult<uint[]> GetHyperedgeNodes(string layerName, string hyperName)
         {
-            var layerResult = GetTwoModeLayer(layerName);
+            var layerResult = GetTwoModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<uint[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
-            if (layerTwoMode.GetHyperedge(hyperName) is not Hyperedge hyperedge)
+            if (!layerTwoMode.ContainsHyperedge(hyperName))
                 return OperationResult<uint[]>.Fail("HyperedgeNotFound", $"Could not find hyperedge named '{hyperName}' in layer '{layerName}' of network {Name}.");
-            uint[] nodeIds = hyperedge.NodeIds.ToArray();
+            uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(hyperName);
             Array.Sort(nodeIds);
             return OperationResult<uint[]>.Ok(nodeIds, $"Hyperedge '{hyperName}' connects the following nodes in layer '{layerName}':");
+
+            //if (layerTwoMode.GetHyperedgeNodeIds(hyperName) is not Hyperedge hyperedge)
+            //    return OperationResult<uint[]>.Fail("HyperedgeNotFound", $"Could not find hyperedge named '{hyperName}' in layer '{layerName}' of network {Name}.");
+            //uint[] nodeIds = hyperedge.NodeIds.ToArray();
+            //Array.Sort(nodeIds);
+            //return OperationResult<uint[]>.Ok(nodeIds, $"Hyperedge '{hyperName}' connects the following nodes in layer '{layerName}':");
         }
+
 
         /// <summary>
         /// Returns an array with the hyperedge names that a node is connected to in a specific 2-mode layer.
@@ -400,13 +397,13 @@ namespace Threadle.Core.Model
         /// <returns>Returns an OperationResult object with the array of strings of the hyperedge names that this node is affiliated to.</returns>
         public OperationResult<string[]> GetNodeHyperedges(string layerName, uint nodeId)
         {
-            if (!Nodeset.CheckThatNodeExists(nodeId))
+            if (!Nodeset.Contains(nodeId))
                 return OperationResult<string[]>.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'");
-            var layerResult = GetTwoModeLayer(layerName);
+            var layerResult = GetTwoModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<string[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
-            string[] hyperedgeNames = layerTwoMode.GetHyperedgeNames(nodeId);
+            string[] hyperedgeNames = layerTwoMode.GetNodeHyperedgeNames(nodeId);
             return OperationResult<string[]>.Ok(hyperedgeNames, $"Node '{nodeId}' is affiliated to the following hyperedges in layer '{layerName}':");
         }
 
@@ -423,7 +420,7 @@ namespace Threadle.Core.Model
         {
             offset = (offset < 0) ? 0 : offset;
             limit = (limit < 0) ? 0 : limit;
-            var layerResult = GetTwoModeLayer(layerName);
+            var layerResult = GetTwoModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<string[]>.Fail(layerResult);
             var layerTwoMode = layerResult.Value!;
@@ -454,7 +451,7 @@ namespace Threadle.Core.Model
         {
             offset = (offset < 0) ? 0 : offset;
             limit = (limit < 0) ? 0 : limit;
-            var layerResult = GetOneModeLayer(layerName);
+            var layerResult = GetOneModeLayerForRead(layerName);
             if (!layerResult.Success)
                 return OperationResult<List<Dictionary<string, object>>>.Fail(layerResult);
             var layerOneMode = layerResult.Value!;
@@ -470,6 +467,14 @@ namespace Threadle.Core.Model
             else
                 message = $"Returning edges {offset + 1} - {offset + edges.Count} of {total} in layer '{layerName}':";
             return OperationResult<List<Dictionary<string, object>>>.Ok(edges, message);
+        }
+
+        public long GetEstimatedBytes()
+        {
+            long total = Nodeset.GetEstimatedBytes();
+            foreach (var layer in Layers.Values)
+                total += layer.GetEstimatedBytes();
+            return total;
         }
         #endregion
 
@@ -516,9 +521,20 @@ namespace Threadle.Core.Model
         {
             if (!Layers.TryGetValue(layerName, out var layer))
                 return OperationResult<LayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is LayerOneModeStatic)
+                return OperationResult<LayerOneMode>.Fail("LayerIsPacked", $"Layer '{layerName}' is packed. Use 'unpack()' first.");
             if (!(layer is LayerOneMode layerOneMode))
                 return OperationResult<LayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
             return OperationResult<LayerOneMode>.Ok(layerOneMode);
+        }
+
+        internal OperationResult<ILayerOneMode> GetOneModeLayerForRead(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<ILayerOneMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is ILayerOneMode layerOneMode)
+                return OperationResult<ILayerOneMode>.Ok(layerOneMode);
+            return OperationResult<ILayerOneMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 1-mode layer.");
         }
 
         /// <summary>
@@ -530,10 +546,22 @@ namespace Threadle.Core.Model
         {
             if (!Layers.TryGetValue(layerName, out var layer))
                 return OperationResult<LayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is LayerTwoModeStatic)
+                return OperationResult<LayerTwoMode>.Fail("LayerIsStatic", $"Layer '{layerName}' is a static (immutable) 2-mode layer.");
             if (!(layer is LayerTwoMode layerTwoMode))
                 return OperationResult<LayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");
             return OperationResult<LayerTwoMode>.Ok(layerTwoMode);
         }
+
+        internal OperationResult<ILayerTwoMode> GetTwoModeLayerForRead(string layerName)
+        {
+            if (!Layers.TryGetValue(layerName, out var layer))
+                return OperationResult<ILayerTwoMode>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+            if (layer is ILayerTwoMode layerTwoMode)
+                return OperationResult<ILayerTwoMode>.Ok(layerTwoMode);
+            return OperationResult<ILayerTwoMode>.Fail("InvalidLayerMode", $"Layer '{layerName}' is not a 2-mode layer.");
+        }
+
 
         /// <summary>
         /// Adds an edge between node1Id and node2Id in the specified 1-mode layer.
@@ -560,9 +588,9 @@ namespace Threadle.Core.Model
             {
                 if (addMissingNodes)
                 {
-                    if (!Nodeset.CheckThatNodeExists(node1Id))
+                    if (!Nodeset.Contains(node1Id))
                         Nodeset.AddNode(node1Id);
-                    if (!Nodeset.CheckThatNodeExists(node2Id))
+                    if (!Nodeset.Contains(node2Id))
                         Nodeset.AddNode(node2Id);
                 }
                 IsModified = true;
@@ -604,7 +632,7 @@ namespace Threadle.Core.Model
                 List<uint> existingNodeIds = [];
                 foreach (uint id in nodeIds)
                 {
-                    if (!Nodeset.CheckThatNodeExists(id))
+                    if (!Nodeset.Contains(id))
                     {
                         if (addMissingNodes)
                             Nodeset.AddNode(id);
@@ -648,18 +676,18 @@ namespace Threadle.Core.Model
         {
             if (!addMissingNode)
             {
-                if (!Nodeset.CheckThatNodeExists(nodeId))
+                if (!Nodeset.Contains(nodeId))
                     return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
             }
             if (!addMissingHyperedge)
             {
-                if (!layerTwoMode.CheckThatHyperedgeExists(hyperName))
+                if (!layerTwoMode.ContainsHyperedge(hyperName))
                     return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{layerTwoMode.Name}'.");
             }
             OperationResult result = layerTwoMode.AddAffiliation(nodeId, hyperName, addMissingHyperedge);
             if (result.Success)
             {
-                if (addMissingNode && !Nodeset.CheckThatNodeExists(nodeId))
+                if (addMissingNode && !Nodeset.Contains(nodeId))
                     Nodeset.AddNode(nodeId);
                 IsModified = true;
             }
@@ -675,9 +703,9 @@ namespace Threadle.Core.Model
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult RemoveAffiliation(LayerTwoMode layerTwoMode, string hyperName, uint nodeId)
         {
-            if (!Nodeset.CheckThatNodeExists(nodeId))
+            if (!Nodeset.Contains(nodeId))
                 return OperationResult.Fail("NodeNotFound", $"Node '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
-            if (!layerTwoMode.CheckThatHyperedgeExists(hyperName))
+            if (!layerTwoMode.ContainsHyperedge(hyperName))
                 return OperationResult.Fail("HyperedgeNotFound", $"Hyperedge '{hyperName}' not found in 2-mode layer '{layerTwoMode.Name}'.");
             OperationResult result = layerTwoMode.RemoveAffiliation(nodeId, hyperName);
             if (result.Success)
@@ -685,27 +713,6 @@ namespace Threadle.Core.Model
             return result;
         }
 
-        /// <summary>
-        /// Internal method for setting the Nodeset (only to be used by the loader)
-        /// </summary>
-        /// <param name="nodeset">The nodeset to set.</param>
-        internal void SetNodeset(Nodeset nodeset) => Nodeset = nodeset;
-
-        /// <summary>
-        /// Gets a collection of all unique node id values found in all existing relations in all <see cref="Layers"/>.
-        /// </summary>
-        /// <returns>A HashSet with all unique node ids currently existing in the <see cref="Network">.</returns>
-        /// <remarks>
-        /// This is currently used by FileSerializerTsv when loading a network without an existing Nodeset. I might change that so that a network MUST have a reference to a saved
-        /// Nodeset. Or that it creates Nodes on the fly.
-        /// </remarks>
-        internal HashSet<uint> GetAllIdsMentioned()
-        {
-            HashSet<uint> ids = [];
-            foreach (ILayer layer in Layers.Values)
-                ids.UnionWith(layer.GetMentionedNodeIds());
-            return ids;
-        }
 
         /// <summary>
         /// Returns all alters to a node in all layerNames. For single layer alters,
@@ -733,6 +740,64 @@ namespace Threadle.Core.Model
             if (Layers.TryGetValue(layerName, out var layer))
                 return layer;
             return null;
+        }
+
+        /// <summary>
+        /// Packs one or all layers in  the network
+        /// </summary>
+        /// <param name="layerName"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public OperationResult Pack(string? layerName)
+        {
+            if (layerName != null)
+            {
+                if (_getLayer(layerName) is not ILayer layer)
+                    return OperationResult.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+                if (layer is LayerOneModeStatic || layer is LayerTwoModeStatic)
+                    return OperationResult.Fail("LayerAlreadyPacked", $"Layer '{layerName}' is already packed.");
+                var layerPacked = Misc.PackLayer(layer);
+                Layers[layerName] = layerPacked;
+                return OperationResult.Ok($"Layer '{layerName}' packed.");
+            }
+            else
+            {
+                foreach (string layerName2 in Layers.Keys.ToList())
+                {
+                    ILayer layer = Layers[layerName2];
+                    if (layer is LayerOneModeStatic || layer is LayerTwoModeStatic)
+                        continue;
+                    var layerPacked = Misc.PackLayer(Layers[layerName2]);
+                    Layers[layerName2] = layerPacked;
+                }
+                return OperationResult.Ok($"All layers in network '{Name}' packed.");
+            }
+        }
+
+        public OperationResult Unpack(string? layerName)
+        {
+            if (layerName!=null)
+            {
+                if (_getLayer(layerName) is not ILayer layer)
+                    return OperationResult.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+                if (layer is LayerOneMode || layer is LayerTwoMode)
+                    return OperationResult.Fail("LayerAlreadyUnpacked", $"Layer '{layerName}' is already unpacked.");
+                var layerUnpacked = Misc.UnpackLayer(layer);
+                Layers[layerName] = layerUnpacked;
+                return OperationResult.Ok($"Layer '{layerName}' unpacked.");
+            }
+            else
+            {
+                foreach (string layerName2 in Layers.Keys.ToList())
+                {
+                    ILayer layer = Layers[layerName2];
+                    if (layer is LayerOneMode || layer is LayerTwoMode)
+                        continue;
+                    var layerUnpacked = Misc.UnpackLayer(Layers[layerName2]);
+                    Layers[layerName2] = layerUnpacked;
+                }
+                return OperationResult.Ok($"All layers in network '{Name}' unpacked.");
+            }
         }
         #endregion
     }

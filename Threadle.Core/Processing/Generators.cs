@@ -27,7 +27,7 @@ namespace Threadle.Core.Processing
             byte attrIndex = attrDefineResult.Value;
             uint[] nodeIdArray = nodeset.NodeIdArray;
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(Misc.Random.Next(minValue, maxValue + 1)));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(Misc.Random.Next(minValue, maxValue + 1)));
             return OperationResult.Ok($"Node attribute '{attrName}' (integer) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
         }
 
@@ -48,7 +48,7 @@ namespace Threadle.Core.Processing
             byte attrIndex = attrDefineResult.Value;
             uint[] nodeIdArray = nodeset.NodeIdArray;
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(minValue + (float)(Misc.Random.NextDouble() * (maxValue - minValue))));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(minValue + (float)(Misc.Random.NextDouble() * (maxValue - minValue))));
             return OperationResult.Ok($"Node attribute '{attrName}' (float) defined and random values between {minValue} and {maxValue} assigned to all nodes.");
         }
 
@@ -67,7 +67,7 @@ namespace Threadle.Core.Processing
             byte attrIndex = attrDefineResult.Value;
             uint[] nodeIdArray = nodeset.NodeIdArray;
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(Misc.Random.NextDouble() < p));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(Misc.Random.NextDouble() < p));
             return OperationResult.Ok($"Node attribute '{attrName}' (bool) defined and true assigned to all nodes by probability {p}.");
         }
 
@@ -94,7 +94,7 @@ namespace Threadle.Core.Processing
             uint[] nodeIdArray = nodeset.NodeIdArray;
 
             for (int i = 0; i < nodeIdArray.Length; i++)
-                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(chars[Misc.Random.Next(0, nbrChars)]));
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue2(chars[Misc.Random.Next(0, nbrChars)]));
             return OperationResult.Ok($"Node attribute '{attrName}' (char) defined and specified random characters assigned to all nodes.");
         }
 
@@ -272,10 +272,10 @@ namespace Threadle.Core.Processing
                         oldTarget = nodeIds[(i + j) % n];
                         do
                         {
-                            newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length - 1)];
+                            newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
 
                         }
-                        while (newTarget == i || layer.CheckEdgeExists(source, newTarget));
+                        while (newTarget == source || layer.CheckEdgeExists(source, newTarget));
                         layer.RemoveEdge(source, oldTarget);
                         layer.AddEdge(source, newTarget);
                     }
@@ -298,6 +298,10 @@ namespace Threadle.Core.Processing
         /// <returns></returns>
         public static OperationResult GenerateErdosRenyiLayer(Network network, string layerName, double p)
         {
+            if (p < 0 || p > 1)
+                return OperationResult.Fail("InvalidParameter", $"Edge probability p must be in the range [0,1], got {p}.");
+
+
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return layerResult;
@@ -323,13 +327,16 @@ namespace Threadle.Core.Processing
             layer._initEdgesets(nodeIds, edgesetCapacity);
 
             ulong totalEdges = Misc.GetNbrPotentialEdges(n, layer.Directionality, layer.Selfties);
+
+            if (p == 0 || totalEdges == 0)
+                return OperationResult.Ok($"Erdös-Renyi network with p={p} generated in layer '{layerName}' in network '{network.Name}'.");
             ulong index = 0;
             uint row = 0;
             ulong rowStartindex = 0;
             uint rowLength = GetRowLength(row, n, layer.Directionality, layer.Selfties);
             while (index < totalEdges)
             {
-                ulong skip = Misc.SampleGeometric(p);
+                ulong skip = p < 1 ? Misc.SampleGeometric(p) : 0;
                 index += skip;
                 if (index >= totalEdges)
                     break;

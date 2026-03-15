@@ -8,19 +8,19 @@ using Threadle.Core.Utilities;
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'getnodealters' CLI command.
+    /// Class representing the '[...]' CLI command.
     /// </summary>
-    public class GetNodeAlters : ICommand
+    public class GetDegree : ICommand
     {
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[array:uint] = getnodealters(network = [var:network], nodeid = [uint], *layernames = [semicolon-separated layer names], *direction = ['both','in','out'(default)], *unique = [false,true(default)])";
+        public string Syntax => "[uint] = getdegree(network = [var:network], nodeid = [uint], *layernames = [semicolon-separated layer names], *direction = ['both','in','out'(default)], *unique = [false,true(default)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the id of the alters to a specific node in the Network with the variable name [var:network]. Will either return the node alters for one or more specified layers (as given by layernames) or return alters in all layers. When specifying multiple layers, separate their names with a semicolon (;). Output is in standard JSON array format. For directional layers, only outbound edges are included in the set of alters by default, but this can be adjusted with the optional direction argument. However, if the layer is CSR, only outbound can be provided. When obtaining alters from multiple (or all) layers, the same alter node might appear in several layers. By default, such alter nodes will not appear multiple times in the returned array. However, by setting 'unique' to false, an alter node id will appear the number of times that it appears in different layers. (As a necessary side-effect of deduplication, the list will also be sorted, which it is not otherwise by design). Note: there is nothing stopping you from naming the same layer multiple times in the layernames string.";
+        public string Description => "Calculates the degree centrality for the specified node in the network, either for the specified layer, layers or all layers (if layernames is omitted). By default outdegree is calculated, but this can be changed. When having multiple layers, the same alter is by default counted only once, but this can be changed with the unique parameter.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -38,11 +38,14 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string layerNames = command.GetArgumentParseString("layernames", "");
-            bool uniqueAlters = command.GetArgumentParseBool("unique", true);
             string[]? layers = (layerNames.Length > 0) ? layerNames.Split(';') : null;
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Out);
+            bool uniqueAlters = command.GetArgumentParseBool("unique", true);
             OperationResult<uint[]> result = network.GetNodeAlters(layers, nodeId, edgeTraversal, uniqueAlters);
-            return CommandResult.FromOperationResult(result, result.Value);
+            if (!result.Success)
+                return CommandResult.FromOperationResult(result);
+            int degree = result.Value!.Length;
+            return CommandResult.Ok($"Degree of node {nodeId}: {degree}", degree);
         }
     }
 }

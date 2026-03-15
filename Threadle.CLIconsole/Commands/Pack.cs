@@ -1,25 +1,25 @@
 ﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
-using Threadle.Core.Analysis;
 using Threadle.Core.Model;
+using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Commands
 {
     /// <summary>
-    /// Class representing the 'density' CLI command.
+    /// Class representing the '[...]' CLI command.
     /// </summary>
-    public class Density : ICommand
+    public class Pack : ICommand
     {
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[double] = density(network = [var:network], layername = [str], *samplesize = [int])";
+        public string Syntax => "pack(network = [var:network], *layername = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates and returns the density of the layer 'layername' of the specified network. Treats all existing ties as binary ties. Works for both 1-mode and 2-mode networks: the 2-mode version uses a routine that might take a bit longer.";
+        public string Description => "Takes a mutable (unpacked, dynamic) 1-mode or 2-mode layer and converts it into a corresponding immutable(packed, static) layer. A packed layer takes less RAM memory but it is not possible to add or remove edges to such a layer. Use the 'unpack(...)' command to convert an immutable (packed, static) layer to a mutable (unpacked, dynamic) version.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -35,10 +35,9 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-            string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
-            int sampleSize = command.GetArgumentParseInt("samplesize", 200);
-            var densityResult = Analyses.Density(network, layerName, sampleSize);
-            return CommandResult.FromOperationResult(densityResult, densityResult.Value);
+            string? layerName = command.GetArgument("layername", "arg1");
+            OperationResult result = network.Pack(layerName);
+            return CommandResult.FromOperationResult(result);
         }
     }
 }
