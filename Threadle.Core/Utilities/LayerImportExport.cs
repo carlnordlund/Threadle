@@ -34,14 +34,14 @@ namespace Threadle.Core.Utilities
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     foreach (var alterId in alters.Span)
-                        if (!layerOneMode.IsSymmetric || alterId > egoId)
+                        if (layerOneMode.IsDirectional || alterId > egoId)
                             writer.WriteLine($"{egoId}{sep}{alterId}");
             }
             else
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     for (int i = 0; i < alters.Length; i++)
-                        if (!layerOneMode.IsSymmetric || alters.Span[i] > egoId)
+                        if (layerOneMode.IsDirectional || alters.Span[i] > egoId)
                             writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
             }
         }
@@ -62,7 +62,7 @@ namespace Threadle.Core.Utilities
                 writer.WriteLine($"node{sep}affiliation");
             foreach (var (hypername, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                 foreach (var nodeId in nodeIds)
-                    writer.WriteLine($"{nodeId}{sep}{hypername}]");
+                    writer.WriteLine($"{nodeId}{sep}{hypername}");
         }
 
         /// <summary>
