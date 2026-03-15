@@ -60,7 +60,7 @@ namespace Threadle.Core.Utilities
                 writer.WriteLine($"node{sep}affiliation");
             foreach (var (hypername, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                 foreach (var nodeId in nodeIds)
-                    writer.WriteLine($"{nodeId}{sep}{hypername}]");
+                    writer.WriteLine($"{nodeId}{sep}{hypername}");
         }
 
         /// <summary>
