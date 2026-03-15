@@ -30,17 +30,26 @@ namespace Threadle.Core.Utilities
                 headerLine += layerOneMode.IsValued ? $"{sep}value" : "";
                 writer.WriteLine(headerLine);
             }
+            bool emitBothDirections = !layerOneMode.IsDirectional && !layerOneMode.IsStatic;
             if (layerOneMode.IsBinary)
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     foreach (var alterId in alters.Span)
+                    {
                         writer.WriteLine($"{egoId}{sep}{alterId}");
+                        if (emitBothDirections)
+                            writer.WriteLine($"{alterId}{sep}{egoId}");
+                    }
             }
             else
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     for (int i = 0; i < alters.Length; i++)
+                    {
                         writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
+                        if (emitBothDirections)
+                            writer.WriteLine($"{alters.Span[i]}{sep}{egoId}{sep}{values.Span[i]}");
+                    }
             }
         }
 
