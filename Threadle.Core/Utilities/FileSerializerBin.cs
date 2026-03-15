@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Dynamic;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -495,7 +496,7 @@ namespace Threadle.Core.Utilities
                 WriteString(writer, layer.Key);
 
                 // Check if it is 1-mode or 2-mode: different writing logics
-                if (layer.Value is LayerOneMode layerOneMode)
+                if (layer.Value is ILayerOneMode layerOneMode)
                 {
                     // LAYER IS 1-MODE
 
@@ -511,67 +512,53 @@ namespace Threadle.Core.Utilities
                     // Write selfties boolean as a byte (0:false, 1:true)
                     writer.Write(layerOneMode.Selfties);
 
+                    // Get egodata (like nodelist2)
+                    var egoData = layerOneMode.GetAllEgoData().ToList();
+
+
                     // Get nbr of edgesets (nodelist rows)
-                    int nbrEdgesets = layerOneMode.Edgesets.Count;
+                    //int nbrEdgesets = layerOneMode.Edgesets.Count;
 
                     // Write nbr of nodelist rows
-                    writer.Write(nbrEdgesets);
+                    writer.Write(egoData.Count);
 
-                    if (layerOneMode.IsValued)
+                    // Iterate all egoData
+                    foreach (var (egoId, alters, values) in egoData)
                     {
-                        // Layer is 1-mode valued: store both alter and edge value
-                        foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
+                        // Write ego node id
+                        writer.Write(egoId);
+
+                        ReadOnlySpan<uint> alterSpan = alters.Span;
+
+                        // Write nbr of alters this node id has
+                        writer.Write(alterSpan.Length);
+
+                        
+                        if (layerOneMode.IsValued)
                         {
-                            if (edgeset is IEdgesetValued edgesetValued)
+                            // Layer in valued
+
+                            ReadOnlySpan<float> valSpan = values.Span;
+                            // Iterate over all alters
+                            for (int k = 0; k < alterSpan.Length; k++)
                             {
-                                // Write ego node id
-                                writer.Write(nodeId);
-
-                                // Get partnerNodeIds (upper triangle for symmetric data)
-                                IReadOnlyList<Connection> partnerConnections = edgesetValued.GetNodelistAlterConnections(nodeId);
-
-                                // Note: need to include all nodeId even for those with empty partnerNodeIds: this is because it has to fit nbrEdgesets above
-
-                                // Write nbr of alters this node id has
-                                writer.Write(partnerConnections.Count);
-
-                                // Iterate through alters and write partnerNodeId and float value
-                                foreach (Connection conn in partnerConnections)
-                                {
-                                    // Writes the partner node id
-                                    writer.Write(conn.partnerNodeId);
-
-                                    // Writes the float value of this edge
-                                    writer.Write(conn.value);
-                                }
+                                // Write the alter id
+                                writer.Write(alterSpan[k]);
+                                // Write edge value (float)
+                                writer.Write(valSpan[k]);
                             }
                         }
-                    }
-                    else
-                    {
-                        // Layer is 1-mode and binary: store only alter
-                        foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
+                        else
                         {
-                            if (edgeset is IEdgesetBinary edgesetBinary)
-                            {
-                                // Ego node id
-                                writer.Write(nodeId);
-
-                                // Get List of alter nodeids. As symmetric should only be stored once, pass along the
-                                // current nodeId to only get alter node ids that are larger than the ego nodeid
-                                List<uint> partnerNodeIds = edgesetBinary.GetNodelistAlterUints(nodeId);
-
-                                // Write nbr of alters this node id has
-                                writer.Write(partnerNodeIds.Count);
-
-                                // Iterate through alters and write partnerNodeId
-                                foreach (uint partnerNodeId in partnerNodeIds)
-                                    writer.Write(partnerNodeId);
-                            }
+                            // Layer is binary
+                            // Iterate over all alters
+                            for (int k = 0; k < alterSpan.Length; k++)
+                                // Write alter id
+                                writer.Write(alterSpan[k]);
                         }
                     }
                 }
-                else if (layer.Value is LayerTwoMode layerTwoMode)
+                else if (layer.Value is ILayerTwoMode layerTwoMode)
                 {
                     // LAYER IS 2-MODE
 
@@ -579,19 +566,31 @@ namespace Threadle.Core.Utilities
                     writer.Write((byte)2);
 
                     // Write the number of hyperedges in this layer
-                    writer.Write(layerTwoMode.AllHyperEdges.Count);
+                    writer.Write(layerTwoMode.NbrHyperedges);
 
-                    foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
+                    // Get all hyperedge data and iterate over all hyperedges
+                    foreach (var (hyperName, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                     {
-                        // Write the name of the hyperedge
+                        // Write the hyperedge name
                         WriteString(writer, hyperName);
-
-                        // Write the number of affiliated nodes to this hyperedge
-                        writer.Write(hyperedge.NbrNodes);
-
-                        foreach (uint nodeId in hyperedge.NodeIds)
+                        // Write the number of nodes affiliated to this hyperedge
+                        writer.Write((uint)nodeIds.Length);
+                        // Iterate over all nodes and write their ids
+                        foreach (uint nodeId in nodeIds)
                             writer.Write(nodeId);
                     }
+
+                    //foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
+                    //{
+                    //    // Write the name of the hyperedge
+                    //    WriteString(writer, hyperName);
+
+                    //    // Write the number of affiliated nodes to this hyperedge
+                    //    writer.Write(hyperedge.NbrNodes);
+
+                    //    foreach (uint nodeId in hyperedge.NodeIds)
+                    //        writer.Write(nodeId);
+                    //}
                 }
             }
         }

@@ -47,6 +47,11 @@ namespace Threadle.Core.Model
         /// Returns true if the layer contains a hyperedge with a specific name
         /// </summary>
         bool ContainsHyperedge(string hypername);
+
+        /// <summary>
+        /// Iterates all hyperedges, yielding the name and affiliated node ids for each.
+        /// </summary>
+        IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData();
         #endregion
     }
 }

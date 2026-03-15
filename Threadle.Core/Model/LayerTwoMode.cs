@@ -269,6 +269,12 @@ namespace Threadle.Core.Model
             return hyperedge.NodeIds.ToArray();
         }
 
+        public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
+        {
+            foreach (var (name, hyperedge) in AllHyperEdges)
+                yield return (name, [.. hyperedge.NodeIds]);
+        }
+
         public string[] GetNodeHyperedgeNames(uint nodeId)
         {
             if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperedgeCollection))
