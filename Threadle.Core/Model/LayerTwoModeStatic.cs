@@ -431,7 +431,7 @@ namespace Threadle.Core.Model
 
 
         #region Methods (internal, private)
-        internal IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
+        public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
         {
             for (int h=0; h<_hyperedgeNames.Length;h++)
             {

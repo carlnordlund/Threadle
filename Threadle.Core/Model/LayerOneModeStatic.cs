@@ -431,7 +431,7 @@ namespace Threadle.Core.Model
 
         //}
 
-        internal IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
+        public IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
         {
             // Iterate through all node Ids in this layer
             foreach (var (egoId, index) in _nodeIdToIndexMapper)

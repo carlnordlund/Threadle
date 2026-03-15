@@ -512,37 +512,28 @@ namespace Threadle.Core.Utilities
                     // Write selfties boolean as a byte (0:false, 1:true)
                     writer.Write(layerOneMode.Selfties);
 
-                    // Get all edges grouped by ego node (upper-triangle for undirected, as GetAllEdges guarantees node1 < node2 for symmetric)
-                    var byEgo = layerOneMode.GetAllEdges(0, int.MaxValue).GroupBy(e => (uint)e["node1"]).ToList();
+                    // Materialise ego data so we can write the count before the rows
+                    var egoData = layerOneMode.GetAllEgoData().ToList();
+                    writer.Write(egoData.Count);
 
-                    // Write nbr of edgesets (distinct ego entries)
-                    writer.Write(byEgo.Count);
-
-                    if (layerOneMode.IsValued)
+                    foreach (var (egoId, alters, values) in egoData)
                     {
-                        // Layer is 1-mode valued: store ego id, alter count, then interleaved alter/value pairs
-                        foreach (var egoGroup in byEgo)
+                        writer.Write(egoId);
+                        ReadOnlySpan<uint> alterSpan = alters.Span;
+                        writer.Write(alterSpan.Length);
+                        if (layerOneMode.IsValued)
                         {
-                            writer.Write(egoGroup.Key);
-                            var connections = egoGroup.ToList();
-                            writer.Write(connections.Count);
-                            foreach (var edge in connections)
+                            ReadOnlySpan<float> valSpan = values.Span;
+                            for (int k = 0; k < alterSpan.Length; k++)
                             {
-                                writer.Write((uint)edge["node2"]);
-                                writer.Write((float)edge["value"]);
+                                writer.Write(alterSpan[k]);
+                                writer.Write(valSpan[k]);
                             }
                         }
-                    }
-                    else
-                    {
-                        // Layer is 1-mode binary: store ego id, alter count, then alter ids
-                        foreach (var egoGroup in byEgo)
+                        else
                         {
-                            writer.Write(egoGroup.Key);
-                            var alters = egoGroup.ToList();
-                            writer.Write(alters.Count);
-                            foreach (var edge in alters)
-                                writer.Write((uint)edge["node2"]);
+                            for (int k = 0; k < alterSpan.Length; k++)
+                                writer.Write(alterSpan[k]);
                         }
                     }
                 }
@@ -556,14 +547,9 @@ namespace Threadle.Core.Utilities
                     // Write the number of hyperedges in this layer
                     writer.Write(layerTwoMode.NbrHyperedges);
 
-                    string[] hyperedgeNames = layerTwoMode.GetAllHyperedgeNames(0, int.MaxValue);
-                    foreach (string hyperName in hyperedgeNames)
+                    foreach (var (hyperName, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                     {
-                        // Write the name of the hyperedge
                         WriteString(writer, hyperName);
-
-                        // Write the number of affiliated nodes and their ids
-                        uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(hyperName);
                         writer.Write((uint)nodeIds.Length);
                         foreach (uint nodeId in nodeIds)
                             writer.Write(nodeId);

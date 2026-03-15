@@ -46,6 +46,13 @@ namespace Threadle.Core.Model
         /// <returns></returns>
         List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 10000);
 
+        /// <summary>
+        /// Iterates all ego nodes with their outbound alters and edge values.
+        /// For undirected layers, each edge is yielded only once (from the lower node id).
+        /// <paramref name="values"/> is empty for binary layers.
+        /// </summary>
+        IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData();
+
         #endregion
 
     }

@@ -239,6 +239,26 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Iterates all ego nodes with their outbound alters and edge values.
+        /// For undirected layers, each edge is yielded only once (from the lower node id).
+        /// <c>values</c> is empty for binary layers.
+        /// </summary>
+        public IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
+        {
+            foreach (var (egoId, edgeset) in _edgesets)
+            {
+                var alterList = new List<uint>();
+                List<float>? valueList = IsValued ? [] : null;
+                foreach (var (alterId, val) in edgeset.GetOutboundEdgesWithValues(egoId))
+                {
+                    alterList.Add(alterId);
+                    valueList?.Add(val);
+                }
+                yield return (egoId, alterList.ToArray(), valueList?.ToArray());
+            }
+        }
+
+        /// <summary>
         /// Clears the layer, i.e. clears all Edgeset objects and removes these.
         /// </summary>
         public void ClearLayer()
