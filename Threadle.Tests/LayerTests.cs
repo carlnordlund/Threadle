@@ -752,11 +752,11 @@ public class LayerTests
         net.AddEdge("friends", 2, 3);
         net.AddEdge("friends", 4, 5);
 
-        ulong edgesBefore = net.Layers["friends"].NbrEdges;
+        uint edgesBefore = ((ILayerOneMode)net.Layers["friends"]).NbrEdges;
         net.Pack("friends");
         net.Unpack("friends");
 
-        Assert.Equal(edgesBefore, net.Layers["friends"].NbrEdges);
+        Assert.Equal(edgesBefore, ((ILayerOneMode)net.Layers["friends"]).NbrEdges);
     }
 
     [Fact]
