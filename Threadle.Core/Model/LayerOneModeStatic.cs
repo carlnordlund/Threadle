@@ -534,9 +534,7 @@ namespace Threadle.Core.Model
 
         public IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
         {
-            // For symmetric layers only yield upper-triangle (alter > egoId) so that each edge is
-            // represented once — matching the behaviour of LayerOneMode.GetAllEgoData().
-            // For directed layers, yield all outbound edges as stored in the outbound CSR.
+            // Iterate through all node Ids in this layer
             foreach (var (egoId, index) in _nodeIdToIndexMapper)
             {
                 int start = _offsets[index], end = _offsets[index + 1];

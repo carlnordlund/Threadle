@@ -147,6 +147,16 @@ namespace Threadle.Core.Model
                 {
                     layer._addBinaryEdges(egoId, alters.ToArray());
                 }
+
+                //IEdgeset edgeset = layer.GetOrCreateEdgeset(egoId);
+                //edgeset._setCapacity(alters.Length);
+                //ReadOnlySpan<uint> altersSpan = alters.Span;
+                //if (!values.IsEmpty)
+                //    for (int i = 0; i < alters.Length; i++)
+                //        edgeset._addOutboundEdge(altersSpan[i], values.Span[i]);
+                //else
+                //    for (int i = 0; i < alters.Length; i++)
+                //        edgeset._addOutboundEdge(altersSpan[i], 1f);
             }
             return layer;
         }
