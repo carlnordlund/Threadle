@@ -134,15 +134,19 @@ namespace Threadle.Core.Model
             layer._initSizeEdgesetDictionary(source.NodeCount);
             foreach (var (egoId, alters, values) in source.GetAllEgoData())
             {
-                IEdgeset edgeset = layer.GetOrCreateEdgeset(egoId);
-                edgeset._setCapacity(alters.Length);
                 ReadOnlySpan<uint> altersSpan = alters.Span;
                 if (!values.IsEmpty)
-                    for (int i = 0; i < alters.Length; i++)
-                        edgeset._addOutboundEdge(altersSpan[i], values.Span[i]);
+                {
+                    var valuedAlters = new List<(uint, float)>(altersSpan.Length);
+                    ReadOnlySpan<float> valSpan = values.Span;
+                    for (int i = 0; i < altersSpan.Length; i++)
+                        valuedAlters.Add((altersSpan[i], valSpan[i]));
+                    layer._addValuedEdges(egoId, valuedAlters);
+                }
                 else
-                    for (int i = 0; i < alters.Length; i++)
-                        edgeset._addOutboundEdge(altersSpan[i], 1f);
+                {
+                    layer._addBinaryEdges(egoId, alters.ToArray());
+                }
             }
             return layer;
         }

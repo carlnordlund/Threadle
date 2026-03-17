@@ -534,24 +534,34 @@ namespace Threadle.Core.Model
 
         public IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
         {
-            // Iterate through all node Ids in this layer
+            // For symmetric layers only yield upper-triangle (alter > egoId) so that each edge is
+            // represented once — matching the behaviour of LayerOneMode.GetAllEgoData().
+            // For directed layers, yield all outbound edges as stored in the outbound CSR.
             foreach (var (egoId, index) in _nodeIdToIndexMapper)
             {
                 int start = _offsets[index], end = _offsets[index + 1];
-                uint[] alters = new uint[end - start];       // allocates N arrays
-                Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
-                float[]? values = _values != null ? _values[start..end] : null;  // N more
-                yield return (egoId, alters, values);
-
-                //int start = _offsets[index], end = _offsets[index + 1];
-                //yield return (egoId,
-                //    _neighborNodeIds.AsMemory(start, end - start),
-                //    _values != null ? _values.AsMemory(start, end - start) : ReadOnlyMemory<float>.Empty);
-
-                //uint[] alters = new uint[end - start];
-                //Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
-                //float[]? values = _values != null ? _values[start..end] : null;
-                //yield return (egoId, alters, values);
+                if (IsSymmetric)
+                {
+                    var filteredAlters = new List<uint>(end - start);
+                    List<float>? filteredValues = _values != null ? new List<float>(end - start) : null;
+                    for (int j = start; j < end; j++)
+                    {
+                        if (_neighborNodeIds[j] > egoId)
+                        {
+                            filteredAlters.Add(_neighborNodeIds[j]);
+                            filteredValues?.Add(_values![j]);
+                        }
+                    }
+                    if (filteredAlters.Count > 0)
+                        yield return (egoId, filteredAlters.ToArray(), filteredValues?.ToArray());
+                }
+                else
+                {
+                    uint[] alters = new uint[end - start];
+                    Array.Copy(_neighborNodeIds, start, alters, 0, end - start);
+                    float[]? values = _values != null ? _values[start..end] : null;
+                    yield return (egoId, alters, values);
+                }
             }
         }
 
