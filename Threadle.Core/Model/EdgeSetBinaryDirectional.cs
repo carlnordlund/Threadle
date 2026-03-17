@@ -156,8 +156,8 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id that should be searched for and eradicated.</param>
         public void RemoveNodeEdgesInEdgeset(uint nodeId)
         {
-            _inbound.Remove(nodeId);
-            _outbound.Remove(nodeId);
+            _inbound.RemoveAll( id => id==nodeId);
+            _outbound.RemoveAll(id => id == nodeId);
         }
 
         /// <summary>

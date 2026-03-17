@@ -106,7 +106,7 @@ namespace Threadle.CLIconsole.Runtime
         {
             if (!Variables.ContainsKey(baseName))
                 return baseName;
-            int i = 0;
+            int i = 1;
             while (true)
             {
                 if (!Variables.ContainsKey(baseName + i))

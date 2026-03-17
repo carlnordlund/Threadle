@@ -139,7 +139,7 @@ namespace Threadle.Core.Model
                 ReadOnlySpan<uint> altersSpan = alters.Span;
                 if (!values.IsEmpty)
                     for (int i = 0; i < alters.Length; i++)
-                        edgeset._addOutboundEdge(altersSpan[i], altersSpan[i]);
+                        edgeset._addOutboundEdge(altersSpan[i], values.Span[i]);
                 else
                     for (int i = 0; i < alters.Length; i++)
                         edgeset._addOutboundEdge(altersSpan[i], 1f);

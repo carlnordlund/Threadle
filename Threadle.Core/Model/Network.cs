@@ -627,6 +627,8 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult AddHyperedge(LayerTwoMode layerTwoMode, string hyperName, uint[]? nodeIds, bool addMissingNodes)
         {
+            if (!Misc.IsNameWithinBinaryLimit(hyperName))
+                return OperationResult.Fail("ConstraintNameTooLong", $"Hyperedge name '{hyperName}' exceeds 255 UTF-8 bytes and cannot be stored.");
             if (nodeIds != null && nodeIds.Length > 0)
             {
                 List<uint> existingNodeIds = [];

@@ -202,7 +202,11 @@ namespace Threadle.Core.Utilities
 
                             // Prepare array of alters
                             uint[] nodeIdsAlters = new uint[nbrAlters];
+
                             reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
+                            if (!BitConverter.IsLittleEndian)
+                                for (int k = 0; k < nodeIdsAlters.Length; k++)
+                                    nodeIdsAlters[k] = BinaryPrimitives.ReverseEndianness(nodeIdsAlters[i]);
 
 
                             //for (uint k = 0; k < nbrAlters; k++)

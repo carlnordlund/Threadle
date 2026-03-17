@@ -173,7 +173,7 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id that should be searched for and eradicated.</param>
         public void RemoveNodeEdgesInEdgeset(uint nodeId)
         {
-            _connections.Remove(nodeId);
+            _connections.RemoveAll(id => id == nodeId);
         }
 
         /// <summary>
