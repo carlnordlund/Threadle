@@ -737,4 +737,68 @@ public class LayerTests
         var clubNodes = net.GetHyperedgeNodes("clubs", "c1");
         Assert.Contains(4u, clubNodes.Value);
     }
+
+    [Fact]
+    public void Unpack_UndirectedBinaryLayer_EdgeCountUnchanged()
+    {
+        // Regression: LayerOneModeStatic.GetAllEgoData() previously returned full
+        // adjacency for symmetric layers, causing Pack→Unpack to double the edge count.
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 2, 3);
+        net.AddEdge("friends", 4, 5);
+
+        uint edgesBefore = ((ILayerOneMode)net.Layers["friends"]).NbrEdges;
+        net.Pack("friends");
+        net.Unpack("friends");
+
+        Assert.Equal(edgesBefore, ((ILayerOneMode)net.Layers["friends"]).NbrEdges);
+    }
+
+    [Fact]
+    public void Unpack_UndirectedBinaryLayer_QueriesStillWork()
+    {
+        // Regression: after Pack→Unpack on symmetric layer, edges must remain queryable
+        // and no phantom edges should appear from double-insertion.
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 2, 3);
+
+        net.Pack("friends");
+        net.Unpack("friends");
+
+        Assert.True(net.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(net.CheckEdgeExists("friends", 2, 3).Value);
+        Assert.False(net.CheckEdgeExists("friends", 1, 3).Value);  // no phantom edge
+    }
+
+    [Fact]
+    public void Unpack_DirectedBinaryLayer_InboundEdgesRestored()
+    {
+        // Regression: LayerOneMode.FromStatic() previously only called _addOutboundEdge,
+        // leaving _inbound empty for all nodes after unpacking a directed layer.
+        var ns = MakeNodeset();
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("follows", EdgeDirectionality.Directed, EdgeType.Binary, false);
+        net.AddEdge("follows", 1, 2);  // 1→2
+        net.AddEdge("follows", 3, 2);  // 3→2
+
+        net.Pack("follows");
+        net.Unpack("follows");
+
+        var layer = (ILayerOneMode)net.Layers["follows"];
+
+        // Outbound edges must still be correct
+        Assert.True(layer.CheckEdgeExists(1, 2));
+        Assert.True(layer.CheckEdgeExists(3, 2));
+        Assert.False(layer.CheckEdgeExists(2, 1));  // directed, no reverse
+
+        // In-degree of node 2 should be 2 (from 1 and 3); node 1 has no inbound
+        Assert.Equal(2u, layer.GetInDegree(2));
+        Assert.Equal(0u, layer.GetInDegree(1));
+    }
 }
