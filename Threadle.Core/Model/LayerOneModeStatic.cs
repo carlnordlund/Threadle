@@ -114,6 +114,107 @@ namespace Threadle.Core.Model
 
 
         #region Methods (public)
+
+        public static LayerOneModeStatic FromBinaryNodelistRows(string name, EdgeDirectionality directionality, EdgeType edgeType, bool selfties, List<(uint ego, uint[] alters)> rows)
+        {
+            bool isSymmetric = directionality == EdgeDirectionality.Undirected;
+
+            // For symmetric: expand half-adjacency to full-adjacency
+            var adjList = new Dictionary<uint, List<uint>>(rows.Count * 2);
+            foreach (var (ego, alters) in rows)
+            {
+                if (!adjList.TryGetValue(ego, out var egoList))
+                    adjList[ego] = egoList = new List<uint>(alters.Length);
+                foreach (uint alter in alters)
+                {
+                    egoList.Add(alter);
+                    if (isSymmetric)
+                    {
+                        if (!adjList.TryGetValue(alter, out var alterList))
+                            adjList[alter] = alterList = [];
+                        alterList.Add(ego);
+                    }
+                }
+            }
+            uint[] egoNodes = [.. adjList.Keys.Order()];
+            int n = egoNodes.Length;
+            var mapper = new Dictionary<uint, int>(n);
+            var offsets = new int[n + 1];
+            var neighborList = new List<uint>();
+            for (int i = 0; i < n; i++)
+            {
+                mapper[egoNodes[i]] = i;
+                offsets[i] = neighborList.Count;
+                var neighbors = adjList[egoNodes[i]];
+                neighbors.Sort();
+                neighborList.AddRange(neighbors);
+            }
+            offsets[n] = neighborList.Count;
+            uint[] finalNeighborIds = [.. neighborList];
+
+            int[]? inOffsets = null;
+            uint[]? inNeighborIds = null;
+            if (!isSymmetric)
+                (inOffsets, inNeighborIds) = _buildInboundFromOutbound(mapper, offsets, finalNeighborIds);
+
+            return new LayerOneModeStatic(name, directionality, edgeType, selfties,
+                mapper, offsets, finalNeighborIds, null, inOffsets, inNeighborIds);
+        }
+
+        public static LayerOneModeStatic FromValuedNodelistRows(
+            string name, EdgeDirectionality directionality, EdgeType edgeType, bool selfties,
+            List<(uint ego, List<(uint alter, float value)> alters)> rows)
+        {
+            bool isSymmetric = directionality == EdgeDirectionality.Undirected;
+
+            var adjList = new Dictionary<uint, List<(uint alter, float value)>>(rows.Count * 2);
+            foreach (var (ego, alters) in rows)
+            {
+                if (!adjList.TryGetValue(ego, out var egoList))
+                    adjList[ego] = egoList = new List<(uint, float)>(alters.Count);
+                foreach (var (alter, value) in alters)
+                {
+                    egoList.Add((alter, value));
+                    if (isSymmetric)
+                    {
+                        if (!adjList.TryGetValue(alter, out var alterList))
+                            adjList[alter] = alterList = [];
+                        alterList.Add((ego, value));
+                    }
+                }
+            }
+
+            uint[] egoNodes = [.. adjList.Keys.Order()];
+            int n = egoNodes.Length;
+            var mapper = new Dictionary<uint, int>(n);
+            var offsets = new int[n + 1];
+            var neighborList = new List<uint>();
+            var valueList = new List<float>();
+            for (int i = 0; i < n; i++)
+            {
+                mapper[egoNodes[i]] = i;
+                offsets[i] = neighborList.Count;
+                var neighbors = adjList[egoNodes[i]];
+                neighbors.Sort((a, b) => a.alter.CompareTo(b.alter));
+                foreach (var (alter, value) in neighbors)
+                {
+                    neighborList.Add(alter);
+                    valueList.Add(value);
+                }
+            }
+            offsets[n] = neighborList.Count;
+            uint[] finalNeighborIds = [.. neighborList];
+            float[] finalValues = [.. valueList];
+
+            int[]? inOffsets = null;
+            uint[]? inNeighborIds = null;
+            if (!isSymmetric)
+                (inOffsets, inNeighborIds) = _buildInboundFromOutbound(mapper, offsets, finalNeighborIds);
+
+            return new LayerOneModeStatic(name, directionality, edgeType, selfties,
+                mapper, offsets, finalNeighborIds, finalValues, inOffsets, inNeighborIds);
+        }
+
         public static LayerOneModeStatic FromDynamic(LayerOneMode source)
         {
             source._sortEdgesets();

@@ -138,7 +138,7 @@ namespace Threadle.Core.Utilities
         /// <param name="reader">The binary reader to read from.</param>
         /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset.</returns>
         /// <exception cref="InvalidDataException">Thrown if the binary file isn't a Threadle Network file or if it is the wrong version.</exception>
-        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader, bool compactLayers)
+        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader, bool packLayers)
         {
             // Check magic bytes - should be the MagicNetwork characters (TNTW)
             var magicBytes = reader.ReadBytes(4);
@@ -180,106 +180,159 @@ namespace Threadle.Core.Utilities
                     EdgeType edgeType = (EdgeType)reader.ReadByte();
                     bool selfties = reader.ReadBoolean();
 
-                    // Create 1-mode layer
-                    LayerOneMode layerOneMode = new LayerOneMode(layerName, edgeDirectionality, edgeType, selfties);
-
                     // Get nbr of nodelist rows
                     int nbrEdgesets = reader.ReadInt32();
 
-                    // Initialize the capacity of the Edgeset dictionary
-                    layerOneMode._initSizeEdgesetDictionary(nbrEdgesets);
-
-                    if (layerOneMode.IsBinary)
+                    ILayer layer;
+                    if (edgeType == EdgeType.Binary)
                     {
-                        // Looping for binary nodelist rows
-                        for (uint j = 0; j < nbrEdgesets; j++)
+                        var rows = new List<(uint ego, uint[] alters)>(nbrEdgesets);
+                        for (int j = 0; j < nbrEdgesets; j++)
                         {
-                            // Get ego of nodelist row
                             uint nodeIdEgo = reader.ReadUInt32();
-
-                            // Get nbr of alters
                             int nbrAlters = reader.ReadInt32();
-
-                            // Prepare array of alters
                             uint[] nodeIdsAlters = new uint[nbrAlters];
-
                             reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
                             if (!BitConverter.IsLittleEndian)
                                 for (int k = 0; k < nodeIdsAlters.Length; k++)
-                                    nodeIdsAlters[k] = BinaryPrimitives.ReverseEndianness(nodeIdsAlters[i]);
-
-
-                            //for (uint k = 0; k < nbrAlters; k++)
-                            //{
-                            //    nodeIdsAlters[k] = reader.ReadUInt32();
-                            //}
-                            layerOneMode._addBinaryEdges(nodeIdEgo, nodeIdsAlters);
+                                    nodeIdsAlters[k] = BinaryPrimitives.ReverseEndianness(nodeIdsAlters[k]);
+                            rows.Add((nodeIdEgo, nodeIdsAlters));
                         }
+                        layer = LayerOneModeStatic.FromBinaryNodelistRows(layerName, edgeDirectionality, edgeType, selfties, rows);
                     }
                     else
                     {
-                        // Looping for valued nodelist rows
-                        for (uint j = 0; j < nbrEdgesets; j++)
+                        // Collect valued nodelist rows, then build CSR directly
+                        var rows = new List<(uint ego, List<(uint alter, float value)> alters)>(nbrEdgesets);
+                        for (int j = 0; j < nbrEdgesets; j++)
                         {
-                            // Get ego of nodelist row
                             uint nodeIdEgo = reader.ReadUInt32();
-
-                            // Get nbr of alters
                             int nbrAlters = reader.ReadInt32();
-
-                            // Prepare array of alters
-                            List<(uint alterId, float value)> nodeIdsAlters = new(nbrAlters);
-
-                            for (uint k = 0; k < nbrAlters; k++)
-                            {
-                                // Read both the partner node id and the float value and put into the List of tuples
-                                nodeIdsAlters.Add((reader.ReadUInt32(), reader.ReadSingle()));
-                            }
-                            // Add all valued edges connected with the ego
-                            layerOneMode._addValuedEdges(nodeIdEgo, nodeIdsAlters);
+                            var alters = new List<(uint, float)>(nbrAlters);
+                            for (int k = 0; k < nbrAlters; k++)
+                                alters.Add((reader.ReadUInt32(), reader.ReadSingle()));
+                            rows.Add((nodeIdEgo, alters));
                         }
+                        layer = LayerOneModeStatic.FromValuedNodelistRows(layerName, edgeDirectionality, edgeType, selfties, rows);
                     }
-                    // Add it to network's layers
-                    network.Layers.Add(layerName, compactLayers ? Misc.PackLayer(layerOneMode) : layerOneMode);
 
+                    //// Create 1-mode layer
+                    //LayerOneMode layerOneMode = new LayerOneMode(layerName, edgeDirectionality, edgeType, selfties);
+
+
+                    //// Initialize the capacity of the Edgeset dictionary
+                    //layerOneMode._initSizeEdgesetDictionary(nbrEdgesets);
+
+                    //if (layerOneMode.IsBinary)
+                    //{
+                    //    // Looping for binary nodelist rows
+                    //    for (uint j = 0; j < nbrEdgesets; j++)
+                    //    {
+                    //        // Get ego of nodelist row
+                    //        uint nodeIdEgo = reader.ReadUInt32();
+
+                    //        // Get nbr of alters
+                    //        int nbrAlters = reader.ReadInt32();
+
+                    //        // Prepare array of alters
+                    //        uint[] nodeIdsAlters = new uint[nbrAlters];
+
+                    //        reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
+                    //        if (!BitConverter.IsLittleEndian)
+                    //            for (int k = 0; k < nodeIdsAlters.Length; k++)
+                    //                nodeIdsAlters[k] = BinaryPrimitives.ReverseEndianness(nodeIdsAlters[i]);
+
+
+                    //        //for (uint k = 0; k < nbrAlters; k++)
+                    //        //{
+                    //        //    nodeIdsAlters[k] = reader.ReadUInt32();
+                    //        //}
+                    //        layerOneMode._addBinaryEdges(nodeIdEgo, nodeIdsAlters);
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //    // Looping for valued nodelist rows
+                    //    for (uint j = 0; j < nbrEdgesets; j++)
+                    //    {
+                    //        // Get ego of nodelist row
+                    //        uint nodeIdEgo = reader.ReadUInt32();
+
+                    //        // Get nbr of alters
+                    //        int nbrAlters = reader.ReadInt32();
+
+                    //        // Prepare array of alters
+                    //        List<(uint alterId, float value)> nodeIdsAlters = new(nbrAlters);
+
+                    //        for (uint k = 0; k < nbrAlters; k++)
+                    //        {
+                    //            // Read both the partner node id and the float value and put into the List of tuples
+                    //            nodeIdsAlters.Add((reader.ReadUInt32(), reader.ReadSingle()));
+                    //        }
+                    //        // Add all valued edges connected with the ego
+                    //        layerOneMode._addValuedEdges(nodeIdEgo, nodeIdsAlters);
+                    //    }
+                    //}
+                    // Add it to network's layers
+                    //network.Layers.Add(layerName, packLayers ? Misc.PackLayer(layerOneMode) : layerOneMode);
+                    network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
                 }
                 else if (mode == 2)
                 {
-                    // Create 2-mode layer with the specified name
-                    LayerTwoMode layerTwoMode = new LayerTwoMode(layerName);
-
                     // Get nbr of hyperedges in this layer
                     uint nbrHyperedges = reader.ReadUInt32();
 
-                    // Iterate through all hyperedges
+                    var rows = new List<(string hyperName, uint[] nodeIds)>((int)nbrHyperedges);
                     for (uint j = 0; j < nbrHyperedges; j++)
                     {
-                        // Get the name of this hyperedge
                         string hyperedgeName = ReadString(reader);
-
-                        // Get the number of nodes connected to this hyperedge
                         uint nbrNodes = reader.ReadUInt32();
-
-                        // Create an array of node ids connected to this hyperedge
                         uint[] nodeIds = new uint[nbrNodes];
-
-                        // Below is quite costly: reading one node at a time. better to bulk read and then pull straight
-                        // into array
-                        //for (uint k = 0; k < nbrNodes; k++)
-                        //    nodeIds[k] = reader.ReadUInt32();
-
                         reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
                         if (!BitConverter.IsLittleEndian)
                             for (int k = 0; k < nodeIds.Length; k++)
                                 nodeIds[k] = BinaryPrimitives.ReverseEndianness(nodeIds[k]);
-
-
-                        // Create and add hyperedge to this layer
-                        layerTwoMode._addHyperedge(hyperedgeName, nodeIds);
+                        rows.Add((hyperedgeName, nodeIds));
                     }
+                    ILayer layer = LayerTwoModeStatic.FromHyperedgeRows(layerName, rows);
+                    network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
+
+
+                    //// Create 2-mode layer with the specified name
+                    //LayerTwoMode layerTwoMode = new LayerTwoMode(layerName);
+
+                    //// Get nbr of hyperedges in this layer
+                    //uint nbrHyperedges = reader.ReadUInt32();
+
+                    //// Iterate through all hyperedges
+                    //for (uint j = 0; j < nbrHyperedges; j++)
+                    //{
+                    //    // Get the name of this hyperedge
+                    //    string hyperedgeName = ReadString(reader);
+
+                    //    // Get the number of nodes connected to this hyperedge
+                    //    uint nbrNodes = reader.ReadUInt32();
+
+                    //    // Create an array of node ids connected to this hyperedge
+                    //    uint[] nodeIds = new uint[nbrNodes];
+
+                    //    // Below is quite costly: reading one node at a time. better to bulk read and then pull straight
+                    //    // into array
+                    //    //for (uint k = 0; k < nbrNodes; k++)
+                    //    //    nodeIds[k] = reader.ReadUInt32();
+
+                    //    reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
+                    //    if (!BitConverter.IsLittleEndian)
+                    //        for (int k = 0; k < nodeIds.Length; k++)
+                    //            nodeIds[k] = BinaryPrimitives.ReverseEndianness(nodeIds[k]);
+
+
+                    //    // Create and add hyperedge to this layer
+                    //    layerTwoMode._addHyperedge(hyperedgeName, nodeIds);
+                    //}
 
                     // Add it to network's layers
-                    network.Layers.Add(layerName, compactLayers ? Misc.PackLayer(layerTwoMode) : layerTwoMode);
+                    //network.Layers.Add(layerName, packLayers ? Misc.PackLayer(layerTwoMode) : layerTwoMode);
                 }
                 else
                     throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");

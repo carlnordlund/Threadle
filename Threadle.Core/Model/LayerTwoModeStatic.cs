@@ -112,6 +112,47 @@ namespace Threadle.Core.Model
 
 
         #region Methods (public)
+
+        public static LayerTwoModeStatic FromHyperedgeRows(string name, List<(string hyperName, uint[] nodeIds)> rows)
+        {
+            var hyperedgeNames = rows.Select(r => r.hyperName).ToArray();
+            // Build hyperedge → nodes CSR, and simultaneously collect node → hyperedge index mapping
+            var hyperedgeNodeIdsList = new List<uint>();
+            var offsetHyperedges = new int[hyperedgeNames.Length + 1];
+            var nodeToHyperedges = new Dictionary<uint, List<int>>();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                offsetHyperedges[i] = hyperedgeNodeIdsList.Count;
+                uint[] sortedNodeIds = [.. rows[i].nodeIds.Order()];
+                hyperedgeNodeIdsList.AddRange(sortedNodeIds);
+                foreach (uint nodeId in sortedNodeIds)
+                {
+                    if (!nodeToHyperedges.TryGetValue(nodeId, out var list))
+                        nodeToHyperedges[nodeId] = list = [];
+                    list.Add(i);
+                }
+            }
+            offsetHyperedges[rows.Count] = hyperedgeNodeIdsList.Count;
+
+            // Build node → hyperedge CSR
+            uint[] sortedNodes = [.. nodeToHyperedges.Keys.Order()];
+            var mapper = new Dictionary<uint, int>(sortedNodes.Length);
+            var nodeIdHyperedgesList = new List<int>();
+            var offsetNodeIds = new int[sortedNodes.Length + 1];
+
+            for (int i = 0; i < sortedNodes.Length; i++)
+            {
+                mapper[sortedNodes[i]] = i;
+                offsetNodeIds[i] = nodeIdHyperedgesList.Count;
+                nodeIdHyperedgesList.AddRange(nodeToHyperedges[sortedNodes[i]]);
+            }
+            offsetNodeIds[sortedNodes.Length] = nodeIdHyperedgesList.Count;
+
+            return new LayerTwoModeStatic(name, hyperedgeNames, offsetHyperedges,
+                hyperedgeNodeIdsList.ToArray(), mapper, offsetNodeIds, nodeIdHyperedgesList.ToArray());
+
+        }
+
         public static LayerTwoModeStatic FromDynamic(LayerTwoMode source)
         {
             var hyperedgeNames = source.AllHyperEdges.Keys.ToArray();
