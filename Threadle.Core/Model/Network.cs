@@ -456,13 +456,13 @@ namespace Threadle.Core.Model
                 return OperationResult<List<Dictionary<string, object>>>.Fail(layerResult);
             var layerOneMode = layerResult.Value!;
             List<Dictionary<string, object>> edges = layerOneMode.GetAllEdges(offset, limit);
-            uint total = layerOneMode.NbrEdges;
+            ulong total = layerOneMode.NbrEdges;
             string message;
             if (total == 0)
                 message = $"Layer '{layerName}' has no edges.";
             else if (edges.Count == 0)
                 message = $"Offset {offset} is beyond the available edges in layer '{layerName}' (total: {total}).";
-            else if (offset == 0 && edges.Count == total)
+            else if (offset == 0 && (ulong)edges.Count == total)
                 message = $"Returning all {total} edge(s) in layer '{layerName}':";
             else
                 message = $"Returning edges {offset + 1} - {offset + edges.Count} of {total} in layer '{layerName}':";

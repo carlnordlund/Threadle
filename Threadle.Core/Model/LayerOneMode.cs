@@ -87,11 +87,11 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns the number of edges in the layer.
         /// </summary>
-        public uint NbrEdges
+        public ulong NbrEdges
         {
             get
             {
-                uint nbrConnections = 0;
+                ulong nbrConnections = 0;
                 foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
                     nbrConnections += edgeset.NbrEdges;
                 return Directionality == EdgeDirectionality.Directed ? nbrConnections : nbrConnections / 2;
@@ -455,7 +455,7 @@ namespace Threadle.Core.Model
             }
             else
                 foreach ((uint alterId, float value) in nodeIdsAlters)
-                    edgeSetEgo.AddOutboundEdge(alterId, value);
+                    edgeSetEgo._addOutboundEdge(alterId, value);
         }
 
         /// <summary>

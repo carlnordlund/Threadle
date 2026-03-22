@@ -21,7 +21,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns the total number of edges in this 1-mode layer
         /// </summary>
-        uint NbrEdges { get; }
+        ulong NbrEdges { get; }
         #endregion
 
 

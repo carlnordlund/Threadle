@@ -84,7 +84,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns the number of edges in the layer.
         /// </summary>
-        public uint NbrEdges => (uint)(_neighborNodeIds.Length / (IsDirectional ? 1 : 2));
+        public ulong NbrEdges => (ulong)(_neighborNodeIds.Length / (IsDirectional ? 1 : 2));
 
         public int NodeCount => _nodeIdToIndexMapper.Count;
 

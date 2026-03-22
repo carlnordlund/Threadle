@@ -201,6 +201,8 @@ namespace Threadle.Core.Utilities
                         {
                             uint nodeIdEgo = reader.ReadUInt32();
                             int nbrAlters = reader.ReadInt32();
+                            if (nbrAlters > 1000000000)
+                                throw new InvalidDataException("A node can't have more than 1 billion edges.");
                             uint[] nodeIdsAlters = new uint[nbrAlters];
                             reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
                             if (!BitConverter.IsLittleEndian)
@@ -218,6 +220,8 @@ namespace Threadle.Core.Utilities
                         {
                             uint nodeIdEgo = reader.ReadUInt32();
                             int nbrAlters = reader.ReadInt32();
+                            if (nbrAlters > 1000000000)
+                                throw new InvalidDataException("A node can't have more than 1 billion edges.");
                             var alters = new List<(uint, float)>(nbrAlters);
                             for (int k = 0; k < nbrAlters; k++)
                                 alters.Add((reader.ReadUInt32(), reader.ReadSingle()));
@@ -296,8 +300,10 @@ namespace Threadle.Core.Utilities
                     for (uint j = 0; j < nbrHyperedges; j++)
                     {
                         string hyperedgeName = ReadString(reader);
-                        uint nbrNodes = reader.ReadUInt32();
-                        uint[] nodeIds = new uint[nbrNodes];
+                        uint nbrAffNodes = reader.ReadUInt32();
+                        if (nbrAffNodes > 1000000000)
+                            throw new InvalidDataException("A hyperedge can't have more than 1 billion affiliated nodes.");
+                        uint[] nodeIds = new uint[nbrAffNodes];
                         reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
                         if (!BitConverter.IsLittleEndian)
                             for (int k = 0; k < nodeIds.Length; k++)
@@ -321,14 +327,14 @@ namespace Threadle.Core.Utilities
                     //    string hyperedgeName = ReadString(reader);
 
                     //    // Get the number of nodes connected to this hyperedge
-                    //    uint nbrNodes = reader.ReadUInt32();
+                    //    uint nbrAffNodes = reader.ReadUInt32();
 
                     //    // Create an array of node ids connected to this hyperedge
-                    //    uint[] nodeIds = new uint[nbrNodes];
+                    //    uint[] nodeIds = new uint[nbrAffNodes];
 
                     //    // Below is quite costly: reading one node at a time. better to bulk read and then pull straight
                     //    // into array
-                    //    //for (uint k = 0; k < nbrNodes; k++)
+                    //    //for (uint k = 0; k < nbrAffNodes; k++)
                     //    //    nodeIds[k] = reader.ReadUInt32();
 
                     //    reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
