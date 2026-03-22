@@ -166,6 +166,8 @@ namespace Threadle.Core.Analysis
         /// <returns>An <see cref="OperationResult"/> object informing how well it went, with a string-object dictionary with additional information.</returns>
         public static OperationResult<Dictionary<string, object>> ConnectedComponents(Network network, string layerName, string? attrName = null)
         {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes: can't do component analysis on it.");
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(layerResult);

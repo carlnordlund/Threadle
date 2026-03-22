@@ -14,6 +14,7 @@ namespace Threadle.Core.Model
     /// implies having separate constructors for each value type, and a somewhat less straight-forward method
     /// for retrieving the value of the attribute.
     /// </remarks>
+    [Obsolete]
     [StructLayout(LayoutKind.Explicit)]
     public struct NodeAttributeValue
     {

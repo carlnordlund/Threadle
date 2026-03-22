@@ -548,7 +548,7 @@ namespace Threadle.Core.Utilities
         /// <param name="writer">The binary writer to write to</param>
         private static void WriteNetworkToFile(Network network, BinaryWriter writer)
         {
-            // MagicNodeset bytes (4)
+            // MagicNetwork bytes (4)
             writer.Write(Encoding.ASCII.GetBytes(MagicNetwork));
 
             // Format version (1)
