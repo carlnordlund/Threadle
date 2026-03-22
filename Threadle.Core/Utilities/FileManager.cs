@@ -48,11 +48,12 @@ namespace Threadle.Core.Utilities
         /// <returns>Returns an OperationResult informing how well it went.</returns>
         public static OperationResult Save(IStructure structure, string filepath)
         {
-            filepath = Path.GetFullPath(filepath);
             try
             {
                 if (filepath is null || filepath.Length == 0)
                     return OperationResult.Fail("MissingFilepath", $"No filepath for structure '{structure.Name}' provided.");
+
+                filepath = Path.GetFullPath(filepath);
 
                 return structure switch
                 {
