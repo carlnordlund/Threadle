@@ -155,11 +155,21 @@ namespace Threadle.Core.Utilities
             string networkName = ReadString(reader);
 
             // Get Nodeset filepath (compulsory here)
-            string nodesetFilepath = ReadString(reader);
+            string nodesetFilename = ReadString(reader);
+            if (nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                nodesetFilename.Contains('/') || nodesetFilename.Contains('\\'))
+                throw new InvalidDataException("Nodeset filename in network file contains invalid characters.");
+
+            string networkDir = Path.GetDirectoryName(Path.GetFullPath(filepath))!;
+            string resolvedNodesetPath = Path.Combine(networkDir, nodesetFilename);
+
+            if (!File.Exists(resolvedNodesetPath))
+                throw new FileNotFoundException(
+                    $"Nodeset file '{nodesetFilename}' not found in '{networkDir}'. The nodeset file must be in the same directory as the network file.");
 
             // Load and initialize Nodeset:
-            FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFilepath);
-            Nodeset nodeset = LoadNodesetFromFile(nodesetFilepath, nodesetFormat);
+            FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(resolvedNodesetPath);
+            Nodeset nodeset = LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
 
             // Create network with the recently loaded Nodeset
             Network network = new Network(networkName, nodeset);
@@ -542,7 +552,7 @@ namespace Threadle.Core.Utilities
             WriteString(writer, network.Name);
 
             // Nodeset filepath
-            WriteString(writer, network.Nodeset.Filepath);
+            WriteString(writer, Path.GetFileName(network.Nodeset.Filepath));
 
             // Nbr of layers (max 255 layers)
             writer.Write((byte)network.Layers.Count);

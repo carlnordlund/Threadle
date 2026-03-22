@@ -48,6 +48,7 @@ namespace Threadle.Core.Utilities
         /// <returns>Returns an OperationResult informing how well it went.</returns>
         public static OperationResult Save(IStructure structure, string filepath)
         {
+            filepath = Path.GetFullPath(filepath);
             try
             {
                 if (filepath is null || filepath.Length == 0)
@@ -423,6 +424,7 @@ namespace Threadle.Core.Utilities
         /// <returns>An OperationResult, with a StructureResult containing a Nodeset if all went well.</returns>
         private static OperationResult<StructureResult> LoadNodeset(string filepath)
         {
+            filepath = Path.GetFullPath(filepath);
             try
             {
                 FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);
@@ -458,6 +460,7 @@ namespace Threadle.Core.Utilities
         /// <returns>An OperationResult, with a StructureResult containing a Network and a Nodeset if all went well.</returns>
         private static OperationResult<StructureResult> LoadNetwork(string filepath, bool packLayers = false)
         {
+            filepath = Path.GetFullPath(filepath);
             try
             {
                 FileFormat format = Misc.GetFileFormatFromFileEnding(filepath);

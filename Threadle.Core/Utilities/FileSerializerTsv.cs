@@ -121,7 +121,7 @@ namespace Threadle.Core.Utilities
             writer.WriteLine("# Network Metadata");
             writer.WriteLine($"Name: {network.Name}");
 
-            writer.WriteLine($"NodesetFile: {network.Nodeset.Filepath}");
+            writer.WriteLine($"NodesetFile: {Path.GetFileName(network.Nodeset.Filepath)}");
             var sb = new StringBuilder();
             foreach ((string layerName, ILayer layer) in network.Layers)
             {
@@ -224,9 +224,20 @@ namespace Threadle.Core.Utilities
                 }
                 if (line.StartsWith("NodesetFile:", StringComparison.OrdinalIgnoreCase))
                 {
-                    string nodesetFilepath = line.Substring("NodesetFile:".Length).Trim();
-                    FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFilepath);
-                    nodeset = LoadNodesetFromFile(nodesetFilepath, nodesetFormat);
+                    string nodesetFilename = line.Substring("NodesetFile:".Length).Trim();
+                    if (nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+                        || nodesetFilename.Contains('/') || nodesetFilename.Contains('\\'))
+                        throw new InvalidDataException("Nodeset filename in network file contains invalid characters.");
+
+                    string networkDir = Path.GetDirectoryName(Path.GetFullPath(filepath))!;
+                    string resolvedNodesetPath = Path.Combine(networkDir, nodesetFilename);
+
+                    if (!File.Exists(resolvedNodesetPath))
+                        throw new FileNotFoundException(
+                            $"Nodeset file '{nodesetFilename}' not found in '{networkDir}'. The nodeset file must be in the same directory as the network file.");
+
+                    FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(resolvedNodesetPath);
+                    nodeset = LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
                     nodeset.IsModified = false;
                     //network.SetNodeset(nodeset);
                     continue;
