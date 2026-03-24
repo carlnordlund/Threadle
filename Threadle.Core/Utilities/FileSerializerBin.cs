@@ -201,8 +201,8 @@ namespace Threadle.Core.Utilities
                         {
                             uint nodeIdEgo = reader.ReadUInt32();
                             int nbrAlters = reader.ReadInt32();
-                            if (nbrAlters > 1000000000)
-                                throw new InvalidDataException("A node can't have more than 1 billion edges.");
+                            if (nbrAlters < 0 || nbrAlters > 1000000000)
+                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-1 billion.");
                             uint[] nodeIdsAlters = new uint[nbrAlters];
                             reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
                             if (!BitConverter.IsLittleEndian)
@@ -220,8 +220,8 @@ namespace Threadle.Core.Utilities
                         {
                             uint nodeIdEgo = reader.ReadUInt32();
                             int nbrAlters = reader.ReadInt32();
-                            if (nbrAlters > 1000000000)
-                                throw new InvalidDataException("A node can't have more than 1 billion edges.");
+                            if (nbrAlters < 0 || nbrAlters > 1000000000)
+                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-1 billion.");
                             var alters = new List<(uint, float)>(nbrAlters);
                             for (int k = 0; k < nbrAlters; k++)
                                 alters.Add((reader.ReadUInt32(), reader.ReadSingle()));
