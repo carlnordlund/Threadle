@@ -328,14 +328,19 @@ namespace Threadle.Core.Utilities
                     var parts = line.Split('\t');
                     if (parts.Length == 0)
                         continue;
-                    uint ego = uint.Parse(parts[0]);
+                    if (!uint.TryParse(parts[0], out uint ego))
+                        continue;
+
+                    //uint ego = uint.Parse(parts[0]);
                     if (layerOneMode.IsBinary)
                     {
                         for (int i = 1; i < parts.Length; i++)
                         {
                             if (string.IsNullOrWhiteSpace(parts[i]))
                                 continue;
-                            layerOneMode.AddEdge(ego, uint.Parse(parts[i]));
+                            if (uint.TryParse(parts[i], out uint partnerNodeId))
+                                layerOneMode.AddEdge(ego, partnerNodeId);
+                            //layerOneMode.AddEdge(ego, uint.Parse(parts[i]));
                         }
                     }
                     else
@@ -345,7 +350,11 @@ namespace Threadle.Core.Utilities
                             if (string.IsNullOrWhiteSpace(parts[i]))
                                 continue;
                             var subparts = parts[i].Split(';', 2);
-                            uint alter = uint.Parse(subparts[0]);
+                            //uint alter = uint.Parse(subparts[0]);
+
+                            if (!uint.TryParse(subparts[0], out uint alter))
+                                continue;
+
                             float val = Misc.FixConnectionValue(float.Parse(subparts[1], CultureInfo.InvariantCulture), layerOneMode.EdgeValueType);
                             layerOneMode.AddEdge(ego, alter, val);
                         }
