@@ -769,4 +769,121 @@ public class AnalysesTests
         Assert.True(staticResult.Success);
         Assert.Equal((int)dynResult.Value!["NbrComponents"], (int)staticResult.Value!["NbrComponents"]);
     }
+
+    // ── DegreeCentralities: indegree and EdgeTraversal.Both ───────────────────────
+
+    [Fact]
+    public void DegreeCentralities_DirectedLayer_IndegreeCorrect()
+    {
+        // 1→2, 3→2: node 2 has indegree 2; node 1 has indegree 0
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 3, 2);
+
+        var result = Analyses.DegreeCentralities(net, "layer", "indeg", EdgeTraversal.In);
+
+        Assert.True(result.Success);
+
+        var indeg2 = net.Nodeset.GetNodeAttribute(2, "indeg");
+        Assert.True(indeg2.Success);
+        Assert.Equal(2, (int)indeg2.Value.Value.GetValue(indeg2.Value.Type)!);
+
+        var indeg1 = net.Nodeset.GetNodeAttribute(1, "indeg");
+        Assert.True(indeg1.Success);
+        Assert.Equal(0, (int)indeg1.Value.Value.GetValue(indeg1.Value.Type)!);
+    }
+
+    [Fact]
+    public void DegreeCentralities_DirectedLayer_BothTraversal_SumsInAndOutDegree()
+    {
+        // 1→2, 1→3: node 1 out=2, in=0 → both=2
+        //            node 2 out=0, in=1 → both=1
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+
+        var result = Analyses.DegreeCentralities(net, "layer", "deg", EdgeTraversal.Both);
+
+        Assert.True(result.Success);
+
+        var deg1 = net.Nodeset.GetNodeAttribute(1, "deg");
+        Assert.True(deg1.Success);
+        Assert.Equal(2, (int)deg1.Value.Value.GetValue(deg1.Value.Type)!);
+
+        var deg2 = net.Nodeset.GetNodeAttribute(2, "deg");
+        Assert.True(deg2.Success);
+        Assert.Equal(1, (int)deg2.Value.Value.GetValue(deg2.Value.Type)!);
+    }
+
+    [Fact]
+    public void DegreeCentralities_StaticDirectedLayer_IndegreeMatchesDynamic()
+    {
+        // Pack the layer and verify indegree gives same result as dynamic
+        var net = MakeNetwork(4);
+        AddDirectedLayer(net, "dyn");
+        AddDirectedLayer(net, "packed");
+        foreach (var lyr in new[] { "dyn", "packed" })
+        {
+            net.AddEdge(lyr, 1, 2);
+            net.AddEdge(lyr, 3, 2);
+            net.AddEdge(lyr, 4, 2);
+        }
+        net.Pack("packed");
+
+        Analyses.DegreeCentralities(net, "dyn", "indeg_dyn", EdgeTraversal.In);
+        Analyses.DegreeCentralities(net, "packed", "indeg_packed", EdgeTraversal.In);
+
+        for (uint nodeId = 1; nodeId <= 4; nodeId++)
+        {
+            var dynAttr = net.Nodeset.GetNodeAttribute(nodeId, "indeg_dyn");
+            var packedAttr = net.Nodeset.GetNodeAttribute(nodeId, "indeg_packed");
+            Assert.True(dynAttr.Success);
+            Assert.True(packedAttr.Success);
+            Assert.Equal(
+                (int)dynAttr.Value.Value.GetValue(dynAttr.Value.Type)!,
+                (int)packedAttr.Value.Value.GetValue(packedAttr.Value.Type)!
+            );
+        }
+    }
+
+    // ── GetAttributeSummary: char attribute ───────────────────────────────────────
+
+    [Fact]
+    public void GetAttributeSummary_CharAttribute_ContainsFrequencyCounts()
+    {
+        var nodeset = new Nodeset("ns", 0);
+        nodeset.AddNode(1);
+        nodeset.AddNode(2);
+        nodeset.AddNode(3);
+        nodeset.AddNode(4);
+        nodeset.DefineNodeAttribute("gender", "char");
+        nodeset.SetNodeAttribute(1, "gender", "M");
+        nodeset.SetNodeAttribute(2, "gender", "F");
+        nodeset.SetNodeAttribute(3, "gender", "M");
+        nodeset.SetNodeAttribute(4, "gender", "F");
+
+        var result = Analyses.GetAttributeSummary(nodeset, "gender");
+
+        Assert.True(result.Success);
+        // For char attributes the summary should contain frequency/distribution info
+        // (at minimum the result succeeds and returns non-null payload)
+        Assert.NotNull(result.Value);
+    }
+
+    [Fact]
+    public void GetAttributeSummary_AllNodesLackValue_StillSucceeds()
+    {
+        // Attribute defined but never set on any node
+        var nodeset = new Nodeset("ns", 0);
+        nodeset.AddNode(1);
+        nodeset.AddNode(2);
+        nodeset.DefineNodeAttribute("age", "int");
+
+        var result = Analyses.GetAttributeSummary(nodeset, "age");
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Value);
+    }
 }

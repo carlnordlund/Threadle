@@ -1,5 +1,7 @@
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing;
+using Threadle.Core.Processing.Enums;
 
 namespace Threadle.Tests;
 
@@ -713,5 +715,146 @@ public class NodesetTests
         nodeset.RemoveNodeAttribute(1, "age");
         var scoreResult = nodeset.GetNodeAttribute(1, "score");
         Assert.True(scoreResult.Success);
+    }
+
+    // ── Constructor edge cases ───────────────────────────────────────────────
+
+    [Fact]
+    public void Constructor_WithCountZero_HasZeroNodes()
+    {
+        var nodeset = new Nodeset("ns", 0);
+        Assert.Equal(0, nodeset.Count);
+        Assert.Empty(nodeset.NodeIdArray);
+    }
+
+    [Fact]
+    public void Constructor_WithCountOne_HasSingleNode()
+    {
+        var nodeset = new Nodeset("ns", 1);
+        Assert.Equal(1, nodeset.Count);
+        Assert.Single(nodeset.NodeIdArray);
+    }
+
+    // ── GetNodeIdByIndex edge cases ──────────────────────────────────────────
+
+    [Fact]
+    public void GetNodeIdByIndex_EmptyNodeset_ReturnsNull()
+    {
+        var nodeset = new Nodeset("ns", 0);
+        Assert.Null(nodeset.GetNodeIdByIndex(0));
+    }
+
+    [Fact]
+    public void GetNodeIdByIndex_SingleNode_IndexZeroReturnsId()
+    {
+        var nodeset = new Nodeset("ns");
+        nodeset.AddNode(42);
+        uint? id = nodeset.GetNodeIdByIndex(0);
+        Assert.Equal(42u, id);
+    }
+
+    // ── NodeAttributeDefinitionManager.Clone correctness ────────────────────
+    // These tests exercise the Clone() path through NodesetProcessor.Filter(),
+    // which assigns NodeAttributeDefinitionManager = sourceNodeset.NodeAttributeDefinitionManager.Clone()
+
+    [Fact]
+    public void Clone_PreservesExistingAttributes_NewAttributeGetsDistinctIndex()
+    {
+        // Build a nodeset with two attributes so _nextIndex is at least 2
+        var source = new Nodeset("src");
+        source.AddNode(1);
+        source.AddNode(2);
+        source.DefineNodeAttribute("age", "int");
+        source.DefineNodeAttribute("score", "float");
+        source.SetNodeAttribute(1, "age", "10");
+        source.SetNodeAttribute(2, "age", "20");
+        source.SetNodeAttribute(1, "score", "1.5");
+        source.SetNodeAttribute(2, "score", "2.5");
+
+        // Filter produces a clone of the NodeAttributeDefinitionManager
+        var filterResult = NodesetProcessor.Filter(source, "age", ConditionType.ge, "15");
+        Assert.True(filterResult.Success);
+        var clone = filterResult.Value!;
+
+        // The existing attributes should work on the clone
+        Assert.True(clone.DefineNodeAttribute("weight", "float").Success);
+
+        // Most critically: "weight" must not collide with "age" (index 0) or "score" (index 1).
+        // If _nextIndex was not copied, "weight" would receive index 0 — same as "age" — breaking reads.
+        // We verify by defining then setting and reading back all three attributes on a new node.
+        clone.AddNode(99);
+        Assert.True(clone.SetNodeAttribute(99, "age", "25").Success);
+        Assert.True(clone.SetNodeAttribute(99, "score", "3.0").Success);
+        Assert.True(clone.SetNodeAttribute(99, "weight", "70").Success);
+
+        var ageResult = clone.GetNodeAttribute(99, "age");
+        var scoreResult = clone.GetNodeAttribute(99, "score");
+        var weightResult = clone.GetNodeAttribute(99, "weight");
+        Assert.True(ageResult.Success);
+        Assert.True(scoreResult.Success);
+        Assert.True(weightResult.Success);
+
+        Assert.Equal(25, (int)ageResult.Value.Value.GetValue(ageResult.Value.Type)!);
+        Assert.Equal(3.0f, (float)scoreResult.Value.Value.GetValue(scoreResult.Value.Type)!, 4);
+        Assert.Equal(70.0f, (float)weightResult.Value.Value.GetValue(weightResult.Value.Type)!, 4);
+    }
+
+    [Fact]
+    public void Clone_WithRecycledIndex_NewAttributeReusesThatIndex_WithoutCollision()
+    {
+        // Define two attributes then undefine the first: its index goes onto the recycle stack.
+        var source = new Nodeset("src");
+        source.AddNode(1);
+        source.DefineNodeAttribute("old", "int");
+        source.DefineNodeAttribute("keep", "bool");
+        source.SetNodeAttribute(1, "keep", "true");
+        source.UndefineNodeAttribute("old");   // index 0 is now recycled
+
+        // Produce a clone via Filter (isnull on "keep" matches nodes that lack the attribute — none here, but that's fine)
+        var filterResult = NodesetProcessor.Filter(source, "keep", ConditionType.notnull);
+        Assert.True(filterResult.Success);
+        var clone = filterResult.Value!;
+
+        // Define a new attribute on the clone — should reuse the recycled index (0) without issue
+        Assert.True(clone.DefineNodeAttribute("fresh", "char").Success);
+
+        // Verify "keep" and "fresh" are independently readable
+        clone.AddNode(2);
+        clone.SetNodeAttribute(2, "keep", "false");
+        clone.SetNodeAttribute(2, "fresh", "X");
+
+        var keepResult = clone.GetNodeAttribute(2, "keep");
+        var freshResult = clone.GetNodeAttribute(2, "fresh");
+        Assert.True(keepResult.Success);
+        Assert.True(freshResult.Success);
+        Assert.Equal(false, (bool)keepResult.Value.Value.GetValue(keepResult.Value.Type)!);
+        Assert.Equal('X', (char)freshResult.Value.Value.GetValue(freshResult.Value.Type)!);
+    }
+
+    [Fact]
+    public void Clone_CanDefineSecondAttributeAfterFirstOnClone()
+    {
+        // Minimal case: one attribute defined, filter, then add another attribute to the clone.
+        // _nextIndex must be 1 (not 0) on the clone for the second define to get a fresh index.
+        var source = new Nodeset("src");
+        source.AddNode(1);
+        source.DefineNodeAttribute("x", "int");
+        // node 1 has no value for "x" → isnull matches it
+        var filterResult = NodesetProcessor.Filter(source, "x", ConditionType.isnull);
+        Assert.True(filterResult.Success);
+        var clone = filterResult.Value!;
+
+        // "y" must receive index 1, not 0 (which is already taken by "x")
+        Assert.True(clone.DefineNodeAttribute("y", "float").Success);
+
+        clone.SetNodeAttribute(1, "x", "5");
+        clone.SetNodeAttribute(1, "y", "1.5");
+
+        var xAttr = clone.GetNodeAttribute(1, "x");
+        var yAttr = clone.GetNodeAttribute(1, "y");
+        Assert.True(xAttr.Success);
+        Assert.True(yAttr.Success);
+        Assert.Equal(5,    (int)xAttr.Value.Value.GetValue(xAttr.Value.Type)!);
+        Assert.Equal(1.5f, (float)yAttr.Value.Value.GetValue(yAttr.Value.Type)!, 4);
     }
 }
