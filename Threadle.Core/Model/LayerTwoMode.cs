@@ -346,7 +346,8 @@ namespace Threadle.Core.Model
         internal OperationResult AddHyperedge(string hyperName, uint[]? nodeIds)
         {
             if (AllHyperEdges.ContainsKey(hyperName))
-                RemoveHyperedge(hyperName);
+                return OperationResult.Fail("HyperedgeAlreadyExists", $"There is already a hyperedge named '{hyperName}' in this layer. If you want to replace it, first remove the existing hyperedge.");
+
             Hyperedge hyperedge = new Hyperedge(hyperName);
             AllHyperEdges.Add(hyperName, hyperedge);
             if (nodeIds != null && nodeIds.Length > 0)

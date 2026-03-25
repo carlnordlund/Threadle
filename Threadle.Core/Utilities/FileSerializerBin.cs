@@ -241,66 +241,6 @@ namespace Threadle.Core.Utilities
                         }
                         layer = LayerOneModeStatic.FromValuedNodelistRows(layerName, edgeDirectionality, edgeType, selfties, rows);
                     }
-
-                    //// Create 1-mode layer
-                    //LayerOneMode layerOneMode = new LayerOneMode(layerName, edgeDirectionality, edgeType, selfties);
-
-
-                    //// Initialize the capacity of the Edgeset dictionary
-                    //layerOneMode._initSizeEdgesetDictionary(nbrEdgesets);
-
-                    //if (layerOneMode.IsBinary)
-                    //{
-                    //    // Looping for binary nodelist rows
-                    //    for (uint j = 0; j < nbrEdgesets; j++)
-                    //    {
-                    //        // Get ego of nodelist row
-                    //        uint nodeIdEgo = reader.ReadUInt32();
-
-                    //        // Get nbr of alters
-                    //        int nbrAlters = reader.ReadInt32();
-
-                    //        // Prepare array of alters
-                    //        uint[] nodeIdsAlters = new uint[nbrAlters];
-
-                    //        reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
-                    //        if (!BitConverter.IsLittleEndian)
-                    //            for (int k = 0; k < nodeIdsAlters.Length; k++)
-                    //                nodeIdsAlters[k] = BinaryPrimitives.ReverseEndianness(nodeIdsAlters[i]);
-
-
-                    //        //for (uint k = 0; k < nbrAlters; k++)
-                    //        //{
-                    //        //    nodeIdsAlters[k] = reader.ReadUInt32();
-                    //        //}
-                    //        layerOneMode._addBinaryEdges(nodeIdEgo, nodeIdsAlters);
-                    //    }
-                    //}
-                    //else
-                    //{
-                    //    // Looping for valued nodelist rows
-                    //    for (uint j = 0; j < nbrEdgesets; j++)
-                    //    {
-                    //        // Get ego of nodelist row
-                    //        uint nodeIdEgo = reader.ReadUInt32();
-
-                    //        // Get nbr of alters
-                    //        int nbrAlters = reader.ReadInt32();
-
-                    //        // Prepare array of alters
-                    //        List<(uint alterId, float value)> nodeIdsAlters = new(nbrAlters);
-
-                    //        for (uint k = 0; k < nbrAlters; k++)
-                    //        {
-                    //            // Read both the partner node id and the float value and put into the List of tuples
-                    //            nodeIdsAlters.Add((reader.ReadUInt32(), reader.ReadSingle()));
-                    //        }
-                    //        // Add all valued edges connected with the ego
-                    //        layerOneMode._addValuedEdges(nodeIdEgo, nodeIdsAlters);
-                    //    }
-                    //}
-                    // Add it to network's layers
-                    //network.Layers.Add(layerName, packLayers ? Misc.PackLayer(layerOneMode) : layerOneMode);
                     network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
                 }
                 else if (mode == 2)
@@ -324,43 +264,6 @@ namespace Threadle.Core.Utilities
                     }
                     ILayer layer = LayerTwoModeStatic.FromHyperedgeRows(layerName, rows);
                     network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
-
-
-                    //// Create 2-mode layer with the specified name
-                    //LayerTwoMode layerTwoMode = new LayerTwoMode(layerName);
-
-                    //// Get nbr of hyperedges in this layer
-                    //uint nbrHyperedges = reader.ReadUInt32();
-
-                    //// Iterate through all hyperedges
-                    //for (uint j = 0; j < nbrHyperedges; j++)
-                    //{
-                    //    // Get the name of this hyperedge
-                    //    string hyperedgeName = ReadString(reader);
-
-                    //    // Get the number of nodes connected to this hyperedge
-                    //    uint nbrAffNodes = reader.ReadUInt32();
-
-                    //    // Create an array of node ids connected to this hyperedge
-                    //    uint[] nodeIds = new uint[nbrAffNodes];
-
-                    //    // Below is quite costly: reading one node at a time. better to bulk read and then pull straight
-                    //    // into array
-                    //    //for (uint k = 0; k < nbrAffNodes; k++)
-                    //    //    nodeIds[k] = reader.ReadUInt32();
-
-                    //    reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
-                    //    if (!BitConverter.IsLittleEndian)
-                    //        for (int k = 0; k < nodeIds.Length; k++)
-                    //            nodeIds[k] = BinaryPrimitives.ReverseEndianness(nodeIds[k]);
-
-
-                    //    // Create and add hyperedge to this layer
-                    //    layerTwoMode._addHyperedge(hyperedgeName, nodeIds);
-                    //}
-
-                    // Add it to network's layers
-                    //network.Layers.Add(layerName, packLayers ? Misc.PackLayer(layerTwoMode) : layerTwoMode);
                 }
                 else
                     throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");
@@ -664,18 +567,6 @@ namespace Threadle.Core.Utilities
                         foreach (uint nodeId in nodeIds)
                             writer.Write(nodeId);
                     }
-
-                    //foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
-                    //{
-                    //    // Write the name of the hyperedge
-                    //    WriteString(writer, hyperName);
-
-                    //    // Write the number of affiliated nodes to this hyperedge
-                    //    writer.Write(hyperedge.NbrNodes);
-
-                    //    foreach (uint nodeId in hyperedge.NodeIds)
-                    //        writer.Write(nodeId);
-                    //}
                 }
             }
         }

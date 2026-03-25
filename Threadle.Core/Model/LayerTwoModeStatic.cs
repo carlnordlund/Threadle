@@ -444,6 +444,17 @@ namespace Threadle.Core.Model
             return result;
         }
 
+        public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
+        {
+            for (int h = 0; h < _hyperedgeNames.Length; h++)
+            {
+                int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
+                uint[] nodeIds = new uint[end - start];
+                Array.Copy(_hyperedgeNodeIdsFlat, start, nodeIds, 0, end - start);
+                yield return (_hyperedgeNames[h], nodeIds);
+            }
+        }
+
         public long GetEstimatedBytes()
         {
             int H = _hyperedgeNames.Length;
@@ -467,20 +478,6 @@ namespace Threadle.Core.Model
             // int[] _nodeIdHyperedgesFlat
             bytes += (long)Mn * 4;
             return bytes;
-        }
-        #endregion
-
-
-        #region Methods (internal, private)
-        public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
-        {
-            for (int h=0; h<_hyperedgeNames.Length;h++)
-            {
-                int start = _offsetsHyperedges[h], end = _offsetsHyperedges[h + 1];
-                uint[] nodeIds = new uint[end - start];
-                Array.Copy(_hyperedgeNodeIdsFlat, start, nodeIds, 0, end - start);
-                yield return (_hyperedgeNames[h], nodeIds);
-            }
         }
         #endregion
     }
