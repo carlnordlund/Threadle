@@ -496,41 +496,6 @@ namespace Threadle.Core.Model
                 bytes += (long)M * 4;
             return bytes;
         }
-        #endregion
-
-
-        #region Methods (internal, private)
-
-        //private static (int[] inOffsets, uint[] inNeighborIds) _buildInboundFromOutbound(Dictionary<uint,int> mapper, int[] outOffsets, uint[] outNeighborNodeIds)
-        //{
-        //    int n = mapper.Count;
-        //    uint[] egoIds = [.. mapper.Keys.OrderBy(id => mapper[id])];
-
-        //    var inNeighborsPerNode = new List<uint>[n];
-        //    for (int i = 0; i < n; i++)
-        //        inNeighborsPerNode[i] = [];
-        //    for (int i=0;i<n;i++)
-        //    {
-        //        int start = outOffsets[i], end = outOffsets[i + 1];
-        //        for (int j=start; j<end; j++)
-        //        {
-        //            uint neighborId = outNeighborNodeIds[j];
-        //            if (mapper.TryGetValue(neighborId, out int neighborIdx))
-        //                inNeighborsPerNode[neighborIdx].Add(egoIds[i]);
-        //        }
-        //    }
-
-        //    var inOffsets = new int[n + 1];
-        //    var inNeighborList = new List<uint>();
-        //    for (int i=0;i<n;i++)
-        //    {
-        //        inOffsets[i] = inNeighborList.Count;
-        //        inNeighborList.AddRange(inNeighborsPerNode[i].Order());
-        //    }
-        //    inOffsets[n] = inNeighborList.Count;
-        //    return ([.. inOffsets], [.. inNeighborList]);
-
-        //}
 
         public IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
         {
@@ -562,7 +527,10 @@ namespace Threadle.Core.Model
                 }
             }
         }
+        #endregion
 
+
+        #region Methods (internal, private)
         /// <summary>
         /// Builds the inbound CSR from the current outbound CSR. For each out-edge X→Y,
         /// Y gains X as an inbound neighbor. Only called for directed layers.
