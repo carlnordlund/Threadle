@@ -17,7 +17,7 @@ namespace Threadle.Core.Utilities
         /// Provides an instance of the random number generator.
         /// </summary>
         [ThreadStatic]
-        private static Random _random = new Random();
+        private static Random? _random;
 
         /// <summary>
         /// Collection of characters that could pop up in value quoting in csv files
@@ -37,7 +37,7 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Gets a shared instance of the <see cref="Random"/> class for generating random numbers.
         /// </summary>
-        internal static Random Random => _random;
+        internal static Random Random => _random ??= new Random();
         #endregion
 
 
