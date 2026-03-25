@@ -108,6 +108,9 @@ namespace Threadle.Core.Model
                 clone._indexToName[kvp.Key] = kvp.Value;
             foreach (var kvp in _indexToType)
                 clone._indexToType[kvp.Key] = kvp.Value;
+            clone._nextIndex = _nextIndex;
+            foreach (var idx in _recycledIndices.Reverse())
+                clone._recycledIndices.Push(idx);
             return clone;
         }
 

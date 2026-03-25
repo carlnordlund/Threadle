@@ -63,16 +63,6 @@ namespace Threadle.Core.Processing
                     foreach (uint partnerNodeId in alters.Span)
                         if (!newLayer.CheckEdgeExists(nodeId, partnerNodeId) && SymmetrizeFunction(1, originalLayer.GetEdgeValue(partnerNodeId, nodeId)) > 0)
                             newLayer._addEdge(nodeId, partnerNodeId);
-                //foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
-                //{
-                //    if (!(edgeset is EdgesetBinaryDirectional edgesetBinaryDirectional))
-                //        return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a binary directional edgeset.");
-                //    foreach (uint partnerNodeId in edgesetBinaryDirectional.GetOutboundNodeIds)
-                //    {
-                //        if (!newLayer.CheckEdgeExists(nodeId, partnerNodeId) && SymmetrizeFunction(1, originalLayer.GetEdgeValue(partnerNodeId, nodeId)) > 0)
-                //            newLayer._addEdge(nodeId, partnerNodeId);
-                //    }
-                //}
             }
             else
             {
@@ -87,21 +77,6 @@ namespace Threadle.Core.Processing
                         if (val > 0)
                             newLayer._addEdge(nodeId, partnerNodeId, val);
                     }
-
-
-                //foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
-                //{
-                //    if (!(edgeset is EdgesetValuedDirectional edgesetValuedDirectional))
-                //        return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a valued directional edgeset.");
-                //    foreach (var connection in edgesetValuedDirectional.GetOutboundConnections)
-                //    {
-                //        if (newLayer.CheckEdgeExists(nodeId, connection.partnerNodeId))
-                //            continue;
-                //        float val = SymmetrizeFunction(connection.value, originalLayer.GetEdgeValue(connection.partnerNodeId, nodeId));
-                //        if (val > 0)
-                //            newLayer._addEdge(nodeId, connection.partnerNodeId, val);
-                //    }
-                //}
             }
             // Sort all partner NodeIds in the Edgesets - mostly cosmetics, but looks better when writing to tsv and when
             // getting node alters.
@@ -156,27 +131,6 @@ namespace Threadle.Core.Processing
                             newLayer.AddEdge(nodeId, alters.Span[i], valueToAssign);
                     }
                 }
-
-
-            //foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
-            //{
-            //    if (!(edgeset is IEdgesetValued edgesetValued))
-            //        return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a valued edgeset.");
-            //    foreach (var connection in edgesetValued.GetOutboundConnections)
-            //    {
-            //        if (Misc.CompareValues<float>(connection.value, threshold, conditionType))
-            //        {
-            //            float valueToAssign = float.IsNaN(trueValue) ? connection.value : trueValue;
-            //            newLayer.AddEdge(nodeId, connection.partnerNodeId, valueToAssign);
-            //        }
-            //        else
-            //        {
-            //            float valueToAssign = float.IsNaN(falseValue) ? connection.value : falseValue;
-            //            if (!IsZeroOrOne(valueToAssign) || valueToAssign != 0f)
-            //                newLayer.AddEdge(nodeId, connection.partnerNodeId, valueToAssign);
-            //        }
-            //    }
-            //}
             network.AddLayer(newLayerName, newLayer);
             return OperationResult.Ok($"Dichotomized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
