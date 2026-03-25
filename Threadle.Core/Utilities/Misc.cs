@@ -16,6 +16,7 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Provides an instance of the random number generator.
         /// </summary>
+        [ThreadStatic]
         private static Random _random = new Random();
 
         /// <summary>
@@ -65,16 +66,17 @@ namespace Threadle.Core.Utilities
         /// <param name="nodesString">A string with char-separated integer values.</param>
         /// <param name="sep">The separator character that should be used (default is semicolon ;)</param>
         /// <returns>Returns an array of unsigned integers.</returns>
-        public static uint[]? SplitStringToUintArray(string nodesString, char sep = ';')
+        public static uint[] SplitStringToUintArray(string nodesString, char sep = ';')
         {
-            try
-            {
-                return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
-            }
-            catch (Exception)
-            {
-                return null;
-            }            
+            return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
+            //try
+            //{
+            //    return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
+            //}
+            //catch (Exception)
+            //{
+            //    return null;
+            //}            
         }
         #endregion
 

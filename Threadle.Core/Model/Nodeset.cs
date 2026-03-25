@@ -13,7 +13,6 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Storage container for nodes WITH attributes
         /// </summary>
-        //private Dictionary<uint, (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)> _nodesWithAttributes = new();
         private Dictionary<uint, (List<byte> AttrIndexes, List<NodeAttributeValue2> AttrValues)> _nodesWithAttributes = new();
 
         /// <summary>
