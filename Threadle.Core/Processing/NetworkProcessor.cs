@@ -145,7 +145,6 @@ namespace Threadle.Core.Processing
                 return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
 
             Dictionary<(uint, uint), float> projectedEdges = [];
-            //ILayerOneMode newLayer;
             if (method == ProjectionMethod.Count || method == ProjectionMethod.Newman)
                 foreach ((string hypername, uint[] nodeIds) in originalLayer.GetAllHyperedgeData())
                     for (int i = 0; i < nodeIds.Length; i++)
