@@ -66,17 +66,14 @@ namespace Threadle.Core.Utilities
         /// <param name="nodesString">A string with char-separated integer values.</param>
         /// <param name="sep">The separator character that should be used (default is semicolon ;)</param>
         /// <returns>Returns an array of unsigned integers.</returns>
-        public static uint[] SplitStringToUintArray(string nodesString, char sep = ';')
+        public static uint[]? SplitStringToUintArray(string nodesString, char sep = ';')
         {
-            return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
-            //try
-            //{
-            //    return nodesString.Split(sep).Select(s => uint.Parse(s)).ToArray();
-            //}
-            //catch (Exception)
-            //{
-            //    return null;
-            //}            
+            var parts = nodesString.Split(sep);
+            var result = new uint[parts.Length];
+            for (int i = 0; i < parts.Length; i++)
+                if (!uint.TryParse(parts[i].Trim(), out result[i]))
+                    return null;
+            return result;
         }
         #endregion
 
