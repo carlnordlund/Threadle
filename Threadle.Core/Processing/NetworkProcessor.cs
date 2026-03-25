@@ -135,6 +135,42 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Dichotomized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
 
+        public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName)
+        {
+            if (!network.Layers.ContainsKey(layerName))
+                return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
+            if (!(network.Layers[layerName] is ILayerTwoMode originalLayer))
+                return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 2-mode layer.");
+            if (network.Layers.ContainsKey(newLayerName))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
+
+            Dictionary<(uint, uint), float> projectedEdges = [];
+            //ILayerOneMode newLayer;
+            if (method == ProjectionMethod.Count || method == ProjectionMethod.Newman)
+                foreach ((string hypername, uint[] nodeIds) in originalLayer.GetAllHyperedgeData())
+                    for (int i = 0; i < nodeIds.Length; i++)
+                        for (int j = i + 1; j < nodeIds.Length; j++)
+                        {
+                            var key = (Math.Min(nodeIds[i], nodeIds[j]), Math.Max(nodeIds[i], nodeIds[j]));
+                            projectedEdges[key] = projectedEdges.GetValueOrDefault(key) + 1f / (method == ProjectionMethod.Count ? 1f : (nodeIds.Length - 1));
+                        }
+            else if (method == ProjectionMethod.Binary)
+                foreach ((string hypername, uint[] nodeIds) in originalLayer.GetAllHyperedgeData())
+                    for (int i = 0; i < nodeIds.Length; i++)
+                        for (int j = i + 1; j < nodeIds.Length; j++)
+                        {
+                            var key = (Math.Min(nodeIds[i], nodeIds[j]), Math.Max(nodeIds[i], nodeIds[j]));
+                            projectedEdges.TryAdd(key, 1f);
+                        }
+
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, (method == ProjectionMethod.Binary) ? EdgeType.Binary : EdgeType.Valued, false);
+            foreach (var ((node1, node2), value) in projectedEdges)
+                newLayer._addEdge(node1, node2, value);
+            network.AddLayer(newLayerName, newLayer);
+            return OperationResult.Ok($"Projected layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
+        }
+
+
         /// <summary>
         /// Creates a new Network object based on the provided network that instead uses the provided Nodeset, thus
         /// removing all edges that are not related to any of the nodes in the provided nodeset.

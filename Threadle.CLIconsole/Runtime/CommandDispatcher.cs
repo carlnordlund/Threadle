@@ -68,6 +68,7 @@ namespace Threadle.CLIconsole.Runtime
             ["loadfile"] = new LoadFile(),
             ["pack"] = new Pack(),
             ["preview"] = new Preview(),
+            ["projecttwomode"] =new ProjectTwoMode(),
             ["randomseed"] = new RandomSeed(),
             ["removeaff"] = new RemoveAffiliation(),
             ["removeattr"] = new RemoveAttr(),
