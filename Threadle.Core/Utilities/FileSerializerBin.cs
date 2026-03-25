@@ -186,8 +186,20 @@ namespace Threadle.Core.Utilities
                 if (mode == 1)
                 {
                     // Get properties of the 1-mode layer
-                    EdgeDirectionality edgeDirectionality = (EdgeDirectionality)reader.ReadByte();
-                    EdgeType edgeType = (EdgeType)reader.ReadByte();
+                    EdgeDirectionality edgeDirectionality = reader.ReadByte() switch
+                    {
+                        0 => EdgeDirectionality.Directed,
+                        1 => EdgeDirectionality.Undirected,
+                        _ => throw new InvalidDataException($"Invalid directionality type for layer '{layerName}'.")
+                    };
+
+                    EdgeType edgeType = reader.ReadByte() switch
+                    {
+                        0 => EdgeType.Binary,
+                        1 => EdgeType.Valued,
+                        _ => throw new InvalidDataException($"Invalid edge type for layer '{layerName}'.")
+                    };
+
                     bool selfties = reader.ReadBoolean();
 
                     // Get nbr of nodelist rows
