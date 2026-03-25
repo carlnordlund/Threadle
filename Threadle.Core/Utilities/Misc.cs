@@ -89,7 +89,7 @@ namespace Threadle.Core.Utilities
         /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
         /// <returns><see langword="true"/> if the condition is satisfied based on the comparison; otherwise, <see
         /// langword="false"/>.</returns>
-        internal static bool EvaluateCondition(NodeAttributeValue2 AttrValue,NodeAttributeType AttrType, string comparisonValue, ConditionType condition)
+        internal static bool EvaluateCondition(NodeAttributeValue AttrValue,NodeAttributeType AttrType, string comparisonValue, ConditionType condition)
         {
             switch (AttrType)
             {
@@ -141,14 +141,14 @@ namespace Threadle.Core.Utilities
             };
         }
 
-        internal static NodeAttributeValue2? CreateNodeAttributeValue2FromTypeAndString(NodeAttributeType type, string valueStr)
+        internal static NodeAttributeValue? CreateNodeAttributeValueFromTypeAndString(NodeAttributeType type, string valueStr)
         {
             return type switch
             {
-                NodeAttributeType.Int => int.TryParse(valueStr, out int i) ? new NodeAttributeValue2(i) : null,
-                NodeAttributeType.Float => float.TryParse(valueStr, out float f)? new NodeAttributeValue2(f): null,
-                NodeAttributeType.Bool => bool.TryParse(valueStr, out bool b)? new NodeAttributeValue2(b):null,
-                NodeAttributeType.Char => valueStr.Length==1? new NodeAttributeValue2(valueStr[0]):null,
+                NodeAttributeType.Int => int.TryParse(valueStr, out int i) ? new NodeAttributeValue(i) : null,
+                NodeAttributeType.Float => float.TryParse(valueStr, out float f)? new NodeAttributeValue(f): null,
+                NodeAttributeType.Bool => bool.TryParse(valueStr, out bool b)? new NodeAttributeValue(b):null,
+                NodeAttributeType.Char => valueStr.Length==1? new NodeAttributeValue(valueStr[0]):null,
                 _ => null
             };
         }

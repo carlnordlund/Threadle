@@ -351,7 +351,7 @@ namespace Threadle.Core.Utilities
 
                 // Prepare storage for these node attributes
                 List<byte> attrIndexes = new(nodeAttrCount);
-                List<NodeAttributeValue2> attrValues = new(nodeAttrCount);
+                List<NodeAttributeValue> attrValues = new(nodeAttrCount);
 
                 // Loop through the attributes of this node
                 for (int a = 0; a < nodeAttrCount; a++)
@@ -363,8 +363,7 @@ namespace Threadle.Core.Utilities
                     int rawValue = reader.ReadInt32();
 
                     // Convert to NodeAttributeValue
-                    //NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, def.type);
-                    NodeAttributeValue2 value = NodeAttributeValue2.FromRaw(rawValue);
+                    NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue);
 
                     // Build up the attribute storage
                     attrIndexes.Add(attrIndex);

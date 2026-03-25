@@ -63,7 +63,7 @@ namespace Threadle.Core.Model
 
 
         #region Constructors
-        private LayerTwoModeStatic(string name, string[] hyperedgeNames, int[] offsetsHyperedges, uint[] hyperedgesNodeIdsFlat, Dictionary<uint,int> nodeIdToIndexMapper, int[] offsetsNodeIds, int[] nodeIdHypedgesFlat)
+        private LayerTwoModeStatic(string name, string[] hyperedgeNames, int[] offsetsHyperedges, uint[] hyperedgesNodeIdsFlat, Dictionary<uint,int> nodeIdToIndexMapper, int[] offsetsNodeIds, int[] nodeIdHyperedgesFlat)
         {
             Name = name;
             _hyperedgeNames= hyperedgeNames;
@@ -71,7 +71,7 @@ namespace Threadle.Core.Model
             _hyperedgeNodeIdsFlat = hyperedgesNodeIdsFlat;
             _nodeIdToIndexMapper = nodeIdToIndexMapper;
             _offsetsNodeIds = offsetsNodeIds;
-            _nodeIdHyperedgesFlat = nodeIdHypedgesFlat;
+            _nodeIdHyperedgesFlat = nodeIdHyperedgesFlat;
         }
         #endregion
 

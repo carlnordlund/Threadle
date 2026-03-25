@@ -38,7 +38,7 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             uint nodeId = command.GetArgumentParseUintThrowExceptionIfMissingOrNull("nodeid", "arg1");
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg2");
-            OperationResult<(NodeAttributeValue2 AttrValue ,NodeAttributeType AttrType)> result = nodeset!.GetNodeAttribute(nodeId, attrName);
+            OperationResult<(NodeAttributeValue AttrValue ,NodeAttributeType AttrType)> result = nodeset!.GetNodeAttribute(nodeId, attrName);
             
             if (!result.Success)
             {
