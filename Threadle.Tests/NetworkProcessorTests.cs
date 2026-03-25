@@ -304,4 +304,271 @@ public class NetworkProcessorTests
         // so edges from layer 1-2 should be preserved in the subnet
         Assert.True(subnetResult.Value!.Layers["layer"].CheckEdgeExists(1, 2));
     }
+
+    // ── ProjectTwoModeToOneMode ───────────────────────────────────────────────
+
+    // Helper: network with nodes 1-5 and an empty two-mode layer
+    private static Network MakeNetworkWithTwoModeLayer(string layerName = "clubs")
+    {
+        var net = new Network("net", MakeNodeset());   // nodes 1-5
+        net.AddLayerTwoMode(layerName);
+        return net;
+    }
+
+    // ── Error cases ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ProjectTwoMode_LayerNotFound_Fails()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "ghost", ProjectionMethod.Count, "proj");
+        Assert.False(result.Success);
+        Assert.Equal("LayerNotFound", result.Code);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_WrongLayerType_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("layer", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "layer", ProjectionMethod.Count, "proj");
+        Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_NewLayerNameAlreadyExists_Fails()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddLayerOneMode("proj", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        Assert.False(result.Success);
+        Assert.Equal("LayerAlreadyExists", result.Code);
+    }
+
+    // ── Count method ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ProjectTwoMode_Count_SingleSharedHyperedge_EdgeValueIsOne()
+    {
+        // nodes 1 and 2 share exactly one hyperedge
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        Assert.True(result.Success);
+        Assert.Equal(1f, net.Layers["proj"].GetEdgeValue(1, 2));
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_TwoSharedHyperedges_EdgeValueIsTwo()
+    {
+        // nodes 1 and 2 share two hyperedges
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+        net.AddHyperedge("clubs", "c2", [1u, 2u, 4u]);
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        Assert.True(result.Success);
+        Assert.Equal(2f, net.Layers["proj"].GetEdgeValue(1, 2));
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_TriangleHyperedge_AllPairsGetEdgeValueOne()
+    {
+        // hyperedge {1,2,3}: pairs (1,2), (1,3), (2,3) each share exactly 1 hyperedge
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        Assert.Equal(1f, net.Layers["proj"].GetEdgeValue(1, 2));
+        Assert.Equal(1f, net.Layers["proj"].GetEdgeValue(1, 3));
+        Assert.Equal(1f, net.Layers["proj"].GetEdgeValue(2, 3));
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_NoSelfties()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        Assert.False(net.Layers["proj"].CheckEdgeExists(1, 1));
+        Assert.False(net.Layers["proj"].CheckEdgeExists(2, 2));
+        Assert.False(net.Layers["proj"].CheckEdgeExists(3, 3));
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_NodeInSingletonHyperedge_NoEdgesCreated()
+    {
+        // hyperedge with only 1 member: no pair exists, so no edge
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        var layer = net.Layers["proj"];
+        Assert.Equal(0u, ((ILayerOneMode)layer).NbrEdges);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_EmptyLayer_ProducesEmptyProjectedLayer()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        Assert.True(result.Success);
+        Assert.Equal(0u, ((ILayerOneMode)net.Layers["proj"]).NbrEdges);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_ResultIsUndirectedValuedLayer()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        var layer = (ILayerOneMode)net.Layers["proj"];
+        Assert.False(layer.IsDirectional);
+        Assert.Equal(EdgeType.Valued, layer.EdgeValueType);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_IsSymmetric_BothDirectionsHaveSameValue()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        net.AddHyperedge("clubs", "c2", [1u, 2u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        Assert.Equal(net.Layers["proj"].GetEdgeValue(1, 2), net.Layers["proj"].GetEdgeValue(2, 1));
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_OriginalTwoModeLayerUnchanged()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+        // original layer still present and intact
+        Assert.True(net.Layers.ContainsKey("clubs"));
+        Assert.Equal(1u, ((ILayerTwoMode)net.Layers["clubs"]).NbrHyperedges);
+    }
+
+    // ── Binary method ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ProjectTwoMode_Binary_MultipleSharedHyperedges_EdgeValueIsOne()
+    {
+        // nodes 1 and 2 share two hyperedges — binary should still be 1
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        net.AddHyperedge("clubs", "c2", [1u, 2u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "proj");
+        Assert.Equal(1f, net.Layers["proj"].GetEdgeValue(1, 2));
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Binary_ResultIsBinaryLayer()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "proj");
+        Assert.Equal(EdgeType.Binary, ((ILayerOneMode)net.Layers["proj"]).EdgeValueType);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Binary_NoPairShared_NoEdge()
+    {
+        // two hyperedges with disjoint members
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        net.AddHyperedge("clubs", "c2", [3u, 4u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "proj");
+        Assert.False(net.Layers["proj"].CheckEdgeExists(1, 3));
+        Assert.False(net.Layers["proj"].CheckEdgeExists(2, 4));
+    }
+
+    // ── Newman method ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ProjectTwoMode_Newman_SizeThreeHyperedge_WeightIsHalf()
+    {
+        // hyperedge of size 3: contribution per pair = 1/(3-1) = 0.5
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Newman, "proj");
+        Assert.Equal(0.5f, net.Layers["proj"].GetEdgeValue(1, 2), precision: 5);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Newman_SizeTwoHyperedge_WeightIsOne()
+    {
+        // hyperedge of size 2: contribution = 1/(2-1) = 1.0
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Newman, "proj");
+        Assert.Equal(1.0f, net.Layers["proj"].GetEdgeValue(1, 2), precision: 5);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Newman_TwoHyperedgesDifferentSizes_WeightsAccumulate()
+    {
+        // nodes 1,2 share: c1 (size 2, contrib 1.0) and c2 (size 3, contrib 0.5) → total 1.5
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        net.AddHyperedge("clubs", "c2", [1u, 2u, 3u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Newman, "proj");
+        Assert.Equal(1.5f, net.Layers["proj"].GetEdgeValue(1, 2), precision: 5);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Newman_ResultIsValuedLayer()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+        NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Newman, "proj");
+        Assert.Equal(EdgeType.Valued, ((ILayerOneMode)net.Layers["proj"]).EdgeValueType);
+    }
+
+    // ── Static (packed) two-mode layer ────────────────────────────────────────
+
+    [Fact]
+    public void ProjectTwoMode_Count_StaticLayer_MatchesDynamic()
+    {
+        var netDyn    = MakeNetworkWithTwoModeLayer();
+        var netPacked = MakeNetworkWithTwoModeLayer();
+        foreach (var net in new[] { netDyn, netPacked })
+        {
+            net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+            net.AddHyperedge("clubs", "c2", [2u, 3u, 4u]);
+            net.AddHyperedge("clubs", "c3", [1u, 4u, 5u]);
+        }
+        netPacked.Pack("clubs");
+
+        NetworkProcessor.ProjectTwoModeToOneMode(netDyn,    "clubs", ProjectionMethod.Count, "proj");
+        NetworkProcessor.ProjectTwoModeToOneMode(netPacked, "clubs", ProjectionMethod.Count, "proj");
+
+        for (uint i = 1; i <= 5; i++)
+            for (uint j = i + 1; j <= 5; j++)
+                Assert.Equal(
+                    netDyn.Layers["proj"].GetEdgeValue(i, j),
+                    netPacked.Layers["proj"].GetEdgeValue(i, j)
+                );
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Newman_StaticLayer_MatchesDynamic()
+    {
+        var netDyn    = MakeNetworkWithTwoModeLayer();
+        var netPacked = MakeNetworkWithTwoModeLayer();
+        foreach (var net in new[] { netDyn, netPacked })
+        {
+            net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+            net.AddHyperedge("clubs", "c2", [2u, 3u, 4u, 5u]);
+        }
+        netPacked.Pack("clubs");
+
+        NetworkProcessor.ProjectTwoModeToOneMode(netDyn,    "clubs", ProjectionMethod.Newman, "proj");
+        NetworkProcessor.ProjectTwoModeToOneMode(netPacked, "clubs", ProjectionMethod.Newman, "proj");
+
+        for (uint i = 1; i <= 5; i++)
+            for (uint j = i + 1; j <= 5; j++)
+                Assert.Equal(
+                    netDyn.Layers["proj"].GetEdgeValue(i, j),
+                    netPacked.Layers["proj"].GetEdgeValue(i, j),
+                    precision: 5
+                );
+    }
 }
