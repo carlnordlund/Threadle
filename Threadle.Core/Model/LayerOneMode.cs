@@ -147,16 +147,6 @@ namespace Threadle.Core.Model
                 {
                     layer._addBinaryEdges(egoId, alters.ToArray());
                 }
-
-                //IEdgeset edgeset = layer.GetOrCreateEdgeset(egoId);
-                //edgeset._setCapacity(alters.Length);
-                //ReadOnlySpan<uint> altersSpan = alters.Span;
-                //if (!values.IsEmpty)
-                //    for (int i = 0; i < alters.Length; i++)
-                //        edgeset._addOutboundEdge(altersSpan[i], values.Span[i]);
-                //else
-                //    for (int i = 0; i < alters.Length; i++)
-                //        edgeset._addOutboundEdge(altersSpan[i], 1f);
             }
             return layer;
         }
@@ -327,7 +317,6 @@ namespace Threadle.Core.Model
         public long GetEstimatedBytes()
         {
             int N = _edgesets.Count;
-            // Dict<uint,IEdgeset>: entries (has + next + key(4)+ value(8)=20 bytes each)+ buckets
             long bytes = (long)N * 20 + (long)(N / 0.72 + 1) * 4;
             foreach (var es in _edgesets.Values)
                 bytes += 72 + (long)es.NbrEdges * 4;
@@ -388,19 +377,6 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("EdgeAlreadyExists", $"Outbound edge from {node1Id} to {node2Id} already exists.");
             }
 
-            return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} (value={value}) in layer '{Name}'.");
-
-            //if (node1Id == node2Id && !Selfties)
-            //    return OperationResult.Fail("ConstraintSelftiesNotAllowed", $"Layer {Name} does not allow for selfties.");
-            //IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1Id);
-            //IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2Id);
-            //// If layer is symmetric, only add an "inbound" if this is not a selftie
-            //// If it is not symmetric (i.e. it is directional), add an "inbound" as long as the setting for OnlyOutbound is turned off
-            //if (IsSymmetric ? !(node1Id==node2Id):!UserSettings.OnlyOutboundEdges)
-            //    if (!edgeSetNode2.AddInboundEdge(node1Id, value).Success)
-            //        return OperationResult.Fail("EdgeAlreadyExists", $"Inbound edge to {node2Id} from {node1Id} already exists.");
-            //if (!edgeSetNode1.AddOutboundEdge(node2Id, value).Success)
-            //    return OperationResult.Fail("EdgeAlreadyExists", $"Outbound edge from {node1Id} to {node2Id} already exists.");
             return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} (value={value}) in layer '{Name}'.");
         }
 

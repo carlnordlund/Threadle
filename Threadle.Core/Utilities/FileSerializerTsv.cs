@@ -106,9 +106,8 @@ namespace Threadle.Core.Utilities
         /// <param name="mode">The used CompressionMode</param>
         /// <returns>The original stream or the GZip stream.</returns>
         private static Stream WrapIfCompressed(Stream stream, string filepath, FileFormat format, CompressionMode mode)
-        {
-            return format == FileFormat.TsvGzip ? new GZipStream(stream, mode) : stream;
-        }
+            => format == FileFormat.TsvGzip ? new GZipStream(stream, mode) : stream;
+        
 
         /// <summary>
         /// Support method to write a Network object to file, and possibly also its Nodeset object.
@@ -183,7 +182,6 @@ namespace Threadle.Core.Utilities
         /// <returns>A StructureResult object containing the Network object, and possibly also a Nodeset object.</returns>
         private static StructureResult ReadNetworkFromFile(string filepath, StreamReader reader, bool compactLayers)
         {
-            //var network = new Network("");
             string networkName = "";
             Nodeset? nodeset = null;
             string? line;
@@ -209,8 +207,6 @@ namespace Threadle.Core.Utilities
                 }
                 pendingName = null;
             }
-
-
 
             while ((line = reader.ReadLine()) != null)
             {
@@ -239,7 +235,6 @@ namespace Threadle.Core.Utilities
                     FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(resolvedNodesetPath);
                     nodeset = LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
                     nodeset.IsModified = false;
-                    //network.SetNodeset(nodeset);
                     continue;
                 }
                 if (line.StartsWith("LayerName:", StringComparison.OrdinalIgnoreCase))
@@ -268,61 +263,6 @@ namespace Threadle.Core.Utilities
                         : new LayerTwoMode { Name = pendingName };
                     pendingName = null;
                 }
-
-
-
-
-                //if (line.StartsWith("LayerMode:", StringComparison.OrdinalIgnoreCase))
-                //{
-                //    if (nodeset == null)
-                //        throw new InvalidDataException("Nodeset file reference must be specified before layer definitions.");
-
-                //    if (currentLayer != null)
-                //    {
-                //        // if packLayers == true: convert currentLayer to its CSR equivalent
-                //        // If currentLayer is LayerOneMode => LayerOneModeCSR
-                //        // If currentLayer is LayerTwoMode => LayerTwoModeCSR
-                //        network.Layers.Add(currentLayer.Name, packLayers ? Misc.PackLayer(currentLayer) : currentLayer);
-                //    }
-                //    string layerModeStr = line.Substring("LayerMode:".Length).Trim();
-                //    if (layerModeStr.Equals("1"))
-                //        currentLayer = new LayerOneMode();
-                //    else if (layerModeStr.Equals("2"))
-                //        currentLayer = new LayerTwoMode();
-                //    continue;
-                //}
-                //if (currentLayer != null && line.Contains(":"))
-                //{
-                //    if (line.StartsWith("LayerName:", StringComparison.OrdinalIgnoreCase))
-                //        currentLayer.Name = line.Substring("LayerName:".Length).Trim();
-                //    else if (currentLayer is LayerOneMode currentLayerOneMode)
-                //    {
-                //        if (line.StartsWith("Directionality:", StringComparison.OrdinalIgnoreCase))
-                //        {
-                //            string dirString = line.Substring("Directionality:".Length).Trim().ToLower();
-                //            currentLayerOneMode.Directionality = dirString.Equals("directed") ? EdgeDirectionality.Directed : EdgeDirectionality.Undirected;
-                //            currentLayerOneMode.TryInitFactory();
-                //        }
-                //        else if (line.StartsWith("ValueType:", StringComparison.OrdinalIgnoreCase))
-                //        {
-                //            var valString = line.Substring("ValueType:".Length).Trim().ToLower();
-                //            currentLayerOneMode.EdgeValueType = valString switch
-                //            {
-                //                "valued" => EdgeType.Valued,
-                //                _ => EdgeType.Binary
-                //            };
-                //            currentLayerOneMode.TryInitFactory();
-                //        }
-                //        else if (line.StartsWith("Selfties:", StringComparison.OrdinalIgnoreCase))
-                //        {
-                //            string selftiesStr = line.Substring("Selfties:".Length).Trim().ToLower();
-                //            currentLayerOneMode.Selfties = selftiesStr.Equals("true");
-                //        }
-                //    }
-                //    continue;
-                //}
-
-
                 if (currentLayer is LayerOneMode layerOneMode)
                 {
                     var parts = line.Split('\t');
@@ -331,7 +271,6 @@ namespace Threadle.Core.Utilities
                     if (!uint.TryParse(parts[0], out uint ego))
                         continue;
 
-                    //uint ego = uint.Parse(parts[0]);
                     if (layerOneMode.IsBinary)
                     {
                         for (int i = 1; i < parts.Length; i++)
@@ -340,7 +279,6 @@ namespace Threadle.Core.Utilities
                                 continue;
                             if (uint.TryParse(parts[i], out uint partnerNodeId))
                                 layerOneMode.AddEdge(ego, partnerNodeId);
-                            //layerOneMode.AddEdge(ego, uint.Parse(parts[i]));
                         }
                     }
                     else
@@ -350,12 +288,15 @@ namespace Threadle.Core.Utilities
                             if (string.IsNullOrWhiteSpace(parts[i]))
                                 continue;
                             var subparts = parts[i].Split(';', 2);
-                            //uint alter = uint.Parse(subparts[0]);
+                            if (subparts.Length < 2)
+                                continue;
 
                             if (!uint.TryParse(subparts[0], out uint alter))
                                 continue;
 
-                            float val = Misc.FixConnectionValue(float.Parse(subparts[1], CultureInfo.InvariantCulture), layerOneMode.EdgeValueType);
+                            if (!float.TryParse(subparts[1], CultureInfo.InvariantCulture, out float val))
+                                continue;
+
                             layerOneMode.AddEdge(ego, alter, val);
                         }
                     }
@@ -373,14 +314,6 @@ namespace Threadle.Core.Utilities
                 }
             }
             FlushIfNeeded();
-
-
-
-            //if (currentLayer != null)
-            //{
-            //    //network.Layers.Add(currentLayer.Name, currentLayer);
-            //    network.Layers.Add(currentLayer.Name, packLayers ? Misc.PackLayer(currentLayer) : currentLayer);
-            //}
             if (nodeset == null)
                 throw new InvalidDataException("Nodeset file reference must be specified before layer definitions.");
 
@@ -390,28 +323,6 @@ namespace Threadle.Core.Utilities
             network.Filepath = filepath;
             network.IsModified = false;
             nodeset.IsModified = false;
-
-            //network.SetNodeset(nodeset);
-
-
-            //Nodeset? nodeset = null;
-            //if (nodesetFileReference != null)
-            //{
-            //    FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFileReference);
-            //    nodeset = LoadNodesetFromFile(nodesetFileReference, nodesetFormat);
-            //    network.SetNodeset(nodeset);
-            //    return new StructureResult(network, new Dictionary<string, IStructure>
-            //    {
-            //        { "nodeset", nodeset}
-            //    });
-            //}
-            //else
-            //{
-            //    HashSet<uint> allIds = network.GetAllIdsMentioned();
-            //    nodeset = new Nodeset(network.Name + "_nodeset", allIds);
-            //    network.SetNodeset(nodeset);
-            //}
-            //nodeset.IsModified = false;
             return new StructureResult(network, new Dictionary<string, IStructure>
             {
                 { "nodeset", nodeset }
@@ -471,7 +382,8 @@ namespace Threadle.Core.Utilities
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
                 var parts = line.Split('\t');
-                uint nodeId = uint.Parse(parts[0]);
+                if (!uint.TryParse(parts[0], out uint nodeId))
+                    continue;
                 nodeset.AddNode(nodeId);
                 for (int i = 1; i < parts.Length && i <= nbrCols; i++)
                 {

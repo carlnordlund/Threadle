@@ -44,7 +44,7 @@ namespace Threadle.Core.Model
         /// <param name="offset"></param>
         /// <param name="limit"></param>
         /// <returns></returns>
-        List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 10000);
+        List<Dictionary<string, object>> GetAllEdges(int offset = 0, int limit = 1000);
 
         /// <summary>
         /// Iterates all ego nodes with their outbound alters and edge values.
