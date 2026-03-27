@@ -27,7 +27,7 @@ namespace Threadle.Core.Utilities
             using var writer = XmlWriter.Create(filepath, new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 });
 
             writer.WriteStartDocument();
-            writer.WriteStartElement("Gexf", "http://Gexf.net/1.3");
+            writer.WriteStartElement("gexf", "http://gexf.net/1.3");
             writer.WriteAttributeString("version", "1.3");
 
             writer.WriteStartElement("graph");
