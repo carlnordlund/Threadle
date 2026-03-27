@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -37,7 +38,9 @@ namespace Threadle.Core.Model
             _ => null
         };
 
-        public string ToString(NodeAttributeType type) => GetValue(type)?.ToString() ?? "";
+        //public string ToString(NodeAttributeType type) => GetValue(type)?.ToString() ?? "";
+
+        public string ToString(NodeAttributeType type) => string.Format(CultureInfo.InvariantCulture, "{0}", GetValue(type));
 
         /// <summary>
         /// Returns raw 32-bit representation of value, for binary serialization

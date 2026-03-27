@@ -207,11 +207,8 @@ namespace Threadle.Core.Utilities
                 {
                     // Probably better to convert the stuff in each case into a helper method here in FileManager,
                     // so that this looks similar to the other public-facing API:s for load/save
-                    case ExportFormat.gexf:
-                        if (!(network._getLayer(layerName) is ILayerOneMode layerOneMode))
-                            return OperationResult.Fail("LayerNotFound", $"No 1-mode layer '{layerName}' found.");
-                        FileSerializerGexf.Export(network, layerOneMode, filepath);
-                        return OperationResult.Ok($"Layer '{layerName}' in network '{network.Name}' exported to {format} format to file: {filepath}");
+                    case ExportFormat.Gexf:
+                        return ExportNetworkToGexf(network, layerName, filepath);
                 }
                 return OperationResult.Fail("ExportFormatNotFound", $"Export format '{format}' not implemented.");                
             }
@@ -219,6 +216,16 @@ namespace Threadle.Core.Utilities
             {
                 return OperationResult.Fail("IOExportError", "Unexpected error when exporting network to filepath: " + ex.Message);
             }
+        }
+
+        private static OperationResult ExportNetworkToGexf(Network network, string layerName, string filepath)
+        {
+            if (!(network._getLayer(layerName) is ILayer layer))
+                return OperationResult.Fail("LayerNotFound", $"No layer named '{layerName}' found.");
+            if (!(layer is ILayerOneMode layerOneMode))
+                return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' is not 1-mode.");
+            FileSerializerGexf.Export(network, layerOneMode, filepath);
+            return OperationResult.Ok($"Layer '{layerName}' in network '{network.Name}' exported to 'gexf' format to file: {filepath}");
         }
 
 

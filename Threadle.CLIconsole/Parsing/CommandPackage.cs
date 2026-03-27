@@ -252,7 +252,7 @@
         internal T GetArgumentParseEnumThrowExceptionIfMissingOrNull<T>(string key, string altKey) where T : struct, Enum
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
-            if (!Enum.TryParse<T>(valueString, out var value))
+            if (!Enum.TryParse<T>(valueString, true, out var value))
                 throw new Exception($"!Error: Value '{valueString}' not a valid {typeof(T).Name}.");
             return value;
         }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -26,7 +27,7 @@ namespace Threadle.Core.Utilities
             using var writer = XmlWriter.Create(filepath, new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 });
 
             writer.WriteStartDocument();
-            writer.WriteStartElement("gexf", "http://gexf.net/1.3");
+            writer.WriteStartElement("Gexf", "http://Gexf.net/1.3");
             writer.WriteAttributeString("version", "1.3");
 
             writer.WriteStartElement("graph");
@@ -84,7 +85,7 @@ namespace Threadle.Core.Utilities
                     writer.WriteAttributeString("source", $"{egoId}");
                     writer.WriteAttributeString("target", $"{alters.Span[i]}");
                     if (layerOneMode.EdgeValueType == EdgeType.Valued)
-                        writer.WriteAttributeString("weight", $"{values.Span[i]}");
+                        writer.WriteAttributeString("weight", values.Span[i].ToString(CultureInfo.InvariantCulture));
                     writer.WriteEndElement();
                 }
             }
