@@ -39,6 +39,7 @@ namespace Threadle.CLIconsole.Runtime
             ["density"] = new Density(),
             ["dichotomize"] = new Dichotomize(),
             ["dir"] = new Dir(),
+            ["export"] = new Export(),
             ["exportlayer"] = new ExportLayer(),
             ["filter"] = new Filter(),
             ["generate"] = new Generate(),

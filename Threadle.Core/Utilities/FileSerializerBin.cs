@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities.Enums;
 
 namespace Threadle.Core.Utilities
 {
