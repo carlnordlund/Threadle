@@ -1073,4 +1073,141 @@ public class FileIOTests : IDisposable
         var linesPacked = File.ReadAllLines(pathPacked).OrderBy(x => x).ToArray();
         Assert.Equal(linesDyn, linesPacked);
     }
+
+    // ── Layer count > 255 (version 2 binary format) ───────────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_MoreThan255Layers_AllLayersPresent()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 3; i++)
+            ns.AddNode(i);
+
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        const int layerCount = 300;
+        for (int i = 0; i < layerCount; i++)
+        {
+            string layerName = $"layer{i}";
+            net.AddLayerOneMode(layerName, EdgeDirectionality.Undirected, EdgeType.Binary, false);
+            net.AddEdge(layerName, 1, 2);
+        }
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        Assert.Equal(layerCount, loadedNet.Layers.Count);
+        for (int i = 0; i < layerCount; i++)
+            Assert.True(loadedNet.Layers.ContainsKey($"layer{i}"));
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_Bin_MoreThan255Layers_EdgesPreserved()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 3; i++)
+            ns.AddNode(i);
+
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        for (int i = 0; i < 300; i++)
+        {
+            string layerName = $"layer{i}";
+            net.AddLayerOneMode(layerName, EdgeDirectionality.Undirected, EdgeType.Binary, false);
+            net.AddEdge(layerName, 1, 2);
+        }
+
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        var loadedNet = (Network)FileManager.Load(netPath, "network").Value!.MainStructure;
+
+        // Spot-check first, middle, and last layers
+        Assert.True(loadedNet.CheckEdgeExists("layer0", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("layer150", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("layer299", 1, 2).Value);
+    }
+
+    // ── Version 1 binary format backward compatibility ─────────────────────────
+
+    /// <summary>
+    /// Constructs a hand-crafted version 1 binary network file (layer count stored as a single
+    /// byte) and verifies that the reader can still load it correctly.
+    /// </summary>
+    [Fact]
+    public void LoadNetwork_Bin_Version1Format_BackwardCompatible()
+    {
+        // Save a nodeset so the network loader can find it
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 5; i++)
+            ns.AddNode(i);
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+        string nsFilename = Path.GetFileName(nsPath);
+
+        // Manually write a version 1 binary network file
+        string netPath = TempFile(".bin");
+        using (var ms = new MemoryStream())
+        using (var w = new System.IO.BinaryWriter(ms, System.Text.Encoding.ASCII, leaveOpen: true))
+        {
+            // Magic "TNTW"
+            w.Write(System.Text.Encoding.ASCII.GetBytes("TNTW"));
+            // Version 1
+            w.Write((byte)1);
+            // Network name
+            V1WriteString(w, "v1-net");
+            // Nodeset filename
+            V1WriteString(w, nsFilename);
+            // Layer count as BYTE (version 1 format — the key backward-compat difference)
+            w.Write((byte)2);
+
+            // Layer "alpha": undirected binary, ego=1, alter=2
+            V1WriteString(w, "alpha");
+            w.Write((byte)1);      // mode = 1-mode
+            w.Write((byte)1);      // directionality = Undirected
+            w.Write((byte)0);      // EdgeType = Binary
+            w.Write(false);        // selfties
+            w.Write(1);            // nbrEdgesets
+            w.Write((uint)1);      // egoId
+            w.Write(1);            // nbrAlters
+            w.Write((uint)2);      // alterId
+
+            // Layer "beta": undirected binary, ego=3, alter=4
+            V1WriteString(w, "beta");
+            w.Write((byte)1);
+            w.Write((byte)1);
+            w.Write((byte)0);
+            w.Write(false);
+            w.Write(1);
+            w.Write((uint)3);
+            w.Write(1);
+            w.Write((uint)4);
+
+            File.WriteAllBytes(netPath, ms.ToArray());
+        }
+
+        var loadResult = FileManager.Load(netPath, "network");
+        Assert.True(loadResult.Success);
+        var loadedNet = (Network)loadResult.Value!.MainStructure;
+
+        Assert.Equal(2, loadedNet.Layers.Count);
+        Assert.True(loadedNet.CheckEdgeExists("alpha", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("beta", 3, 4).Value);
+    }
+
+    /// <summary>
+    /// Helper: writes a string with a 1-byte length prefix in the Threadle binary format.
+    /// </summary>
+    private static void V1WriteString(System.IO.BinaryWriter writer, string value)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(value);
+        writer.Write((byte)bytes.Length);
+        writer.Write(bytes);
+    }
 }
