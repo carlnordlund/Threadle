@@ -29,8 +29,10 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Future-looking: if we ever were to change the file format later on, this is format version 1.
         /// Then additional readers can be implemented for would-be future format versions.
+        /// 
+        /// Version 2: allowing 
         /// </summary>
-        private const byte FormatVersion = 1;
+        private const byte FormatVersion = 2;
         #endregion
 
 
@@ -149,8 +151,8 @@ namespace Threadle.Core.Utilities
 
             // Check file version - should be the same as here implemented
             byte version = reader.ReadByte();
-            if (version != FormatVersion)
-                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
+            //if (version != FormatVersion)
+                //throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
 
             // Get Network name
             string networkName = ReadString(reader);
@@ -176,8 +178,8 @@ namespace Threadle.Core.Utilities
             Network network = new Network(networkName, nodeset);
             network.Filepath = filepath;
 
-            // Get nbr Layers
-            int nbrLayers = reader.ReadByte();
+            // Get nbr Layers: for version 1, just read a byte, for version 2: read a 32-bit int
+            int nbrLayers = version == 1 ? reader.ReadByte() : reader.ReadInt32();
 
             // Loop through the layers to load
             for (int i = 0; i < nbrLayers; i++)
@@ -292,8 +294,8 @@ namespace Threadle.Core.Utilities
 
             // Check file version - should be the same as here implemented
             byte version = reader.ReadByte();
-            if (version != FormatVersion)
-                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
+            //if (version <= FormatVersion)
+                //throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
 
             // Get nodeset name
             string nodesetName = ReadString(reader);
@@ -475,8 +477,8 @@ namespace Threadle.Core.Utilities
             // Nodeset filepath
             WriteString(writer, Path.GetFileName(network.Nodeset.Filepath));
 
-            // Nbr of layers (max 255 layers)
-            writer.Write((byte)network.Layers.Count);
+            // Nbr of layers (4 bytes; in version 1: only byte here)
+            writer.Write(network.Layers.Count);
 
             foreach (var layer in network.Layers)
             {

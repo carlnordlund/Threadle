@@ -488,8 +488,8 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         internal OperationResult AddLayer(string layerName, ILayer layer)
         {
-            if (Layers.Count == 255)
-                return OperationResult.Fail("MaxLayersReached", "The network currently has 255 layers, which is the max number of layers that are allowed.");
+            if (Layers.Count == int.MaxValue)
+                return OperationResult.Fail("MaxLayersReached", "The network currently has max number of layers: no more layers may be added.");
             layerName = layerName.Trim();
             if (string.IsNullOrEmpty(layerName))
                 return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");
