@@ -276,6 +276,34 @@ namespace Threadle.Core.Analysis
             double fraction = index - lower;
             return sortedValues[lower] * (1 - fraction) + sortedValues[upper] * fraction;
         }
+
+        internal static uint WeightedPick(List<(uint alterId, float weight)> candidates)
+        {
+            float total = 0f;
+            foreach (var (_, w) in candidates) total += w;
+            float r = (float)(Misc.Random.NextDouble() * total);
+            float cumulative = 0f;
+            foreach (var (alterId, weight) in candidates)
+            {
+                cumulative += weight;
+                if (r < cumulative) return alterId;
+            }
+            return candidates[^1].alterId;
+        }
+
+        internal static void AppendWeightedCandidates(List<(uint, float)> candidates, ILayer layer, uint nodeId, EdgeTraversal edgeTraversal)
+        {
+            var (alters, weights) = layer.GetNodeAltersWithWeights(nodeId, edgeTraversal);
+            var alterSpan = alters.Span;
+            bool hasWeights = weights.Length > 0;
+            var weightSpan = weights.Span;
+            for (int i = 0; i < alterSpan.Length; i++)
+                candidates.Add((alterSpan[i], hasWeights ? weightSpan[i] : 1f));
+        }
+
+
+
+
         #endregion
 
 

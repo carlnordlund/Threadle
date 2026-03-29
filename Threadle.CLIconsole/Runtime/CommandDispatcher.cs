@@ -77,6 +77,7 @@ namespace Threadle.CLIconsole.Runtime
             ["removehyper"] = new RemoveHyper(),
             ["removelayer"] = new RemoveLayer(),
             ["removenode"] = new RemoveNode(),
+            ["rwdistances"] = new RandomWalkerDistances(),
             ["savefile"] = new SaveFile(),
             ["setattr"] = new SetAttr(),
             ["setting"] = new Setting(),

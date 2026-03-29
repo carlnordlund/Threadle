@@ -255,7 +255,7 @@ namespace Threadle.Core.Analysis
                     var layerResult = network.GetLayer(layerName);
                     if (!layerResult.Success)
                         return OperationResult<uint>.Fail(layerResult);
-                    AppendWeightedCandidates(candidates, layerResult.Value!, nodeId, edgeTraversal);
+                    Functions.AppendWeightedCandidates(candidates, layerResult.Value!, nodeId, edgeTraversal);
                 }
                 else if (balanced)
                 {
@@ -265,16 +265,16 @@ namespace Threadle.Core.Analysis
                             eligibleLayers.Add(layer);
                     if (eligibleLayers.Count == 0)
                         return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any layer with the given edge traversal.");
-                    AppendWeightedCandidates(candidates, eligibleLayers[Misc.Random.Next(eligibleLayers.Count)], nodeId, edgeTraversal);
+                    Functions.AppendWeightedCandidates(candidates, eligibleLayers[Misc.Random.Next(eligibleLayers.Count)], nodeId, edgeTraversal);
                 }
                 else
                 {
                     foreach (var layer in network.Layers.Values)
-                        AppendWeightedCandidates(candidates, layer, nodeId, edgeTraversal);
+                        Functions.AppendWeightedCandidates(candidates, layer, nodeId, edgeTraversal);
                 }
                 if (candidates.Count == 0)
                     return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-                return OperationResult<uint>.Ok(WeightedPick(candidates));
+                return OperationResult<uint>.Ok(Functions.WeightedPick(candidates));
             }
 
             List<uint> alterIds = [];
@@ -369,33 +369,6 @@ namespace Threadle.Core.Analysis
                 return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Could not find any edge in layer {layerName}.");
             return OperationResult<Dictionary<string, object>>.Ok(randomEdge, "Random edge found through non-polling.");
         }
-        #endregion
-
-        #region Method (private, internal)
-        private static void AppendWeightedCandidates(List<(uint, float)> candidates, ILayer layer, uint nodeId, EdgeTraversal edgeTraversal)
-        {
-            var (alters, weights) = layer.GetNodeAltersWithWeights(nodeId, edgeTraversal);
-            var alterSpan = alters.Span;
-            bool hasWeights = weights.Length > 0;
-            var weightSpan = weights.Span;
-            for (int i = 0; i < alterSpan.Length; i++)
-                candidates.Add((alterSpan[i], hasWeights ? weightSpan[i] : 1f));
-        }
-
-        private static uint WeightedPick(List<(uint alterId, float weight)> candidates)
-        {
-            float total = 0f;
-            foreach (var (_, w) in candidates) total += w;
-            float r = (float)(Misc.Random.NextDouble() * total);
-            float cumulative = 0f;
-            foreach (var (alterId, weight) in candidates)
-            {
-                cumulative += weight;
-                if (r < cumulative) return alterId;
-            }
-            return candidates[^1].alterId;
-        }
-
         #endregion
     }
 }
