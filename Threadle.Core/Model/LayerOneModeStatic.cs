@@ -322,6 +322,65 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Returns alter node ids together with their associated edge weights for use in weighted random selection.
+        /// </summary>
+        /// <param name="nodeId">The ego node id.</param>
+        /// <param name="edgeTraversal">Edge traversal direction. Ignored for undirected 1-mode layers.</param>
+        /// <returns>A tuple of parallel alter-id and weight memory regions. Weights may be empty for binary layers.</returns>
+        public (ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> weights) GetNodeAltersWithWeights(uint nodeId, EdgeTraversal edgeTraversal)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int index))
+                return (ReadOnlyMemory<uint>.Empty, ReadOnlyMemory<float>.Empty);
+
+            // Binary: return alter IDs with empty weights
+            if (_values == null)
+                return (GetNodeAlters(nodeId, edgeTraversal), ReadOnlyMemory<float>.Empty);
+
+            // Undirected or directed-out: zero-allocation slice of CSR arrays
+            if (!IsDirectional || edgeTraversal == EdgeTraversal.Out)
+            {
+                int start = _offsets[index], count = _offsets[index + 1] - start;
+                return (new ReadOnlyMemory<uint>(_neighborNodeIds, start, count),
+                        new ReadOnlyMemory<float>(_values, start, count));
+            }
+
+            // Directed in: inbound nodes have no stored values — reverse-lookup each weight
+            if (edgeTraversal == EdgeTraversal.In)
+            {
+                if (_inOffsets == null || _inNeighborNodeIds == null)
+                    return (ReadOnlyMemory<uint>.Empty, ReadOnlyMemory<float>.Empty);
+                int start = _inOffsets[index], end = _inOffsets[index + 1];
+                int count = end - start;
+                uint[] a = new uint[count]; float[] w = new float[count];
+                Array.Copy(_inNeighborNodeIds, start, a, 0, count);
+                for (int i = 0; i < count; i++)
+                    w[i] = GetEdgeValue(a[i], nodeId);
+                return (a, w);
+            }
+
+            // Directed both: combine out (CSR values) and in (reverse-looked-up), sum duplicates
+            {
+                int outStart = _offsets[index], outEnd = _offsets[index + 1];
+                int inStart = _inOffsets != null ? _inOffsets[index] : 0;
+                int inEnd = _inOffsets != null ? _inOffsets[index + 1] : 0;
+                var combined = new Dictionary<uint, float>(outEnd - outStart + inEnd - inStart);
+                for (int j = outStart; j < outEnd; j++)
+                    combined[_neighborNodeIds[j]] = combined.GetValueOrDefault(_neighborNodeIds[j]) + _values[j];
+                if (_inNeighborNodeIds != null)
+                    for (int j = inStart; j < inEnd; j++)
+                    {
+                        uint alterId = _inNeighborNodeIds[j];
+                        combined[alterId] = combined.GetValueOrDefault(alterId) + GetEdgeValue(alterId, nodeId);
+                    }
+                uint[] a = new uint[combined.Count]; float[] w = new float[combined.Count];
+                int idx = 0;
+                foreach (var (alterId, weight) in combined) { a[idx] = alterId; w[idx++] = weight; }
+                return (a, w);
+            }
+        }
+
+
+        /// <summary>
         /// Retrieves a collection of edges with their associated values, starting from a specified offset and limited
         /// to a maximum number of results.
         /// </summary>

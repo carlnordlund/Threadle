@@ -206,6 +206,65 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Returns alter node ids together with their associated edge weights for use in weighted random selection.
+        /// </summary>
+        /// <param name="nodeId">The ego node id.</param>
+        /// <param name="edgeTraversal">Edge traversal direction. Ignored for undirected 1-mode layers.</param>
+        /// <returns>A tuple of parallel alter-id and weight memory regions. Weights may be empty for binary layers.</returns>
+        public (ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> weights) GetNodeAltersWithWeights(uint nodeId, EdgeTraversal edgeTraversal)
+        {
+            if (!Edgesets.TryGetValue(nodeId, out var edgeset))
+                return (ReadOnlyMemory<uint>.Empty, ReadOnlyMemory<float>.Empty);
+
+            // Binary: return alter IDs with empty weights; caller treats each as weight 1.0f
+            if (edgeset is not IEdgesetValued valuedEdgeset)
+                return (edgeset.GetAlterIds(edgeTraversal), ReadOnlyMemory<float>.Empty);
+
+            // Symmetric (undirected valued): direction irrelevant — use outbound connections
+            if (edgeset is IEdgesetSymmetric)
+            {
+                var conns = valuedEdgeset.GetOutboundConnections;
+                uint[] a = new uint[conns.Count]; float[] w = new float[conns.Count];
+                for (int i = 0; i < conns.Count; i++) { a[i] = conns[i].partnerNodeId; w[i] = conns[i].value; }
+                return (a, w);
+            }
+
+            // Directional valued — out only
+            if (edgeTraversal == EdgeTraversal.Out)
+            {
+                var conns = valuedEdgeset.GetOutboundConnections;
+                uint[] a = new uint[conns.Count]; float[] w = new float[conns.Count];
+                for (int i = 0; i < conns.Count; i++) { a[i] = conns[i].partnerNodeId; w[i] = conns[i].value; }
+                return (a, w);
+            }
+
+            // Directional valued — in only
+            if (edgeTraversal == EdgeTraversal.In)
+            {
+                var conns = valuedEdgeset.GetInboundConnections;
+                uint[] a = new uint[conns.Count]; float[] w = new float[conns.Count];
+                for (int i = 0; i < conns.Count; i++) { a[i] = conns[i].partnerNodeId; w[i] = conns[i].value; }
+                return (a, w);
+            }
+
+            // Directional valued — both: combine, sum weights for bidirectional pairs
+            {
+                var outConns = valuedEdgeset.GetOutboundConnections;
+                var inConns = valuedEdgeset.GetInboundConnections;
+                var combined = new Dictionary<uint, float>(outConns.Count + inConns.Count);
+                foreach (var c in outConns)
+                    combined[c.partnerNodeId] = combined.GetValueOrDefault(c.partnerNodeId) + c.value;
+                foreach (var c in inConns)
+                    combined[c.partnerNodeId] = combined.GetValueOrDefault(c.partnerNodeId) + c.value;
+                uint[] a = new uint[combined.Count]; float[] w = new float[combined.Count];
+                int idx = 0;
+                foreach (var (alterId, weight) in combined) { a[idx] = alterId; w[idx++] = weight; }
+                return (a, w);
+            }
+        }
+
+
+        /// <summary>
         /// Retrieves a collection of edges with their associated values, starting from a specified offset and limited
         /// to a maximum number of results.
         /// </summary>

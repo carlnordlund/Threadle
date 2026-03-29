@@ -181,6 +181,33 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Returns alter node ids together with their associated edge weights for use in weighted random selection.
+        /// As this is 2-mode data, the weights are the number of affiliations ego node shares with the alter
+        /// </summary>
+        /// <param name="nodeId">The ego node id.</param>
+        /// <param name="edgeTraversal">Edge traversal direction. Ignored for 2-mode layers.</param>
+        /// <returns>A tuple of parallel alter-id and weight memory regions. Weights reflect number of shared hyperedges.</returns>
+        public (ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> weights) GetNodeAltersWithWeights(uint nodeId, EdgeTraversal edgeTraversal)
+        {
+            if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hyperEdgeCollection)
+                return (ReadOnlyMemory<uint>.Empty, ReadOnlyMemory<float>.Empty);
+
+            // Weight = number of shared hyperedges (co-membership count)
+            Dictionary<uint, float> coMemberWeights = [];
+            foreach (Hyperedge hyperEdge in hyperEdgeCollection.HyperEdges)
+                foreach (uint memberId in hyperEdge.NodeIds)
+                    if (memberId != nodeId)
+                        coMemberWeights[memberId] = coMemberWeights.GetValueOrDefault(memberId) + 1f;
+
+            uint[] a = new uint[coMemberWeights.Count];
+            float[] w = new float[coMemberWeights.Count];
+            int idx = 0;
+            foreach (var (alterId, weight) in coMemberWeights) { a[idx] = alterId; w[idx++] = weight; }
+            return (a, w);
+        }
+
+
+        /// <summary>
         /// Returns a HashSet of all unique node ids mentioned in the Layer
         /// </summary>
         /// <returns>A HashSet of node ids.</returns>

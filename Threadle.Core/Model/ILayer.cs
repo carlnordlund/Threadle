@@ -66,6 +66,19 @@ namespace Threadle.Core.Model
         uint[] GetNodeAlters(uint nodeId, EdgeTraversal edgeTraversal);
 
         /// <summary>
+        /// Returns alter node ids together with their associated edge weights for use in weighted random selection.
+        /// For binary 1-mode layers, <paramref name="weights"/> is empty and the caller should treat each alter as
+        /// having weight 1.0f. For valued 1-mode layers, weights are the edge values. For 2-mode layers, weights
+        /// are the co-membership count (number of shared hyperedges). For directed layers with
+        /// <see cref="EdgeTraversal.Both"/>, weights for nodes reachable in both directions are summed.
+        /// </summary>
+        /// <param name="nodeId">The ego node id.</param>
+        /// <param name="edgeTraversal">Edge traversal direction. Ignored for 2-mode and undirected 1-mode layers.</param>
+        /// <returns>A tuple of parallel alter-id and weight memory regions. Weights may be empty for binary layers.</returns>
+        (ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> weights) GetNodeAltersWithWeights(uint nodeId, EdgeTraversal edgeTraversal);
+
+
+        /// <summary>
         /// Removes all edges for a particular node id.
         /// </summary>
         /// <param name="nodeId"></param>

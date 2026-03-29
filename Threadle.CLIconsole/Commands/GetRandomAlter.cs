@@ -16,12 +16,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[uint] = getrandomalter(network = [var:network], nodeid = [uint], *layername = [str], *direction = ['both'(default),'in','out'], *balanced = ['true','false'(default)])";
+        public string Syntax => "[uint] = getrandomalter(network = [var:network], nodeid = [uint], *layername = [str], *direction = ['both'(default),'in','out'], *balanced = ['true','false'(default)], *weighted = ['false'(default),'true'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Get the node id of a random alter to the specified node. By default, both in- and outbound ties are considered, but this can be adjusted. By default, the pick is randomly picked among a specific layer as given by the 'layername' argument, or all available layers can be used by omitting this argument. If all layers are included, the 'balanced' argument specifies how the pick should be done. If balanced is set to 'true', a uniformly random pick between layer takes place first, followed by a random pick of an alter in the specific layer that was picked. If set to 'false', alters in all layers are first pooled together (with the possibility of an alter appearing multiple times) and a random pick is then done among this complete set of alters across layers.";
+        public string Description => "Get the node id of a random alter to the specified node. By default, both in- and outbound ties are considered, but this can be adjusted. By default, the pick is randomly picked among a specific layer as given by the 'layername' argument, or all available layers can be used by omitting this argument. If all layers are included, the 'balanced' argument specifies how the pick should be done. If balanced is set to 'true', a uniformly random pick between layer takes place first, followed by a random pick of an alter in the specific layer that was picked. If set to 'false', alters in all layers are first pooled together (with the possibility of an alter appearing multiple times) and a random pick is then done among this complete set of alters across layers. If 'weighted' is set to 'true', edge weights are used as transition probabilities; for binary layers each alter is treated as having weight 1.0f.\r\n";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -41,7 +41,8 @@ namespace Threadle.CLIconsole.Commands
             string layerName = command.GetArgumentParseString("layername", "");
             EdgeTraversal edgeTraversal = command.GetArgumentParseEnum<EdgeTraversal>("direction", EdgeTraversal.Both);
             bool balanced = command.GetArgumentParseBool("balanced", false);
-            OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeId, layerName, edgeTraversal, balanced);
+            bool weighted = command.GetArgumentParseBool("weighted", false);
+            OperationResult<uint> result = Analyses.GetRandomAlter(network, nodeId, layerName, edgeTraversal, balanced, weighted);
             return CommandResult.FromOperationResult(
                 opResult: result,
                 payload: result.Value
