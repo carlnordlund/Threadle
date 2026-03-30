@@ -201,7 +201,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Exposes the string pool for binary serialization.
         /// </summary>
-        internal IReadOnlyList<string> StringPool => _stringPool;
+        public IReadOnlyList<string> StringPool => _stringPool;
         #endregion
 
 
