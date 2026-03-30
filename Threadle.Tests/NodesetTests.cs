@@ -236,7 +236,7 @@ public class NodesetTests
     public void DefineNodeAttribute_InvalidType_Fails()
     {
         var nodeset = new Nodeset("ns");
-        var result = nodeset.DefineNodeAttribute("age", "string");
+        var result = nodeset.DefineNodeAttribute("age", "text");
         Assert.False(result.Success);
     }
 
@@ -882,7 +882,7 @@ public class NodesetTests
     [Fact]
     public void StringAttr_PoolDeduplication_SameStringSharesIndex()
     {
-        var ns = new Nodeset("ns", 3);
+        var ns = new Nodeset("ns", 4);
         ns.DefineNodeAttribute("occupation", "string");
         ns.SetNodeAttribute(1u, "occupation", "doctor");
         ns.SetNodeAttribute(2u, "occupation", "doctor");
@@ -894,7 +894,7 @@ public class NodesetTests
     [Fact]
     public void StringAttr_MultipleValues_AllResolveCorrectly()
     {
-        var ns = new Nodeset("ns", 3);
+        var ns = new Nodeset("ns", 4);
         ns.DefineNodeAttribute("occupation", "string");
         ns.SetNodeAttribute(1u, "occupation", "doctor");
         ns.SetNodeAttribute(2u, "occupation", "engineer");
@@ -940,7 +940,7 @@ public class NodesetTests
     [Fact]
     public void StringAttr_GetMultipleNodeAttributes_ReturnsStrings()
     {
-        var ns = new Nodeset("ns", 3);
+        var ns = new Nodeset("ns", 4);
         ns.DefineNodeAttribute("country", "string");
         ns.SetNodeAttribute(1u, "country", "Sweden");
         ns.SetNodeAttribute(2u, "country", "Norway");
