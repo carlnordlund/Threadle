@@ -95,6 +95,19 @@ namespace Threadle.Core.Model
         internal IEnumerable<(byte Index, string AttrName, NodeAttributeType AttrType)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Value, kvp.Key, _indexToType[kvp.Value]));
 
         /// <summary>
+        /// Returns the index, name and NodeAttributeType for the specified node attribute, or null if not found.
+        /// </summary>
+        /// <param name="attrName">The name of the node attribute.</param>
+        /// <returns>A tuple of (index, name, type), or null if no such attribute is defined.</returns>
+        internal (byte Index, NodeAttributeType AttrType)? GetNodeAttributeDefinition(string attrName)
+        {
+            if (!_nameToIndex.TryGetValue(attrName, out byte index))
+                return null;
+            return (index, _indexToType[index]);
+        }
+
+
+        /// <summary>
         /// Returns a (deep) clone of this <see cref="NodeAttributeDefinitionManager"/> object.
         /// Used for instance when creating a subset Nodeset where all node attributes should be cloned.
         /// </summary>

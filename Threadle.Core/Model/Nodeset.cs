@@ -567,6 +567,7 @@ namespace Threadle.Core.Model
                 _nodesWithoutAttributes.Add(nodeId);
         }
 
+
         /// <summary>
         /// Checks if the Nodeset contains a node object with the specified id.
         /// </summary>
