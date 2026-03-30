@@ -30,9 +30,10 @@ namespace Threadle.Core.Utilities
         /// Future-looking: if we ever were to change the file format later on, this is format version 1.
         /// Then additional readers can be implemented for would-be future format versions.
         /// 
-        /// Version 2: allowing 
+        /// Version 2: allowing more than 255 layers in networks
+        /// Version 3: allowing saving string node attributes (with string pool before nodes in Nodeset)
         /// </summary>
-        private const byte FormatVersion = 2;
+        private const byte FormatVersion = 3;
         #endregion
 
 
@@ -322,6 +323,14 @@ namespace Threadle.Core.Utilities
                 attrDefs[i] = type;
             }
 
+            // Version 3 only: read string pool
+            if (version >= 3)
+            {
+                int poolCount = reader.ReadInt32();
+                for (int i = 0; i < poolCount; i++)
+                    nodeset.GetOrAddStringToPool(ReadString(reader));
+            }
+
             // Get nbr of nodes WITHOUT attributes
             int nbrNodesWithoutAttributes = reader.ReadInt32();
 
@@ -392,7 +401,7 @@ namespace Threadle.Core.Utilities
             // MagicNodeset bytes (4)
             writer.Write(Encoding.ASCII.GetBytes(MagicNodeset));
 
-            // Format version (1)
+            // Format version (3)
             writer.Write(FormatVersion);
 
             // Nodeset name (length + string)
@@ -418,6 +427,12 @@ namespace Threadle.Core.Utilities
                 //nameToIndex[attributeDefs[i].Name] = i;
                 internalToHere[attributeDefs[i].Index] = i;
             }
+
+            // Version 3: save string pool
+            IReadOnlyList<string> pool = nodeset.StringPool;
+            writer.Write(pool.Count);
+            foreach (string str in pool)
+                WriteString(writer, str);
 
             // Get array of nodes without attributes
             var nodeIdsWithoutAttributes = nodeset.NodeIdArrayWithoutAttributes;

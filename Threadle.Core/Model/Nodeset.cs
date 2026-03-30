@@ -24,6 +24,18 @@ namespace Threadle.Core.Model
         /// Internal array storing an array of all nodeId uint values. Lazy-initialized by NodeIdArray
         /// </summary>
         private uint[]? _nodeIdCache;
+
+        /// <summary>
+        /// Pool of unique string values for string-typed node attributes. The pool index is stored
+        /// as the IntValue of the corresponding NodeAttributeValue.
+        /// </summary>
+        private List<string> _stringPool = [];
+
+        /// <summary>
+        /// Reverse lookup from string value to pool index, for O(1) deduplication.
+        /// </summary>
+        private Dictionary<string, int> _stringPoolLookup = [];
+
         #endregion
 
 
@@ -97,7 +109,11 @@ namespace Threadle.Core.Model
                         {
                             byte attrIndex = attributes.AttrIndexes[i];
                             NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType);
-                            lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attrIndex]}: {attributes.AttrValues[i].ToString(attrType)}");
+                            string displayValue = attrType == NodeAttributeType.String
+                                ? GetStringFromPool((int)attributes.AttrValues[i].GetValue(attrType)!)
+                                : attributes.AttrValues[i].ToString(attrType);
+                            lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attrIndex]}: {displayValue}");
+                            //lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attrIndex]}: {attributes.AttrValues[i].ToString(attrType)}");
 
                         }
                             //lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attributes.AttrIndexes[i]]}: {attributes.AttrValues[i]}");
@@ -181,6 +197,11 @@ namespace Threadle.Core.Model
         /// Returns the number of nodes in this Nodeset.
         /// </summary>
         public int Count { get { return _nodesWithAttributes.Count + _nodesWithoutAttributes.Count; } }
+
+        /// <summary>
+        /// Exposes the string pool for binary serialization.
+        /// </summary>
+        internal IReadOnlyList<string> StringPool => _stringPool;
         #endregion
 
 
@@ -287,10 +308,24 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
                 return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}': possibly corrupted.");
-            if (!(Misc.CreateNodeAttributeValueFromTypeAndString(attrType, attrValueStr) is NodeAttributeValue attrValue))
-                return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{attrValueStr}' to type '{attrType}'.");
+
+            NodeAttributeValue attrValue;
+
+            if (attrType == NodeAttributeType.String)
+            {
+                attrValue = new NodeAttributeValue(GetOrAddStringToPool(attrValueStr));
+            }
+            else
+            {
+                if (!(Misc.CreateNodeAttributeValueFromTypeAndString(attrType, attrValueStr) is NodeAttributeValue parsed))
+                    return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{attrValueStr}' to type '{attrType}'.");
+                attrValue = parsed;
+
+            }
+
+
             SetNodeAttribute(nodeId, attrIndex, attrValue);
-            return OperationResult.Ok($"Attribute '{attrName}' for node {nodeId} set to {attrValue.ToString(attrType)}.");
+            return OperationResult.Ok($"Attribute '{attrName}' for node {nodeId} set to {attrValueStr}.");
         }
 
         /// <summary>
@@ -313,6 +348,21 @@ namespace Threadle.Core.Model
             return OperationResult<(NodeAttributeValue, NodeAttributeType)>.Ok((attrValue, attrType));
         }
 
+        /// <summary>
+        /// Gets a string node attribute value, resolving the pool index to the actual string.
+        /// Use this instead of GetNodeAttribute when the attribute type is String.
+        /// </summary>
+        public OperationResult<string> GetNodeAttributeString(uint nodeId, string attrName)
+        {
+            var result = GetNodeAttribute(nodeId, attrName);
+            if (!result.Success)
+                return OperationResult<string>.Fail(result);
+            var (nav, type) = result.Value;
+            if (type != NodeAttributeType.String)
+                return OperationResult<string>.Fail("AttributeTypeMismatch", $"Attribute '{attrName}' is not of type String.");
+            return OperationResult<string>.Ok(GetStringFromPool((int)nav.GetValue(type)!));
+        }
+
         public OperationResult<Dictionary<uint, object?>> GetMultipleNodeAttributes(uint[] nodeIds, string attrName)
         {
             if (!NodeAttributeDefinitionManager.CheckIfAttributeNameExists(attrName))
@@ -327,7 +377,10 @@ namespace Threadle.Core.Model
                 if (attrResult.Success)
                 {
                     var (nav, type) = attrResult.Value;
-                    result[nodeId] = nav.GetValue(type);
+                    result[nodeId] = type == NodeAttributeType.String
+                        ? GetStringFromPool((int)nav.GetValue(type)!)
+                        : nav.GetValue(type);
+                    //result[nodeId] = nav.GetValue(type);
                 }
                 else
                     result[nodeId] = null;
@@ -628,6 +681,25 @@ namespace Threadle.Core.Model
         {
             _nodesWithAttributes = new(nbrNodesWithAttributes);
         }
+
+        /// <summary>
+        /// Returns the pool index for the given string, adding it to the pool if not already present.
+        /// </summary>
+        internal int GetOrAddStringToPool(string value)
+        {
+            if (_stringPoolLookup.TryGetValue(value, out int index))
+                return index;
+            index = _stringPool.Count;
+            _stringPool.Add(value);
+            _stringPoolLookup[value] = index;
+            return index;
+        }
+
+        /// <summary>
+        /// Returns the string at the given pool index.
+        /// </summary>
+        internal string GetStringFromPool(int index)
+            => (index >= 0 && index < _stringPool.Count) ? _stringPool[index] : "(invalid)";
         #endregion
 
 

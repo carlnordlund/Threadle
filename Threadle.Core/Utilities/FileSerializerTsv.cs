@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Data;
+using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using Threadle.Core.Model;
@@ -348,8 +349,19 @@ namespace Threadle.Core.Utilities
                 var row = new List<string> { node.ToString() };
                 foreach (var attrDef in attributeDefs)
                 {
-                    var attr = nodeset.GetNodeAttribute(node, attrDef.AttrName);
-                    row.Add(attr.Success ? attr.Value.Value.ToString(attr.Value.Type) : "");
+                    string cellValue = "";
+
+                    if (attrDef.AttrType == NodeAttributeType.String)
+                    {
+                        var strResult = nodeset.GetNodeAttributeString(node, attrDef.AttrName);
+                        cellValue = strResult.Success ? strResult.Value! : "";
+                    }
+                    else
+                    {
+                        var attr = nodeset.GetNodeAttribute(node, attrDef.AttrName);
+                        cellValue = attr.Success ? attr.Value.Value.ToString(attr.Value.Type) : "";
+                    }
+                    row.Add(cellValue);
                 }
                 writer.WriteLine(string.Join("\t", row));
             }

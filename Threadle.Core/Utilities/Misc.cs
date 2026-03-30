@@ -150,6 +150,7 @@ namespace Threadle.Core.Utilities
                 NodeAttributeType.Float => float.TryParse(valueStr, out float f)? new NodeAttributeValue(f): null,
                 NodeAttributeType.Bool => bool.TryParse(valueStr, out bool b)? new NodeAttributeValue(b):null,
                 NodeAttributeType.Char => valueStr.Length==1? new NodeAttributeValue(valueStr[0]):null,
+                NodeAttributeType.String => null,
                 _ => null
             };
         }
@@ -188,6 +189,7 @@ namespace Threadle.Core.Utilities
                 "int" => NodeAttributeType.Int,
                 "float" => NodeAttributeType.Float,
                 "bool" => NodeAttributeType.Bool,
+                "string" => NodeAttributeType.String,
                 _ => null
             };
 

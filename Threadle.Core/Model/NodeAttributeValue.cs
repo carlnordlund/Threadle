@@ -35,6 +35,7 @@ namespace Threadle.Core.Model
             NodeAttributeType.Int => IntValue,
             NodeAttributeType.Float=> FloatValue,
             NodeAttributeType.Bool => BoolValue,
+            NodeAttributeType.String => IntValue,
             _ => null
         };
 

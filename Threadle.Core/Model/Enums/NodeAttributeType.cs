@@ -8,6 +8,7 @@
         Char,
         Int,
         Float,
-        Bool
+        Bool,
+        String
     }
 }
