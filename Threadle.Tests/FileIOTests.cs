@@ -1224,8 +1224,8 @@ public class FileIOTests : IDisposable
         ns.SetNodeAttribute(3u, "occupation", "doctor");
 
         string path = TempFile(".tsv");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
         Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
@@ -1244,8 +1244,8 @@ public class FileIOTests : IDisposable
         ns.SetNodeAttribute(4u, "country", "Norway");
 
         string path = TempFile(".tsv");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.Equal(2, loaded.StringPool.Count);
     }
@@ -1260,8 +1260,8 @@ public class FileIOTests : IDisposable
         // node 2 has no occupation set
 
         string path = TempFile(".tsv");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.True(loaded.GetNodeAttributeString(1u, "occupation").Success);
         Assert.False(loaded.GetNodeAttributeString(2u, "occupation").Success);
@@ -1280,8 +1280,8 @@ public class FileIOTests : IDisposable
         ns.SetNodeAttribute(2u, "age", "32");
 
         string path = TempFile(".tsv");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
         Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
@@ -1302,8 +1302,8 @@ public class FileIOTests : IDisposable
         ns.SetNodeAttribute(3u, "occupation", "doctor");
 
         string path = TempFile(".bin");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
         Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
@@ -1321,8 +1321,8 @@ public class FileIOTests : IDisposable
         ns.SetNodeAttribute(3u, "country", "Sweden");
 
         string path = TempFile(".bin");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.Equal(2, loaded.StringPool.Count);
         Assert.Contains("Sweden", loaded.StringPool);
@@ -1338,8 +1338,8 @@ public class FileIOTests : IDisposable
         ns.SetNodeAttribute(1u, "age", "30");
 
         string path = TempFile(".bin");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.Equal(0, loaded.StringPool.Count);
         var age = loaded.GetNodeAttribute(1u, "age");
@@ -1359,8 +1359,8 @@ public class FileIOTests : IDisposable
         ns.SetNodeAttribute(2u, "active", "false");
 
         string path = TempFile(".bin");
-        FileManager.SaveNodeset(ns, path);
-        var loaded = FileManager.LoadNodeset(path);
+        FileManager.Save(ns, path);
+        var loaded = (Nodeset)FileManager.Load(path, "nodeset").Value!.MainStructure;
 
         Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
         Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
