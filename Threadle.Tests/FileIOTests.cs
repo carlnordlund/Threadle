@@ -1210,4 +1210,161 @@ public class FileIOTests : IDisposable
         writer.Write((byte)bytes.Length);
         writer.Write(bytes);
     }
+
+    // ── String attributes – TSV round-trip ───────────────────────────────────────
+
+    [Fact]
+    public void SaveLoadNodeset_Tsv_StringAttr_ValuesPreserved()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 3; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(2u, "occupation", "engineer");
+        ns.SetNodeAttribute(3u, "occupation", "doctor");
+
+        string path = TempFile(".tsv");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
+        Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
+        Assert.Equal("doctor",   loaded.GetNodeAttributeString(3u, "occupation").Value);
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Tsv_StringAttr_PoolDeduplicatedAfterLoad()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 4; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(1u, "country", "Sweden");
+        ns.SetNodeAttribute(2u, "country", "Norway");
+        ns.SetNodeAttribute(3u, "country", "Sweden");
+        ns.SetNodeAttribute(4u, "country", "Norway");
+
+        string path = TempFile(".tsv");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.Equal(2, loaded.StringPool.Count);
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Tsv_StringAttr_MissingValueNotLoaded()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 2; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        // node 2 has no occupation set
+
+        string path = TempFile(".tsv");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.True(loaded.GetNodeAttributeString(1u, "occupation").Success);
+        Assert.False(loaded.GetNodeAttributeString(2u, "occupation").Success);
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Tsv_StringAttr_MixedWithOtherTypes()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 2; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.DefineNodeAttribute("age", "int");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(1u, "age", "45");
+        ns.SetNodeAttribute(2u, "occupation", "engineer");
+        ns.SetNodeAttribute(2u, "age", "32");
+
+        string path = TempFile(".tsv");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
+        Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
+        var age1 = loaded.GetNodeAttribute(1u, "age");
+        Assert.Equal(45, (int)age1.Value.Value.GetValue(NodeAttributeType.Int)!);
+    }
+
+    // ── String attributes – Binary round-trip ────────────────────────────────────
+
+    [Fact]
+    public void SaveLoadNodeset_Bin_StringAttr_ValuesPreserved()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 3; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(2u, "occupation", "engineer");
+        ns.SetNodeAttribute(3u, "occupation", "doctor");
+
+        string path = TempFile(".bin");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
+        Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
+        Assert.Equal("doctor",   loaded.GetNodeAttributeString(3u, "occupation").Value);
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Bin_StringAttr_PoolPreservedExactly()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 3; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(1u, "country", "Sweden");
+        ns.SetNodeAttribute(2u, "country", "Norway");
+        ns.SetNodeAttribute(3u, "country", "Sweden");
+
+        string path = TempFile(".bin");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.Equal(2, loaded.StringPool.Count);
+        Assert.Contains("Sweden", loaded.StringPool);
+        Assert.Contains("Norway", loaded.StringPool);
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Bin_NoStringAttr_EmptyPoolRoundTrips()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 3; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("age", "int");
+        ns.SetNodeAttribute(1u, "age", "30");
+
+        string path = TempFile(".bin");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.Equal(0, loaded.StringPool.Count);
+        var age = loaded.GetNodeAttribute(1u, "age");
+        Assert.Equal(30, (int)age.Value.Value.GetValue(NodeAttributeType.Int)!);
+    }
+
+    [Fact]
+    public void SaveLoadNodeset_Bin_StringAttr_MixedWithOtherTypes()
+    {
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 2; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.DefineNodeAttribute("active", "bool");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(1u, "active", "true");
+        ns.SetNodeAttribute(2u, "occupation", "engineer");
+        ns.SetNodeAttribute(2u, "active", "false");
+
+        string path = TempFile(".bin");
+        FileManager.SaveNodeset(ns, path);
+        var loaded = FileManager.LoadNodeset(path);
+
+        Assert.Equal("doctor",   loaded.GetNodeAttributeString(1u, "occupation").Value);
+        Assert.Equal("engineer", loaded.GetNodeAttributeString(2u, "occupation").Value);
+        var active1 = loaded.GetNodeAttribute(1u, "active");
+        Assert.Equal(true, (bool)active1.Value.Value.GetValue(NodeAttributeType.Bool)!);
+    }
 }

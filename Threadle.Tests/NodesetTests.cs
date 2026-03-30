@@ -857,4 +857,123 @@ public class NodesetTests
         Assert.Equal(5,    (int)xAttr.Value.Value.GetValue(xAttr.Value.Type)!);
         Assert.Equal(1.5f, (float)yAttr.Value.Value.GetValue(yAttr.Value.Type)!, 4);
     }
+
+    // ── String node attributes (in-memory) ──────────────────────────────────────
+
+    [Fact]
+    public void StringAttr_Define_Succeeds()
+    {
+        var ns = new Nodeset("ns", 3);
+        var result = ns.DefineNodeAttribute("occupation", "string");
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void StringAttr_SetAndGet_ReturnsCorrectValue()
+    {
+        var ns = new Nodeset("ns", 3);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        var result = ns.GetNodeAttributeString(1u, "occupation");
+        Assert.True(result.Success);
+        Assert.Equal("doctor", result.Value);
+    }
+
+    [Fact]
+    public void StringAttr_PoolDeduplication_SameStringSharesIndex()
+    {
+        var ns = new Nodeset("ns", 3);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(2u, "occupation", "doctor");
+        ns.SetNodeAttribute(3u, "occupation", "engineer");
+        // Pool should contain exactly 2 entries
+        Assert.Equal(2, ns.StringPool.Count);
+    }
+
+    [Fact]
+    public void StringAttr_MultipleValues_AllResolveCorrectly()
+    {
+        var ns = new Nodeset("ns", 3);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(2u, "occupation", "engineer");
+        ns.SetNodeAttribute(3u, "occupation", "doctor");
+        Assert.Equal("doctor",   ns.GetNodeAttributeString(1u, "occupation").Value);
+        Assert.Equal("engineer", ns.GetNodeAttributeString(2u, "occupation").Value);
+        Assert.Equal("doctor",   ns.GetNodeAttributeString(3u, "occupation").Value);
+    }
+
+    [Fact]
+    public void StringAttr_Reassign_ReturnsNewValue()
+    {
+        var ns = new Nodeset("ns", 1);
+        ns.AddNode(1u);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "engineer");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        Assert.Equal("doctor", ns.GetNodeAttributeString(1u, "occupation").Value);
+    }
+
+    [Fact]
+    public void StringAttr_GetNodeAttributeString_WrongType_Fails()
+    {
+        var ns = new Nodeset("ns", 1);
+        ns.AddNode(1u);
+        ns.DefineNodeAttribute("age", "int");
+        ns.SetNodeAttribute(1u, "age", "42");
+        var result = ns.GetNodeAttributeString(1u, "age");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void StringAttr_GetNodeAttributeString_MissingAttr_Fails()
+    {
+        var ns = new Nodeset("ns", 1);
+        ns.AddNode(1u);
+        ns.DefineNodeAttribute("occupation", "string");
+        // Attribute defined but not set on node 1
+        var result = ns.GetNodeAttributeString(1u, "occupation");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void StringAttr_GetMultipleNodeAttributes_ReturnsStrings()
+    {
+        var ns = new Nodeset("ns", 3);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(1u, "country", "Sweden");
+        ns.SetNodeAttribute(2u, "country", "Norway");
+        ns.SetNodeAttribute(3u, "country", "Sweden");
+        var result = ns.GetMultipleNodeAttributes([1u, 2u, 3u], "country");
+        Assert.True(result.Success);
+        Assert.Equal("Sweden", result.Value![1u]);
+        Assert.Equal("Norway", result.Value![2u]);
+        Assert.Equal("Sweden", result.Value![3u]);
+    }
+
+    [Fact]
+    public void StringAttr_MixedWithOtherTypes_BothWork()
+    {
+        var ns = new Nodeset("ns", 2);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.DefineNodeAttribute("age", "int");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(1u, "age", "45");
+        Assert.Equal("doctor", ns.GetNodeAttributeString(1u, "occupation").Value);
+        var ageResult = ns.GetNodeAttribute(1u, "age");
+        Assert.Equal(45, (int)ageResult.Value.Value.GetValue(NodeAttributeType.Int)!);
+    }
+
+    [Fact]
+    public void StringAttr_Undefine_RemovesFromAllNodes()
+    {
+        var ns = new Nodeset("ns", 2);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1u, "occupation", "doctor");
+        ns.SetNodeAttribute(2u, "occupation", "engineer");
+        ns.UndefineNodeAttribute("occupation");
+        Assert.False(ns.GetNodeAttributeString(1u, "occupation").Success);
+        Assert.False(ns.GetNodeAttributeString(2u, "occupation").Success);
+    }
 }
