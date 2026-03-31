@@ -78,7 +78,15 @@ namespace Threadle.Core.Analysis
                         continue;
 
                     // Get the attr value for ego
-                    string startNodeAttrString = nodeset.GetNodeAttribute(egoNodeId, attrIndex) is NodeAttributeValue navStart ? navStart.ToString(attrType) : "(missing)";
+                    //string startNodeAttrString = nodeset.GetNodeAttribute(egoNodeId, attrIndex) is NodeAttributeValue navStart
+                    //    ? nodeset.GetStringFromPool((int)navStart.GetValue(attrType)!)
+                    //    : "(missing)";
+                    string startNodeAttrString = nodeset.GetNodeAttribute(egoNodeId, attrIndex) is NodeAttributeValue navStart
+    ? (attrType == NodeAttributeType.String
+        ? nodeset.GetStringFromPool((int)navStart.GetValue(attrType)!)
+        : navStart.ToString(attrType))
+    : "(missing)";
+
 
                     // Now take s steps 
                     bool abort = false;
@@ -90,7 +98,7 @@ namespace Threadle.Core.Analysis
                         // If this didn't work, e.g. no more alters in that direction, then abort the whole walk
                         if (!randomAlterResult.Success)
                         {
-                            abort = false;
+                            abort = true;
                             break;
                         }
                         // As long as the alter node is not back at the start, update the current one
@@ -105,7 +113,16 @@ namespace Threadle.Core.Analysis
                         continue;
                         
                     // Ok, done s walks: now I should store s
-                    string endNodeAttrString = nodeset.GetNodeAttribute(currentNodeId, attrIndex) is NodeAttributeValue navEnd ? navEnd.ToString(attrType) : "(missing)";
+                    //string endNodeAttrString = nodeset.GetNodeAttribute(currentNodeId, attrIndex) is NodeAttributeValue navEnd
+                    //    ? nodeset.GetStringFromPool((int)navEnd.GetValue(attrType)!)
+                    //    : "(missing)";
+
+                    string endNodeAttrString = nodeset.GetNodeAttribute(currentNodeId, attrIndex) is NodeAttributeValue navEnd
+    ? (attrType == NodeAttributeType.String
+        ? nodeset.GetStringFromPool((int)navEnd.GetValue(attrType)!)
+        : navEnd.ToString(attrType))
+    : "(missing)";
+
 
                     uint nodeIdFrom = nodeAttributeStringToNodeId[startNodeAttrString];
                     uint nodeIdTo = nodeAttributeStringToNodeId[endNodeAttrString];
