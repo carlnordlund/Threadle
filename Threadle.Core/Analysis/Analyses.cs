@@ -245,81 +245,141 @@ namespace Threadle.Core.Analysis
         /// <param name="balanced">Indicates whether the pick should be balanced across layers.</param>
         /// <param name="weighted">If true, uses edge weights as transition probabilities. Binary layers treat each alter as weight 1.0f.</param>
         /// <returns>An <see cref="OperationResult{T}"/> containing the random alter node id if successful; otherwise, an error message.</returns>
-        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeId, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false, bool weighted = false)
+        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeId, string[]? layerNames, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false, bool weighted = false)
         {
+            // Build up the set of layers to use (note: both 1-mode and 2-mode are okay)
+            List<ILayer> layersToUse = [];
+            if (layerNames == null)
+                layersToUse.AddRange(network.Layers.Values);
+            else
+            {
+                foreach (string layerName in layerNames)
+                {
+                    var layerResult=network.GetLayer(layerName);
+                    if (!layerResult.Success)
+                        return OperationResult<uint>.Fail(layerResult);
+                    layersToUse.Add(layerResult.Value!);
+                }
+            }
+
             if (weighted)
             {
                 List<(uint alterId, float weight)> candidates = [];
-                if (layerName != null && layerName.Length > 0)
+                if (layersToUse.Count==1 || !balanced)
                 {
-                    var layerResult = network.GetLayer(layerName);
-                    if (!layerResult.Success)
-                        return OperationResult<uint>.Fail(layerResult);
-                    Functions.AppendWeightedCandidates(candidates, layerResult.Value!, nodeId, edgeTraversal);
-                }
-                else if (balanced)
-                {
-                    List<ILayer> eligibleLayers = [];
-                    foreach (var layer in network.Layers.Values)
-                        if (layer.GetNodeAlters(nodeId, edgeTraversal).Length > 0)
-                            eligibleLayers.Add(layer);
-                    if (eligibleLayers.Count == 0)
-                        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any layer with the given edge traversal.");
-                    Functions.AppendWeightedCandidates(candidates, eligibleLayers[Misc.Random.Next(eligibleLayers.Count)], nodeId, edgeTraversal);
+                    foreach (var layer in layersToUse)
+                        Functions.AppendWeightedCandidates(candidates, layer, nodeId, edgeTraversal);
                 }
                 else
                 {
-                    foreach (var layer in network.Layers.Values)
-                        Functions.AppendWeightedCandidates(candidates, layer, nodeId, edgeTraversal);
+                    // Balanced with more than 1 layer: first uniform pick among layers, then weighted pick within
+                    List<ILayer> eligibleLayers = layersToUse
+                        .Where(l => l.GetNodeAlters(nodeId, edgeTraversal).Length > 0)
+                        .ToList();
+                    if (eligibleLayers.Count==0)
+                        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");
+                    Functions.AppendWeightedCandidates(candidates, eligibleLayers[Misc.Random.Next(eligibleLayers.Count)], nodeId, edgeTraversal);
                 }
-                if (candidates.Count == 0)
+                if (candidates.Count==0)
                     return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
                 return OperationResult<uint>.Ok(Functions.WeightedPick(candidates));
             }
 
+            // Non-weighted follows
             List<uint> alterIds = [];
-            if (layerName != null && layerName.Length > 0)
+            if (layersToUse.Count==1 || !balanced)
             {
-                // Only use the specified layer
-                var layerResult = network.GetLayer(layerName);
-                if (!layerResult.Success)
-                    return OperationResult<uint>.Fail(layerResult);
-                var layer = layerResult.Value!;
-                var altersResult = network.GetNodeAlters(layer.Name, nodeId, edgeTraversal);
-                if (!altersResult.Success)
-                    return OperationResult<uint>.Fail(altersResult);
-                alterIds.AddRange(altersResult.Value!);
+                // Not balanced or just a single layer
+                foreach (var layer in layersToUse)
+                    alterIds.AddRange(layer.GetNodeAlters(nodeId, edgeTraversal));
             }
             else
             {
-                if (balanced)
-                {
-                    List<uint[]> layerAlterslist = [];
-
-                    foreach (var layer in network.Layers.Values)
-                    {
-                        uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
-                        if (alters.Length > 0)
-                            layerAlterslist.Add(alters);
-                    }
-                    if (layerAlterslist.Count == 0)
-                        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any layer with the given edge traversal.");
-                    var chosenLayerAlters = layerAlterslist[Misc.Random.Next(layerAlterslist.Count)];
-                    alterIds.AddRange(chosenLayerAlters);
-                }
-                else
-                {
-                    foreach (var layer in network.Layers.Values)
-                    {
-                        uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
-                        alterIds.AddRange(alters);
-                    }
-                }
+                // balanced and multiple layers
+                List<uint[]> layerAltersList = layersToUse
+                    .Select(l => l.GetNodeAlters(nodeId, edgeTraversal))
+                    .ToList();
+                if (layerAltersList.Count==0)
+                    return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");
+                alterIds.AddRange(layerAltersList[Misc.Random.Next(layerAltersList.Count)]);
             }
             if (alterIds.Count == 0)
                 return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-            uint randomAlterId = alterIds[Misc.Random.Next(alterIds.Count)];
-            return OperationResult<uint>.Ok(randomAlterId);
+            return OperationResult<uint>.Ok(alterIds[Misc.Random.Next(alterIds.Count)]);
+
+            //if (weighted)
+            //{
+            //    List<(uint alterId, float weight)> candidates = [];
+            //    if (layerName != null && layerName.Length > 0)
+            //    {
+            //        var layerResult = network.GetLayer(layerName);
+            //        if (!layerResult.Success)
+            //            return OperationResult<uint>.Fail(layerResult);
+            //        Functions.AppendWeightedCandidates(candidates, layerResult.Value!, nodeId, edgeTraversal);
+            //    }
+            //    else if (balanced)
+            //    {
+            //        List<ILayer> eligibleLayers = [];
+            //        foreach (var layer in network.Layers.Values)
+            //            if (layer.GetNodeAlters(nodeId, edgeTraversal).Length > 0)
+            //                eligibleLayers.Add(layer);
+            //        if (eligibleLayers.Count == 0)
+            //            return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any layer with the given edge traversal.");
+            //        Functions.AppendWeightedCandidates(candidates, eligibleLayers[Misc.Random.Next(eligibleLayers.Count)], nodeId, edgeTraversal);
+            //    }
+            //    else
+            //    {
+            //        foreach (var layer in network.Layers.Values)
+            //            Functions.AppendWeightedCandidates(candidates, layer, nodeId, edgeTraversal);
+            //    }
+            //    if (candidates.Count == 0)
+            //        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
+            //    return OperationResult<uint>.Ok(Functions.WeightedPick(candidates));
+            //}
+
+            //List<uint> alterIds = [];
+            //if (layerName != null && layerName.Length > 0)
+            //{
+            //    // Only use the specified layer
+            //    var layerResult = network.GetLayer(layerName);
+            //    if (!layerResult.Success)
+            //        return OperationResult<uint>.Fail(layerResult);
+            //    var layer = layerResult.Value!;
+            //    var altersResult = network.GetNodeAlters(layer.Name, nodeId, edgeTraversal);
+            //    if (!altersResult.Success)
+            //        return OperationResult<uint>.Fail(altersResult);
+            //    alterIds.AddRange(altersResult.Value!);
+            //}
+            //else
+            //{
+            //    if (balanced)
+            //    {
+            //        List<uint[]> layerAlterslist = [];
+
+            //        foreach (var layer in network.Layers.Values)
+            //        {
+            //            uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
+            //            if (alters.Length > 0)
+            //                layerAlterslist.Add(alters);
+            //        }
+            //        if (layerAlterslist.Count == 0)
+            //            return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any layer with the given edge traversal.");
+            //        var chosenLayerAlters = layerAlterslist[Misc.Random.Next(layerAlterslist.Count)];
+            //        alterIds.AddRange(chosenLayerAlters);
+            //    }
+            //    else
+            //    {
+            //        foreach (var layer in network.Layers.Values)
+            //        {
+            //            uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
+            //            alterIds.AddRange(alters);
+            //        }
+            //    }
+            //}
+            //if (alterIds.Count == 0)
+            //    return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
+            //uint randomAlterId = alterIds[Misc.Random.Next(alterIds.Count)];
+            //return OperationResult<uint>.Ok(randomAlterId);
         }
 
         /// <summary>
