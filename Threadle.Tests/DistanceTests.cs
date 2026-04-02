@@ -1,6 +1,7 @@
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Tests;
 
