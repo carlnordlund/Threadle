@@ -240,7 +240,7 @@ namespace Threadle.Core.Analysis
         /// </summary>
         /// <param name="network">The Network object.</param>
         /// <param name="nodeId">The ego node id.</param>
-        /// <param name="layerName">The name of the layer to pick from. If left blank or null, all layers are used.</param>
+        /// <param name="layerNames">The names of the layers to pick from. If left blank or null, all layers are used.</param>
         /// <param name="edgeTraversal">An <see cref="EdgeTraversal"/> value indicating whether inbound- or outbound-going edges (or both) should be considered.</param>
         /// <param name="balanced">Indicates whether the pick should be balanced across layers.</param>
         /// <param name="weighted">If true, uses edge weights as transition probabilities. Binary layers treat each alter as weight 1.0f.</param>
@@ -298,6 +298,7 @@ namespace Threadle.Core.Analysis
                 // balanced and multiple layers
                 List<uint[]> layerAltersList = layersToUse
                     .Select(l => l.GetNodeAlters(nodeId, edgeTraversal))
+                    .Where(a => a.Length>0)
                     .ToList();
                 if (layerAltersList.Count==0)
                     return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");

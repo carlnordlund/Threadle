@@ -46,10 +46,10 @@ namespace Threadle.Core.Analysis
                     uniqueAttrValues.Add(label);
                 }
             }
-            if (hasMissingValues)
-                uniqueAttrValues.Add("(missing)");
 
-            string[] labels = uniqueAttrValues.ToArray();
+            string[] labels = uniqueAttrValues.OrderBy(s => s).ToArray();
+            if (hasMissingValues)
+                labels = [.. labels, "(missing)"];
 
             // Create result nodeset: one node per unique attribute value, with a 'label' string attribute
             Nodeset nodesetResults = new Nodeset(attrName + "_values");
