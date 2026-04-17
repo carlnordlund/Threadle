@@ -15,53 +15,17 @@ namespace Threadle.Core.Analysis
         public static OperationResult<StructureResult> RandomWalkNodeAttributeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor = 1.0f, bool balanced = false, bool weighted = false, bool backtrack = false, bool savesteps = false)
         {
             Nodeset nodeset = network.Nodeset;
-            var nodeAttributeInfo = nodeset.NodeAttributeDefinitionManager.GetNodeAttributeDefinition(attrName);
-            if (nodeAttributeInfo == null)
-                return OperationResult<StructureResult>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{nodeset.Name}'.");
 
-            NodeAttributeType attrType = nodeAttributeInfo.Value.AttrType;
-            byte attrIndex = nodeAttributeInfo.Value.Index;
+            var categoryResult = BuildCategoryNodeset(network, attrName, layers);
+            if (!categoryResult.Success)
+                return OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message);
+            CategoryNodeset cat = categoryResult.Value;
+            Nodeset nodesetResults = cat.Nodeset;
+            Dictionary<string, uint> nodeAttributeStringToNodeId = cat.LabelToNodeId;
+            string[] labels = cat.Labels;
+            NodeAttributeType attrType = cat.AttrType;
+            byte attrIndex = cat.AttrIndex;
 
-            if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int)
-                return OperationResult<StructureResult>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{nodeAttributeInfo.Value.AttrType}': must be char, integer, or string.");
-
-            // Validate layer names if specified (null means use all layers)
-            if (layers != null)
-                foreach (string layerName in layers)
-                    if (!network.Layers.ContainsKey(layerName))
-                        return OperationResult<StructureResult>.Fail("LayerNotFound", $"Layer '{layerName}' not found in network '{network.Name}'.");
-
-            // Build collection of unique attribute values
-            HashSet<string> uniqueAttrValues = [];
-            bool hasMissingValues = false;
-            foreach (uint nodeId in nodeset.NodeIdArray)
-            {
-                if (!(nodeset.GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue attributeValue))
-                    hasMissingValues = true;
-                else
-                {
-                    string label = attrType == NodeAttributeType.String
-                        ? nodeset.GetStringFromPool((int)attributeValue.GetValue(attrType)!)
-                        : attributeValue.ToString(attrType);
-                    uniqueAttrValues.Add(label);
-                }
-            }
-
-            string[] labels = uniqueAttrValues.OrderBy(s => s).ToArray();
-            if (hasMissingValues)
-                labels = [.. labels, "(missing)"];
-
-            // Create result nodeset: one node per unique attribute value, with a 'label' string attribute
-            Nodeset nodesetResults = new Nodeset(attrName + "_values");
-            var defineResult = nodesetResults.DefineNodeAttribute("label", NodeAttributeType.String);
-            byte labelIndex = defineResult.Value;
-            Dictionary<string, uint> nodeAttributeStringToNodeId = [];
-            for (uint i = 0; i < (uint)labels.Length; i++)
-            {
-                int poolIndex = nodesetResults.GetOrAddStringToPool(labels[i]);
-                nodesetResults._addNodeWithAttributes(i, (new List<byte> { labelIndex }, new List<NodeAttributeValue> { new NodeAttributeValue(poolIndex) }));
-                nodeAttributeStringToNodeId[labels[i]] = i;
-            }
             Network networkResults = new Network(attrName + "_rwdistances_results", nodesetResults);
 
             int nbrNodesPerStepLevel = (int)(nodeset.Count * walkfactor);
@@ -198,138 +162,182 @@ namespace Threadle.Core.Analysis
 
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
             return OperationResult<StructureResult>.Ok(results, $"Random walk distances computed. {labels.Length} unique attribute values, {maxSteps} step levels.");
-            //        Nodeset nodeset = network.Nodeset;
-            //        var nodeAttributeInfo = nodeset.NodeAttributeDefinitionManager.GetNodeAttributeDefinition(attrName);
-            //        if (nodeAttributeInfo == null)
-            //            return OperationResult<StructureResult>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{nodeset.Name}'.");
+        }
 
-            //        NodeAttributeType attrType = nodeAttributeInfo.Value.AttrType;
-            //        byte attrIndex = nodeAttributeInfo.Value.Index;
+        public static OperationResult<StructureResult> RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
+        {
+            Nodeset nodeset = network.Nodeset;
+            var categoryResult = BuildCategoryNodeset(network, attrName, layers);
+            if (!categoryResult.Success)
+                return OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message);
+            CategoryNodeset cat = categoryResult.Value;
+            Nodeset nodesetResults = cat.Nodeset;
+            Dictionary<string, uint> nodeAttributeStringToNodeId = cat.LabelToNodeId;
+            string[] labels = cat.Labels;
+            NodeAttributeType attrType = cat.AttrType;
+            byte attrIndex = cat.AttrIndex;
 
-            //        if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int)
-            //            return OperationResult<StructureResult>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{nodeAttributeInfo.Value.AttrType}': must be char, integer, or string.");
+            Network networkResults = new Network(attrName + "_rwfpt_results", nodesetResults);
 
-            //        // Build up collection of unique attribute values
-            //        // Maybe externalize: could be useful elsewhere
-            //        HashSet<string> uniqueAttrValues = [];
-            //        bool hasMissingValues = false;
-            //        foreach (uint nodeId in nodeset.NodeIdArray)
-            //        {
-            //            if (!(nodeset.GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue attributeValue))
-            //                hasMissingValues = true;
-            //            else
-            //            {
-            //                string label = attrType == NodeAttributeType.String
-            //                    ? nodeset.GetStringFromPool((int)attributeValue.GetValue(attrType)!)
-            //                    : attributeValue.ToString(attrType);
-            //                uniqueAttrValues.Add(label);
-            //            }
-            //        }
-            //        if (hasMissingValues)
-            //            uniqueAttrValues.Add("(missing)");
+            string GetCategoryString(uint nodeId) => nodeset.GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue nav
+                ? (attrType == NodeAttributeType.String
+                    ? nodeset.GetStringFromPool((int)nav.GetValue(attrType)!)
+                    : nav.ToString(attrType))
+                : "(missing)";
 
-            //        // Create a string array with unique attribute values
-            //        string[] labels = uniqueAttrValues.ToArray();
+            Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
+            
+            void RunWalk(uint startNodeId)
+            {
+                uint sourceCatId = nodeAttributeStringToNodeId[GetCategoryString(startNodeId)];
+                HashSet<uint> seen = [];
+                uint currentNodeId = startNodeId;
+                for (int step=1; step<=maxSteps;step++)
+                {
+                    var alterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+                    if (!alterResult.Success)
+                        break;
 
-            //        // Create nodeset for result network and create as many nodes as there are unique node attribute values
-            //        Nodeset nodesetResults = new Nodeset(attrName + "_values");
-            //        // Define a 'label' attribute
-            //        var defineResult = nodesetResults.DefineNodeAttribute("label", NodeAttributeType.String);
-            //        byte labelIndex = defineResult.Value;
-            //        Dictionary<string, uint> nodeAttributeStringToNodeId = [];
-            //        for (uint i = 0; i < (uint)labels.Length; i++)
-            //        {
-            //            int poolIndex = nodesetResults.GetOrAddStringToPool(labels[i]);
-            //            nodesetResults._addNodeWithAttributes(i, (new List<byte> { labelIndex }, new List<NodeAttributeValue> { new NodeAttributeValue(poolIndex) }));
-            //            nodeAttributeStringToNodeId[labels[i]] = i;
-            //        }
-            //        // Create network for results
-            //        Network networkResults = new Network(attrName + "_rwdistances_results", nodesetResults);
+                    currentNodeId = alterResult.Value;
+                    uint currentCatId = nodeAttributeStringToNodeId[GetCategoryString(currentNodeId)];
+                    if (seen.Add(currentCatId))
+                    {
+                        float fstep = step;
+                        var key = (sourceCatId, currentCatId);
+                        if (fptDict.TryGetValue(key, out var existing))
+                            fptDict[key] = (existing.sum + fstep, existing.sumSq + fstep * fstep, existing.count + 1);
+                        else
+                            fptDict[key] = (fstep, fstep * fstep, 1);
+                    }
+                    if (seen.Count == labels.Length)
+                        break;
+                }
+            }
 
-            //        // Determine how many nodes should be included in each step level
-            //        // This is related to walkFactor: if walkFactor=0.5, only every second should be included
-            //        // if walkfactor = 3, each node should be included 3 times
-            //        int nbrNodesPerStepLevel = (int)(nodeset.Count * walkfactor);
+            // Initial pass
+            int nbrWalks = (int)(nodeset.Count * walkfactor);
+            for (int i=0; i<nbrWalks;i++)
+            {
+                uint nodeIndex = (uint)Math.Floor(i / walkfactor);
+                if (nodeset.GetNodeIdByIndex(nodeIndex) is uint startNodeId)
+                    RunWalk(startNodeId);
+            }
 
-            //        // Iterate through all with given path lengths (i.e. s as number of steps
-            //        for (int s = 1; s <= maxSteps; s++)
-            //        {
-            //            Dictionary<(uint, uint), int> resultsDict = [];
-            //            for (int i = 0; i < nbrNodesPerStepLevel; i++)
-            //            {
-            //                uint nodeIndex = (uint)Math.Floor(i / walkfactor);
-            //                if (!(nodeset.GetNodeIdByIndex(nodeIndex) is uint egoNodeId))
-            //                    continue;
+            // Targeted restarts for undersampled category-pairs
+            if (minPairObs > 0)
+            {
+                Dictionary<uint, List<uint>> categoryToNodes = [];
+                foreach (uint nodeId in nodeset.NodeIdArray)
+                {
+                    uint catId = nodeAttributeStringToNodeId[GetCategoryString(nodeId)];
+                    if (!categoryToNodes.TryGetValue(catId, out var nodeList))
+                        categoryToNodes[catId] = nodeList = [];
+                    nodeList.Add(nodeId);
+                }
 
-            //                // Get the attr value for ego
-            //                //string startNodeAttrString = nodeset.GetNodeAttribute(egoNodeId, attrIndex) is NodeAttributeValue navStart
-            //                //    ? nodeset.GetStringFromPool((int)navStart.GetValue(attrType)!)
-            //                //    : "(missing)";
-            //                string startNodeAttrString = nodeset.GetNodeAttribute(egoNodeId, attrIndex) is NodeAttributeValue navStart
-            //? (attrType == NodeAttributeType.String
-            //    ? nodeset.GetStringFromPool((int)navStart.GetValue(attrType)!)
-            //    : navStart.ToString(attrType))
-            //: "(missing)";
+                foreach (var (sourceCatId, sourceNodes) in categoryToNodes)
+                {
+                    int nodeIdx = 0;
+                    int maxAttempts = minPairObs * labels.Length * 3;
+                    for (int attempt = 0; attempt < maxAttempts; attempt++)
+                    {
+                        bool allSatisfied = true;
+                        for (uint t = 0; t < (uint)labels.Length; t++)
+                        {
+                            if (!fptDict.TryGetValue((sourceCatId, t), out var obs) || obs.count < minPairObs)
+                            {
+                                allSatisfied = false;
+                                break;
+                            }
+                        }
+                        if (allSatisfied)
+                            break;
+                        RunWalk(sourceNodes[nodeIdx % sourceNodes.Count]);
+                        nodeIdx++;
+                    }
+                }
+            }
 
+            // Build output layers
+            LayerOneMode avgLayer = new LayerOneMode(attrName + "_fpt_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode stdevLayer = new LayerOneMode(attrName + "_fpt_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode countLayer = new LayerOneMode(attrName + "_fpt_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
 
-            //                // Now take s steps 
-            //                bool abort = false;
-            //                uint currentNodeId = egoNodeId;
-            //                for (int j = 0; j < s; j++)
-            //                {
-            //                    // Get an alter node from the current node
-            //                    var randomAlterResult = Analyses.GetRandomAlter(network, currentNodeId, layers![0], EdgeTraversal.Out, balanced, weighted);
-            //                    // If this didn't work, e.g. no more alters in that direction, then abort the whole walk
-            //                    if (!randomAlterResult.Success)
-            //                    {
-            //                        abort = true;
-            //                        break;
-            //                    }
-            //                    // As long as the alter node is not back at the start, update the current one
-            //                    // An alternative would be to abort this walk completely
-            //                    if (randomAlterResult.Value != egoNodeId)
-            //                        currentNodeId = randomAlterResult.Value;
+            foreach (var kvp in fptDict)
+            {
+                float mean = kvp.Value.sum / kvp.Value.count;
+                float variance = kvp.Value.count > 1
+                    ? (kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1)
+                    : 0f;
+                avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
+                stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to, (float)Math.Sqrt(Math.Max(0f, variance)));
+                countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
+            }
 
-            //                }
+            networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
+            networkResults.Layers.Add(countLayer.Name, countLayer);
 
-            //                // If this was aborted: move to next node, just skip this one
-            //                if (abort)
-            //                    continue;
+            StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
+            int totalObs = fptDict.Values.Sum(v => v.count);
+            return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
+        }
 
-            //                // Ok, done s walks: now I should store s
-            //                //string endNodeAttrString = nodeset.GetNodeAttribute(currentNodeId, attrIndex) is NodeAttributeValue navEnd
-            //                //    ? nodeset.GetStringFromPool((int)navEnd.GetValue(attrType)!)
-            //                //    : "(missing)";
+        private static OperationResult<CategoryNodeset> BuildCategoryNodeset(Network network, string attrName, string[]? layers)
+        {
+            Nodeset nodeset = network.Nodeset;
+            var nodeAttributeInfo = nodeset.NodeAttributeDefinitionManager.GetNodeAttributeDefinition(attrName);
+            if (nodeAttributeInfo == null)
+                return OperationResult<CategoryNodeset>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{nodeset.Name}'.");
 
-            //                string endNodeAttrString = nodeset.GetNodeAttribute(currentNodeId, attrIndex) is NodeAttributeValue navEnd
-            //? (attrType == NodeAttributeType.String
-            //    ? nodeset.GetStringFromPool((int)navEnd.GetValue(attrType)!)
-            //    : navEnd.ToString(attrType))
-            //: "(missing)";
+            NodeAttributeType attrType = nodeAttributeInfo.Value.AttrType;
+            byte attrIndex = nodeAttributeInfo.Value.Index;
 
+            if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int)
+                return OperationResult<CategoryNodeset>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{attrType}': must be char, integer, or string.");
 
-            //                uint nodeIdFrom = nodeAttributeStringToNodeId[startNodeAttrString];
-            //                uint nodeIdTo = nodeAttributeStringToNodeId[endNodeAttrString];
-            //                if (resultsDict.TryGetValue((nodeIdFrom, nodeIdTo), out int value))
-            //                    resultsDict[(nodeIdFrom, nodeIdTo)] = value + 1;
-            //                else
-            //                    resultsDict[(nodeIdFrom, nodeIdTo)] = 1;
-            //            }
+            if (layers != null)
+                foreach (string layerName in layers)
+                    if (!network.Layers.ContainsKey(layerName))
+                        return OperationResult<CategoryNodeset>.Fail("LayerNotFound", $"Layer '{layerName}' not found in network '{network.Name}'.");
 
-            //            LayerOneMode resultLayer = new LayerOneMode(attrName + "_steps_" + s, EdgeDirectionality.Directed, EdgeType.Valued, true);
-            //            foreach (var kvp in resultsDict)
-            //                resultLayer.AddEdge(kvp.Key.Item1, kvp.Key.Item2, kvp.Value);
-            //            networkResults.Layers.Add(resultLayer.Name, resultLayer);
-            //        }
+            HashSet<string> uniqueAttrValues = [];
+            bool hasMissingValues = false;
+            foreach (uint nodeId in nodeset.NodeIdArray)
+            {
+                if (!(nodeset.GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue attributeValue))
+                    hasMissingValues = true;
+                else
+                {
+                    string label = attrType == NodeAttributeType.String
+                        ? nodeset.GetStringFromPool((int)attributeValue.GetValue(attrType)!)
+                        : attributeValue.ToString(attrType);
+                    uniqueAttrValues.Add(label);
+                }
+            }
 
-            //        // Return results
-            //        StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
+            string[] labels = uniqueAttrValues.OrderBy(s => s).ToArray();
+            if (hasMissingValues)
+                labels = [.. labels, "(missing)"];
 
-            //        return OperationResult<StructureResult>.Ok(results, "Random walker done!");
+            Nodeset nodesetResults = new Nodeset(attrName + "_values");
+            byte labelIndex = nodesetResults.DefineNodeAttribute("label", NodeAttributeType.String).Value;
+            Dictionary<string, uint> labelToNodeId = [];
+            for (uint i = 0; i < (uint)labels.Length; i++)
+            {
+                int poolIndex = nodesetResults.GetOrAddStringToPool(labels[i]);
+                nodesetResults._addNodeWithAttributes(i, (new List<byte> { labelIndex }, new List<NodeAttributeValue> { new NodeAttributeValue(poolIndex) }));
+                labelToNodeId[labels[i]] = i;
+            }
 
-
-
-            //        //return OperationResult<StructureResult>.Fail("NotYetImplemented", $"RandomWalkNodeAttributeDistances not yet implemented");
+            return OperationResult<CategoryNodeset>.Ok(new CategoryNodeset
+            {
+                Nodeset = nodesetResults,
+                LabelToNodeId = labelToNodeId,
+                Labels = labels,
+                AttrType = attrType,
+                AttrIndex = attrIndex
+            });
 
         }
     }
