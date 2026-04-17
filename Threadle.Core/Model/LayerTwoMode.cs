@@ -242,7 +242,7 @@ namespace Threadle.Core.Model
             LayerTwoMode layerCopy = new LayerTwoMode(this.Name + "_filtered");
             foreach (var (name, hyperedge) in AllHyperEdges)
             {
-                Hyperedge hyperedge_filtered = new(hyperedge.NodeIds.Intersect(allowedNodeIds).ToArray());
+                Hyperedge hyperedge_filtered = new(name, hyperedge.NodeIds.Intersect(allowedNodeIds).ToArray());
                 if (hyperedge_filtered.NbrNodes == 0)
                     continue;
                 layerCopy.AllHyperEdges.Add(name, hyperedge_filtered);
@@ -453,6 +453,8 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Adds an affiliation to a hyperedge. If the hyperedge does not exist, it is created.
+        /// This method is used by generators and importers, so it doesn't validate anything, instead
+        /// assuming that the data is correct and that the nodeId isn't already added to this hyperedge.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         /// <param name="hyperName">The name of the affiliation.</param>
