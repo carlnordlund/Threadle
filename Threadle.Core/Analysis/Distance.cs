@@ -186,10 +186,15 @@ namespace Threadle.Core.Analysis
                 : "(missing)";
 
             Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
+            Dictionary<uint, int> sourceWalkCount = [];
             
             void RunWalk(uint startNodeId)
             {
                 uint sourceCatId = nodeAttributeStringToNodeId[GetCategoryString(startNodeId)];
+                if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
+                    sourceWalkCount[sourceCatId] = existingSWC + 1;
+                else
+                    sourceWalkCount[sourceCatId] = 1;
                 HashSet<uint> seen = [];
                 uint currentNodeId = startNodeId;
                 for (int step=1; step<=maxSteps;step++)
@@ -261,7 +266,9 @@ namespace Threadle.Core.Analysis
             // Build output layers
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_fpt_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode stdevLayer = new LayerOneMode(attrName + "_fpt_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode seLayer = new LayerOneMode(attrName + "_fpt_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode countLayer = new LayerOneMode(attrName + "_fpt_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode coverageLayer = new LayerOneMode(attrName + "_fpt_coverage", EdgeDirectionality.Directed, EdgeType.Valued, true);
 
             foreach (var kvp in fptDict)
             {
@@ -269,14 +276,20 @@ namespace Threadle.Core.Analysis
                 float variance = kvp.Value.count > 1
                     ? (kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1)
                     : 0f;
+                float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
                 avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
-                stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to, (float)Math.Sqrt(Math.Max(0f, variance)));
+                stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev);
+                seLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev / (float)Math.Sqrt(kvp.Value.count));
                 countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
+                if (sourceWalkCount.TryGetValue(kvp.Key.from, out int totalWalks) && totalWalks > 0)
+                    coverageLayer.AddEdge(kvp.Key.from, kvp.Key.to, (float)kvp.Value.count / totalWalks);
             }
 
             networkResults.Layers.Add(avgLayer.Name, avgLayer);
             networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
+            networkResults.Layers.Add(seLayer.Name, seLayer);
             networkResults.Layers.Add(countLayer.Name, countLayer);
+            networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
 
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
             int totalObs = fptDict.Values.Sum(v => v.count);
