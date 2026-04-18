@@ -12,12 +12,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "help([str])";
+        public string Syntax => "help(*[str], *file = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Provides information about all available CLI commands, or detailed information about a specific command.";
+        public string Description => "Provides information about all available CLI commands, or detailed information about a specific command if the first nameless argument is a command. If the named command 'file' is used and a filename is specified, this will instead save all help data (syntax, assignments, descriptions) to the specified file. Note that this will then only save in the current working directory: any path given in the file argument will be pruned away.";
 
 
         /// <summary>

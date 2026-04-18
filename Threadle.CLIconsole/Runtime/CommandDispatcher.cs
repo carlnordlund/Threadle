@@ -179,6 +179,10 @@ namespace Threadle.CLIconsole.Runtime
         /// the syntax details were saved.</returns>
         internal static CommandResult DumpHelpToFile(string filepath)
         {
+            string filename = Path.GetFileName(filepath);
+            if (string.IsNullOrEmpty(filename))
+                return CommandResult.Fail("InvalidArgument", "Invalid filename.");
+
             var pattern = @"^(?:\s*(\[[^\]]+\])\s*=\s*)?([a-zA-Z_]\w*)\s*\(\s*(.*?)\s*\)\s*$";
             List<string> lines = [];
             foreach (var kvp in _commands)
@@ -186,9 +190,9 @@ namespace Threadle.CLIconsole.Runtime
                 var match = Regex.Match(kvp.Value.Syntax, pattern);
                 lines.Add(match.Groups[1].Value + "\t" + match.Groups[2].Value + "\t" + match.Groups[3].Value + "\t" + kvp.Value.Description);
             }
-            File.WriteAllLines(filepath, lines.ToArray());
+            File.WriteAllLines(filename, lines.ToArray());
 
-            return CommandResult.Ok($"Saved syntax details to file '{filepath}'");
+            return CommandResult.Ok($"Saved syntax details to file '{filename}'");
         }
         #endregion
     }
