@@ -42,7 +42,6 @@ namespace Threadle.Core.Utilities
         #endregion
 
 
-
         #region Methods (public)
         /// <summary>
         /// Method to set the random seed of the RNG used here in Misc and Threadle at large.
@@ -220,7 +219,6 @@ namespace Threadle.Core.Utilities
             LayerOneMode m => LayerOneModeStatic.FromDynamic(m),
             LayerTwoMode m => LayerTwoModeStatic.FromDynamic(m),
             _ => layer
-
         };
 
         internal static ILayer UnpackLayer(ILayer layer) => layer switch
