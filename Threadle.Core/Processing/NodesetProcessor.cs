@@ -1,5 +1,5 @@
-﻿using System.Xml.Linq;
-using Threadle.Core.Model;
+﻿using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Processing.Enums;
 using Threadle.Core.Utilities;
 
@@ -38,6 +38,8 @@ namespace Threadle.Core.Processing
             if (!sourceNodeset.NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out var attrType))
                 return OperationResult<Nodeset>.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{sourceNodeset.Name}': possibly corrupted.");
             Nodeset filtered = new Nodeset(sourceNodeset.Name + "_clone") { NodeAttributeDefinitionManager = sourceNodeset.NodeAttributeDefinitionManager.Clone() };
+            foreach (string s in sourceNodeset.StringPool)
+                filtered.GetOrAddStringToPool(s);
 
             foreach (uint nodeId in sourceNodeset.NodeIdArray)
             {
@@ -47,7 +49,9 @@ namespace Threadle.Core.Processing
                     true => condition switch
                     {
                         ConditionType.notnull => true,  // Existing attribute counts as 'notnull'
-                        _ => Misc.EvaluateCondition(result.Value.Value, result.Value.Type, attrValueStr!, condition), // Evaluate condition here
+                        _ => result.Value.Type == NodeAttributeType.String
+                            ? Misc.EvaluateConditionString(sourceNodeset.GetStringFromPool((int)result.Value.Value.GetValue(NodeAttributeType.String)!), attrValueStr!, condition)
+                            : Misc.EvaluateCondition(result.Value.Value, result.Value.Type, attrValueStr!, condition),
                     },
                     false => condition switch
                     {

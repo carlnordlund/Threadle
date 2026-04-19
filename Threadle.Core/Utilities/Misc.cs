@@ -116,6 +116,16 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
+        /// Evaluates a condition for a string node attribute value against a comparison string.
+        /// </summary>
+        /// <param name="resolvedValue">The resolved string value of the attribute (not a pool index).</param>
+        /// <param name="comparisonValue">The string to compare against.</param>
+        /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
+        /// <returns><see langword="true"/> if the condition is satisfied; otherwise, <see langword="false"/>.</returns>
+        internal static bool EvaluateConditionString(string resolvedValue, string comparisonValue, ConditionType condition)
+            => CompareValues(resolvedValue, comparisonValue, condition);
+
+        /// <summary>
         /// Compares two values of a specified type based on the provided condition.
         /// </summary>
         /// <remarks>This method uses the <see cref="IComparable{T}.CompareTo"/> method to perform the

@@ -99,6 +99,33 @@ namespace Threadle.Core.Processing
         }
 
         /// <summary>
+        /// Generate a string-type node attribute by randomly picking from the semicolon-separated
+        /// list of values provided.
+        /// </summary>
+        /// <param name="nodeset">The nodeset to create the node attribute in.</param>
+        /// <param name="attrName">The name of the attribute.</param>
+        /// <param name="valuesString">A semicolon-separated list of string values to pick from.</param>
+        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
+        public static OperationResult GenerateStringAttr(Nodeset nodeset, string attrName, string valuesString)
+        {
+            string[] values = valuesString.Split(';')
+                .Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
+            if (values.Length == 0)
+                return OperationResult.Fail("InvalidArgument", $"The '{valuesString}' is either empty or does not contain a valid semicolon-separated list of strings.");
+            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.String);
+            if (!attrDefineResult.Success)
+                return attrDefineResult;
+            byte attrIndex = attrDefineResult.Value;
+            uint[] nodeIdArray = nodeset.NodeIdArray;
+            for (int i = 0; i < nodeIdArray.Length; i++)
+            {
+                string chosen = values[Misc.Random.Next(0, values.Length)];
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(nodeset.GetOrAddStringToPool(chosen)));
+            }
+            return OperationResult.Ok($"Node attribute '{attrName}' (string) defined and values randomly assigned from provided list.");
+        }
+
+        /// <summary>
         /// Generates random affiliation data in the specified network and 2-mode layer, with
         /// the specified number of hyperedges (affiliations) and the average number of affiliations
         /// each node should have. The number of affiliations is taken from the Poisson
