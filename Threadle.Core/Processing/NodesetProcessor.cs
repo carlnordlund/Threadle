@@ -39,6 +39,8 @@ namespace Threadle.Core.Processing
             if (!sourceNodeset.NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out var attrType))
                 return OperationResult<Nodeset>.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{sourceNodeset.Name}': possibly corrupted.");
             Nodeset filtered = new Nodeset(sourceNodeset.Name + "_clone") { NodeAttributeDefinitionManager = sourceNodeset.NodeAttributeDefinitionManager.Clone() };
+            foreach (string s in sourceNodeset.StringPool)
+                filtered.GetOrAddStringToPool(s);
 
             foreach (uint nodeId in sourceNodeset.NodeIdArray)
             {
