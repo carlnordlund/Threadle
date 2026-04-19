@@ -14,7 +14,7 @@ namespace Threadle.Core.Model
         /// To keep track of the next node attribute index.
         /// Note: maximum number of node attributes is 255.
         /// </summary>
-        private byte _nextIndex = 0;
+        private int _nextIndex = 0;
 
         /// <summary>
         /// Collection of internal node attribute index numbers for recycling.
@@ -65,7 +65,9 @@ namespace Threadle.Core.Model
                 return OperationResult<byte>.Fail("MissingAttributeName", "Name of attribute must be at least one character.");
             if (CheckIfAttributeNameExists(attrName))
                 return OperationResult<byte>.Fail("AttributeAlreadyExists", $"Node attribute named '{attrName}' already defined");
-            byte index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
+            if (_recycledIndices.Count == 0 && _nextIndex > 255)
+                return OperationResult<byte>.Fail("MaxAttributesReached", "Maximum of 256 node attributes reached.");
+            byte index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : (byte)_nextIndex++;
             _nameToIndex[attrName] = index;
             _indexToType[index] = attrType;
             _indexToName[index] = attrName;

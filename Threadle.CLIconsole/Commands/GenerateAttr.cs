@@ -14,12 +14,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "generateattr(structure = [var:structure], attrname = [str], *attrtype = ['int'(default),'float','bool','char'], *min = [int(default:0)|float(default:0.0)], *max = [int(default:100)|float(default:1.0)], +p = [double(default:0.5)], +chars = [str](default:\"m;f;o\")";
+        public string Syntax => "generateattr(structure = [var:structure], attrname = [str], *attrtype = ['int'(default),'float','bool','char','string'], *min = [int(default:0)|float(default:0.0)], *max = [int(default:100)|float(default:1.0)], +p = [double(default:0.5)], +chars = [str(default:\"m;f;o\")], +values=[str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates a new node attribute with the given name and type for the specific nodeset, and sets a random attribute value to each node in this nodeset according to the provided parameters. The 'min' and 'max' arguments apply to the int and float variable types: they are optional, where the default 'min' value is 0 and the default 'max' value is, respectively, 100 for int types and 1 for float types. The 'p' argument applies to the bool variable type: this is the probability of the value being 'true'. The 'chars' argument applies to the char variable type: this consists of a string of semi-colon-separated characters, e.g. \"a;c;f;g;z\" from which the values will be uniformly picked from.";
+        public string Description => "Creates a new node attribute with the given name and type for the specific nodeset, and sets a random attribute value to each node in this nodeset according to the provided parameters. The 'min' and 'max' arguments apply to the int and float variable types: they are optional, where the default 'min' value is 0 and the default 'max' value is, respectively, 100 for int types and 1 for float types. The 'p' argument applies to the bool variable type: this is the probability of the value being 'true'. The 'chars' argument applies to the char variable type: this consists of a string of semi-colon-separated characters, e.g. \"a;c;f;g;z\" from which the values will be uniformly picked from. The 'values' argument applies to the string variable type: this consists of a string of semi-colon-separated strings, e.g. \"lawyer;carpenter;nurse\" from which the values will be uniformly picked from.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -53,6 +53,13 @@ namespace Threadle.CLIconsole.Commands
                 case NodeAttributeType.Char:
                     string charstring = command.GetArgumentParseString("chars", "m;f;o");
                     return CommandResult.FromOperationResult(Generators.GenerateCharAttr(nodeset!, attrName, charstring));
+                case NodeAttributeType.String:
+                    string valuesString = command.GetArgumentParseString("values", "");
+                    if (string.IsNullOrEmpty(valuesString))
+                        return CommandResult.Fail("MissingArgument",
+                            "Argument 'values' is required for string type: a semicolon-separated list of possible values, e.g. \"lawyer;carpenter;doctor\".");
+                    return CommandResult.FromOperationResult(Generators.GenerateStringAttr(nodeset!, attrName, valuesString));
+
                 default:
                     return CommandResult.Fail("AttributeTypeNotFound", $"Node attribute type '{attrType}' not implemented.");
             }

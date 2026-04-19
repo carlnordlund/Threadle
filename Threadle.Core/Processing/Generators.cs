@@ -99,6 +99,36 @@ namespace Threadle.Core.Processing
         }
 
         /// <summary>
+        /// Generate a string-type node attribute picking uniformly from the provided
+        /// semicolon-separated list of values.
+        /// </summary>
+        public static OperationResult GenerateStringAttr(Nodeset nodeset, string attrName, string valuesString)
+        {
+            string[] values = valuesString.Split(';')
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToArray();
+            if (values.Length == 0)
+                return OperationResult.Fail("InvalidArgument",
+                    "The 'values' argument must contain at least one semicolon-separated string value.");
+
+            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.String);
+            if (!attrDefineResult.Success)
+                return attrDefineResult;
+            byte attrIndex = attrDefineResult.Value;
+
+            uint[] nodeIdArray = nodeset.NodeIdArray;
+            for (int i = 0; i < nodeIdArray.Length; i++)
+            {
+                string chosen = values[Misc.Random.Next(0, values.Length)];
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(nodeset.GetOrAddStringToPool(chosen)));
+            }
+            return OperationResult.Ok($"Node attribute '{attrName}' (string) defined and values randomly assigned from provided list.");
+        }
+
+
+
+        /// <summary>
         /// Generates random affiliation data in the specified network and 2-mode layer, with
         /// the specified number of hyperedges (affiliations) and the average number of affiliations
         /// each node should have. The number of affiliations is taken from the Poisson
@@ -270,14 +300,31 @@ namespace Threadle.Core.Processing
                     {
                         // Note how modulus by size of nodeset will make the wrap!
                         oldTarget = nodeIds[(i + j) % n];
-                        do
+                        newTarget = 0;
+                        int maxAttempts = nodeIds.Length * 3;
+                        bool rewired = false;
+                        for (int attempt = 0; attempt < maxAttempts; attempt++)
                         {
                             newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
-
+                            if (newTarget != source && !layer.CheckEdgeExists(source, newTarget))
+                            {
+                                rewired = true;
+                                break;
+                            }
                         }
-                        while (newTarget == source || layer.CheckEdgeExists(source, newTarget));
-                        layer.RemoveEdge(source, oldTarget);
-                        layer.AddEdge(source, newTarget);
+                        if (rewired)
+                        {
+                            layer.RemoveEdge(source, oldTarget);
+                            layer.AddEdge(source, newTarget);
+                        }
+                        //do
+                        //{
+                        //    newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
+
+                        //}
+                        //while (newTarget == source || layer.CheckEdgeExists(source, newTarget));
+                        //layer.RemoveEdge(source, oldTarget);
+                        //layer.AddEdge(source, newTarget);
                     }
                 }
             }

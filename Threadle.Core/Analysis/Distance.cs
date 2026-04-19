@@ -85,8 +85,10 @@ namespace Threadle.Core.Analysis
                             : navEnd.ToString(attrType))
                         : "(missing)";
 
-                    uint nodeIdFrom = nodeAttributeStringToNodeId[startNodeAttrString];
-                    uint nodeIdTo = nodeAttributeStringToNodeId[endNodeAttrString];
+                    if (!nodeAttributeStringToNodeId.TryGetValue(startNodeAttrString, out uint nodeIdFrom) ||
+                        !nodeAttributeStringToNodeId.TryGetValue(endNodeAttrString, out uint nodeIdTo))
+                        continue;
+
                     if (resultsDict.TryGetValue((nodeIdFrom, nodeIdTo), out int existingCount))
                         resultsDict[(nodeIdFrom, nodeIdTo)] = existingCount + 1;
                     else
@@ -152,7 +154,10 @@ namespace Threadle.Core.Analysis
 
             LayerOneMode stdevLayer = new LayerOneMode(attrName + "_stdevdistance", EdgeDirectionality.Directed, EdgeType.Valued, true);
             foreach (var kvp in stdevDict)
-                stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to, (float)Math.Sqrt(kvp.Value.weightedSumSq / kvp.Value.totalCount));
+                stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to,
+                    kvp.Value.totalCount > 1
+                    ? (float)Math.Sqrt(kvp.Value.weightedSumSq / (kvp.Value.totalCount - 1))
+                    : 0f);
             networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
 
             // Remove step layers if savesteps=false
@@ -190,7 +195,8 @@ namespace Threadle.Core.Analysis
             
             void RunWalk(uint startNodeId)
             {
-                uint sourceCatId = nodeAttributeStringToNodeId[GetCategoryString(startNodeId)];
+                if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
+                    return; // node's category not in the map, skip this walk
                 if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
                     sourceWalkCount[sourceCatId] = existingSWC + 1;
                 else
@@ -204,7 +210,8 @@ namespace Threadle.Core.Analysis
                         break;
 
                     currentNodeId = alterResult.Value;
-                    uint currentCatId = nodeAttributeStringToNodeId[GetCategoryString(currentNodeId)];
+                    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
+                        continue; // unmapped category at this step, skip recording but keep walking
                     if (seen.Add(currentCatId))
                     {
                         float fstep = step;

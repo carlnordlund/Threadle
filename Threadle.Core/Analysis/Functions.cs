@@ -51,8 +51,9 @@ namespace Threadle.Core.Analysis
         internal static double Density(Network network, ILayerOneMode layer)
         {
             ulong nbrPotentialEdges = Misc.GetNbrPotentialEdges((ulong)network.Nodeset.Count, layer.Directionality, layer.Selfties);
-            ulong nbrExistingEdges = layer.NbrEdges;
-            return (double)nbrExistingEdges / nbrPotentialEdges;
+            if (nbrPotentialEdges == 0)
+                return 0.0;
+            return (double)layer.NbrEdges / nbrPotentialEdges;
         }
 
         /// <summary>
@@ -236,6 +237,58 @@ namespace Threadle.Core.Analysis
             stats["Q3"] = GetPercentile(sorted, 75);
             return stats;
         }
+
+        /// <summary>
+        /// Returns summary statistics about a node attribute of type string.
+        /// </summary>
+        /// <param name="nodeset">The Nodeset structure.</param>
+        /// <param name="attrIndex">The attribute index.</param>
+        /// <param name="countWithValues">Outbound variable with the number of nodes that have this attribute set.</param>
+        /// <returns>Returns a string-object dictionary with summary statistics.</returns>
+        internal static Dictionary<string, object> CalculateStringStatistics(Nodeset nodeset, byte attrIndex, out int countWithValues)
+        {
+            Dictionary<string, int> frequency = [];
+            foreach (uint nodeId in nodeset.NodeIdArray)
+            {
+                var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
+                if (attrValue != null)
+                {
+                    string strValue = nodeset.GetStringFromPool((int)attrValue.Value.GetValue(NodeAttributeType.String)!);
+                    if (frequency.TryGetValue(strValue, out int count))
+                        frequency[strValue] = count + 1;
+                    else
+                        frequency[strValue] = 1;
+                }
+            }
+            countWithValues = frequency.Values.Sum();
+
+            var sorted = frequency.OrderByDescending(kvp => kvp.Value).ToList();
+            const int topN = 50;
+
+            var frequencyForOutput = sorted
+                .Take(topN)
+                .ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value);
+
+            Dictionary<string, object> stats = new()
+            {
+                ["Frequency"] = frequencyForOutput,
+                ["Unique_Values"] = frequency.Count,
+                ["Frequency_Capped_At"] = topN
+            };
+
+            if (sorted.Count > 0)
+            {
+                stats["Mode"] = sorted[0].Key;
+                stats["Mode_Count"] = sorted[0].Value;
+            }
+            else
+            {
+                stats["Mode_Count"] = 0;
+            }
+            return stats;
+        }
+
+
 
         /// <summary>
         /// Support function to determine the percentile value from a sorted array of integers
