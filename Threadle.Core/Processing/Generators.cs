@@ -98,24 +98,26 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (char) defined and specified random characters assigned to all nodes.");
         }
 
+
         /// <summary>
-        /// Generate a string-type node attribute by randomly picking from the semicolon-separated
-        /// list of values provided.
+        /// Generate a string-type node attribute picking uniformly from the provided
+        /// semicolon-separated list of values.
         /// </summary>
-        /// <param name="nodeset">The nodeset to create the node attribute in.</param>
-        /// <param name="attrName">The name of the attribute.</param>
-        /// <param name="valuesString">A semicolon-separated list of string values to pick from.</param>
-        /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateStringAttr(Nodeset nodeset, string attrName, string valuesString)
         {
             string[] values = valuesString.Split(';')
-                .Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToArray();
             if (values.Length == 0)
-                return OperationResult.Fail("InvalidArgument", $"The '{valuesString}' is either empty or does not contain a valid semicolon-separated list of strings.");
+                return OperationResult.Fail("InvalidArgument",
+                    "The 'values' argument must contain at least one semicolon-separated string value.");
+
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.String);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
             byte attrIndex = attrDefineResult.Value;
+
             uint[] nodeIdArray = nodeset.NodeIdArray;
             for (int i = 0; i < nodeIdArray.Length; i++)
             {
@@ -124,6 +126,7 @@ namespace Threadle.Core.Processing
             }
             return OperationResult.Ok($"Node attribute '{attrName}' (string) defined and values randomly assigned from provided list.");
         }
+
 
         /// <summary>
         /// Generates random affiliation data in the specified network and 2-mode layer, with
@@ -297,14 +300,31 @@ namespace Threadle.Core.Processing
                     {
                         // Note how modulus by size of nodeset will make the wrap!
                         oldTarget = nodeIds[(i + j) % n];
-                        do
+                        newTarget = 0;
+                        int maxAttempts = nodeIds.Length * 3;
+                        bool rewired = false;
+                        for (int attempt = 0; attempt < maxAttempts; attempt++)
                         {
                             newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
-
+                            if (newTarget != source && !layer.CheckEdgeExists(source, newTarget))
+                            {
+                                rewired = true;
+                                break;
+                            }
                         }
-                        while (newTarget == source || layer.CheckEdgeExists(source, newTarget));
-                        layer.RemoveEdge(source, oldTarget);
-                        layer.AddEdge(source, newTarget);
+                        if (rewired)
+                        {
+                            layer.RemoveEdge(source, oldTarget);
+                            layer.AddEdge(source, newTarget);
+                        }
+                        //do
+                        //{
+                        //    newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
+
+                        //}
+                        //while (newTarget == source || layer.CheckEdgeExists(source, newTarget));
+                        //layer.RemoveEdge(source, oldTarget);
+                        //layer.AddEdge(source, newTarget);
                     }
                 }
             }

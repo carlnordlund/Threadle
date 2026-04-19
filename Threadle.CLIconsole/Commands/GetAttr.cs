@@ -47,7 +47,10 @@ namespace Threadle.CLIconsole.Commands
                 else
                     return CommandResult.Fail(result.Code, result.Message);
             }
-            return CommandResult.Ok(result.Message, result.Value.AttrValue.GetValue(result.Value.AttrType));
+            object? value = result.Value.AttrType == NodeAttributeType.String
+                ? nodeset!.GetNodeAttributeString(nodeId, attrName).Value
+                : result.Value.AttrValue.GetValue(result.Value.AttrType);
+            return CommandResult.Ok(result.Message, value);
         }
     }
 }

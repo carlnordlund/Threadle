@@ -90,7 +90,7 @@ namespace Threadle.Core.Utilities
         /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
         /// <returns><see langword="true"/> if the condition is satisfied based on the comparison; otherwise, <see
         /// langword="false"/>.</returns>
-        internal static bool EvaluateCondition(NodeAttributeValue AttrValue,NodeAttributeType AttrType, string comparisonValue, ConditionType condition)
+        internal static bool EvaluateCondition(NodeAttributeValue AttrValue, NodeAttributeType AttrType, string comparisonValue, ConditionType condition)
         {
             switch (AttrType)
             {
@@ -110,20 +110,17 @@ namespace Threadle.Core.Utilities
                     if (comparisonValue.Length != 1)
                         return false;
                     return CompareValues(Convert.ToChar(AttrValue.GetValue(AttrType)), comparisonValue[0], condition);
+                case NodeAttributeType.String:
+                    return false;
                 default:
                     return false;
             }
         }
 
-        /// <summary>
-        /// Evaluates a condition for a string node attribute value against a comparison string.
-        /// </summary>
-        /// <param name="resolvedValue">The resolved string value of the attribute (not a pool index).</param>
-        /// <param name="comparisonValue">The string to compare against.</param>
-        /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
-        /// <returns><see langword="true"/> if the condition is satisfied; otherwise, <see langword="false"/>.</returns>
         internal static bool EvaluateConditionString(string resolvedValue, string comparisonValue, ConditionType condition)
-            => CompareValues(resolvedValue, comparisonValue, condition);
+        {
+            return CompareValues(resolvedValue, comparisonValue, condition);
+        }
 
         /// <summary>
         /// Compares two values of a specified type based on the provided condition.
@@ -258,7 +255,10 @@ namespace Threadle.Core.Utilities
         /// <returns></returns>
         internal static ulong SampleGeometric(double p)
         {
-            return (ulong)Math.Floor(Math.Log(Misc.Random.NextDouble()) / Math.Log(1.0 - p));
+            double u = Misc.Random.NextDouble();
+            if (u == 0.0)
+                u = double.Epsilon;
+            return (ulong)Math.Floor(Math.Log(u) / Math.Log(1.0 - p));
         }
 
         /// <summary>
