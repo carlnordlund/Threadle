@@ -886,4 +886,95 @@ public class AnalysesTests
         Assert.True(result.Success);
         Assert.NotNull(result.Value);
     }
+
+    // ── GetAttributeSummary: string attribute ─────────────────────────────────
+
+    [Fact]
+    public void GetAttributeSummary_StringAttribute_ContainsFrequencyAndMode()
+    {
+        var nodeset = new Nodeset("ns", 0);
+        for (uint i = 1; i <= 5; i++) nodeset.AddNode(i);
+        nodeset.DefineNodeAttribute("country", "string");
+        nodeset.SetNodeAttribute(1, "country", "Sweden");
+        nodeset.SetNodeAttribute(2, "country", "Sweden");
+        nodeset.SetNodeAttribute(3, "country", "Norway");
+        nodeset.SetNodeAttribute(4, "country", "Sweden");
+        nodeset.SetNodeAttribute(5, "country", "Denmark");
+
+        var result = Analyses.GetAttributeSummary(nodeset, "country");
+
+        Assert.True(result.Success);
+        var stats = (Dictionary<string, object>)result.Value!["Statistics"];
+        Assert.True(stats.ContainsKey("Frequency"));
+        Assert.Equal("Sweden", (string)stats["Mode"]);
+        Assert.Equal(3, (int)stats["Mode_Count"]);
+        Assert.Equal(3, (int)stats["Unique_Values"]);
+    }
+
+    [Fact]
+    public void GetAttributeSummary_StringAttribute_CountAndMissingCorrect()
+    {
+        var nodeset = new Nodeset("ns", 0);
+        for (uint i = 1; i <= 5; i++) nodeset.AddNode(i);
+        nodeset.DefineNodeAttribute("occupation", "string");
+        nodeset.SetNodeAttribute(1, "occupation", "Engineer");
+        nodeset.SetNodeAttribute(3, "occupation", "Teacher");
+        nodeset.SetNodeAttribute(5, "occupation", "Engineer");
+        // nodes 2 and 4 have no value set
+
+        var result = Analyses.GetAttributeSummary(nodeset, "occupation");
+
+        Assert.True(result.Success);
+        var stats = (Dictionary<string, object>)result.Value!["Statistics"];
+        Assert.Equal(3, (int)stats["Count"]);
+        Assert.Equal(2, (int)stats["Missing"]);
+    }
+
+    [Fact]
+    public void GetAttributeSummary_StringAttribute_FrequencyCappedAtKeyPresent()
+    {
+        var nodeset = new Nodeset("ns", 0);
+        nodeset.AddNode(1);
+        nodeset.DefineNodeAttribute("label", "string");
+        nodeset.SetNodeAttribute(1, "label", "A");
+
+        var result = Analyses.GetAttributeSummary(nodeset, "label");
+
+        Assert.True(result.Success);
+        var stats = (Dictionary<string, object>)result.Value!["Statistics"];
+        Assert.True(stats.ContainsKey("Frequency_Capped_At"));
+        Assert.Equal(50, (int)stats["Frequency_Capped_At"]);
+    }
+
+    [Fact]
+    public void GetAttributeSummary_StringAttribute_NoValuesSet_ModeCountZero()
+    {
+        var nodeset = new Nodeset("ns", 0);
+        nodeset.AddNode(1);
+        nodeset.AddNode(2);
+        nodeset.DefineNodeAttribute("label", "string");
+        // no values set on any node
+
+        var result = Analyses.GetAttributeSummary(nodeset, "label");
+
+        Assert.True(result.Success);
+        var stats = (Dictionary<string, object>)result.Value!["Statistics"];
+        Assert.Equal(0, (int)stats["Mode_Count"]);
+        Assert.Equal(0, (int)stats["Unique_Values"]);
+        Assert.Equal(0, (int)stats["Count"]);
+        Assert.Equal(2, (int)stats["Missing"]);
+    }
+
+    // ── Density: edge case – single node ─────────────────────────────────────
+
+    [Fact]
+    public void Density_SingleNodeLayer_ReturnsZero()
+    {
+        // 1 node → 0 potential edges; guard must return 0.0 without dividing by zero
+        var net = MakeNetwork(1);
+        AddUndirectedLayer(net, "layer");
+        var result = Analyses.Density(net, "layer");
+        Assert.True(result.Success);
+        Assert.Equal(0.0, result.Value);
+    }
 }

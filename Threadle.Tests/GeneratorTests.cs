@@ -502,4 +502,75 @@ public class GeneratorTests
         var hyperedges = network.GetAllHyperedges("layer");
         Assert.Equal(5, hyperedges.Value!.Length);
     }
+
+    // ── GenerateStringAttr ───────────────────────────────────────────────────
+
+    [Fact]
+    public void GenerateStringAttr_ValidArgs_Succeeds()
+    {
+        var nodeset = MakeNodeset();
+        var result = Generators.GenerateStringAttr(nodeset, "country", "Sweden;Norway;Denmark");
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void GenerateStringAttr_DefinesAttribute()
+    {
+        var nodeset = MakeNodeset(5);
+        Generators.GenerateStringAttr(nodeset, "country", "Sweden;Norway");
+        var get = nodeset.GetNodeAttribute(nodeset.NodeIdArray[0], "country");
+        Assert.True(get.Success);
+    }
+
+    [Fact]
+    public void GenerateStringAttr_AllValuesFromProvidedList()
+    {
+        var nodeset = MakeNodeset(50);
+        var allowed = new HashSet<string> { "Sweden", "Norway", "Denmark" };
+        Generators.GenerateStringAttr(nodeset, "country", "Sweden;Norway;Denmark");
+        foreach (uint id in nodeset.NodeIdArray)
+        {
+            var strResult = nodeset.GetNodeAttributeString(id, "country");
+            Assert.True(strResult.Success);
+            Assert.Contains(strResult.Value, allowed);
+        }
+    }
+
+    [Fact]
+    public void GenerateStringAttr_SingleOption_AllValuesSame()
+    {
+        var nodeset = MakeNodeset(10);
+        Generators.GenerateStringAttr(nodeset, "country", "Sweden");
+        foreach (uint id in nodeset.NodeIdArray)
+        {
+            var strResult = nodeset.GetNodeAttributeString(id, "country");
+            Assert.True(strResult.Success);
+            Assert.Equal("Sweden", strResult.Value);
+        }
+    }
+
+    [Fact]
+    public void GenerateStringAttr_EmptyValueString_Fails()
+    {
+        var nodeset = MakeNodeset();
+        var result = Generators.GenerateStringAttr(nodeset, "country", "");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void GenerateStringAttr_DuplicateAttributeName_Fails()
+    {
+        var nodeset = MakeNodeset();
+        Generators.GenerateStringAttr(nodeset, "country", "Sweden;Norway");
+        var result = Generators.GenerateStringAttr(nodeset, "country", "Sweden;Norway");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void GenerateStringAttr_EmptyNodeset_Succeeds()
+    {
+        var nodeset = MakeNodeset(0);
+        var result = Generators.GenerateStringAttr(nodeset, "country", "Sweden;Norway");
+        Assert.True(result.Success);
+    }
 }

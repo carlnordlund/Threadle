@@ -571,4 +571,108 @@ public class NetworkProcessorTests
                     precision: 5
                 );
     }
+
+    // ── NodesetProcessor.Filter with string attributes ────────────────────────
+
+    [Fact]
+    public void Filter_StringAttribute_EqualCondition_ReturnsMatchingNodes()
+    {
+        var ns = new Nodeset("ns");
+        for (uint i = 1; i <= 5; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(1, "country", "Sweden");
+        ns.SetNodeAttribute(2, "country", "Sweden");
+        ns.SetNodeAttribute(3, "country", "Norway");
+        ns.SetNodeAttribute(4, "country", "Sweden");
+        ns.SetNodeAttribute(5, "country", "Norway");
+
+        var result = NodesetProcessor.Filter(ns, "country", ConditionType.eq, "Sweden");
+
+        Assert.True(result.Success);
+        var filtered = result.Value!;
+        Assert.Equal(3, filtered.Count);
+        Assert.Contains(1u, filtered.NodeIdArray);
+        Assert.Contains(2u, filtered.NodeIdArray);
+        Assert.Contains(4u, filtered.NodeIdArray);
+    }
+
+    [Fact]
+    public void Filter_StringAttribute_NotEqualCondition_ExcludesMatchingNodes()
+    {
+        var ns = new Nodeset("ns");
+        for (uint i = 1; i <= 4; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(1, "country", "Sweden");
+        ns.SetNodeAttribute(2, "country", "Norway");
+        ns.SetNodeAttribute(3, "country", "Sweden");
+        ns.SetNodeAttribute(4, "country", "Denmark");
+
+        var result = NodesetProcessor.Filter(ns, "country", ConditionType.ne, "Sweden");
+
+        Assert.True(result.Success);
+        var filtered = result.Value!;
+        Assert.Equal(2, filtered.Count);
+        Assert.Contains(2u, filtered.NodeIdArray);
+        Assert.Contains(4u, filtered.NodeIdArray);
+    }
+
+    [Fact]
+    public void Filter_StringAttribute_IsNullCondition_ReturnsNodesWithoutAttribute()
+    {
+        var ns = new Nodeset("ns");
+        for (uint i = 1; i <= 4; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(1, "country", "Sweden");
+        ns.SetNodeAttribute(3, "country", "Norway");
+        // nodes 2 and 4 have no value set
+
+        var result = NodesetProcessor.Filter(ns, "country", ConditionType.isnull);
+
+        Assert.True(result.Success);
+        var filtered = result.Value!;
+        Assert.Equal(2, filtered.Count);
+        Assert.Contains(2u, filtered.NodeIdArray);
+        Assert.Contains(4u, filtered.NodeIdArray);
+    }
+
+    [Fact]
+    public void Filter_StringAttribute_NotNullCondition_ReturnsNodesWithAttribute()
+    {
+        var ns = new Nodeset("ns");
+        for (uint i = 1; i <= 4; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(2, "country", "Sweden");
+        ns.SetNodeAttribute(4, "country", "Norway");
+        // nodes 1 and 3 have no value set
+
+        var result = NodesetProcessor.Filter(ns, "country", ConditionType.notnull);
+
+        Assert.True(result.Success);
+        var filtered = result.Value!;
+        Assert.Equal(2, filtered.Count);
+        Assert.Contains(2u, filtered.NodeIdArray);
+        Assert.Contains(4u, filtered.NodeIdArray);
+    }
+
+    [Fact]
+    public void Filter_StringAttribute_PreservesResolvedStringValue()
+    {
+        // Verify that the string pool is copied into the filtered nodeset so
+        // GetNodeAttributeString returns the actual string, not "(invalid)".
+        var ns = new Nodeset("ns");
+        ns.AddNode(1);
+        ns.AddNode(2);
+        ns.DefineNodeAttribute("occupation", "string");
+        ns.SetNodeAttribute(1, "occupation", "Engineer");
+        ns.SetNodeAttribute(2, "occupation", "Teacher");
+
+        var result = NodesetProcessor.Filter(ns, "occupation", ConditionType.eq, "Engineer");
+
+        Assert.True(result.Success);
+        var filtered = result.Value!;
+        Assert.Equal(1, filtered.Count);
+        var attrResult = filtered.GetNodeAttributeString(1, "occupation");
+        Assert.True(attrResult.Success);
+        Assert.Equal("Engineer", attrResult.Value);
+    }
 }
