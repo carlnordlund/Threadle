@@ -126,8 +126,6 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Node attribute '{attrName}' (string) defined and values randomly assigned from provided list.");
         }
 
-
-
         /// <summary>
         /// Generates random affiliation data in the specified network and 2-mode layer, with
         /// the specified number of hyperedges (affiliations) and the average number of affiliations
@@ -317,18 +315,9 @@ namespace Threadle.Core.Processing
                             layer.RemoveEdge(source, oldTarget);
                             layer.AddEdge(source, newTarget);
                         }
-                        //do
-                        //{
-                        //    newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
-
-                        //}
-                        //while (newTarget == source || layer.CheckEdgeExists(source, newTarget));
-                        //layer.RemoveEdge(source, oldTarget);
-                        //layer.AddEdge(source, newTarget);
                     }
                 }
             }
-
             return OperationResult.Ok($"Watts-Strogatz network with k={k} and beta={beta} generated in layer '{layerName}' in network '{network.Name}'.");
         }
 
@@ -347,7 +336,6 @@ namespace Threadle.Core.Processing
         {
             if (p < 0 || p > 1)
                 return OperationResult.Fail("InvalidParameter", $"Edge probability p must be in the range [0,1], got {p}.");
-
 
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
