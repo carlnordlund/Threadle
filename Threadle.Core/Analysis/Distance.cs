@@ -14,6 +14,11 @@ namespace Threadle.Core.Analysis
 
         public static OperationResult<StructureResult> RandomWalkNodeAttributeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor = 1.0f, bool balanced = false, bool weighted = false, bool backtrack = false, bool savesteps = false)
         {
+            if (maxSteps <= 0)
+                return OperationResult<StructureResult>.Fail("InvalidParameter", "maxSteps must be greater than 0.");
+            if (walkfactor <= 0)
+                return OperationResult<StructureResult>.Fail("InvalidParameter", "walkfactor must be greater than 0.");
+
             Nodeset nodeset = network.Nodeset;
 
             var categoryResult = BuildCategoryNodeset(network, attrName, layers);
@@ -171,6 +176,11 @@ namespace Threadle.Core.Analysis
 
         public static OperationResult<StructureResult> RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
         {
+            if (maxSteps <= 0)
+                return OperationResult<StructureResult>.Fail("InvalidParameter", "maxSteps must be greater than 0.");
+            if (walkfactor <= 0)
+                return OperationResult<StructureResult>.Fail("InvalidParameter", "walkfactor must be greater than 0.");
+
             Nodeset nodeset = network.Nodeset;
             var categoryResult = BuildCategoryNodeset(network, attrName, layers);
             if (!categoryResult.Success)
@@ -313,8 +323,8 @@ namespace Threadle.Core.Analysis
             NodeAttributeType attrType = nodeAttributeInfo.Value.AttrType;
             byte attrIndex = nodeAttributeInfo.Value.Index;
 
-            if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int)
-                return OperationResult<CategoryNodeset>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{attrType}': must be char, integer, or string.");
+            if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int && attrType != NodeAttributeType.Bool)
+                return OperationResult<CategoryNodeset>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{attrType}': must be bool, char, integer, or string.");
 
             if (layers != null)
                 foreach (string layerName in layers)
