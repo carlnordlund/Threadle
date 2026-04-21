@@ -313,8 +313,8 @@ namespace Threadle.Core.Analysis
             NodeAttributeType attrType = nodeAttributeInfo.Value.AttrType;
             byte attrIndex = nodeAttributeInfo.Value.Index;
 
-            if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int)
-                return OperationResult<CategoryNodeset>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{attrType}': must be char, integer, or string.");
+            if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int && attrType != NodeAttributeType.Bool)
+                return OperationResult<CategoryNodeset>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{attrType}': must be char, integer, bool, or string.");
 
             if (layers != null)
                 foreach (string layerName in layers)
