@@ -407,6 +407,12 @@ namespace Threadle.Core.Analysis
             return outDegreeCentrality;
         }
 
+        /// <summary>
+        /// Identifies connected components in a network and assigns a unique identifier to each component.
+        /// </summary>
+        /// <param name="network">The network containing the nodes to analyze.</param>
+        /// <param name="layer">The layer used to retrieve neighboring nodes for traversal.</param>
+        /// <returns>A dictionary mapping each node ID to its corresponding component ID.</returns>
         internal static Dictionary<uint, int> ConnectedComponents(Network network, ILayer layer)
         {
             Dictionary<uint, int> componentIds = [];
@@ -424,7 +430,7 @@ namespace Threadle.Core.Analysis
                     {
                         uint current = queue.Dequeue();
                         componentIds[current] = currentComponentId;
-                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
+                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Both))
                         {
                             if (!visited.Contains(neighborId))
                             {
@@ -501,6 +507,9 @@ namespace Threadle.Core.Analysis
                 randomWeight -= weights[i];
             }
             uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(validNames[selectedIndex]);
+            // Return null in case this hyperedge only has one connection
+            if (nodeIds.Length < 2)
+                return null;
             int idx1 = Misc.Random.Next(nodeIds.Length);
             int idx2;
             do
