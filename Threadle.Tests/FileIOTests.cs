@@ -1548,11 +1548,11 @@ public class FileIOTests : IDisposable
         net.AddLayerOneMode("layer", EdgeDirectionality.Undirected, EdgeType.Binary, false);
 
         Core.Processing.Generators.GenerateErdosRenyiLayer(net, "layer", 1.0);
-        ulong edgesFirst = net.Layers["layer"].NbrEdges;
+        ulong edgesFirst = ((ILayerOneMode)net.Layers["layer"]).NbrEdges;
         Assert.True(edgesFirst > 0);
 
         Core.Processing.Generators.GenerateErdosRenyiLayer(net, "layer", 1.0);
-        ulong edgesSecond = net.Layers["layer"].NbrEdges;
+        ulong edgesSecond = ((ILayerOneMode)net.Layers["layer"]).NbrEdges;
 
         Assert.Equal(edgesFirst, edgesSecond);
     }
@@ -1566,11 +1566,11 @@ public class FileIOTests : IDisposable
         net.AddLayerOneMode("layer", EdgeDirectionality.Undirected, EdgeType.Binary, false);
 
         Core.Processing.Generators.GenerateBarabasiAlbertLayer(net, "layer", 2);
-        ulong edgesFirst = net.Layers["layer"].NbrEdges;
+        ulong edgesFirst = ((ILayerOneMode)net.Layers["layer"]).NbrEdges;
         Assert.True(edgesFirst > 0);
 
         Core.Processing.Generators.GenerateBarabasiAlbertLayer(net, "layer", 2);
-        ulong edgesSecond = net.Layers["layer"].NbrEdges;
+        ulong edgesSecond = ((ILayerOneMode)net.Layers["layer"]).NbrEdges;
 
         Assert.Equal(edgesFirst, edgesSecond);
     }
