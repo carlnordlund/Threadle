@@ -317,7 +317,7 @@ namespace Threadle.Core.Utilities
             }
             FlushIfNeeded();
             if (nodeset == null)
-                throw new InvalidDataException("Nodeset file reference must be specified before layer definitions.");
+                throw new InvalidDataException("In the tsv file, nodeset file reference must be specified before layer definitions.");
 
             var network = new Network(networkName, nodeset);
             foreach (var kvp in collectedLayers)

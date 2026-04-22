@@ -152,6 +152,8 @@ namespace Threadle.Core.Utilities
 
             // Check file version - should be the same as here implemented
             byte version = reader.ReadByte();
+            // Okay with commented-out check here: this reader should handle all versions, with corresponding if-statements
+            // where necessary
             //if (version != FormatVersion)
                 //throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
 
@@ -215,8 +217,8 @@ namespace Threadle.Core.Utilities
                         {
                             uint nodeIdEgo = reader.ReadUInt32();
                             int nbrAlters = reader.ReadInt32();
-                            if (nbrAlters < 0 || nbrAlters > 1000000000)
-                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-1 billion.");
+                            if (nbrAlters < 0 || nbrAlters > 100000000)
+                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
                             uint[] nodeIdsAlters = new uint[nbrAlters];
                             reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
                             if (!BitConverter.IsLittleEndian)
@@ -234,8 +236,8 @@ namespace Threadle.Core.Utilities
                         {
                             uint nodeIdEgo = reader.ReadUInt32();
                             int nbrAlters = reader.ReadInt32();
-                            if (nbrAlters < 0 || nbrAlters > 1000000000)
-                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-1 billion.");
+                            if (nbrAlters < 0 || nbrAlters > 100000000)
+                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
                             var alters = new List<(uint, float)>(nbrAlters);
                             for (int k = 0; k < nbrAlters; k++)
                                 alters.Add((reader.ReadUInt32(), reader.ReadSingle()));
@@ -255,8 +257,8 @@ namespace Threadle.Core.Utilities
                     {
                         string hyperedgeName = ReadString(reader);
                         uint nbrAffNodes = reader.ReadUInt32();
-                        if (nbrAffNodes > 1000000000)
-                            throw new InvalidDataException("A hyperedge can't have more than 1 billion affiliated nodes.");
+                        if (nbrAffNodes > 100000000)
+                            throw new InvalidDataException("A hyperedge can't have more than 100 million affiliated nodes.");
                         uint[] nodeIds = new uint[nbrAffNodes];
                         reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
                         if (!BitConverter.IsLittleEndian)
@@ -399,7 +401,7 @@ namespace Threadle.Core.Utilities
             // MagicNodeset bytes (4)
             writer.Write(Encoding.ASCII.GetBytes(MagicNodeset));
 
-            // Format version (3)
+            // Format version (1)
             writer.Write(FormatVersion);
 
             // Nodeset name (length + string)
@@ -408,7 +410,7 @@ namespace Threadle.Core.Utilities
             // Get all node attribute definitions
             var attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().ToList();
 
-            // Nbr of node attributes (4)
+            // Nbr of node attributes (1)
             if (attributeDefs.Count > 255)
                 throw new InvalidOperationException($"Cannot save more than 255 node attributes in binary format (found {attributeDefs.Count}).");
             writer.Write((byte)attributeDefs.Count);
@@ -480,6 +482,9 @@ namespace Threadle.Core.Utilities
         /// <param name="writer">The binary writer to write to</param>
         private static void WriteNetworkToFile(Network network, BinaryWriter writer)
         {
+            if (string.IsNullOrEmpty(network.Nodeset.Filepath))
+                throw new ArgumentException($"The Nodeset of the network '{network.Name}' must first be saved.");
+
             // MagicNetwork bytes (4)
             writer.Write(Encoding.ASCII.GetBytes(MagicNetwork));
 

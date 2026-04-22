@@ -421,7 +421,8 @@ namespace Threadle.Core.Utilities
                         {
                             // Do a fileformat check on the nodeset as well and send that along to this. The Nodeset might be stored in different format
                             FileFormat formatNodeset = Misc.GetFileFormatFromFileEnding(nodeset.Filepath);
-                            FileSerializerTsv.SaveNodesetToFile(nodeset, nodeset.Filepath, formatNodeset);
+                            SaveNodeset(nodeset, nodeset.Filepath);
+                            //FileSerializerTsv.SaveNodesetToFile(nodeset, nodeset.Filepath, formatNodeset);
                             // Then save Network
                             FileSerializerTsv.SaveNetworkToFile(network, filepath, format);
                             // And return OpResult to inform that both were saved.
@@ -435,7 +436,8 @@ namespace Threadle.Core.Utilities
                         if (nodeset.IsModified)
                         {
                             FileFormat formatNodeset = Misc.GetFileFormatFromFileEnding(nodeset.Filepath);
-                            FileSerializerBin.SaveNodesetToFile(nodeset, nodeset.Filepath, formatNodeset);
+                            SaveNodeset(nodeset, nodeset.Filepath);
+                            //FileSerializerBin.SaveNodesetToFile(nodeset, nodeset.Filepath, formatNodeset);
                             FileSerializerBin.SaveNetworkToFile(network, filepath, format);
                             return OperationResult.Ok($"Saved network '{network.Name}' to filepath: {filepath}, and saved nodeset '{nodeset.Name}' to filepath: {nodeset.Filepath}.");
 

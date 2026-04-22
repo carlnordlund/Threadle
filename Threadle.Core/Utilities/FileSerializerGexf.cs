@@ -21,7 +21,8 @@ namespace Threadle.Core.Utilities
                 { NodeAttributeType.Int, "integer" },
                 { NodeAttributeType.Bool,"boolean" },
                 { NodeAttributeType.Float, "float" },
-                { NodeAttributeType.Char, "string" }
+                { NodeAttributeType.Char, "string" },
+                { NodeAttributeType.String, "string" }
             };
 
             using var writer = XmlWriter.Create(filepath, new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 });
@@ -64,7 +65,12 @@ namespace Threadle.Core.Utilities
                     {
                         writer.WriteStartElement("attvalue");
                         writer.WriteAttributeString("for", $"{tuple.Value.AttrIndexes[i]}");
-                        writer.WriteAttributeString("value", $"{tuple.Value.AttrValues[i].ToString(indexToType[tuple.Value.AttrIndexes[i]])}");
+                        NodeAttributeType attrType = indexToType[tuple.Value.AttrIndexes[i]];
+                        string valueStr = attrType == NodeAttributeType.String
+                            ? network.Nodeset.StringPool[(int)tuple.Value.AttrValues[i].GetValue(NodeAttributeType.String)!]
+                            : tuple.Value.AttrValues[i].ToString(attrType);
+
+                        writer.WriteAttributeString("value", valueStr);
                         writer.WriteEndElement();
                     }
                     writer.WriteEndElement();
