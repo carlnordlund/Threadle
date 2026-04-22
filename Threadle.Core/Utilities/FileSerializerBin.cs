@@ -401,7 +401,7 @@ namespace Threadle.Core.Utilities
             // MagicNodeset bytes (4)
             writer.Write(Encoding.ASCII.GetBytes(MagicNodeset));
 
-            // Format version (3)
+            // Format version (1)
             writer.Write(FormatVersion);
 
             // Nodeset name (length + string)
@@ -410,7 +410,9 @@ namespace Threadle.Core.Utilities
             // Get all node attribute definitions
             var attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().ToList();
 
-            // Nbr of node attributes (4)
+            // Nbr of node attributes (1)
+            if (attributeDefs.Count > 255)
+                throw new InvalidOperationException($"Cannot save more than 255 node attributes in binary format (found {attributeDefs.Count}).");
             writer.Write((byte)attributeDefs.Count);
 
             //Dictionary<string, byte> nameToIndex = [];

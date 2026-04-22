@@ -14,6 +14,11 @@ namespace Threadle.Core.Analysis
 
         public static OperationResult<StructureResult> RandomWalkNodeAttributeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor = 1.0f, bool balanced = false, bool weighted = false, bool backtrack = false, bool savesteps = false)
         {
+            if (walkfactor <= 0)
+                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero.");
+            if (maxSteps<= 0)
+                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
+
             Nodeset nodeset = network.Nodeset;
 
             var categoryResult = BuildCategoryNodeset(network, attrName, layers);
@@ -171,6 +176,9 @@ namespace Threadle.Core.Analysis
 
         public static OperationResult<StructureResult> RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
         {
+            if (walkfactor<=0)
+                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
+
             Nodeset nodeset = network.Nodeset;
             var categoryResult = BuildCategoryNodeset(network, attrName, layers);
             if (!categoryResult.Success)
