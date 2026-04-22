@@ -420,7 +420,7 @@ namespace Threadle.Core.Utilities
                         if (nodeset.IsModified)
                         {
                             // Do a fileformat check on the nodeset as well and send that along to this. The Nodeset might be stored in different format
-                            FileFormat formatNodeset = Misc.GetFileFormatFromFileEnding(nodeset.Filepath);
+                            //FileFormat formatNodeset = Misc.GetFileFormatFromFileEnding(nodeset.Filepath);
                             SaveNodeset(nodeset, nodeset.Filepath);
                             //FileSerializerTsv.SaveNodesetToFile(nodeset, nodeset.Filepath, formatNodeset);
                             // Then save Network
@@ -435,7 +435,7 @@ namespace Threadle.Core.Utilities
                     case FileFormat.BinGzip:
                         if (nodeset.IsModified)
                         {
-                            FileFormat formatNodeset = Misc.GetFileFormatFromFileEnding(nodeset.Filepath);
+                            //FileFormat formatNodeset = Misc.GetFileFormatFromFileEnding(nodeset.Filepath);
                             SaveNodeset(nodeset, nodeset.Filepath);
                             //FileSerializerBin.SaveNodesetToFile(nodeset, nodeset.Filepath, formatNodeset);
                             FileSerializerBin.SaveNetworkToFile(network, filepath, format);
