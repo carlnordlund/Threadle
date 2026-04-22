@@ -24,7 +24,7 @@ namespace Threadle.Core.Processing
             if (minValue > maxValue)
                 return OperationResult.Fail("ArgumentOutOfRange", $"The 'minvalue' ({minValue}) is greater than the 'maxvalue' ({maxValue}).");
             if (maxValue == int.MaxValue)
-                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {int.MaxValue}).");
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {int.MaxValue-1}).");
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Int);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
@@ -160,6 +160,7 @@ namespace Threadle.Core.Processing
 
             double[] cdf = Misc.BuildPoissonCDF(averageNbrAffiliations, h);
 
+            layer.ClearLayer();
             Nodeset nodeset = network.Nodeset;
 
             uint[] nodeIds = nodeset.NodeIdArray;
@@ -204,6 +205,7 @@ namespace Threadle.Core.Processing
             if (layer.Selfties)
                 return OperationResult.Fail("ConstraintLayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
 
+            layer.ClearLayer();
             Nodeset nodeset = network.Nodeset;
 
             // Get an array of all node ids
