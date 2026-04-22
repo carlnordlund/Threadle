@@ -1367,4 +1367,229 @@ public class FileIOTests : IDisposable
         var active1 = loaded.GetNodeAttribute(1u, "active");
         Assert.Equal(true, (bool)active1.Value.Value.GetValue(NodeAttributeType.Bool)!);
     }
+
+    // ── Cross-format: nodeset .bin + network .tsv ────────────────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_BinNodeset_TsvNetwork_EdgesPreserved()
+    {
+        // Nodeset saved as .bin, network saved as .tsv — load must use correct serializers
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        string netPath = TempFile(".tsv");
+        var saveResult = FileManager.Save(net, netPath);
+        Assert.True(saveResult.Success, $"Save failed: {saveResult.Message}");
+
+        var loadResult = FileManager.Load(netPath, "network");
+        Assert.True(loadResult.Success, $"Load failed: {loadResult.Message}");
+        var loadedNet = (Network)loadResult.Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 2, 3).Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_BinNodeset_TsvNetwork_NodesetStillBin()
+    {
+        // After saving the network as .tsv, the nodeset must still be saved using BIN format
+        // (i.e. the cross-format fix must not corrupt the nodeset file with TSV content)
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        string netPath = TempFile(".tsv");
+        FileManager.Save(net, netPath);
+
+        // Read the raw bytes of the nodeset file — must start with the BIN magic "TNDS"
+        byte[] magic = new byte[4];
+        using (var fs = File.OpenRead(nsPath))
+            fs.Read(magic, 0, 4);
+        Assert.Equal("TNDS", System.Text.Encoding.ASCII.GetString(magic));
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_BinNodeset_TsvNetwork_ModifiedNodesetResavedAsBin()
+    {
+        // If the nodeset is modified before the network save, SaveNetwork must still
+        // re-save the nodeset using its own format (.bin), not the network format (.tsv)
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        // Modify the nodeset so IsModified = true
+        ns.AddNode(99u);
+        Assert.True(ns.IsModified);
+
+        string netPath = TempFile(".tsv");
+        var saveResult = FileManager.Save(net, netPath);
+        Assert.True(saveResult.Success, $"Save failed: {saveResult.Message}");
+
+        // The nodeset file must still be readable as BIN (magic bytes intact)
+        byte[] magic = new byte[4];
+        using (var fs = File.OpenRead(nsPath))
+            fs.Read(magic, 0, 4);
+        Assert.Equal("TNDS", System.Text.Encoding.ASCII.GetString(magic));
+
+        // Loading the network must yield the updated nodeset (node 99 present)
+        var loadResult = FileManager.Load(netPath, "network");
+        Assert.True(loadResult.Success);
+        var loadedNet = (Network)loadResult.Value!.MainStructure;
+        Assert.Contains(99u, loadedNet.Nodeset.NodeIdArray);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_BinNodeset_TsvNetwork_StringAttrPreserved()
+    {
+        // String node attributes must survive the cross-format round-trip
+        var ns = new Nodeset("test-ns");
+        for (uint i = 1; i <= 3; i++) ns.AddNode(i);
+        ns.DefineNodeAttribute("country", "string");
+        ns.SetNodeAttribute(1u, "country", "Sweden");
+        ns.SetNodeAttribute(2u, "country", "Norway");
+        ns.SetNodeAttribute(3u, "country", "Sweden");
+
+        string nsPath = TempFile(".bin");
+        FileManager.Save(ns, nsPath);
+
+        var net = new Network("test-net", ns);
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        string netPath = TempFile(".tsv");
+        FileManager.Save(net, netPath);
+
+        var loadResult = FileManager.Load(netPath, "network");
+        Assert.True(loadResult.Success);
+        var loadedNet = (Network)loadResult.Value!.MainStructure;
+        Assert.Equal("Sweden", loadedNet.Nodeset.GetNodeAttributeString(1u, "country").Value);
+        Assert.Equal("Norway", loadedNet.Nodeset.GetNodeAttributeString(2u, "country").Value);
+        Assert.Equal("Sweden", loadedNet.Nodeset.GetNodeAttributeString(3u, "country").Value);
+    }
+
+    // ── Cross-format: nodeset .tsv + network .bin ────────────────────────────────
+
+    [Fact]
+    public void SaveLoadNetwork_TsvNodeset_BinNetwork_EdgesPreserved()
+    {
+        // Nodeset saved as .tsv, network saved as .bin
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        string netPath = TempFile(".bin");
+        var saveResult = FileManager.Save(net, netPath);
+        Assert.True(saveResult.Success, $"Save failed: {saveResult.Message}");
+
+        var loadResult = FileManager.Load(netPath, "network");
+        Assert.True(loadResult.Success, $"Load failed: {loadResult.Message}");
+        var loadedNet = (Network)loadResult.Value!.MainStructure;
+
+        Assert.True(loadedNet.CheckEdgeExists("friends", 1, 2).Value);
+        Assert.True(loadedNet.CheckEdgeExists("friends", 2, 3).Value);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_TsvNodeset_BinNetwork_NodesetStillTsv()
+    {
+        // After saving the network as .bin, the nodeset file must remain TSV (not corrupted to BIN)
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        string netPath = TempFile(".bin");
+        FileManager.Save(net, netPath);
+
+        // A TSV nodeset file must start with the nodeset name (text), not binary magic bytes
+        string firstLine = File.ReadLines(nsPath).First();
+        Assert.Equal("test-ns", firstLine.Split('\t')[0]);
+    }
+
+    [Fact]
+    public void SaveLoadNetwork_TsvNodeset_BinNetwork_ModifiedNodesetResavedAsTsv()
+    {
+        // Modify nodeset after initial save; SaveNetwork (BIN) must re-save nodeset as TSV
+        var ns = MakeNodeset();
+        string nsPath = TempFile(".tsv");
+        FileManager.Save(ns, nsPath);
+
+        var net = MakeNetwork(ns);
+        ns.AddNode(99u);
+        Assert.True(ns.IsModified);
+
+        string netPath = TempFile(".bin");
+        var saveResult = FileManager.Save(net, netPath);
+        Assert.True(saveResult.Success, $"Save failed: {saveResult.Message}");
+
+        // Nodeset file must still be valid TSV (first column of first line is nodeset name)
+        string firstLine = File.ReadLines(nsPath).First();
+        Assert.Equal("test-ns", firstLine.Split('\t')[0]);
+
+        // Loading the network must yield the updated nodeset (node 99 present)
+        var loadResult = FileManager.Load(netPath, "network");
+        Assert.True(loadResult.Success);
+        var loadedNet = (Network)loadResult.Value!.MainStructure;
+        Assert.Contains(99u, loadedNet.Nodeset.NodeIdArray);
+    }
+
+    // ── Generators: re-running on a non-empty layer must clear first ──────────────
+
+    [Fact]
+    public void GenerateErdosRenyi_OnNonEmptyLayer_ClearsFirst()
+    {
+        // Running ER generator twice must produce the same edge count as once, not accumulate
+        var ns = new Nodeset("ns", 20);
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("layer", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+
+        Core.Processing.Generators.GenerateErdosRenyiLayer(net, "layer", 1.0);
+        ulong edgesFirst = net.Layers["layer"].NbrEdges;
+        Assert.True(edgesFirst > 0);
+
+        Core.Processing.Generators.GenerateErdosRenyiLayer(net, "layer", 1.0);
+        ulong edgesSecond = net.Layers["layer"].NbrEdges;
+
+        Assert.Equal(edgesFirst, edgesSecond);
+    }
+
+    [Fact]
+    public void GenerateBarabasiAlbert_OnNonEmptyLayer_ClearsFirst()
+    {
+        // Running BA generator twice on the same layer must not accumulate edges
+        var ns = new Nodeset("ns", 20);
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("layer", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+
+        Core.Processing.Generators.GenerateBarabasiAlbertLayer(net, "layer", 2);
+        ulong edgesFirst = net.Layers["layer"].NbrEdges;
+        Assert.True(edgesFirst > 0);
+
+        Core.Processing.Generators.GenerateBarabasiAlbertLayer(net, "layer", 2);
+        ulong edgesSecond = net.Layers["layer"].NbrEdges;
+
+        Assert.Equal(edgesFirst, edgesSecond);
+    }
+
+    [Fact]
+    public void GenerateRandomTwoMode_OnNonEmptyLayer_ClearsFirst()
+    {
+        // Running 2-mode generator twice must produce identical hyperedge count, not accumulated
+        var ns = new Nodeset("ns", 15);
+        var net = new Network("net", ns);
+        net.AddLayerTwoMode("layer");
+
+        Core.Processing.Generators.GenerateRandomTwoModeLayer(net, "layer", 5, 3);
+        uint hyperedgesFirst = ((Core.Model.LayerTwoMode)net.Layers["layer"]).NbrHyperedges;
+        Assert.True(hyperedgesFirst > 0);
+
+        Core.Processing.Generators.GenerateRandomTwoModeLayer(net, "layer", 5, 3);
+        uint hyperedgesSecond = ((Core.Model.LayerTwoMode)net.Layers["layer"]).NbrHyperedges;
+
+        Assert.Equal(hyperedgesFirst, hyperedgesSecond);
+    }
 }

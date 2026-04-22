@@ -16,7 +16,7 @@ namespace Threadle.Core.Analysis
         {
             if (walkfactor <= 0)
                 return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
-            if (maxSteps<= 0)
+            if (maxSteps <= 0)
                 return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero.");
 
             Nodeset nodeset = network.Nodeset;
