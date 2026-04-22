@@ -185,7 +185,7 @@ namespace Threadle.Core.Analysis
                 return stats;
 
             double mean = values.Average();
-            double variance = values.Sum(v => Math.Pow(v - mean, 2)) / (values.Count - 1);
+            double variance = values.Count > 1 ? values.Sum(v => Math.Pow(v - mean, 2)) / (values.Count - 1) : 0.0;
             double stdDev = Math.Sqrt(variance);
 
             float[] sorted = [.. values];
@@ -223,7 +223,7 @@ namespace Threadle.Core.Analysis
                 return stats;
 
             double mean = values.Average();
-            double variance = values.Sum(v => Math.Pow(v - mean, 2)) / (values.Count - 1);
+            double variance = values.Count > 1 ? values.Sum(v => Math.Pow(v - mean, 2)) / (values.Count - 1) : 0.0;
             double stdDev = Math.Sqrt(variance);
             int[] sorted = [.. values];
             Array.Sort(sorted);

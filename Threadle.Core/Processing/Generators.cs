@@ -21,6 +21,10 @@ namespace Threadle.Core.Processing
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateIntAttr(Nodeset nodeset, string attrName, int minValue, int maxValue)
         {
+            if (minValue > maxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'minvalue' ({minValue}) is greater than the 'maxvalue' ({maxValue}).");
+            if (maxValue == int.MaxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {int.MaxValue}).");
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Int);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
@@ -42,6 +46,10 @@ namespace Threadle.Core.Processing
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateFloatAttr(Nodeset nodeset, string attrName, float minValue, float maxValue)
         {
+            if (minValue > maxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'minvalue' ({minValue}) is greater than the 'maxvalue' ({maxValue}).");
+            if (maxValue == float.MaxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {float.MaxValue}).");
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Float);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
@@ -202,8 +210,8 @@ namespace Threadle.Core.Processing
             uint[] nodeIds = nodeset.NodeIdArray;
             int n = nodeIds.Length;
 
-            if (m < 0 || m > n)
-                return OperationResult.Fail("InvalidArgument", $"The attachment parameter (m) is {m}: it must be between 2 and the size of the network.");
+            if (m < 0 || m >= n)
+                return OperationResult.Fail("InvalidArgument", $"The attachment parameter (m) is {m}: it must be between 0 and the size of the network.");
 
             int totalEdges = (m * (m + 1)) / 2 + m * (n - m - 1);
 

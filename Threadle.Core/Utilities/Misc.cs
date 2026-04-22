@@ -172,6 +172,8 @@ namespace Threadle.Core.Utilities
         /// nodes, directionality, and self-loop allowance.</returns>
         internal static ulong GetNbrPotentialEdges(ulong n, EdgeDirectionality directionality, bool selfties)
         {
+            if (n == 0)
+                return 0;
             if (directionality == EdgeDirectionality.Directed)
                 return selfties ? n * n : n * (n - 1);
             else

@@ -482,6 +482,9 @@ namespace Threadle.Core.Utilities
         /// <param name="writer">The binary writer to write to</param>
         private static void WriteNetworkToFile(Network network, BinaryWriter writer)
         {
+            if (string.IsNullOrEmpty(network.Nodeset.Filepath))
+                throw new ArgumentException($"The Nodeset of the network '{network.Name}' must first be saved.");
+
             // MagicNetwork bytes (4)
             writer.Write(Encoding.ASCII.GetBytes(MagicNetwork));
 
