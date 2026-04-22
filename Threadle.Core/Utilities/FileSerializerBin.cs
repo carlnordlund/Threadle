@@ -171,9 +171,12 @@ namespace Threadle.Core.Utilities
                 throw new FileNotFoundException(
                     $"Nodeset file '{nodesetFilename}' not found in '{networkDir}'. The nodeset file must be in the same directory as the network file.");
 
-            // Load and initialize Nodeset:
+            // Load and initialize Nodeset using the format appropriate to the nodeset file,
+            // which may differ from the network's own format.
             FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(resolvedNodesetPath);
-            Nodeset nodeset = LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
+            Nodeset nodeset = (nodesetFormat == FileFormat.Tsv || nodesetFormat == FileFormat.TsvGzip)
+                ? FileSerializerTsv.LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat)
+                : LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
 
             // Create network with the recently loaded Nodeset
             Network network = new Network(networkName, nodeset);

@@ -235,7 +235,9 @@ namespace Threadle.Core.Utilities
                             $"Nodeset file '{nodesetFilename}' not found in '{networkDir}'. The nodeset file must be in the same directory as the network file.");
 
                     FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(resolvedNodesetPath);
-                    nodeset = LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
+                    nodeset = (nodesetFormat == FileFormat.Bin || nodesetFormat == FileFormat.BinGzip)
+                        ? FileSerializerBin.LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat)
+                        : LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
                     nodeset.IsModified = false;
                     continue;
                 }
