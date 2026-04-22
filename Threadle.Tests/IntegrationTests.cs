@@ -143,10 +143,12 @@ public class IntegrationTests : IDisposable
         Assert.Equal(3,  subnet.Layers.Count);
 
         // Every node in the subnet should still carry a "P" status.
+        // Use GetNodeAttribute because "Status" is a Char type, not a String type.
         foreach (uint nodeId in subnet.Nodeset.NodeIdArray)
         {
-            var r = subnet.Nodeset.GetNodeAttributeString(nodeId, "Status");
-            Assert.Equal("P", r.Value);
+            var r = subnet.Nodeset.GetNodeAttribute(nodeId, "Status");
+            Assert.True(r.Success, $"Node {nodeId}: missing Status attribute");
+            Assert.Equal("P", r.Value.Value.GetValue(r.Value.Type)?.ToString());
         }
     }
 
@@ -192,10 +194,12 @@ public class IntegrationTests : IDisposable
         var genResult = Generators.GenerateErdosRenyiLayer(net, "random", p: 0.05);
         Assert.True(genResult.Success, genResult.Message);
 
-        // Redirect the nodeset to a temp file so the original lazega_nodes.tsv is untouched.
+        // Save the nodeset to a temp file first so the original lazega_nodes.tsv is untouched.
+        // Saving separately also guarantees the file physically exists on disk before
+        // SaveNetwork writes the NodesetFile reference into the network file.
         string tempNsPath  = TempFile(".tsv");
         string tempNetPath = TempFile(".tsv");
-        net.Nodeset.Filepath = tempNsPath;
+        Assert.True(FileManager.Save(net.Nodeset, tempNsPath).Success, "Nodeset save failed");
 
         var saveResult = FileManager.Save(net, tempNetPath);
         Assert.True(saveResult.Success, saveResult.Message);
@@ -237,15 +241,17 @@ public class IntegrationTests : IDisposable
         Assert.True(subnetResult.Success, subnetResult.Message);
         Network bostonNet = subnetResult.Value!;
 
-        // Step 4: save the subnet (redirect nodeset so the original files are untouched).
+        // Step 4: save the subnet. Save the nodeset first so the original files are untouched
+        // and the nodeset file physically exists before the network file references it.
         string tempNsPath  = TempFile(".tsv");
         string tempNetPath = TempFile(".tsv");
-        bostonNet.Nodeset.Filepath = tempNsPath;
-
-        Assert.True(FileManager.Save(bostonNet, tempNetPath).Success);
+        Assert.True(FileManager.Save(bostonNet.Nodeset, tempNsPath).Success, "Nodeset save failed");
+        Assert.True(FileManager.Save(bostonNet, tempNetPath).Success, "Network save failed");
 
         // Step 5: reload and verify degree attributes survived.
-        var reloaded = (Network)FileManager.Load(tempNetPath, "network").Value!.MainStructure;
+        var loadResult = FileManager.Load(tempNetPath, "network");
+        Assert.True(loadResult.Success, loadResult.Message);
+        var reloaded = (Network)loadResult.Value!.MainStructure;
 
         foreach (uint nodeId in reloaded.Nodeset.NodeIdArray)
         {
