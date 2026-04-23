@@ -117,7 +117,7 @@ public class AnalysesTests
     {
         var net = MakeNetwork(3);
         AddUndirectedLayer(net, "layer");
-        var result = Analyses.ShortestPath(net, "layer", 1, 1);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 1);
         Assert.True(result.Success);
         Assert.Equal(0, result.Value);
     }
@@ -128,7 +128,7 @@ public class AnalysesTests
         var net = MakeNetwork(3);
         AddUndirectedLayer(net, "layer");
         net.AddEdge("layer", 1, 2);
-        var result = Analyses.ShortestPath(net, "layer", 1, 2);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 2);
         Assert.True(result.Success);
         Assert.Equal(1, result.Value);
     }
@@ -141,7 +141,7 @@ public class AnalysesTests
         AddUndirectedLayer(net, "layer");
         net.AddEdge("layer", 1, 2);
         net.AddEdge("layer", 2, 3);
-        var result = Analyses.ShortestPath(net, "layer", 1, 3);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
         Assert.Equal(2, result.Value);
     }
@@ -153,7 +153,7 @@ public class AnalysesTests
         var net = MakeNetwork(3);
         AddUndirectedLayer(net, "layer");
         net.AddEdge("layer", 1, 2);
-        var result = Analyses.ShortestPath(net, "layer", 1, 3);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
         Assert.Equal(-1, result.Value);
     }
@@ -166,8 +166,8 @@ public class AnalysesTests
         AddDirectedLayer(net, "layer");
         net.AddEdge("layer", 1, 2);
         net.AddEdge("layer", 2, 3);
-        var forwardResult = Analyses.ShortestPath(net, "layer", 1, 3);
-        var reverseResult = Analyses.ShortestPath(net, "layer", 3, 1);
+        var forwardResult = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
+        var reverseResult = Analyses.ShortestPath(net, new[] { "layer" }, 3, 1);
         Assert.Equal(2, forwardResult.Value);
         Assert.Equal(-1, reverseResult.Value);
     }
@@ -177,7 +177,7 @@ public class AnalysesTests
     {
         var net = MakeNetwork(3);
         AddUndirectedLayer(net, "layer");
-        var result = Analyses.ShortestPath(net, "layer", 1, 999);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 999);
         Assert.False(result.Success);
     }
 
@@ -194,6 +194,35 @@ public class AnalysesTests
         var result = Analyses.ShortestPath(net, null, 1, 3);
         Assert.True(result.Success);
         Assert.Equal(2, result.Value);
+    }
+
+    [Fact]
+    public void ShortestPath_SpecificLayerSubset_OnlyUsesNamedLayers()
+    {
+        // 1–2 in A, 2–3 in B, 3–4 in C; path 1→4 requires A+B+C
+        // If only A+B are specified, node 4 should be unreachable
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "A");
+        AddUndirectedLayer(net, "B");
+        AddUndirectedLayer(net, "C");
+        net.AddEdge("A", 1, 2);
+        net.AddEdge("B", 2, 3);
+        net.AddEdge("C", 3, 4);
+        var fullResult = Analyses.ShortestPath(net, new[] { "A", "B", "C" }, 1, 4);
+        var partialResult = Analyses.ShortestPath(net, new[] { "A", "B" }, 1, 4);
+        Assert.True(fullResult.Success);
+        Assert.Equal(3, fullResult.Value);
+        Assert.True(partialResult.Success);
+        Assert.Equal(-1, partialResult.Value);
+    }
+
+    [Fact]
+    public void ShortestPath_SpecificLayers_NonExistentLayerName_Fails()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "A");
+        var result = Analyses.ShortestPath(net, new[] { "A", "ghost" }, 1, 3);
+        Assert.False(result.Success);
     }
 
     // ── DegreeCentralities ───────────────────────────────────────────────────────
@@ -628,7 +657,7 @@ public class AnalysesTests
         net.AddEdge("layer", 2, 3);
         net.Pack("layer");
 
-        var result = Analyses.ShortestPath(net, "layer", 1, 2);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 2);
         Assert.True(result.Success);
         Assert.Equal(1, result.Value);
     }
@@ -642,7 +671,7 @@ public class AnalysesTests
         net.AddEdge("layer", 2, 3);
         net.Pack("layer");
 
-        var result = Analyses.ShortestPath(net, "layer", 1, 3);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
         Assert.Equal(2, result.Value);
     }
@@ -656,7 +685,7 @@ public class AnalysesTests
         // node 3 is isolated
         net.Pack("layer");
 
-        var result = Analyses.ShortestPath(net, "layer", 1, 3);
+        var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
         Assert.Equal(-1, result.Value);
     }
@@ -671,9 +700,9 @@ public class AnalysesTests
         net.AddEdge("layer", 2, 3);
         net.AddEdge("layer", 3, 4);
 
-        var dynResult = Analyses.ShortestPath(net, "layer", 1, 4);
+        var dynResult = Analyses.ShortestPath(net, new[] { "layer" }, 1, 4);
         net.Pack("layer");
-        var staticResult = Analyses.ShortestPath(net, "layer", 1, 4);
+        var staticResult = Analyses.ShortestPath(net, new[] { "layer" }, 1, 4);
 
         Assert.True(dynResult.Success);
         Assert.True(staticResult.Success);
@@ -689,8 +718,8 @@ public class AnalysesTests
         net.AddEdge("layer", 2, 3);
         net.Pack("layer");
 
-        var forward = Analyses.ShortestPath(net, "layer", 1, 3);
-        var reverse = Analyses.ShortestPath(net, "layer", 3, 1);
+        var forward = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
+        var reverse = Analyses.ShortestPath(net, new[] { "layer" }, 3, 1);
 
         Assert.True(forward.Success);
         Assert.Equal(2, forward.Value);

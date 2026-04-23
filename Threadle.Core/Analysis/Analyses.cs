@@ -73,71 +73,51 @@ namespace Threadle.Core.Analysis
         /// <param name="nodeIdFrom">The source node id.</param>
         /// <param name="nodeIdTo">The destination node id.</param>
         /// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
-        public static OperationResult<int> ShortestPath(Network network, string? layerName, uint nodeIdFrom, uint nodeIdTo)
+        public static OperationResult<int> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo)
         {
             OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
             if (!nodeCheckResult.Success)
                 return OperationResult<int>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
             if (nodeIdFrom == nodeIdTo)
                 return OperationResult<int>.Ok(0);
+
+            List<ILayer> resolvedLayers = [];
+            // If no layerNames specified (i.e. null), use all layers
+            if (layerNames == null)
+                resolvedLayers.AddRange(network.Layers.Values);
             else
             {
-                Queue<uint> queue = [];
-                HashSet<uint> visited = [];
-                Dictionary<uint, int> distances = [];
-                uint current;
-
-                if (layerName != null && layerName.Length > 0)
+                foreach (string layerName in layerNames)
                 {
                     var layerResult = network.GetLayer(layerName);
                     if (!layerResult.Success)
                         return OperationResult<int>.Fail(layerResult);
-                    var layer = layerResult.Value!;
-
-                    queue.Enqueue(nodeIdFrom);
-                    visited.Add(nodeIdFrom);
-                    distances[nodeIdFrom] = 0;
-
-                    while (queue.Count > 0)
-                    {
-                        current = queue.Dequeue();
-                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
-                        {
-                            if (!visited.Contains(neighborId))
-                            {
-                                visited.Add(neighborId);
-                                distances[neighborId] = distances[current] + 1;
-                                if (neighborId == nodeIdTo)
-                                    return OperationResult<int>.Ok(distances[neighborId]);
-                                queue.Enqueue(neighborId);
-                            }
-                        }
-                    }
-                    return OperationResult<int>.Ok(-1);
-                }
-                else
-                {
-                    queue.Enqueue(nodeIdFrom);
-                    visited.Add(nodeIdFrom);
-                    distances[nodeIdFrom] = 0;
-                    while (queue.Count > 0)
-                    {
-                        current = queue.Dequeue();
-                        foreach (uint neighborId in network._getNodeAltersAllLayers(current, EdgeTraversal.Out))
-                        {
-                            if (!visited.Contains(neighborId))
-                            {
-                                visited.Add(neighborId);
-                                distances[neighborId] = distances[current] + 1;
-                                if (neighborId == nodeIdTo)
-                                    return OperationResult<int>.Ok(distances[neighborId]);
-                                queue.Enqueue(neighborId);
-                            }
-                        }
-                    }
-                    return OperationResult<int>.Ok(-1);
+                    resolvedLayers.Add(layerResult.Value!);
                 }
             }
+
+            Queue<uint> queue = [];
+            HashSet<uint> visited = [];
+            Dictionary<uint, int> distances = [];
+            queue.Enqueue(nodeIdFrom);
+            visited.Add(nodeIdFrom);
+            distances[nodeIdFrom] = 0;
+            while (queue.Count > 0)
+            {
+                uint current = queue.Dequeue();
+                foreach (uint neighborId in resolvedLayers.SelectMany(l => l.GetNodeAlters(current, EdgeTraversal.Out)))
+                {
+                    if (!visited.Contains(neighborId))
+                    {
+                        visited.Add(neighborId);
+                        distances[neighborId] = distances[current] + 1;
+                        if (neighborId == nodeIdTo)
+                            return OperationResult<int>.Ok(distances[neighborId]);
+                        queue.Enqueue(neighborId);
+                    }
+                }
+            }
+            return OperationResult<int>.Ok(-1);
         }
 
         /// <summary>
