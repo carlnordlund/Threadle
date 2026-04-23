@@ -11,9 +11,123 @@ namespace Threadle.Core.Analysis
 {
     public static class Distance
     {
+        public static OperationResult<StructureResult> ShortestPathsNodeAttributeDistances(Network network, string attrName, string[]? layerNames)
+        {
+            if (CheckLayersExist(network, layerNames) is OperationResult result)
+                return OperationResult<StructureResult>.Fail(result);
+
+            Nodeset nodeset = network.Nodeset;
+            var categoryResult = BuildCategoryNodeset(network, attrName);
+            if (!categoryResult.Success)
+                return OperationResult<StructureResult>.Fail(categoryResult);
+            CategoryNodeset cat = categoryResult.Value;
+            Nodeset nodesetResults = cat.Nodeset;
+            Dictionary<string, uint> labelToNodeId = cat.LabelToNodeId;
+            string[] labels = cat.Labels;
+            NodeAttributeType attrType = cat.AttrType;
+            byte attrIndex = cat.AttrIndex;
+
+            List<ILayer> resolvedLayers = [];
+            if (layerNames == null)
+                resolvedLayers.AddRange(network.Layers.Values);
+            else
+                foreach (string ln in layerNames)
+                {
+                    var lr = network.GetLayer(ln);
+                    if (!lr.Success)
+                        return OperationResult<StructureResult>.Fail(lr);
+                    resolvedLayers.Add(lr.Value!);
+                }
+
+            string GetCategoryString(uint nodeId) => nodeset.GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue nav
+                ? (attrType == NodeAttributeType.String
+                    ? nodeset.GetStringFromPool((int)nav.GetValue(attrType)!)
+                    : nav.ToString(attrType))
+                : "(missing)";
+
+            Dictionary<(uint from, uint to), (double sum, double sumSq, int count)> distDict = [];
+            uint[] allNodeIds = nodeset.NodeIdArray;
+
+            foreach (uint sourceNodeId in allNodeIds)
+            {
+                if (!labelToNodeId.TryGetValue(GetCategoryString(sourceNodeId), out uint sourceCatId))
+                    continue;
+
+                // BFS from sourceNodeId; use distances dict as visited set
+                Queue<uint> queue = [];
+                Dictionary<uint, int> distances = [];
+                queue.Enqueue(sourceNodeId);
+                distances[sourceNodeId] = 0;
+                while (queue.Count > 0)
+                {
+                    uint current = queue.Dequeue();
+                    int nextDist = distances[current] + 1;
+                    foreach (uint neighborId in resolvedLayers.SelectMany(l => l.GetNodeAlters(current, EdgeTraversal.Out)))
+                    {
+                        if (!distances.ContainsKey(neighborId))
+                        {
+                            distances[neighborId] = nextDist;
+                            queue.Enqueue(neighborId);
+                        }
+                    }
+                }
+
+                foreach (uint targetNodeId in allNodeIds)
+                {
+                    if (targetNodeId == sourceNodeId)
+                        continue;
+                    if (!distances.TryGetValue(targetNodeId, out int dist))
+                        continue;
+                    if (!labelToNodeId.TryGetValue(GetCategoryString(targetNodeId), out uint targetCatId))
+                        continue;
+                    double d = dist;
+                    var key = (sourceCatId, targetCatId);
+                    if (distDict.TryGetValue(key, out var existing))
+                        distDict[key] = (existing.sum + d, existing.sumSq + d * d, existing.count + 1);
+                    else
+                        distDict[key] = (d, d * d, 1);
+                }
+            }
+
+            Network networkResults = new Network(attrName + "_sp_results", nodesetResults);
+            LayerOneMode avgLayer = new LayerOneMode(attrName + "_sp_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode seLayer = new LayerOneMode(attrName + "_sp_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode countLayer = new LayerOneMode(attrName + "_sp_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
+
+            foreach (var kvp in distDict)
+            {
+                float mean = (float)(kvp.Value.sum / kvp.Value.count);
+                float variance = kvp.Value.count > 1
+                    ? (float)((kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1))
+                    : 0f;
+                float se = (float)(Math.Sqrt(Math.Max(0f, variance)) / Math.Sqrt(kvp.Value.count));
+                avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
+                seLayer.AddEdge(kvp.Key.from, kvp.Key.to, se);
+                countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
+            }
+
+            networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(seLayer.Name, seLayer);
+            networkResults.Layers.Add(countLayer.Name, countLayer);
+
+            StructureResult structureResult = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
+            int totalPairs = distDict.Values.Sum(v => v.count);
+            return OperationResult<StructureResult>.Ok(structureResult, $"Shortest paths computed. {labels.Length} unique attribute values, {totalPairs} reachable node pairs.");
+
+
+
+
+
+
+            throw new NotImplementedException();
+        }
+
 
         public static OperationResult<StructureResult> RandomWalkNodeAttributeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor = 1.0f, bool balanced = false, bool weighted = false, bool backtrack = false, bool savesteps = false)
         {
+            if (CheckLayersExist(network, layers) is OperationResult result)
+                return OperationResult<StructureResult>.Fail(result);
+
             if (walkfactor <= 0)
                 return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
             if (maxSteps <= 0)
@@ -21,7 +135,7 @@ namespace Threadle.Core.Analysis
 
             Nodeset nodeset = network.Nodeset;
 
-            var categoryResult = BuildCategoryNodeset(network, attrName, layers);
+            var categoryResult = BuildCategoryNodeset(network, attrName);
             if (!categoryResult.Success)
                 return OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message);
             CategoryNodeset cat = categoryResult.Value;
@@ -176,12 +290,15 @@ namespace Threadle.Core.Analysis
 
         public static OperationResult<StructureResult> RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
         {
+            if (CheckLayersExist(network, layers) is OperationResult result)
+                return OperationResult<StructureResult>.Fail(result);
+
             if (walkfactor <= 0)
                 return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
             if (maxSteps <= 0)
                 return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero.");
             Nodeset nodeset = network.Nodeset;
-            var categoryResult = BuildCategoryNodeset(network, attrName, layers);
+            var categoryResult = BuildCategoryNodeset(network, attrName);
             if (!categoryResult.Success)
                 return OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message);
             CategoryNodeset cat = categoryResult.Value;
@@ -312,7 +429,16 @@ namespace Threadle.Core.Analysis
             return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
         }
 
-        private static OperationResult<CategoryNodeset> BuildCategoryNodeset(Network network, string attrName, string[]? layers)
+        private static OperationResult? CheckLayersExist(Network network, string[]? layers)
+        {
+            if (layers != null)
+                foreach (string layerName in layers)
+                    if (!network.Layers.ContainsKey(layerName))
+                        return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' not found in network '{network.Name}'.");
+            return null;
+        }
+
+        private static OperationResult<CategoryNodeset> BuildCategoryNodeset(Network network, string attrName)
         {
             Nodeset nodeset = network.Nodeset;
             var nodeAttributeInfo = nodeset.NodeAttributeDefinitionManager.GetNodeAttributeDefinition(attrName);
@@ -324,11 +450,6 @@ namespace Threadle.Core.Analysis
 
             if (attrType != NodeAttributeType.String && attrType != NodeAttributeType.Char && attrType != NodeAttributeType.Int && attrType != NodeAttributeType.Bool)
                 return OperationResult<CategoryNodeset>.Fail("InvalidAttributeType", $"Attribute '{attrName}' is of type '{attrType}': must be char, integer, bool, or string.");
-
-            if (layers != null)
-                foreach (string layerName in layers)
-                    if (!network.Layers.ContainsKey(layerName))
-                        return OperationResult<CategoryNodeset>.Fail("LayerNotFound", $"Layer '{layerName}' not found in network '{network.Name}'.");
 
             HashSet<string> uniqueAttrValues = [];
             bool hasMissingValues = false;
