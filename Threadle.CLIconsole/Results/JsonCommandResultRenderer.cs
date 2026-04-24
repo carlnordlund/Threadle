@@ -27,17 +27,20 @@ namespace Threadle.CLIconsole.Results
         /// assigned values.</param>
         public void Render(CommandResult result)
         {
-            object toSerialize = CLISettings.Verbose
-                ? result
-                : new
-                {
-                    result.Success,
-                    result.Code,
-                    result.Payload,
-                    result.Assigned
-                };
+            ConsoleOutput.WriteLine(JsonSerializer.Serialize(result, Options), true);
 
-            ConsoleOutput.WriteLine(JsonSerializer.Serialize(toSerialize, Options), true);
+            //object toSerialize = CLISettings.Verbose
+            //    ? result
+            //    : new
+            //    {
+            //        result.Success,
+            //        result.Code,
+            //        result.Message,
+            //        result.Payload,
+            //        result.Assigned
+            //    };
+
+            //ConsoleOutput.WriteLine(JsonSerializer.Serialize(toSerialize, Options), true);
         }
 
         /// <summary>
