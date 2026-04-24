@@ -113,13 +113,6 @@ namespace Threadle.Core.Analysis
             StructureResult structureResult = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
             int totalPairs = distDict.Values.Sum(v => v.count);
             return OperationResult<StructureResult>.Ok(structureResult, $"Shortest paths computed. {labels.Length} unique attribute values, {totalPairs} reachable node pairs.");
-
-
-
-
-
-
-            throw new NotImplementedException();
         }
 
 
