@@ -128,7 +128,7 @@ namespace Threadle.Core.Processing
                     {
                         float valueToAssign = float.IsNaN(falseValue) ? edgeValue : falseValue;
                         if (!IsZeroOrOne(valueToAssign) || valueToAssign != 0f)
-                            newLayer.AddEdge(nodeId, alters.Span[i], valueToAssign);
+                            newLayer._addEdge(nodeId, alters.Span[i], valueToAssign);
                     }
                 }
             network.AddLayer(newLayerName, newLayer);

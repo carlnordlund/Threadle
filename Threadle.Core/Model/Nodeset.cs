@@ -80,6 +80,7 @@ namespace Threadle.Core.Model
             Name = name;
             NodeAttributeDefinitionManager = new NodeAttributeDefinitionManager();
             _nodesWithoutAttributes = nodeIds;
+            IsModified = false;
         }
         #endregion
 
@@ -424,7 +425,7 @@ namespace Threadle.Core.Model
             offset = (offset < 0) ? 0 : offset;
             limit = (limit < 0) ? 0 : limit;
             uint[] allNodes = NodeIdArray;
-            int total = NodeIdArray.Length;
+            int total = allNodes.Length;
             var nodes = allNodes.Skip(offset).Take(limit).ToList();
             string message;
             if (total == 0)

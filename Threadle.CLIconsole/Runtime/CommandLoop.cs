@@ -115,7 +115,6 @@ namespace Threadle.CLIconsole.Runtime
                     renderer.RenderException(ex);
                 }
             }
-            ConsoleOutput.WriteLine("Exiting...");
         }
         #endregion
     }

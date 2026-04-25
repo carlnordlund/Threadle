@@ -480,14 +480,14 @@ namespace Threadle.Core.Analysis
         {
             string[] allNames = layerTwoMode.GetAllHyperedgeNames(0, (int)Math.Min(layerTwoMode.NbrHyperedges, int.MaxValue));
             List<string> validNames = [];
-            List<int> weights = [];
+            List<long> weights = [];
             long totalWeight = 0;
             foreach (string name in allNames)
             {
                 int k = layerTwoMode.GetHyperedgeNodeIds(name).Length;
                 if (k >= 2)
                 {
-                    int weight = k * (k - 1) / 2;
+                    long weight = k * (k - 1) / 2;
                     validNames.Add(name);
                     weights.Add(weight);
                     totalWeight += weight;
