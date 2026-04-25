@@ -487,7 +487,7 @@ namespace Threadle.Core.Analysis
                 int k = layerTwoMode.GetHyperedgeNodeIds(name).Length;
                 if (k >= 2)
                 {
-                    long weight = k * (k - 1) / 2;
+                    long weight = (long)k * (k - 1) / 2;
                     validNames.Add(name);
                     weights.Add(weight);
                     totalWeight += weight;

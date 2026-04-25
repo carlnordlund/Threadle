@@ -62,14 +62,15 @@ namespace Threadle.Core.Analysis
                 {
                     uint current = queue.Dequeue();
                     int nextDist = distances[current] + 1;
-                    foreach (uint neighborId in resolvedLayers.SelectMany(l => l.GetNodeAlters(current, EdgeTraversal.Out)))
-                    {
-                        if (!distances.ContainsKey(neighborId))
+                    foreach (var layer in resolvedLayers)
+                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
                         {
-                            distances[neighborId] = nextDist;
-                            queue.Enqueue(neighborId);
+                            if (!distances.ContainsKey(neighborId))
+                            {
+                                distances[neighborId] = nextDist;
+                                queue.Enqueue(neighborId);
+                            }
                         }
-                    }
                 }
 
                 foreach (uint targetNodeId in allNodeIds)
@@ -360,7 +361,8 @@ namespace Threadle.Core.Analysis
                 Dictionary<uint, List<uint>> categoryToNodes = [];
                 foreach (uint nodeId in nodeset.NodeIdArray)
                 {
-                    uint catId = nodeAttributeStringToNodeId[GetCategoryString(nodeId)];
+                    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(nodeId), out uint catId))
+                        continue;
                     if (!categoryToNodes.TryGetValue(catId, out var nodeList))
                         categoryToNodes[catId] = nodeList = [];
                     nodeList.Add(nodeId);

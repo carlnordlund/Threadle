@@ -122,7 +122,7 @@ namespace Threadle.Core.Processing
                     if (Misc.CompareValues<float>(edgeValue, threshold, conditionType))
                     {
                         float valueToAssign = float.IsNaN(trueValue) ? edgeValue : trueValue;
-                        newLayer.AddEdge(nodeId, alters.Span[i], valueToAssign);
+                        newLayer._addEdge(nodeId, alters.Span[i], valueToAssign);
                     }
                     else
                     {
@@ -131,6 +131,8 @@ namespace Threadle.Core.Processing
                             newLayer._addEdge(nodeId, alters.Span[i], valueToAssign);
                     }
                 }
+            newLayer._sortEdgesets();
+            newLayer._deduplicateEdgesets();
             network.AddLayer(newLayerName, newLayer);
             return OperationResult.Ok($"Dichotomized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
