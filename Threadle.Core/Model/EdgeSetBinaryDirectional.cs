@@ -120,7 +120,7 @@ namespace Threadle.Core.Model
         public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
         {
             if (UserSettings.BlockMultiedges && _outbound.Contains(partnerNodeId))
-                return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)"); ;
+                return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _outbound.Add(partnerNodeId);
             return OperationResult.Ok();
         }

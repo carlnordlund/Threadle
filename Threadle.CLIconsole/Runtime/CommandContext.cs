@@ -107,12 +107,13 @@ namespace Threadle.CLIconsole.Runtime
             if (!Variables.ContainsKey(baseName))
                 return baseName;
             int i = 1;
-            while (true)
+            while (true && i < 10000)
             {
                 if (!Variables.ContainsKey(baseName + i))
                     return baseName + i;
                 i++;
             }
+            throw new InvalidOperationException($"!Error: Max incremental name counter reached: {i}");
         }
 
         /// <summary>

@@ -48,8 +48,10 @@ namespace Threadle.Core.Processing
         {
             if (minValue > maxValue)
                 return OperationResult.Fail("ArgumentOutOfRange", $"The 'minvalue' ({minValue}) is greater than the 'maxvalue' ({maxValue}).");
-            if (maxValue == float.MaxValue)
-                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {float.MaxValue}).");
+
+            if ((double)maxValue - (double)minValue > (double)float.MaxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", "The range between 'minvalue' and 'maxvalue' is too large.");
+
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Float);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
@@ -215,9 +217,9 @@ namespace Threadle.Core.Processing
             if (m < 0 || m >= n)
                 return OperationResult.Fail("InvalidArgument", $"The attachment parameter (m) is {m}: it must be between 0 and the size of the network.");
 
-            int totalEdges = (m * (m + 1)) / 2 + m * (n - m - 1);
+            long totalEdges = (long)m * (m + 1) / 2 + m * (n - m - 1);
 
-            List<uint> edgeEndpoints = new List<uint>(2 * totalEdges);
+            List<uint> edgeEndpoints = new List<uint>((int)Math.Min(2 * totalEdges, int.MaxValue));
 
             // Create initial clique with first m+1 nodes
             for (int i = 0; i <= m; i++)

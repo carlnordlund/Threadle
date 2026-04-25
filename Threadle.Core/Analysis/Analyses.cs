@@ -105,17 +105,18 @@ namespace Threadle.Core.Analysis
             while (queue.Count > 0)
             {
                 uint current = queue.Dequeue();
-                foreach (uint neighborId in resolvedLayers.SelectMany(l => l.GetNodeAlters(current, EdgeTraversal.Out)))
-                {
-                    if (!visited.Contains(neighborId))
+                foreach (var layer in resolvedLayers)
+                    foreach (uint neighborId in layer.GetNodeAlters(current,EdgeTraversal.Out))
                     {
-                        visited.Add(neighborId);
-                        distances[neighborId] = distances[current] + 1;
-                        if (neighborId == nodeIdTo)
-                            return OperationResult<int>.Ok(distances[neighborId]);
-                        queue.Enqueue(neighborId);
+                        if (!visited.Contains(neighborId))
+                        {
+                            visited.Add(neighborId);
+                            distances[neighborId] = distances[current] + 1;
+                            if (neighborId == nodeIdTo)
+                                return OperationResult<int>.Ok(distances[neighborId]);
+                            queue.Enqueue(neighborId);
+                        }
                     }
-                }
             }
             return OperationResult<int>.Ok(-1);
         }
@@ -187,7 +188,7 @@ namespace Threadle.Core.Analysis
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
-                return OperationResult<string>.Fail(layerResult);
+                return OperationResult.Fail(layerResult.Code, layerResult.Message);
             ILayer layer = layerResult.Value!;
             Dictionary<uint, uint> degreeMapping = [];
             if (layer is ILayerOneMode layerOneMode)

@@ -486,7 +486,7 @@ namespace Threadle.Core.Model
         internal void _addEdge(uint node1Id, uint node2Id, float value = 1)
         {
             GetOrCreateEdgeset(node1Id)._addOutboundEdge(node2Id, value);
-            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+            if ((IsSymmetric && node1Id != node2Id) || (!IsSymmetric && !UserSettings.OnlyOutboundEdges))
                 GetOrCreateEdgeset(node2Id)._addInboundEdge(node1Id, value);
         }
 
