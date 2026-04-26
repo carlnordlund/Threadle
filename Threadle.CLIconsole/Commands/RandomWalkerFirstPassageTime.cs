@@ -14,7 +14,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:network] = rwfpt(network = [var:network], attrname = [str], maxsteps = [uint], *layernames = [semicolon-separated], *walkfactor = [float(default=1.0)], *minpairobs = [int(default=10)], *balanced = ['false'(default),'true'], *weighted = ['false'(default),'true'])";
+        public string Syntax => "[var:network] = rwfpt(network = [var:network], attrname = [str], maxsteps = [int], *layernames = [semicolon-separated], *walkfactor = [float(default=1.0)], *minpairobs = [int(default=10)], *balanced = ['false'(default),'true'], *weighted = ['false'(default),'true'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
