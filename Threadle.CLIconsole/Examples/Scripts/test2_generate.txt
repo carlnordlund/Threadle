@@ -66,13 +66,17 @@ getnodealters(net100M,nodeid=950000,layernames=ba;ws)
 
 # Calculating shortest paths between two nodes:
 # First per layer:
-shortestpath(net100M, node1id=12345, node2id=567890, layername=ws)
+shortestpath(net100M, node1id=12345, node2id=567890, layernames=ws)
 # 5 steps
-shortestpath(net100M, node1id=12345, node2id=567890, layername=ba)
+shortestpath(net100M, node1id=12345, node2id=567890, layernames=ba)
 # 4 steps
-shortestpath(net100M, node1id=12345, node2id=567890, layername=er)
+# Let's try shortest paths using two layers: ws and ba
+shortestpath(net100M, node1id=12345, node2id=567890, layernames=ws;ba)
 # 3 steps
-shortestpath(net100M, node1id=12345, node2id=567890, layername=twomode)
+# So combined it is shorter
+shortestpath(net100M, node1id=12345, node2id=567890, layernames=er)
+# 3 steps
+shortestpath(net100M, node1id=12345, node2id=567890, layernames=twomode)
 # 2 steps
 
 # All layers:
@@ -83,9 +87,15 @@ shortestpath(net100M, node1id=12345, node2id=567890)
 degree(net100M, ba)
 # This will place node degrees in a new int-type node attribute called 'ba_degree'
 
-# NOTE: Don't use degree() with the 'twomode' layer: that will take a lot of time!
-# For 2-mode layers: Degree distributions are better determined by sampling;
-# individual degrees by getting node alters
+# NOTE: Using degree() with the 'twomode' layer will take a lot of time for large networks!
+# For 2-mode layers: Degree distributions are better determined by sampling individual nodes
+# Use 'getdegree()' to get the degree of individual nodes: then 2-mode works nicely:
+
+getdegree(net100M, 12345, layernames = ws)
+# 51
+
+getdegree(net100M, 12345, layernames = twomode)
+# 9507
 
 # Get a summary about the 'ba_degree' node attribute
 getattrsummary(nodes1M,ba_degree)

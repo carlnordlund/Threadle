@@ -32,6 +32,8 @@
         /// Returns a dictionary of information about the structure (e.g. used by the Info CLI command)
         /// </summary>
         Dictionary<string, object> Info { get; }
+
+        long GetEstimatedBytes();
         #endregion
     }
 }

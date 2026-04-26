@@ -1,7 +1,11 @@
-﻿using System.IO.Compression;
+﻿using System.Buffers.Binary;
+using System.Dynamic;
+using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Text;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities.Enums;
 
 namespace Threadle.Core.Utilities
 {
@@ -25,8 +29,11 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Future-looking: if we ever were to change the file format later on, this is format version 1.
         /// Then additional readers can be implemented for would-be future format versions.
+        /// 
+        /// Version 2: allowing more than 255 layers in networks
+        /// Version 3: allowing saving string node attributes (with string pool before nodes in Nodeset)
         /// </summary>
-        private const byte FormatVersion = 1;
+        private const byte FormatVersion = 3;
         #endregion
 
 
@@ -80,13 +87,13 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">The file to load the Nodeset from.</param>
         /// <param name="format">The <see cref="FileFormat"/> to use.</param>
         /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset objects.</returns>
-        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format)
+        internal static StructureResult LoadNetworkFromFile(string filepath, FileFormat format, bool packLayers = false)
         {
             using var fileStream = File.OpenRead(filepath);
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new BinaryReader(buffered);
-            return ReadNetworkFromFile(filepath, reader);
+            return ReadNetworkFromFile(filepath, reader, packLayers);
         }
 
         /// <summary>
@@ -135,7 +142,7 @@ namespace Threadle.Core.Utilities
         /// <param name="reader">The binary reader to read from.</param>
         /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset.</returns>
         /// <exception cref="InvalidDataException">Thrown if the binary file isn't a Threadle Network file or if it is the wrong version.</exception>
-        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader)
+        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader, bool packLayers)
         {
             // Check magic bytes - should be the MagicNetwork characters (TNTW)
             var magicBytes = reader.ReadBytes(4);
@@ -145,25 +152,45 @@ namespace Threadle.Core.Utilities
 
             // Check file version - should be the same as here implemented
             byte version = reader.ReadByte();
-            if (version != FormatVersion)
-                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
+            // Okay with commented-out check here: this reader should handle all versions, with corresponding if-statements
+            // where necessary
+            //if (version != FormatVersion)
+                //throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
 
             // Get Network name
             string networkName = ReadString(reader);
 
-            // Get Nodeset filepath (compulsory here)
-            string nodesetFilepath = ReadString(reader);
+            // Get Nodeset filepath (compulsory here): just read as a string
+            string nodesetFilename = ReadString(reader);
 
-            // Load and initialize Nodeset:
-            FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(nodesetFilepath);
-            Nodeset nodeset = LoadNodesetFromFile(nodesetFilepath, nodesetFormat);
+            // If this is empty or contains any illegal characters, then throw an exception
+            if (nodesetFilename.Length == 0
+                || nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+                || nodesetFilename.Contains('/')
+                || nodesetFilename.Contains('\\'))
+                throw new InvalidDataException("Nodeset filename in network file contains invalid characters.");
+
+            // Build up a resolved filepath to the nodeset, which then uses the dame filepath as for the network file
+            string networkDir = Path.GetDirectoryName(Path.GetFullPath(filepath))!;
+            string resolvedNodesetPath = Path.Combine(networkDir, nodesetFilename);
+
+            if (!File.Exists(resolvedNodesetPath))
+                throw new FileNotFoundException(
+                    $"Nodeset file '{nodesetFilename}' not found in '{networkDir}'. The nodeset file must be in the same directory as the network file.");
+
+            // Load and initialize Nodeset using the format appropriate to the nodeset file,
+            // which may differ from the network's own format.
+            FileFormat nodesetFormat = Misc.GetFileFormatFromFileEnding(resolvedNodesetPath);
+            Nodeset nodeset = (nodesetFormat == FileFormat.Tsv || nodesetFormat == FileFormat.TsvGzip)
+                ? FileSerializerTsv.LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat)
+                : LoadNodesetFromFile(resolvedNodesetPath, nodesetFormat);
 
             // Create network with the recently loaded Nodeset
             Network network = new Network(networkName, nodeset);
             network.Filepath = filepath;
 
-            // Get nbr Layers
-            int nbrLayers = reader.ReadByte();
+            // Get nbr Layers: for version 1, just read a byte, for version 2: read a 32-bit int
+            int nbrLayers = version == 1 ? reader.ReadByte() : reader.ReadInt32();
 
             // Loop through the layers to load
             for (int i = 0; i < nbrLayers; i++)
@@ -173,95 +200,84 @@ namespace Threadle.Core.Utilities
                 if (mode == 1)
                 {
                     // Get properties of the 1-mode layer
-                    EdgeDirectionality edgeDirectionality = (EdgeDirectionality)reader.ReadByte();
-                    EdgeType edgeType = (EdgeType)reader.ReadByte();
+                    EdgeDirectionality edgeDirectionality = reader.ReadByte() switch
+                    {
+                        0 => EdgeDirectionality.Directed,
+                        1 => EdgeDirectionality.Undirected,
+                        _ => throw new InvalidDataException($"Invalid directionality type for layer '{layerName}'.")
+                    };
+
+                    EdgeType edgeType = reader.ReadByte() switch
+                    {
+                        0 => EdgeType.Binary,
+                        1 => EdgeType.Valued,
+                        _ => throw new InvalidDataException($"Invalid edge type for layer '{layerName}'.")
+                    };
+
                     bool selfties = reader.ReadBoolean();
-
-                    // Create 1-mode layer
-                    LayerOneMode layerOneMode = new LayerOneMode(layerName, edgeDirectionality, edgeType, selfties);
-
-                    // Add it to network's layers
-                    network.Layers.Add(layerName, layerOneMode);
 
                     // Get nbr of nodelist rows
                     int nbrEdgesets = reader.ReadInt32();
 
-                    // Initialize the capacity of the Edgeset dictionary
-                    layerOneMode._initSizeEdgesetDictionary(nbrEdgesets);
-
-                    if (layerOneMode.IsBinary)
+                    ILayer layer;
+                    if (edgeType == EdgeType.Binary)
                     {
-                        // Looping for binary nodelist rows
-                        for (uint j = 0; j < nbrEdgesets; j++)
+                        var rows = new List<(uint ego, uint[] alters)>(nbrEdgesets);
+                        for (int j = 0; j < nbrEdgesets; j++)
                         {
-                            // Get ego of nodelist row
                             uint nodeIdEgo = reader.ReadUInt32();
-
-                            // Get nbr of alters
                             int nbrAlters = reader.ReadInt32();
-
-                            // Prepare array of alters
+                            if (nbrAlters < 0 || nbrAlters > 100000000)
+                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
                             uint[] nodeIdsAlters = new uint[nbrAlters];
-
-                            for (uint k = 0; k < nbrAlters; k++)
-                            {
-                                nodeIdsAlters[k] = reader.ReadUInt32();
-                            }
-                            layerOneMode._addBinaryEdges(nodeIdEgo, nodeIdsAlters);
+                            reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
+                            if (!BitConverter.IsLittleEndian)
+                                for (int k = 0; k < nodeIdsAlters.Length; k++)
+                                    nodeIdsAlters[k] = BinaryPrimitives.ReverseEndianness(nodeIdsAlters[k]);
+                            rows.Add((nodeIdEgo, nodeIdsAlters));
                         }
+                        layer = LayerOneModeStatic.FromBinaryNodelistRows(layerName, edgeDirectionality, edgeType, selfties, rows);
                     }
                     else
                     {
-                        // Looping for valued nodelist rows
-                        for (uint j = 0; j < nbrEdgesets; j++)
+                        // Collect valued nodelist rows, then build CSR directly
+                        var rows = new List<(uint ego, List<(uint alter, float value)> alters)>(nbrEdgesets);
+                        for (int j = 0; j < nbrEdgesets; j++)
                         {
-                            // Get ego of nodelist row
                             uint nodeIdEgo = reader.ReadUInt32();
-
-                            // Get nbr of alters
                             int nbrAlters = reader.ReadInt32();
-
-                            // Prepare array of alters
-                            List<(uint alterId, float value)> nodeIdsAlters = new(nbrAlters);
-
-                            for (uint k = 0; k < nbrAlters; k++)
-                            {
-                                // Read both the partner node id and the float value and put into the List of tuples
-                                nodeIdsAlters.Add((reader.ReadUInt32(), reader.ReadSingle()));
-                            }
-                            // Add all valued edges connected with the ego
-                            layerOneMode._addValuedEdges(nodeIdEgo, nodeIdsAlters);
+                            if (nbrAlters < 0 || nbrAlters > 100000000)
+                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
+                            var alters = new List<(uint, float)>(nbrAlters);
+                            for (int k = 0; k < nbrAlters; k++)
+                                alters.Add((reader.ReadUInt32(), reader.ReadSingle()));
+                            rows.Add((nodeIdEgo, alters));
                         }
+                        layer = LayerOneModeStatic.FromValuedNodelistRows(layerName, edgeDirectionality, edgeType, selfties, rows);
                     }
+                    network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
                 }
                 else if (mode == 2)
                 {
-                    // Create 2-mode layer with the specified name
-                    LayerTwoMode layerTwoMode = new LayerTwoMode(layerName);
-
-                    // Add it to network's layers
-                    network.Layers.Add(layerName, layerTwoMode);
-
                     // Get nbr of hyperedges in this layer
                     uint nbrHyperedges = reader.ReadUInt32();
 
-                    // Iterate through all hyperedges
+                    var rows = new List<(string hyperName, uint[] nodeIds)>((int)nbrHyperedges);
                     for (uint j = 0; j < nbrHyperedges; j++)
                     {
-                        // Get the name of this hyperedge
                         string hyperedgeName = ReadString(reader);
-
-                        // Get the number of nodes connected to this hyperedge
-                        uint nbrNodes = reader.ReadUInt32();
-
-                        // Create an array of node ids connected to this hyperedge
-                        uint[] nodeIds = new uint[nbrNodes];
-                        for (uint k = 0; k < nbrNodes; k++)
-                            nodeIds[k] = reader.ReadUInt32();
-
-                        // Create and add hyperedge to this layer
-                        layerTwoMode._addHyperedge(hyperedgeName, nodeIds);
+                        uint nbrAffNodes = reader.ReadUInt32();
+                        if (nbrAffNodes > 100000000)
+                            throw new InvalidDataException("A hyperedge can't have more than 100 million affiliated nodes.");
+                        uint[] nodeIds = new uint[nbrAffNodes];
+                        reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
+                        if (!BitConverter.IsLittleEndian)
+                            for (int k = 0; k < nodeIds.Length; k++)
+                                nodeIds[k] = BinaryPrimitives.ReverseEndianness(nodeIds[k]);
+                        rows.Add((hyperedgeName, nodeIds));
                     }
+                    ILayer layer = LayerTwoModeStatic.FromHyperedgeRows(layerName, rows);
+                    network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
                 }
                 else
                     throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");
@@ -289,8 +305,8 @@ namespace Threadle.Core.Utilities
 
             // Check file version - should be the same as here implemented
             byte version = reader.ReadByte();
-            if (version != FormatVersion)
-                throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
+            //if (version <= FormatVersion)
+                //throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
 
             // Get nodeset name
             string nodesetName = ReadString(reader);
@@ -315,6 +331,14 @@ namespace Threadle.Core.Utilities
                 nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, type);
                 //attributeDefs.Add((attrName, type));
                 attrDefs[i] = type;
+            }
+
+            // Version 3 only: read string pool
+            if (version >= 3)
+            {
+                int poolCount = reader.ReadInt32();
+                for (int i = 0; i < poolCount; i++)
+                    nodeset.GetOrAddStringToPool(ReadString(reader));
             }
 
             // Get nbr of nodes WITHOUT attributes
@@ -361,8 +385,7 @@ namespace Threadle.Core.Utilities
                     int rawValue = reader.ReadInt32();
 
                     // Convert to NodeAttributeValue
-                    //NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, def.type);
-                    NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue, attrDefs[attrIndex]);
+                    NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue);
 
                     // Build up the attribute storage
                     attrIndexes.Add(attrIndex);
@@ -397,7 +420,9 @@ namespace Threadle.Core.Utilities
             // Get all node attribute definitions
             var attributeDefs = nodeset.NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().ToList();
 
-            // Nbr of node attributes (4)
+            // Nbr of node attributes (1)
+            if (attributeDefs.Count > 255)
+                throw new InvalidOperationException($"Cannot save more than 255 node attributes in binary format (found {attributeDefs.Count}).");
             writer.Write((byte)attributeDefs.Count);
 
             //Dictionary<string, byte> nameToIndex = [];
@@ -414,6 +439,12 @@ namespace Threadle.Core.Utilities
                 //nameToIndex[attributeDefs[i].Name] = i;
                 internalToHere[attributeDefs[i].Index] = i;
             }
+
+            // Version 3: save string pool
+            IReadOnlyList<string> pool = nodeset.StringPool;
+            writer.Write(pool.Count);
+            foreach (string str in pool)
+                WriteString(writer, str);
 
             // Get array of nodes without attributes
             var nodeIdsWithoutAttributes = nodeset.NodeIdArrayWithoutAttributes;
@@ -461,7 +492,10 @@ namespace Threadle.Core.Utilities
         /// <param name="writer">The binary writer to write to</param>
         private static void WriteNetworkToFile(Network network, BinaryWriter writer)
         {
-            // MagicNodeset bytes (4)
+            if (string.IsNullOrEmpty(network.Nodeset.Filepath))
+                throw new ArgumentException($"The Nodeset of the network '{network.Name}' must first be saved.");
+
+            // MagicNetwork bytes (4)
             writer.Write(Encoding.ASCII.GetBytes(MagicNetwork));
 
             // Format version (1)
@@ -471,10 +505,10 @@ namespace Threadle.Core.Utilities
             WriteString(writer, network.Name);
 
             // Nodeset filepath
-            WriteString(writer, network.Nodeset.Filepath);
+            WriteString(writer, Path.GetFileName(network.Nodeset.Filepath));
 
-            // Nbr of layers (max 255 layers)
-            writer.Write((byte)network.Layers.Count);
+            // Nbr of layers (4 bytes; in version 1: only byte here)
+            writer.Write(network.Layers.Count);
 
             foreach (var layer in network.Layers)
             {
@@ -482,7 +516,7 @@ namespace Threadle.Core.Utilities
                 WriteString(writer, layer.Key);
 
                 // Check if it is 1-mode or 2-mode: different writing logics
-                if (layer.Value is LayerOneMode layerOneMode)
+                if (layer.Value is ILayerOneMode layerOneMode)
                 {
                     // LAYER IS 1-MODE
 
@@ -498,67 +532,53 @@ namespace Threadle.Core.Utilities
                     // Write selfties boolean as a byte (0:false, 1:true)
                     writer.Write(layerOneMode.Selfties);
 
+                    // Get egodata (like nodelist2)
+                    var egoData = layerOneMode.GetAllEgoData().ToList();
+
+
                     // Get nbr of edgesets (nodelist rows)
-                    int nbrEdgesets = layerOneMode.Edgesets.Count;
+                    //int nbrEdgesets = layerOneMode.Edgesets.Count;
 
                     // Write nbr of nodelist rows
-                    writer.Write(nbrEdgesets);
+                    writer.Write(egoData.Count);
 
-                    if (layerOneMode.IsValued)
+                    // Iterate all egoData
+                    foreach (var (egoId, alters, values) in egoData)
                     {
-                        // Layer is 1-mode valued: store both alter and edge value
-                        foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
+                        // Write ego node id
+                        writer.Write(egoId);
+
+                        ReadOnlySpan<uint> alterSpan = alters.Span;
+
+                        // Write nbr of alters this node id has
+                        writer.Write(alterSpan.Length);
+
+                        
+                        if (layerOneMode.IsValued)
                         {
-                            if (edgeset is IEdgesetValued edgesetValued)
+                            // Layer in valued
+
+                            ReadOnlySpan<float> valSpan = values.Span;
+                            // Iterate over all alters
+                            for (int k = 0; k < alterSpan.Length; k++)
                             {
-                                // Write ego node id
-                                writer.Write(nodeId);
-
-                                // Get partnerNodeIds (upper triangle for symmetric data)
-                                IReadOnlyList<Connection> partnerConnections = edgesetValued.GetNodelistAlterConnections(nodeId);
-
-                                // Note: need to include all nodeId even for those with empty partnerNodeIds: this is because it has to fit nbrEdgesets above
-
-                                // Write nbr of alters this node id has
-                                writer.Write(partnerConnections.Count);
-
-                                // Iterate through alters and write partnerNodeId and float value
-                                foreach (Connection conn in partnerConnections)
-                                {
-                                    // Writes the partner node id
-                                    writer.Write(conn.partnerNodeId);
-
-                                    // Writes the float value of this edge
-                                    writer.Write(conn.value);
-                                }
+                                // Write the alter id
+                                writer.Write(alterSpan[k]);
+                                // Write edge value (float)
+                                writer.Write(valSpan[k]);
                             }
                         }
-                    }
-                    else
-                    {
-                        // Layer is 1-mode and binary: store only alter
-                        foreach ((uint nodeId, IEdgeset edgeset) in layerOneMode.Edgesets)
+                        else
                         {
-                            if (edgeset is IEdgesetBinary edgesetBinary)
-                            {
-                                // Ego node id
-                                writer.Write(nodeId);
-
-                                // Get List of alter nodeids. As symmetric should only be stored once, pass along the
-                                // current nodeId to only get alter node ids that are larger than the ego nodeid
-                                List<uint> partnerNodeIds = edgesetBinary.GetNodelistAlterUints(nodeId);
-
-                                // Write nbr of alters this node id has
-                                writer.Write(partnerNodeIds.Count);
-
-                                // Iterate through alters and write partnerNodeId
-                                foreach (uint partnerNodeId in partnerNodeIds)
-                                    writer.Write(partnerNodeId);
-                            }
+                            // Layer is binary
+                            // Iterate over all alters
+                            for (int k = 0; k < alterSpan.Length; k++)
+                                // Write alter id
+                                writer.Write(alterSpan[k]);
                         }
                     }
                 }
-                else if (layer.Value is LayerTwoMode layerTwoMode)
+                else if (layer.Value is ILayerTwoMode layerTwoMode)
                 {
                     // LAYER IS 2-MODE
 
@@ -566,17 +586,17 @@ namespace Threadle.Core.Utilities
                     writer.Write((byte)2);
 
                     // Write the number of hyperedges in this layer
-                    writer.Write(layerTwoMode.AllHyperEdges.Count);
+                    writer.Write(layerTwoMode.NbrHyperedges);
 
-                    foreach ((string hyperName, Hyperedge hyperedge) in layerTwoMode.AllHyperEdges)
+                    // Get all hyperedge data and iterate over all hyperedges
+                    foreach (var (hyperName, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                     {
-                        // Write the name of the hyperedge
+                        // Write the hyperedge name
                         WriteString(writer, hyperName);
-
-                        // Write the number of affiliated nodes to this hyperedge
-                        writer.Write(hyperedge.NbrNodes);
-
-                        foreach (uint nodeId in hyperedge.NodeIds)
+                        // Write the number of nodes affiliated to this hyperedge
+                        writer.Write((uint)nodeIds.Length);
+                        // Iterate over all nodes and write their ids
+                        foreach (uint nodeId in nodeIds)
                             writer.Write(nodeId);
                     }
                 }

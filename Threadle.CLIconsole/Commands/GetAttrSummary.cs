@@ -18,7 +18,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates and returns summary statistics for the specified node attribute in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Statistics vary by attribute type: (int/float) Mean, Median, StdDev, Min, Max, Q1, Q3; (Bool) Count_true, Count_false, Ratio_true; (Char) Frequency distribution, Mode, Unique_values. All types include Count, Missing, and PercentageWithValue.";
+        public string Description => "Calculates and returns summary statistics for the specified node attribute in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Statistics vary by attribute type: (int/float) Mean, Median, StdDev, Min, Max, Q1, Q3; (Bool) Count_true, Count_false, Ratio_true; (Char/String) Frequency distribution (top 50), Mode, Unique_values. All types include Count, Missing, and PercentageWithValue.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

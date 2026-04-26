@@ -120,7 +120,7 @@ namespace Threadle.Core.Model
         public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
         {
             if (UserSettings.BlockMultiedges && _outbound.Contains(partnerNodeId))
-                return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)"); ;
+                return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _outbound.Add(partnerNodeId);
             return OperationResult.Ok();
         }
@@ -156,8 +156,8 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id that should be searched for and eradicated.</param>
         public void RemoveNodeEdgesInEdgeset(uint nodeId)
         {
-            _inbound.Remove(nodeId);
-            _outbound.Remove(nodeId);
+            _inbound.RemoveAll( id => id==nodeId);
+            _outbound.RemoveAll(id => id == nodeId);
         }
 
         /// <summary>
@@ -193,10 +193,10 @@ namespace Threadle.Core.Model
         /// <returns>A tab-separated string with node ids.</returns>
         public string GetNodelistAlterString(uint egoNodeId)
         {
-            string ret = "";
+            var sb = new System.Text.StringBuilder();
             foreach (uint alterNodeId in _outbound)
-                ret += "\t" + alterNodeId;
-            return ret;
+                sb.Append('\t').Append(alterNodeId);
+            return sb.ToString();
         }
 
         /// <summary>

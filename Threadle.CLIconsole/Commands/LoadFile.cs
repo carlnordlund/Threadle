@@ -13,12 +13,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:structure] = loadfile(file = \"[str]\", type = ['nodeset','network'])";
+        public string Syntax => "[var:structure] = loadfile(file = \"[str]\", type = ['nodeset','network'], *pack = ['true','false'(default)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Loads a structure from file 'file', using the internal text-based file format. The type of structure is given by the 'type' argument, which can be either 'nodeset' or 'network'. When loading a network file that refers to a nodeset file, the nodeset is also loaded. If the filepath has the ending .tsv, it is loaded in the standard internal text-based format, if the .tsv.gz is used, it is loading a gzipped version of this. If the filepath has the ending .bin, it is loaded as a Threadle-style binary file, if the .bin.gz is used, it is loading a gzipped version of this. Note that the .bin and .bin.gz format are very compact and not human-readable. Also: when loading a network file that refers to a nodeset file, the nodeset is also loaded.";
+        public string Description => "Loads a structure from file 'file', using the internal text-based file format. The type of structure is given by the 'type' argument, which can be either 'nodeset' or 'network'. When loading a network file that refers to a nodeset file, the nodeset is also loaded. If the filepath has the ending .tsv, it is loaded in the standard internal text-based format, if the .tsv.gz is used, it is loading a gzipped version of this. If the filepath has the ending .bin, it is loaded as a Threadle-style binary file, if the .bin.gz is used, it is loading a gzipped version of this. Note that the .bin and .bin.gz format are very compact and not human-readable. Also: when loading a network file that refers to a nodeset file, the nodeset is also loaded. The optional 'pack' argument specifies whether network layers should be packed, i.e. stored in the more compact but immutable format (true), or whether the layers should be stored in the more memory-demanding mutable default format (false). Note that individual layers can subsequently be converted between these two types separately.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -36,7 +36,8 @@ namespace Threadle.CLIconsole.Commands
             string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg0");
             string typeString = command.GetArgumentThrowExceptionIfMissingOrNull("type", "arg1");
-            var result = FileManager.Load(filepath, typeString);
+            bool packLayers = command.GetArgumentParseBool("pack", false);
+            var result = FileManager.Load(filepath, typeString, packLayers);
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);
             StructureResult structures = result.Value!;

@@ -33,7 +33,7 @@ namespace Threadle.Core.Processing
         {
             if (!network.Layers.TryGetValue(layerName, out var layer))
                 return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
-            if (!(layer is LayerOneMode originalLayer))
+            if (!(layer is ILayerOneMode originalLayer))
                 return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 1-mode layer.");
             if (originalLayer.IsSymmetric)
                 return OperationResult.Ok($"Layer '{layerName}' is already symmetric.");
@@ -59,33 +59,24 @@ namespace Threadle.Core.Processing
             if (originalLayer.IsBinary)
             {
                 // Edges are binary
-                foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
-                {
-                    if (!(edgeset is EdgesetBinaryDirectional edgesetBinaryDirectional))
-                        return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a binary directional edgeset.");
-                    foreach (uint partnerNodeId in edgesetBinaryDirectional.GetOutboundNodeIds)
-                    {
+                foreach (var (nodeId, alters, _) in originalLayer.GetAllEgoData())
+                    foreach (uint partnerNodeId in alters.Span)
                         if (!newLayer.CheckEdgeExists(nodeId, partnerNodeId) && SymmetrizeFunction(1, originalLayer.GetEdgeValue(partnerNodeId, nodeId)) > 0)
                             newLayer._addEdge(nodeId, partnerNodeId);
-                    }
-                }
             }
             else
             {
                 // Edges are valued
-                foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
-                {
-                    if (!(edgeset is EdgesetValuedDirectional edgesetValuedDirectional))
-                        return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a valued directional edgeset.");
-                    foreach (var connection in edgesetValuedDirectional.GetOutboundConnections)
+                foreach (var (nodeId, alters, values) in originalLayer.GetAllEgoData())
+                    for (int i = 0; i < alters.Length; i++)
                     {
-                        if (newLayer.CheckEdgeExists(nodeId, connection.partnerNodeId))
+                        uint partnerNodeId = alters.Span[i];
+                        if (newLayer.CheckEdgeExists(nodeId, partnerNodeId))
                             continue;
-                        float val = SymmetrizeFunction(connection.value, originalLayer.GetEdgeValue(connection.partnerNodeId, nodeId));
+                        float val = SymmetrizeFunction(values.Span[i], originalLayer.GetEdgeValue(partnerNodeId, nodeId));
                         if (val > 0)
-                            newLayer._addEdge(nodeId, connection.partnerNodeId, val);
+                            newLayer._addEdge(nodeId, partnerNodeId, val);
                     }
-                }
             }
             // Sort all partner NodeIds in the Edgesets - mostly cosmetics, but looks better when writing to tsv and when
             // getting node alters.
@@ -113,7 +104,7 @@ namespace Threadle.Core.Processing
         {
             if (!network.Layers.ContainsKey(layerName))
                 return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
-            if (!(network.Layers[layerName] is LayerOneMode originalLayer))
+            if (!(network.Layers[layerName] is ILayerOneMode originalLayer))
                 return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 1-mode layer.");
             if (originalLayer.IsBinary)
                 return OperationResult.Fail("ConstraintLayerAlreadyBinary", $"Layer '{layerName}' is already binary, dichotomization is not applicable.");
@@ -124,29 +115,62 @@ namespace Threadle.Core.Processing
             EdgeType newEdgeType = (IsZeroOrOne(trueValue) && IsZeroOrOne(falseValue)) ? EdgeType.Binary : EdgeType.Valued;
 
             LayerOneMode newLayer = new LayerOneMode(newLayerName, originalLayer.Directionality, newEdgeType, originalLayer.Selfties);
-
-            foreach ((uint nodeId, IEdgeset edgeset) in originalLayer.Edgesets)
-            {
-                if (!(edgeset is IEdgesetValued edgesetValued))
-                    return OperationResult.Fail("InvalidEdgesetType", $"Edgeset for node '{nodeId}' in layer '{layerName}' is not a valued edgeset.");
-                foreach (var connection in edgesetValued.GetOutboundConnections)
+            foreach (var (nodeId, alters, values) in originalLayer.GetAllEgoData())
+                for (int i = 0; i < alters.Length; i++)
                 {
-                    if (Misc.CompareValues<float>(connection.value, threshold, conditionType))
+                    float edgeValue = values.Span[i];
+                    if (Misc.CompareValues<float>(edgeValue, threshold, conditionType))
                     {
-                        float valueToAssign = float.IsNaN(trueValue) ? connection.value : trueValue;
-                        newLayer.AddEdge(nodeId, connection.partnerNodeId, valueToAssign);
+                        float valueToAssign = float.IsNaN(trueValue) ? edgeValue : trueValue;
+                        newLayer._addEdge(nodeId, alters.Span[i], valueToAssign);
                     }
                     else
                     {
-                        float valueToAssign = float.IsNaN(falseValue) ? connection.value : falseValue;
+                        float valueToAssign = float.IsNaN(falseValue) ? edgeValue : falseValue;
                         if (!IsZeroOrOne(valueToAssign) || valueToAssign != 0f)
-                            newLayer.AddEdge(nodeId, connection.partnerNodeId, valueToAssign);
+                            newLayer._addEdge(nodeId, alters.Span[i], valueToAssign);
                     }
                 }
-            }
+            newLayer._sortEdgesets();
+            newLayer._deduplicateEdgesets();
             network.AddLayer(newLayerName, newLayer);
             return OperationResult.Ok($"Dichotomized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
+
+        public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName)
+        {
+            if (!network.Layers.ContainsKey(layerName))
+                return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
+            if (!(network.Layers[layerName] is ILayerTwoMode originalLayer))
+                return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 2-mode layer.");
+            if (network.Layers.ContainsKey(newLayerName))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
+
+            Dictionary<(uint, uint), float> projectedEdges = [];
+            if (method == ProjectionMethod.Count || method == ProjectionMethod.Newman)
+                foreach ((string hypername, uint[] nodeIds) in originalLayer.GetAllHyperedgeData())
+                    for (int i = 0; i < nodeIds.Length; i++)
+                        for (int j = i + 1; j < nodeIds.Length; j++)
+                        {
+                            var key = (Math.Min(nodeIds[i], nodeIds[j]), Math.Max(nodeIds[i], nodeIds[j]));
+                            projectedEdges[key] = projectedEdges.GetValueOrDefault(key) + 1f / (method == ProjectionMethod.Count ? 1f : (nodeIds.Length - 1));
+                        }
+            else if (method == ProjectionMethod.Binary)
+                foreach ((string hypername, uint[] nodeIds) in originalLayer.GetAllHyperedgeData())
+                    for (int i = 0; i < nodeIds.Length; i++)
+                        for (int j = i + 1; j < nodeIds.Length; j++)
+                        {
+                            var key = (Math.Min(nodeIds[i], nodeIds[j]), Math.Max(nodeIds[i], nodeIds[j]));
+                            projectedEdges.TryAdd(key, 1f);
+                        }
+
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, (method == ProjectionMethod.Binary) ? EdgeType.Binary : EdgeType.Valued, false);
+            foreach (var ((node1, node2), value) in projectedEdges)
+                newLayer._addEdge(node1, node2, value);
+            network.AddLayer(newLayerName, newLayer);
+            return OperationResult.Ok($"Projected layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
+        }
+
 
         /// <summary>
         /// Creates a new Network object based on the provided network that instead uses the provided Nodeset, thus

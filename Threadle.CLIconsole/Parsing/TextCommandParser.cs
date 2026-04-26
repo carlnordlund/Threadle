@@ -31,7 +31,10 @@ namespace Threadle.CLIconsole.Parsing
         /// </summary>
         /// <remarks>The input string must conform to the expected command-line format for successful
         /// parsing. The method extracts the command name, an optional assigned variable, and any named or positional
-        /// arguments from the input. If the input cannot be parsed, the method returns null.</remarks>
+        /// arguments from the input. If the input cannot be parsed, the method returns null.
+        /// Note that named arguments are also positional arguments: if 'network=mynet' is the first argument,
+        /// this argument value is accessible both with 'network' and 'arg0'.
+        /// </remarks>
         /// <param name="input">The input string representing a command and its arguments to be parsed.</param>
         /// <returns>A CommandPackage object that represents the parsed command and its arguments, or null if the input does not
         /// match the expected command format.</returns>

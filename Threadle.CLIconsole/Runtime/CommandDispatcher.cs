@@ -39,6 +39,7 @@ namespace Threadle.CLIconsole.Runtime
             ["density"] = new Density(),
             ["dichotomize"] = new Dichotomize(),
             ["dir"] = new Dir(),
+            ["export"] = new Export(),
             ["exportlayer"] = new ExportLayer(),
             ["filter"] = new Filter(),
             ["generate"] = new Generate(),
@@ -49,6 +50,7 @@ namespace Threadle.CLIconsole.Runtime
             ["getattr"] = new GetAttr(),
             ["getattrs"] = new GetAttrs(),
             ["getattrsummary"] = new GetAttrSummary(),
+            ["getdegree"]=new GetDegree(),
             ["getedge"] = new GetEdge(),
             ["gethyperedgenodes"] = new GetHyperedgeNodes(),
             ["getnbrnodes"] = new GetNbrNodes(),
@@ -65,7 +67,9 @@ namespace Threadle.CLIconsole.Runtime
             ["info"] = new Info(),
             ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),
+            ["pack"] = new Pack(),
             ["preview"] = new Preview(),
+            ["projecttwomode"] =new ProjectTwoMode(),
             ["randomseed"] = new RandomSeed(),
             ["removeaff"] = new RemoveAffiliation(),
             ["removeattr"] = new RemoveAttr(),
@@ -73,14 +77,18 @@ namespace Threadle.CLIconsole.Runtime
             ["removehyper"] = new RemoveHyper(),
             ["removelayer"] = new RemoveLayer(),
             ["removenode"] = new RemoveNode(),
+            ["rwdistances"] = new RandomWalkerDistances(),
+            ["rwfpt"] = new RandomWalkerFirstPassageTime(),
             ["savefile"] = new SaveFile(),
             ["setattr"] = new SetAttr(),
             ["setting"] = new Setting(),
             ["setwd"] = new SetWorkingDirectory(),
             ["shortestpath"] = new ShortestPath(),
+            ["shortestpaths"] = new ShortestPaths(),
             ["subnet"] = new Subnet(),
             ["symmetrize"] = new Symmetrize(),
-            ["undefineattr"] = new UndefineAttr()
+            ["undefineattr"] = new UndefineAttr(),
+            ["unpack"] = new Unpack()
         };
         #endregion
 
@@ -172,6 +180,10 @@ namespace Threadle.CLIconsole.Runtime
         /// the syntax details were saved.</returns>
         internal static CommandResult DumpHelpToFile(string filepath)
         {
+            string filename = Path.GetFileName(filepath);
+            if (string.IsNullOrEmpty(filename))
+                return CommandResult.Fail("InvalidArgument", "Invalid filename.");
+
             var pattern = @"^(?:\s*(\[[^\]]+\])\s*=\s*)?([a-zA-Z_]\w*)\s*\(\s*(.*?)\s*\)\s*$";
             List<string> lines = [];
             foreach (var kvp in _commands)
@@ -179,9 +191,9 @@ namespace Threadle.CLIconsole.Runtime
                 var match = Regex.Match(kvp.Value.Syntax, pattern);
                 lines.Add(match.Groups[1].Value + "\t" + match.Groups[2].Value + "\t" + match.Groups[3].Value + "\t" + kvp.Value.Description);
             }
-            File.WriteAllLines(filepath, lines.ToArray());
+            File.WriteAllLines(filename, lines.ToArray());
 
-            return CommandResult.Ok($"Saved syntax details to file '{filepath}'");
+            return CommandResult.Ok($"Saved syntax details to file '{filename}'");
         }
         #endregion
     }

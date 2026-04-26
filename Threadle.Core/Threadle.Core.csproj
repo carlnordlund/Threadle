@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- Library Metadata -->    
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <AssemblyName>Threadle.Core</AssemblyName>
     <Product>Threadle Core Library</Product>
     <Description>Core library for Threadle network analysis system</Description>
@@ -16,13 +16,13 @@
   </PropertyGroup>
   
   <!-- Debug Configuration -->
-  <PropertyGroup Condition ="'$(Configuration)' == 'Debug'">
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>    
   </PropertyGroup>
 
   <!-- Release Configuration -->
-  <PropertyGroup Condition ="'$(Configuration)' == 'Release'">
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugType>embedded</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>

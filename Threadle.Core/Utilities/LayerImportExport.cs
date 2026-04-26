@@ -20,7 +20,7 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">File to write the edgelist to</param>
         /// <param name="sep">The separator to use</param>
         /// <param name="header">Boolean whether the first line is to contain headers.</param>
-        internal static void ExportOneModeEdgeList(LayerOneMode layerOneMode, string filepath, char sep, bool header)
+        internal static void ExportOneModeEdgeList(ILayerOneMode layerOneMode, string filepath, char sep, bool header)
         {
             using var writer = new StreamWriter(filepath);
 
@@ -31,19 +31,19 @@ namespace Threadle.Core.Utilities
                 writer.WriteLine(headerLine);
             }
             if (layerOneMode.IsBinary)
-                foreach (var kvp in layerOneMode.Edgesets)
-                {
-                    uint egoId = kvp.Key;
-                    foreach (var alterId in kvp.Value.GetOutboundNodeIds)
-                        writer.WriteLine($"{egoId}{sep}{alterId}");
-                }
+            {
+                foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
+                    foreach (var alterId in alters.Span)
+                        if (layerOneMode.IsDirectional || alterId > egoId)
+                            writer.WriteLine($"{egoId}{sep}{alterId}");
+            }
             else
-                foreach (var kvp in layerOneMode.Edgesets)
-                {
-                    uint egoId = kvp.Key;
-                    foreach (var (alterId, value) in kvp.Value.GetOutboundEdgesWithValues(egoId))
-                        writer.WriteLine($"{egoId}{sep}{alterId}{sep}{value}");
-                }
+            {
+                foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
+                    for (int i = 0; i < alters.Length; i++)
+                        if (layerOneMode.IsDirectional || alters.Span[i] > egoId)
+                            writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
+            }
         }
 
         /// <summary>
@@ -55,17 +55,14 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">File to write the edgelist to</param>
         /// <param name="sep">The separator to use</param>
         /// <param name="header">Boolean whether the first line is to contain headers.</param>
-        internal static void ExportTwoModeEdgeList(LayerTwoMode layerTwoMode, string filepath, char sep, bool header)
+        internal static void ExportTwoModeEdgeList(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header)
         {
             using var writer = new StreamWriter(filepath);
             if (header)
                 writer.WriteLine($"node{sep}affiliation");
-            foreach (var kvp in layerTwoMode.HyperEdgeCollections)
-            {
-                uint egoId = kvp.Key;
-                foreach (var hyperedge in kvp.Value.HyperEdges)
-                    writer.WriteLine($"{egoId}{sep}{hyperedge.Name}");
-            }
+            foreach (var (hypername, nodeIds) in layerTwoMode.GetAllHyperedgeData())
+                foreach (var nodeId in nodeIds)
+                    writer.WriteLine($"{nodeId}{sep}{hypername}");
         }
 
         /// <summary>
@@ -126,9 +123,9 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Add nodes that are missing
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id))
+                        if (!network.Nodeset.Contains(node1Id))
                             network.Nodeset._addNodeWithoutAttribute(node1Id);
-                        if (!network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node2Id))
                             network.Nodeset._addNodeWithoutAttribute(node2Id);
                         layerOneMode._addEdge(node1Id, node2Id);
                     }
@@ -157,7 +154,7 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip edges with nodes that are missing
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id) || !network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node1Id) || !network.Nodeset.Contains(node2Id))
                             continue;
                         layerOneMode._addEdge(node1Id, node2Id);
                     }
@@ -194,9 +191,9 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Add nodes that are missing                        
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id))
+                        if (!network.Nodeset.Contains(node1Id))
                             network.Nodeset._addNodeWithoutAttribute(node1Id);
-                        if (!network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node2Id))
                             network.Nodeset._addNodeWithoutAttribute(node2Id);
                         layerOneMode._addEdge(node1Id, node2Id, value);
                     }
@@ -224,7 +221,7 @@ namespace Threadle.Core.Utilities
                             continue;
 
                         // Skip edges that have missing nodes
-                        if (!network.Nodeset.CheckThatNodeExists(node1Id) || !network.Nodeset.CheckThatNodeExists(node2Id))
+                        if (!network.Nodeset.Contains(node1Id) || !network.Nodeset.Contains(node2Id))
                             continue;
                         layerOneMode._addEdge(node1Id, node2Id, value);
                     }
@@ -302,57 +299,49 @@ namespace Threadle.Core.Utilities
         /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, char separator, bool addMissingNodes)
+        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, char separator, bool hasHeader, bool addMissingNodes)
         {
+            // Check that file exists
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");
+            // Prepare reader, counters, temp vars
             using var reader = new StreamReader(filepath);
             string? line;
             int lineNumber = 0;
+            // Get max col index referred to
+            int maxColIndex = Math.Max(nodeCol, affCol);
             uint nodeId;
             string hyperedgeName;
-            // Distinguish between whether unknown nodes should be added or ignored: to speed up loading
-            if (addMissingNodes)
+            while ((line = reader.ReadLine()) != null)
             {
-                while ((line = reader.ReadLine()) != null)
+                lineNumber++;
+                if (lineNumber == 1 && hasHeader)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+                // Split up the line by separator character
+                string[] columns = line.Split(separator);
+                // Check that it contains necessary columns
+                if (columns.Length <= maxColIndex)
+                    continue;
+                // Silent continue if not able to parse nodeId
+                if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
+                    continue;
+                // Get hyperedge name
+                hyperedgeName = Misc.TrimQuotes(columns[affCol]).Trim();
+                // Silent continue if no name
+                if (hyperedgeName.Length < 1)
+                    continue;
+                if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
+                    throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
+                if (!network.Nodeset.Contains(nodeId))
                 {
-                    lineNumber++;
-                    ReadOnlySpan<char> span = line.AsSpan();
-                    int sepIndex = span.IndexOf(separator);
-                    if (sepIndex < 0)
-                        throw new Exception($"Invalid column count at line {lineNumber}");
-                    if (!uint.TryParse(span.Slice(0, sepIndex), out nodeId))
+                    if (!addMissingNodes)
                         continue;
-                    hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
-                    if (hyperedgeName.Length < 1)
-                        continue;
-                    if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
-                        throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
-                    if (!network.Nodeset.CheckThatNodeExists(nodeId))
-                        network.Nodeset._addNodeWithoutAttribute(nodeId);
-                    layerTwoMode._addAffiliation(nodeId, hyperedgeName);
+                    network.Nodeset._addNodeWithoutAttribute(nodeId);
                 }
-            }
-            else
-            {
-                while ((line = reader.ReadLine()) != null)
-                {
-                    lineNumber++;
-                    ReadOnlySpan<char> span = line.AsSpan();
-                    int sepIndex = span.IndexOf(separator);
-                    if (sepIndex < 0)
-                        throw new Exception($"Invalid column count at line {lineNumber}");
-                    if (!uint.TryParse(span.Slice(0, sepIndex), out nodeId))
-                        continue;
-                    if (!network.Nodeset.CheckThatNodeExists(nodeId))
-                        continue;
-                    hyperedgeName = new string(span.Slice(sepIndex + 1)).Trim();
-                    if (hyperedgeName.Length < 1)
-                        continue;
-                    if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
-                        throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
-                    layerTwoMode._addAffiliation(nodeId, hyperedgeName);
-                }
+                layerTwoMode._addAffiliation(nodeId, hyperedgeName);
             }
         }
 
@@ -398,7 +387,6 @@ namespace Threadle.Core.Utilities
             float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
             for (int c = 0; c < colNames.Length; c++)
             {
-                List<uint> nodeIds = [];
                 for (int r = 0; r < rowIds.Length; r++)
                     if (data[r, c] > 0)
                         network.AddAffiliation(layerTwoMode, colNames[c], rowIds[r], addMissingNodes, true);
@@ -437,8 +425,13 @@ namespace Threadle.Core.Utilities
             }
             string[,] cells = new string[listOfCells.Count, nbrCols];
             for (int r = 0; r < listOfCells.Count; r++)
+            {
                 for (int c = 0; c < listOfCells[r].Length; c++)
                     cells[r, c] = listOfCells[r][c].Trim();
+                for (int c = listOfCells[r].Length; c < nbrCols; c++)
+                    cells[r, c] = "";
+
+            }
             return cells;
         }
         #endregion

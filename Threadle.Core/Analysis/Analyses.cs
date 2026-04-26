@@ -48,6 +48,9 @@ namespace Threadle.Core.Analysis
                 case NodeAttributeType.Char:
                     stats = Functions.CalculateCharStatistics(nodeset, attrIndex, out countWithValues);
                     break;
+                case NodeAttributeType.String:
+                    stats = Functions.CalculateStringStatistics(nodeset, attrIndex, out countWithValues);
+                    break;
             }
 
             stats["Count"] = countWithValues;
@@ -70,71 +73,52 @@ namespace Threadle.Core.Analysis
         /// <param name="nodeIdFrom">The source node id.</param>
         /// <param name="nodeIdTo">The destination node id.</param>
         /// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
-        public static OperationResult<int> ShortestPath(Network network, string? layerName, uint nodeIdFrom, uint nodeIdTo)
+        public static OperationResult<int> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo)
         {
             OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
             if (!nodeCheckResult.Success)
                 return OperationResult<int>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
             if (nodeIdFrom == nodeIdTo)
                 return OperationResult<int>.Ok(0);
+
+            List<ILayer> resolvedLayers = [];
+            // If no layerNames specified (i.e. null), use all layers
+            if (layerNames == null)
+                resolvedLayers.AddRange(network.Layers.Values);
             else
             {
-                Queue<uint> queue = [];
-                HashSet<uint> visited = [];
-                Dictionary<uint, int> distances = [];
-                uint current;
-
-                if (layerName != null && layerName.Length > 0)
+                foreach (string layerName in layerNames)
                 {
                     var layerResult = network.GetLayer(layerName);
                     if (!layerResult.Success)
                         return OperationResult<int>.Fail(layerResult);
-                    var layer = layerResult.Value!;
-
-                    queue.Enqueue(nodeIdFrom);
-                    visited.Add(nodeIdFrom);
-                    distances[nodeIdFrom] = 0;
-
-                    while (queue.Count > 0)
-                    {
-                        current = queue.Dequeue();
-                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
-                        {
-                            if (!visited.Contains(neighborId))
-                            {
-                                visited.Add(neighborId);
-                                distances[neighborId] = distances[current] + 1;
-                                if (neighborId == nodeIdTo)
-                                    return OperationResult<int>.Ok(distances[neighborId]);
-                                queue.Enqueue(neighborId);
-                            }
-                        }
-                    }
-                    return OperationResult<int>.Ok(-1);
-                }
-                else
-                {
-                    queue.Enqueue(nodeIdFrom);
-                    visited.Add(nodeIdFrom);
-                    distances[nodeIdFrom] = 0;
-                    while (queue.Count > 0)
-                    {
-                        current = queue.Dequeue();
-                        foreach (uint neighborId in network._getNodeAltersAllLayers(current, EdgeTraversal.Out))
-                        {
-                            if (!visited.Contains(neighborId))
-                            {
-                                visited.Add(neighborId);
-                                distances[neighborId] = distances[current] + 1;
-                                if (neighborId == nodeIdTo)
-                                    return OperationResult<int>.Ok(distances[neighborId]);
-                                queue.Enqueue(neighborId);
-                            }
-                        }
-                    }
-                    return OperationResult<int>.Ok(-1);
+                    resolvedLayers.Add(layerResult.Value!);
                 }
             }
+
+            Queue<uint> queue = [];
+            HashSet<uint> visited = [];
+            Dictionary<uint, int> distances = [];
+            queue.Enqueue(nodeIdFrom);
+            visited.Add(nodeIdFrom);
+            distances[nodeIdFrom] = 0;
+            while (queue.Count > 0)
+            {
+                uint current = queue.Dequeue();
+                foreach (var layer in resolvedLayers)
+                    foreach (uint neighborId in layer.GetNodeAlters(current,EdgeTraversal.Out))
+                    {
+                        if (!visited.Contains(neighborId))
+                        {
+                            visited.Add(neighborId);
+                            distances[neighborId] = distances[current] + 1;
+                            if (neighborId == nodeIdTo)
+                                return OperationResult<int>.Ok(distances[neighborId]);
+                            queue.Enqueue(neighborId);
+                        }
+                    }
+            }
+            return OperationResult<int>.Ok(-1);
         }
 
         /// <summary>
@@ -144,15 +128,15 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The network containing the layer.</param>
         /// <param name="layerName">The name of the layer.</param>
         /// <returns>An OperationResult containing the density value if successful; otherwise, an error message.</returns>
-        public static OperationResult<double> Density(Network network, string layerName)
+        public static OperationResult<double> Density(Network network, string layerName, int sampleSize = 200)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<double>.Fail(layerResult);
-            if (layerResult.Value is LayerOneMode layerOneMode)
+            if (layerResult.Value is ILayerOneMode layerOneMode)
                 return OperationResult<double>.Ok(Functions.Density(network, layerOneMode));
-            if (layerResult.Value is LayerTwoMode layerTwoMode)
-                return OperationResult<double>.Ok(Functions.Density(network, layerTwoMode));
+            if (layerResult.Value is ILayerTwoMode layerTwoMode)
+                return OperationResult<double>.Ok(Functions.Density(network, layerTwoMode, sampleSize));
             return OperationResult<double>.Fail("UnexpectedError", $"Error calculating density of layer '{layerName}'");
         }
 
@@ -166,6 +150,8 @@ namespace Threadle.Core.Analysis
         /// <returns>An <see cref="OperationResult"/> object informing how well it went, with a string-object dictionary with additional information.</returns>
         public static OperationResult<Dictionary<string, object>> ConnectedComponents(Network network, string layerName, string? attrName = null)
         {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes: can't do component analysis on it.");
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(layerResult);
@@ -202,26 +188,21 @@ namespace Threadle.Core.Analysis
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
-                return OperationResult<string>.Fail(layerResult);
+                return OperationResult.Fail(layerResult.Code, layerResult.Message);
             ILayer layer = layerResult.Value!;
             Dictionary<uint, uint> degreeMapping = [];
-            if (layer is LayerOneMode layerOneMode)
+            if (layer is ILayerOneMode layerOneMode)
             {
-                string dirString = layerOneMode switch
+                string dirString = layerOneMode.IsSymmetric ? "degree" : edgeTraversal switch
                 {
-                    LayerOneMode { IsSymmetric: true } => "degree",
-                    LayerOneMode { IsSymmetric: false } => edgeTraversal switch
-                    {
-                        EdgeTraversal.Out => "outdegree",
-                        EdgeTraversal.In => "indegree",
-                        _ => "grossdegree"
-                    },
-                    _ => "degree"
+                    EdgeTraversal.Out => "outdegree",
+                    EdgeTraversal.In => "indegree",
+                    _ => "grossdegree"
                 };
                 attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_" + dirString;
                 degreeMapping = Functions.DegreeCentrality(network, layerOneMode, edgeTraversal);
             }
-            else if (layer is LayerTwoMode layerTwoMode)
+            else if (layer is ILayerTwoMode layerTwoMode)
             {
                 attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_degree";
                 degreeMapping = Functions.DegreeCentrality(network, layerTwoMode);
@@ -243,55 +224,73 @@ namespace Threadle.Core.Analysis
         /// </summary>
         /// <param name="network">The Network object.</param>
         /// <param name="nodeId">The ego node id.</param>
-        /// <param name="layerName">The name of the layer to pick from. If left blank or null, all layers are used.</param>
+        /// <param name="layerNames">The names of the layers to pick from. If left blank or null, all layers are used.</param>
         /// <param name="edgeTraversal">An <see cref="EdgeTraversal"/> value indicating whether inbound- or outbound-going edges (or both) should be considered.</param>
         /// <param name="balanced">Indicates whether the pick should be balanced across layers.</param>
+        /// <param name="weighted">If true, uses edge weights as transition probabilities. Binary layers treat each alter as weight 1.0f.</param>
         /// <returns>An <see cref="OperationResult{T}"/> containing the random alter node id if successful; otherwise, an error message.</returns>
-        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeId, string layerName, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false)
+        public static OperationResult<uint> GetRandomAlter(Network network, uint nodeId, string[]? layerNames, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false, bool weighted = false)
         {
-            List<uint> alterIds = [];
-            if (layerName != null && layerName.Length > 0)
-            {
-                // Only use the specified layer
-                var layerResult = network.GetLayer(layerName);
-                if (!layerResult.Success)
-                    return OperationResult<uint>.Fail(layerResult);
-                var layer = layerResult.Value!;
-                var altersResult = network.GetNodeAlters(layer.Name, nodeId, edgeTraversal);
-                if (!altersResult.Success)
-                    return OperationResult<uint>.Fail(altersResult);
-                alterIds.AddRange(altersResult.Value!);
-            }
+            // Build up the set of layers to use (note: both 1-mode and 2-mode are okay)
+            List<ILayer> layersToUse = [];
+            if (layerNames == null)
+                layersToUse.AddRange(network.Layers.Values);
             else
             {
-                if (balanced)
+                foreach (string layerName in layerNames)
                 {
-                    List<uint[]> layerAlterslist = [];
+                    var layerResult=network.GetLayer(layerName);
+                    if (!layerResult.Success)
+                        return OperationResult<uint>.Fail(layerResult);
+                    layersToUse.Add(layerResult.Value!);
+                }
+            }
 
-                    foreach (var layer in network.Layers.Values)
-                    {
-                        uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
-                        if (alters.Length > 0)
-                            layerAlterslist.Add(alters);
-                    }
-                    if (layerAlterslist.Count == 0)
-                        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any layer with the given edge traversal.");
-                    var chosenLayerAlters = layerAlterslist[Misc.Random.Next(layerAlterslist.Count)];
-                    alterIds.AddRange(chosenLayerAlters);
+            if (weighted)
+            {
+                List<(uint alterId, float weight)> candidates = [];
+                if (layersToUse.Count==1 || !balanced)
+                {
+                    foreach (var layer in layersToUse)
+                        Functions.AppendWeightedCandidates(candidates, layer, nodeId, edgeTraversal);
                 }
                 else
                 {
-                    foreach (var layer in network.Layers.Values)
-                    {
-                        uint[] alters = layer.GetNodeAlters(nodeId, edgeTraversal);
-                        alterIds.AddRange(alters);
-                    }
+                    // Balanced with more than 1 layer: first uniform pick among layers, then weighted pick within
+                    List<ILayer> eligibleLayers = layersToUse
+                        .Where(l => l.GetNodeAlters(nodeId, edgeTraversal).Length > 0)
+                        .ToList();
+                    if (eligibleLayers.Count==0)
+                        return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");
+                    Functions.AppendWeightedCandidates(candidates, eligibleLayers[Misc.Random.Next(eligibleLayers.Count)], nodeId, edgeTraversal);
                 }
+                if (candidates.Count==0)
+                    return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
+                return OperationResult<uint>.Ok(Functions.WeightedPick(candidates));
+            }
+
+            // Non-weighted follows
+            List<uint> alterIds = [];
+            if (layersToUse.Count==1 || !balanced)
+            {
+                // Not balanced or just a single layer
+                foreach (var layer in layersToUse)
+                    alterIds.AddRange(layer.GetNodeAlters(nodeId, edgeTraversal));
+            }
+            else
+            {
+                // balanced and multiple layers
+                List<uint[]> layerAltersList = layersToUse
+                    .Select(l => l.GetNodeAlters(nodeId, edgeTraversal))
+                    .Where(a => a.Length>0)
+                    .ToList();
+                if (layerAltersList.Count==0)
+                    return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");
+                alterIds.AddRange(layerAltersList[Misc.Random.Next(layerAltersList.Count)]);
             }
             if (alterIds.Count == 0)
                 return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-            uint randomAlterId = alterIds[Misc.Random.Next(alterIds.Count)];
-            return OperationResult<uint>.Ok(randomAlterId);
+            return OperationResult<uint>.Ok(alterIds[Misc.Random.Next(alterIds.Count)]);
         }
 
         /// <summary>
@@ -323,17 +322,18 @@ namespace Threadle.Core.Analysis
             var layer = layerResult.Value!;
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            if (nodeIds.Length == 1)
-                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Network has no nodes, and thus no edges.");
+            bool selfiesAllowed = layer is ILayerOneMode om && om.Selfties;
+            if (nodeIds.Length == 0 || (nodeIds.Length == 1 && !selfiesAllowed))
+                return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Network has fewer than 2 nodes and thus no edges.");
 
             Dictionary<string, object>? randomEdge = Functions.GetRandomEdge(layer, nodeIds, maxAttempts);
 
             if (randomEdge != null)
                 return OperationResult<Dictionary<string, object>>.Ok(randomEdge, "Random edge found through polling.");
 
-            if (layer is LayerOneMode layerOneMode)
+            if (layer is ILayerOneMode layerOneMode)
                 randomEdge = Functions.GetRandomEdgeSweepOneMode(layerOneMode);
-            else if (layer is LayerTwoMode layerTwoMode)
+            else if (layer is ILayerTwoMode layerTwoMode)
                 randomEdge = Functions.GetRandomEdgeWeightedTwoMode(layerTwoMode);
 
             if (randomEdge == null)

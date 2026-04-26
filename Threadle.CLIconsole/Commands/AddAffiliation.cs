@@ -14,12 +14,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "addaff(network = [var:network], layername = [str], nodeid = [uint], hypername = [str], *addmissingnode = ['true'(default),'false'], *addmissingaffiliation = ['true'(default),'false'])";
+        public string Syntax => "addaff(network = [var:network], layername = [str], nodeid = [uint], hypername = [str], *addmissingnode = ['true'(default),'false'], *addmissinghyperedge = ['true'(default),'false'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Adds an affiliation between node 'nodeid' and the hyperedge named 'hypername' in layer 'layername' in network [var:network]. The specified layer must be 2-mode. If the node-hyperedge affiliation already exists, nothing happens. If the specified node id does not exist in the Nodeset, it is by default created and added, but by setting 'addmissingnodes' to 'false' prevents this. If the specified hyperedge does not exist, it is by default created and added, but by setting 'addmissingaffiliations' to 'false' prevents this.";
+        public string Description => "Adds an affiliation between node 'nodeid' and the hyperedge named 'hypername' in layer 'layername' in network [var:network]. The specified layer must be 2-mode. If the node-hyperedge affiliation already exists, nothing happens. If the specified node id does not exist in the Nodeset, it is by default created and added, but by setting 'addmissingnode' to 'false' prevents this. If the specified hyperedge does not exist, it is by default created and added, but by setting 'addmissinghyperedge' to 'false' prevents this.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -40,9 +40,9 @@ namespace Threadle.CLIconsole.Commands
             string hyperName = command.GetArgumentThrowExceptionIfMissingOrNull("hypername", "arg3");
             if (!Misc.IsNameWithinBinaryLimit(hyperName))
                 return CommandResult.Fail("NameTooLong", $"The hyperedge name - '{hyperName}' - is too long; can max be 255 UTF8 bytes.");
-            bool addMissingNode = command.GetArgumentParseBool("addmissingnodes", true);
-            bool addMissingAffiliation = command.GetArgumentParseBool("addmissingaffiliations", true);
-            return CommandResult.FromOperationResult(network.AddAffiliation(layerName, hyperName, nodeId, addMissingNode, addMissingAffiliation));
+            bool addMissingNode = command.GetArgumentParseBool("addmissingnode", true);
+            bool addMissingHyperedge = command.GetArgumentParseBool("addmissinghyperedge", true);
+            return CommandResult.FromOperationResult(network.AddAffiliation(layerName, hyperName, nodeId, addMissingNode, addMissingHyperedge));
         }
     }
 }

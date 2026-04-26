@@ -98,7 +98,10 @@ namespace Threadle.CLIconsole.Runtime
 
                 if (command == null)
                 {
-                    ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
+                    if (jsonMode)
+                        renderer.RenderException(new Exception("Invalid command syntax."));
+                    else
+                        ConsoleOutput.WriteLine("!Error: Invalid command syntax.");
                     continue;
                 }
 
@@ -112,7 +115,6 @@ namespace Threadle.CLIconsole.Runtime
                     renderer.RenderException(ex);
                 }
             }
-            ConsoleOutput.WriteLine("Exiting...");
         }
         #endregion
     }

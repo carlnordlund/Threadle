@@ -53,7 +53,7 @@ namespace Threadle.CLIconsole.Runtime
 
                 var lineResult = CommandDispatcher.Dispatch(pkt, context);
                 if (!lineResult.Success)
-                    return CommandResult.Fail("InvalidSyntax", $"Error at line {i + 1}: {lineResult.Message}");
+                    return CommandResult.Fail("RuntimeError", $"Error at line {i + 1}: {lineResult.Message}");
                 if (lineResult.Payload != null)
                     payloads[$"[{i + 1}] {pkt.CommandName}"] = lineResult.Payload;
                 if (lineResult.Assigned != null)

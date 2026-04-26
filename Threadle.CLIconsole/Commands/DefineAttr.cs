@@ -13,12 +13,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "defineattr(structure = [var:structure], attrname = [str], attrtype = ['int','char','float','bool'])";
+        public string Syntax => "defineattr(structure = [var:structure], attrname = [str], attrtype = ['int','char','float','bool','string'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Defines a Node attribute for the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. The name of the node attribute is 'attrname' and its data type is one of 'int' (integer), 'char' (single character), 'float' (floating point), or 'bool' (boolean, true or false).";
+        public string Description => "Defines a Node attribute for the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. The name of the node attribute is 'attrname' and its data type is one of 'int' (integer), 'char' (single character), 'float' (floating point), 'bool' (boolean, true or false), or 'string'.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

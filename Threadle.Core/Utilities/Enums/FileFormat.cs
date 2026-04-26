@@ -1,7 +1,7 @@
-﻿namespace Threadle.Core.Utilities
+﻿namespace Threadle.Core.Utilities.Enums
 {
     /// <summary>
-    /// Enum with the available file formats, currently only Tsv with optional Gzip
+    /// Enum with the available file formats, for loading/saving Threadle networks and nodesets
     /// </summary>
     public enum FileFormat
     {

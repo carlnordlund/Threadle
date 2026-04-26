@@ -17,7 +17,7 @@ namespace Threadle.Core.Analysis
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <param name="edgeTraversal">A <see cref="EdgeTraversal"/> value specifying whether indegree, outdegree or grossdegree should be calculated.</param>
         /// <returns>Returns a dictionary with degree centrality measures by node id.</returns>
-        internal static Dictionary<uint, uint> DegreeCentrality(Network network, LayerOneMode layerOneMode, EdgeTraversal edgeTraversal)
+        internal static Dictionary<uint, uint> DegreeCentrality(Network network, ILayerOneMode layerOneMode, EdgeTraversal edgeTraversal)
         {
             Dictionary<uint, uint> degreeCentrality = edgeTraversal switch
             {
@@ -34,11 +34,11 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 2-mode layer object.</param>
         /// <returns>Returns a dictionary with outdegree centrality measures by node id.</returns>
-        internal static Dictionary<uint, uint> DegreeCentrality(Network network, LayerTwoMode layerTwoMode)
+        internal static Dictionary<uint, uint> DegreeCentrality(Network network, ILayerTwoMode layerTwoMode)
         {
             Dictionary<uint, uint> degreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
-                degreeCentrality[nodeId] = (uint)layerTwoMode.GetNodeAlters(nodeId).Length;
+                degreeCentrality[nodeId] = (uint)layerTwoMode.GetNodeAlters(nodeId, EdgeTraversal.Both).Length;
             return degreeCentrality;
         }
 
@@ -48,11 +48,12 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layer">The 1-mode layer object.</param>
         /// <returns>Density (as a double value).</returns>
-        internal static double Density(Network network, LayerOneMode layer)
+        internal static double Density(Network network, ILayerOneMode layer)
         {
             ulong nbrPotentialEdges = Misc.GetNbrPotentialEdges((ulong)network.Nodeset.Count, layer.Directionality, layer.Selfties);
-            ulong nbrExistingEdges = layer.NbrEdges;
-            return (double)nbrExistingEdges / nbrPotentialEdges;
+            if (nbrPotentialEdges == 0)
+                return 0.0;
+            return (double)layer.NbrEdges / nbrPotentialEdges;
         }
 
         /// <summary>
@@ -63,15 +64,23 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layer">The 2-mode layer object.</param>
         /// <returns>Density (as a double value)</returns>
-        internal static double Density(Network network, LayerTwoMode layer)
+        internal static double Density(Network network, ILayerTwoMode layer, int sampleSize = 200)
         {
             int nbrNodes = network.Nodeset.Count;
-            ulong nbrPotentialEdges = (ulong)(nbrNodes * (nbrNodes - 1));
+            if (nbrNodes <= 1)
+                return 0.0;
 
-            ulong nbrExistingEdges = 0;
-            foreach (uint nodeId in network.Nodeset.NodeIdArray)
-                nbrExistingEdges += (ulong)layer.GetNodeAlters(nodeId).Length;
-            return (double)nbrExistingEdges / nbrPotentialEdges;
+            ulong nbrPotentialEdges = (ulong)nbrNodes * (ulong)(nbrNodes - 1);
+            uint[] allNodeIds = network.Nodeset.NodeIdArray;
+            int actualSample = Math.Min(nbrNodes, sampleSize);
+            uint[] ids = (uint[])allNodeIds.Clone();
+            Misc.SampleWithoutReplacementInPlace(ids, actualSample);
+            ulong sumAlters = 0;
+            for (int i = 0; i < actualSample; i++)
+                sumAlters += (ulong)layer.GetNodeAlters(ids[i], EdgeTraversal.Out).Length;
+
+            double meanAlters = (double)sumAlters / actualSample;
+            return meanAlters*nbrNodes/(double)nbrPotentialEdges;
         }
 
         /// <summary>
@@ -87,9 +96,9 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Char)
+                if (attrValue != null)
                 {
-                    char charValue = (char)attrValue.Value.GetValue()!;
+                    char charValue = (char)attrValue.Value.GetValue(NodeAttributeType.Char)!;
                     if (frequency.TryGetValue(charValue, out int count))
                         frequency[charValue] = count + 1;
                     else
@@ -134,9 +143,9 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Bool)
+                if (attrValue != null)
                 {
-                    if ((bool)attrValue.Value.GetValue()!)
+                    if ((bool)attrValue.Value.GetValue(NodeAttributeType.Bool)!)
                         countTrue++;
                     else
                         countFalse++;
@@ -166,8 +175,8 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Float)
-                    values.Add((float)attrValue.Value.GetValue()!);
+                if (attrValue != null)
+                    values.Add((float)attrValue.Value.GetValue(NodeAttributeType.Float)!);
             }
             countWithValue = values.Count;
             Dictionary<string, object> stats = [];
@@ -176,7 +185,7 @@ namespace Threadle.Core.Analysis
                 return stats;
 
             double mean = values.Average();
-            double variance = values.Sum(v => Math.Pow(v - mean, 2)) / values.Count;
+            double variance = values.Count > 1 ? values.Sum(v => Math.Pow(v - mean, 2)) / (values.Count - 1) : 0.0;
             double stdDev = Math.Sqrt(variance);
 
             float[] sorted = [.. values];
@@ -205,8 +214,8 @@ namespace Threadle.Core.Analysis
             foreach (uint nodeId in nodeset.NodeIdArray)
             {
                 var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
-                if (attrValue != null && attrValue.Value.Type == NodeAttributeType.Int)
-                    values.Add((int)attrValue.Value.GetValue()!);
+                if (attrValue != null)
+                    values.Add((int)attrValue.Value.GetValue(NodeAttributeType.Int)!);
             }
             countWithValues = values.Count;
             Dictionary<string, object> stats = [];
@@ -214,7 +223,7 @@ namespace Threadle.Core.Analysis
                 return stats;
 
             double mean = values.Average();
-            double variance = values.Sum(v => Math.Pow(v - mean, 2)) / values.Count;
+            double variance = values.Count > 1 ? values.Sum(v => Math.Pow(v - mean, 2)) / (values.Count - 1) : 0.0;
             double stdDev = Math.Sqrt(variance);
             int[] sorted = [.. values];
             Array.Sort(sorted);
@@ -228,6 +237,58 @@ namespace Threadle.Core.Analysis
             stats["Q3"] = GetPercentile(sorted, 75);
             return stats;
         }
+
+        /// <summary>
+        /// Returns summary statistics about a node attribute of type string.
+        /// </summary>
+        /// <param name="nodeset">The Nodeset structure.</param>
+        /// <param name="attrIndex">The attribute index.</param>
+        /// <param name="countWithValues">Outbound variable with the number of nodes that have this attribute set.</param>
+        /// <returns>Returns a string-object dictionary with summary statistics.</returns>
+        internal static Dictionary<string, object> CalculateStringStatistics(Nodeset nodeset, byte attrIndex, out int countWithValues)
+        {
+            Dictionary<string, int> frequency = [];
+            foreach (uint nodeId in nodeset.NodeIdArray)
+            {
+                var attrValue = nodeset.GetNodeAttribute(nodeId, attrIndex);
+                if (attrValue != null)
+                {
+                    string strValue = nodeset.GetStringFromPool((int)attrValue.Value.GetValue(NodeAttributeType.String)!);
+                    if (frequency.TryGetValue(strValue, out int count))
+                        frequency[strValue] = count + 1;
+                    else
+                        frequency[strValue] = 1;
+                }
+            }
+            countWithValues = frequency.Values.Sum();
+
+            var sorted = frequency.OrderByDescending(kvp => kvp.Value).ToList();
+            const int topN = 50;
+
+            var frequencyForOutput = sorted
+                .Take(topN)
+                .ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value);
+
+            Dictionary<string, object> stats = new()
+            {
+                ["Frequency"] = frequencyForOutput,
+                ["Unique_Values"] = frequency.Count,
+                ["Frequency_Capped_At"] = topN
+            };
+
+            if (sorted.Count > 0)
+            {
+                stats["Mode"] = sorted[0].Key;
+                stats["Mode_Count"] = sorted[0].Value;
+            }
+            else
+            {
+                stats["Mode_Count"] = 0;
+            }
+            return stats;
+        }
+
+
 
         /// <summary>
         /// Support function to determine the percentile value from a sorted array of integers
@@ -268,6 +329,34 @@ namespace Threadle.Core.Analysis
             double fraction = index - lower;
             return sortedValues[lower] * (1 - fraction) + sortedValues[upper] * fraction;
         }
+
+        internal static uint WeightedPick(List<(uint alterId, float weight)> candidates)
+        {
+            float total = 0f;
+            foreach (var (_, w) in candidates) total += w;
+            float r = (float)(Misc.Random.NextDouble() * total);
+            float cumulative = 0f;
+            foreach (var (alterId, weight) in candidates)
+            {
+                cumulative += weight;
+                if (r < cumulative) return alterId;
+            }
+            return candidates[^1].alterId;
+        }
+
+        internal static void AppendWeightedCandidates(List<(uint, float)> candidates, ILayer layer, uint nodeId, EdgeTraversal edgeTraversal)
+        {
+            var (alters, weights) = layer.GetNodeAltersWithWeights(nodeId, edgeTraversal);
+            var alterSpan = alters.Span;
+            bool hasWeights = weights.Length > 0;
+            var weightSpan = weights.Span;
+            for (int i = 0; i < alterSpan.Length; i++)
+                candidates.Add((alterSpan[i], hasWeights ? weightSpan[i] : 1f));
+        }
+
+
+
+
         #endregion
 
 
@@ -278,7 +367,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <returns>Returns a dictionary with gross degree centrality measures by node id.</returns>
-        private static Dictionary<uint, uint> GrossDegreeCentrality(Network network, LayerOneMode layerOneMode)
+        private static Dictionary<uint, uint> GrossDegreeCentrality(Network network, ILayerOneMode layerOneMode)
         {
             Dictionary<uint, uint> grossDegreeCentrality = [];
             if (layerOneMode.IsSymmetric)
@@ -296,7 +385,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <returns>Returns a dictionary with indegree centrality measures by node id.</returns>
-        private static Dictionary<uint, uint> InDegreeCentrality(Network network, LayerOneMode layerOneMode)
+        private static Dictionary<uint, uint> InDegreeCentrality(Network network, ILayerOneMode layerOneMode)
         {
             Dictionary<uint, uint> inDegreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
@@ -310,7 +399,7 @@ namespace Threadle.Core.Analysis
         /// <param name="network">The Network structure.</param>
         /// <param name="layerOneMode">The 1-mode layer object.</param>
         /// <returns>Returns a dictionary with outdegree centrality measures by node id.</returns>
-        private static Dictionary<uint, uint> OutDegreeCentrality(Network network, LayerOneMode layerOneMode)
+        private static Dictionary<uint, uint> OutDegreeCentrality(Network network, ILayerOneMode layerOneMode)
         {
             Dictionary<uint, uint> outDegreeCentrality = [];
             foreach (var nodeId in network.Nodeset.NodeIdArray)
@@ -318,6 +407,12 @@ namespace Threadle.Core.Analysis
             return outDegreeCentrality;
         }
 
+        /// <summary>
+        /// Identifies connected components in a network and assigns a unique identifier to each component.
+        /// </summary>
+        /// <param name="network">The network containing the nodes to analyze.</param>
+        /// <param name="layer">The layer used to retrieve neighboring nodes for traversal.</param>
+        /// <returns>A dictionary mapping each node ID to its corresponding component ID.</returns>
         internal static Dictionary<uint, int> ConnectedComponents(Network network, ILayer layer)
         {
             Dictionary<uint, int> componentIds = [];
@@ -356,7 +451,8 @@ namespace Threadle.Core.Analysis
             {
                 uint node1 = nodeIds[Misc.Random.Next(nodeIds.Length)];
                 uint node2 = nodeIds[Misc.Random.Next(nodeIds.Length)];
-                if (node1 == node2)
+                // If nodes are the same, i.e. a selftie, and this is not a 1-mode layer that allows selfties, then continue:
+                if (node1 == node2 && !(layer is ILayerOneMode oneModeLayer && oneModeLayer.Selfties))
                     continue;
                 float value = layer.GetEdgeValue(node1, node2);
                 if (value > 0)
@@ -370,48 +466,36 @@ namespace Threadle.Core.Analysis
             return null;
         }
 
-        internal static Dictionary<string, object>? GetRandomEdgeSweepOneMode(LayerOneMode layerOneMode)
+        internal static Dictionary<string, object>? GetRandomEdgeSweepOneMode(ILayerOneMode layerOneMode)
         {
-            int totalEdges = (int)layerOneMode.NbrEdges;
+            if (layerOneMode.NbrEdges == 0)
+                return null;
+            int totalEdges = (int)Math.Min(layerOneMode.NbrEdges, int.MaxValue);
             int randomIndex = Misc.Random.Next(totalEdges);
-            foreach (var kvp in layerOneMode.Edgesets)
-            {
-                if (randomIndex < kvp.Value.NbrEdges)
-                {
-                    uint node1 = kvp.Key;
-                    uint node2 = kvp.Value.GetOutboundNodeIds.ElementAt(randomIndex);
-                    float value = layerOneMode.GetEdgeValue(node1, node2);
-                    return new Dictionary<string, object>
-                    {
-                        ["node1"] = node1,
-                        ["node2"] = node2,
-                        ["value"] = value
-                    };
-                }
-                randomIndex -= (int)kvp.Value.NbrEdges;
-            }
-            return null;
+            var edges = layerOneMode.GetAllEdges(randomIndex, 1);
+            return edges.Count > 0 ? edges[0] : null;
         }
 
-        internal static Dictionary<string, object>? GetRandomEdgeWeightedTwoMode(LayerTwoMode layerTwoMode)
+        internal static Dictionary<string, object>? GetRandomEdgeWeightedTwoMode(ILayerTwoMode layerTwoMode)
         {
-            var validHyperedges = layerTwoMode.AllHyperEdges.Values.Where(h => h.NbrNodes >= 2).ToList();
-            if (validHyperedges.Count == 0)
-                return null;
-            List<int> weights = new(validHyperedges.Count);
-            Int64 totalWeight = 0;
-            foreach (var hyperedge in validHyperedges)
+            string[] allNames = layerTwoMode.GetAllHyperedgeNames(0, (int)Math.Min(layerTwoMode.NbrHyperedges, int.MaxValue));
+            List<string> validNames = [];
+            List<long> weights = [];
+            long totalWeight = 0;
+            foreach (string name in allNames)
             {
-                int k = hyperedge.NbrNodes;
-                int weight = k * (k - 1) / 2;
-                weights.Add(weight);
-                totalWeight += weight;
+                int k = layerTwoMode.GetHyperedgeNodeIds(name).Length;
+                if (k >= 2)
+                {
+                    long weight = (long)k * (k - 1) / 2;
+                    validNames.Add(name);
+                    weights.Add(weight);
+                    totalWeight += weight;
+                }
             }
-
             if (totalWeight == 0)
                 return null;
-            Int64 randomWeight = Misc.Random.NextInt64(totalWeight);
-
+            long randomWeight = Misc.Random.NextInt64(totalWeight);
             int selectedIndex = 0;
             for (int i = 0; i < weights.Count; i++)
             {
@@ -422,20 +506,21 @@ namespace Threadle.Core.Analysis
                 }
                 randomWeight -= weights[i];
             }
-
-            Hyperedge selectedHyperedge = validHyperedges[selectedIndex];
-            var Nodeids = selectedHyperedge.NodeIds.ToArray();
-            int idx1 = Misc.Random.Next(Nodeids.Length);
+            uint[] nodeIds = layerTwoMode.GetHyperedgeNodeIds(validNames[selectedIndex]);
+            // Return null in case this hyperedge only has one connection
+            if (nodeIds.Length < 2)
+                return null;
+            int idx1 = Misc.Random.Next(nodeIds.Length);
             int idx2;
             do
             {
-                idx2 = Misc.Random.Next(Nodeids.Length);
+                idx2 = Misc.Random.Next(nodeIds.Length);
             } while (idx2 == idx1);
             return new Dictionary<string, object>
             {
-                ["node1"] = Nodeids[idx1],
-                ["node2"] = Nodeids[idx2],
-                ["value"] = layerTwoMode.GetEdgeValue(Nodeids[idx1], Nodeids[idx2])
+                ["node1"] = nodeIds[idx1],
+                ["node2"] = nodeIds[idx2],
+                ["value"] = layerTwoMode.GetEdgeValue(nodeIds[idx1], nodeIds[idx2])
             };
         }
         #endregion

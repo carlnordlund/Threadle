@@ -21,6 +21,10 @@ namespace Threadle.Core.Processing
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateIntAttr(Nodeset nodeset, string attrName, int minValue, int maxValue)
         {
+            if (minValue > maxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'minvalue' ({minValue}) is greater than the 'maxvalue' ({maxValue}).");
+            if (maxValue == int.MaxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {int.MaxValue-1}).");
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Int);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
@@ -42,6 +46,12 @@ namespace Threadle.Core.Processing
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateFloatAttr(Nodeset nodeset, string attrName, float minValue, float maxValue)
         {
+            if (minValue > maxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'minvalue' ({minValue}) is greater than the 'maxvalue' ({maxValue}).");
+
+            if ((double)maxValue - (double)minValue > (double)float.MaxValue)
+                return OperationResult.Fail("ArgumentOutOfRange", "The range between 'minvalue' and 'maxvalue' is too large.");
+
             var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Float);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
@@ -99,6 +109,34 @@ namespace Threadle.Core.Processing
         }
 
         /// <summary>
+        /// Generate a string-type node attribute picking uniformly from the provided
+        /// semicolon-separated list of values.
+        /// </summary>
+        public static OperationResult GenerateStringAttr(Nodeset nodeset, string attrName, string valuesString)
+        {
+            string[] values = valuesString.Split(';')
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToArray();
+            if (values.Length == 0)
+                return OperationResult.Fail("InvalidArgument",
+                    "The 'values' argument must contain at least one semicolon-separated string value.");
+
+            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.String);
+            if (!attrDefineResult.Success)
+                return attrDefineResult;
+            byte attrIndex = attrDefineResult.Value;
+
+            uint[] nodeIdArray = nodeset.NodeIdArray;
+            for (int i = 0; i < nodeIdArray.Length; i++)
+            {
+                string chosen = values[Misc.Random.Next(0, values.Length)];
+                nodeset.SetNodeAttribute(nodeIdArray[i], attrIndex, new NodeAttributeValue(nodeset.GetOrAddStringToPool(chosen)));
+            }
+            return OperationResult.Ok($"Node attribute '{attrName}' (string) defined and values randomly assigned from provided list.");
+        }
+
+        /// <summary>
         /// Generates random affiliation data in the specified network and 2-mode layer, with
         /// the specified number of hyperedges (affiliations) and the average number of affiliations
         /// each node should have. The number of affiliations is taken from the Poisson
@@ -124,6 +162,7 @@ namespace Threadle.Core.Processing
 
             double[] cdf = Misc.BuildPoissonCDF(averageNbrAffiliations, h);
 
+            layer.ClearLayer();
             Nodeset nodeset = network.Nodeset;
 
             uint[] nodeIds = nodeset.NodeIdArray;
@@ -168,18 +207,19 @@ namespace Threadle.Core.Processing
             if (layer.Selfties)
                 return OperationResult.Fail("ConstraintLayerAllowsSelfties", $"Layer '{layerName}' in network '{network.Name}' can't allow for selfties.");
 
+            layer.ClearLayer();
             Nodeset nodeset = network.Nodeset;
 
             // Get an array of all node ids
             uint[] nodeIds = nodeset.NodeIdArray;
             int n = nodeIds.Length;
 
-            if (m < 0 || m > n)
-                return OperationResult.Fail("InvalidArgument", $"The attachment parameter (m) is {m}: it must be between 2 and the size of the network.");
+            if (m < 0 || m >= n)
+                return OperationResult.Fail("InvalidArgument", $"The attachment parameter (m) is {m}: it must be between 0 and the size of the network.");
 
-            int totalEdges = (m * (m + 1)) / 2 + m * (n - m - 1);
+            long totalEdges = (long)m * (m + 1) / 2 + m * (n - m - 1);
 
-            List<uint> edgeEndpoints = new List<uint>(2 * totalEdges);
+            List<uint> edgeEndpoints = new List<uint>((int)Math.Min(2 * totalEdges, int.MaxValue));
 
             // Create initial clique with first m+1 nodes
             for (int i = 0; i <= m; i++)
@@ -270,18 +310,26 @@ namespace Threadle.Core.Processing
                     {
                         // Note how modulus by size of nodeset will make the wrap!
                         oldTarget = nodeIds[(i + j) % n];
-                        do
+                        newTarget = 0;
+                        int maxAttempts = nodeIds.Length * 3;
+                        bool rewired = false;
+                        for (int attempt = 0; attempt < maxAttempts; attempt++)
                         {
-                            newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length - 1)];
-
+                            newTarget = nodeIds[Misc.Random.Next(0, nodeIds.Length)];
+                            if (newTarget != source && !layer.CheckEdgeExists(source, newTarget))
+                            {
+                                rewired = true;
+                                break;
+                            }
                         }
-                        while (newTarget == i || layer.CheckEdgeExists(source, newTarget));
-                        layer.RemoveEdge(source, oldTarget);
-                        layer.AddEdge(source, newTarget);
+                        if (rewired)
+                        {
+                            layer.RemoveEdge(source, oldTarget);
+                            layer.AddEdge(source, newTarget);
+                        }
                     }
                 }
             }
-
             return OperationResult.Ok($"Watts-Strogatz network with k={k} and beta={beta} generated in layer '{layerName}' in network '{network.Name}'.");
         }
 
@@ -298,6 +346,9 @@ namespace Threadle.Core.Processing
         /// <returns></returns>
         public static OperationResult GenerateErdosRenyiLayer(Network network, string layerName, double p)
         {
+            if (p < 0 || p > 1)
+                return OperationResult.Fail("InvalidParameter", $"Edge probability p must be in the range [0,1], got {p}.");
+
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
                 return layerResult;
@@ -323,13 +374,16 @@ namespace Threadle.Core.Processing
             layer._initEdgesets(nodeIds, edgesetCapacity);
 
             ulong totalEdges = Misc.GetNbrPotentialEdges(n, layer.Directionality, layer.Selfties);
+
+            if (p == 0 || totalEdges == 0)
+                return OperationResult.Ok($"Erdös-Renyi network with p={p} generated in layer '{layerName}' in network '{network.Name}'.");
             ulong index = 0;
             uint row = 0;
             ulong rowStartindex = 0;
             uint rowLength = GetRowLength(row, n, layer.Directionality, layer.Selfties);
             while (index < totalEdges)
             {
-                ulong skip = Misc.SampleGeometric(p);
+                ulong skip = p < 1 ? Misc.SampleGeometric(p) : 0;
                 index += skip;
                 if (index >= totalEdges)
                     break;

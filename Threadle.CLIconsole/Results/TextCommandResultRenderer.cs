@@ -135,10 +135,11 @@ namespace Threadle.CLIconsole.Results
         private static void RenderHelpText(IDictionary<string, string> helpText, int indent = 0)
         {
             string pad = new string(' ', indent * 2);
+            string descPrefix = $"{pad}  ";
             Console.Out.WriteLine($"{pad}SYNTAX:");
             Console.Out.WriteLine($"{pad}  {helpText["Syntax"]}{Environment.NewLine}");
             Console.Out.WriteLine($"{pad}DESCRIPTION:");
-            Console.Out.WriteLine($"{pad}  {WordWrap(helpText["Description"])}{Environment.NewLine}");
+            Console.Out.WriteLine($"{descPrefix}{WordWrap(helpText["Description"],continuationIndent:descPrefix)}{Environment.NewLine}");
         }
 
         /// <summary>
@@ -304,7 +305,7 @@ namespace Threadle.CLIconsole.Results
 
             var remaining = item
                 .Where(kvp => kvp.Key != "Name")
-                .Select(kvp => $"{kvp.Key}={kvp.Value}");
+                .Select(kvp => $"{kvp.Key}: {kvp.Value}");
 
             string details = string.Join("; ", remaining);
 
@@ -322,7 +323,7 @@ namespace Threadle.CLIconsole.Results
         /// <param name="unwrapped">The original string text to be word-wrapped.</param>
         /// <param name="charWidth">The maximum width of the word-wrapped text.</param>
         /// <returns>A word-wrapped version of the provided text.</returns>
-        private static string WordWrap(string unwrapped, int charWidth = 100)
+        private static string WordWrap(string unwrapped, int charWidth = 100, string continuationIndent = "")
         {
             string wrapped = "";
             string[] words = unwrapped.Split(' ');
@@ -331,8 +332,8 @@ namespace Threadle.CLIconsole.Results
             {
                 if (currentLineLength + word.Length + 1 > charWidth)
                 {
-                    wrapped += $"{Environment.NewLine}";
-                    currentLineLength = 0;
+                    wrapped += $"{Environment.NewLine}{continuationIndent}";
+                    currentLineLength = continuationIndent.Length;
                 }
                 if (currentLineLength > 0)
                 {

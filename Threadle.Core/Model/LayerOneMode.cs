@@ -9,7 +9,7 @@ namespace Threadle.Core.Model
     /// specifies whether the layer has directional or symmetric ties, whether binary or valued, and
     /// whether self-ties are allowed.
     /// </summary>
-    public class LayerOneMode : ILayer
+    public class LayerOneMode : ILayer, ILayerOneMode
     {
         #region Fields
         /// <summary>
@@ -25,13 +25,6 @@ namespace Threadle.Core.Model
 
 
         #region Constructors
-        /// <summary>
-        /// Initializes a new instance of the <see cref="LayerOneMode"/> class
-        /// </summary>
-        public LayerOneMode()
-        {
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="LayerOneMode"/> class, with the specified properties.
         /// </summary>
@@ -59,17 +52,17 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Directionality of edges in the layer.
         /// </summary>
-        public EdgeDirectionality Directionality;
+        public EdgeDirectionality Directionality { get; }
 
         /// <summary>
         /// Value type of edges in the layer.
         /// </summary>
-        public EdgeType EdgeValueType;
+        public EdgeType EdgeValueType { get; }
 
         /// <summary>
         /// Boolean indicating whether selfties are allowed.
         /// </summary>
-        public bool Selfties;
+        public bool Selfties { get; }
 
         /// <summary>
         /// Returns true if the layer is symmetric, otherwise false.
@@ -94,11 +87,11 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns the number of edges in the layer.
         /// </summary>
-        public uint NbrEdges
+        public ulong NbrEdges
         {
             get
             {
-                uint nbrConnections = 0;
+                ulong nbrConnections = 0;
                 foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
                     nbrConnections += edgeset.NbrEdges;
                 return Directionality == EdgeDirectionality.Directed ? nbrConnections : nbrConnections / 2;
@@ -112,10 +105,12 @@ namespace Threadle.Core.Model
         {
             ["Name"] = Name,
             ["Mode"] = 1,
+            ["Static"] = false,
             ["Directionality"] = Directionality.ToString(),
             ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
-            ["NbrEdges"] = NbrEdges
+            ["NbrEdges"] = NbrEdges,
+            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
         };
 
         /// <summary>
@@ -126,11 +121,38 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Returns a string with metadata info about the layer
         /// </summary>
-        public string GetLayerInfo => $" {Name} [1-mode: {EdgeValueType},{Directionality},{Selfties}); Nbr edges:{NbrEdges}]";
+        public string GetLayerInfo => $" {Name} [1-mode; {EdgeValueType},{Directionality},{Selfties}; Nbr edges:{NbrEdges}]";
+
+        public bool IsStatic => false;
         #endregion
 
 
         #region Methods (public)
+        public static LayerOneMode FromStatic(LayerOneModeStatic source)
+        {
+            var layer = new LayerOneMode(source.Name, source.Directionality, source.EdgeValueType, source.Selfties);
+            layer._initSizeEdgesetDictionary(source.NodeCount);
+            foreach (var (egoId, alters, values) in source.GetAllEgoData())
+            {
+                ReadOnlySpan<uint> altersSpan = alters.Span;
+                if (!values.IsEmpty)
+                {
+                    var valuedAlters = new List<(uint, float)>(altersSpan.Length);
+                    ReadOnlySpan<float> valSpan = values.Span;
+                    for (int i = 0; i < altersSpan.Length; i++)
+                        valuedAlters.Add((altersSpan[i], valSpan[i]));
+                    layer._addValuedEdges(egoId, valuedAlters);
+                }
+                else
+                {
+                    layer._addBinaryEdges(egoId, alters.ToArray());
+                }
+            }
+            return layer;
+        }
+
+
+
         /// <summary>
         /// Removes any edge in the Edgeset that includes this node id.
         /// Used for cleaning up relational layers for invalid edges after a node has been removed.
@@ -184,6 +206,65 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Returns alter node ids together with their associated edge weights for use in weighted random selection.
+        /// </summary>
+        /// <param name="nodeId">The ego node id.</param>
+        /// <param name="edgeTraversal">Edge traversal direction. Ignored for undirected 1-mode layers.</param>
+        /// <returns>A tuple of parallel alter-id and weight memory regions. Weights may be empty for binary layers.</returns>
+        public (ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> weights) GetNodeAltersWithWeights(uint nodeId, EdgeTraversal edgeTraversal)
+        {
+            if (!Edgesets.TryGetValue(nodeId, out var edgeset))
+                return (ReadOnlyMemory<uint>.Empty, ReadOnlyMemory<float>.Empty);
+
+            // Binary: return alter IDs with empty weights; caller treats each as weight 1.0f
+            if (edgeset is not IEdgesetValued valuedEdgeset)
+                return (edgeset.GetAlterIds(edgeTraversal), ReadOnlyMemory<float>.Empty);
+
+            // Symmetric (undirected valued): direction irrelevant — use outbound connections
+            if (edgeset is IEdgesetSymmetric)
+            {
+                var conns = valuedEdgeset.GetOutboundConnections;
+                uint[] a = new uint[conns.Count]; float[] w = new float[conns.Count];
+                for (int i = 0; i < conns.Count; i++) { a[i] = conns[i].partnerNodeId; w[i] = conns[i].value; }
+                return (a, w);
+            }
+
+            // Directional valued — out only
+            if (edgeTraversal == EdgeTraversal.Out)
+            {
+                var conns = valuedEdgeset.GetOutboundConnections;
+                uint[] a = new uint[conns.Count]; float[] w = new float[conns.Count];
+                for (int i = 0; i < conns.Count; i++) { a[i] = conns[i].partnerNodeId; w[i] = conns[i].value; }
+                return (a, w);
+            }
+
+            // Directional valued — in only
+            if (edgeTraversal == EdgeTraversal.In)
+            {
+                var conns = valuedEdgeset.GetInboundConnections;
+                uint[] a = new uint[conns.Count]; float[] w = new float[conns.Count];
+                for (int i = 0; i < conns.Count; i++) { a[i] = conns[i].partnerNodeId; w[i] = conns[i].value; }
+                return (a, w);
+            }
+
+            // Directional valued — both: combine, sum weights for bidirectional pairs
+            {
+                var outConns = valuedEdgeset.GetOutboundConnections;
+                var inConns = valuedEdgeset.GetInboundConnections;
+                var combined = new Dictionary<uint, float>(outConns.Count + inConns.Count);
+                foreach (var c in outConns)
+                    combined[c.partnerNodeId] = combined.GetValueOrDefault(c.partnerNodeId) + c.value;
+                foreach (var c in inConns)
+                    combined[c.partnerNodeId] = combined.GetValueOrDefault(c.partnerNodeId) + c.value;
+                uint[] a = new uint[combined.Count]; float[] w = new float[combined.Count];
+                int idx = 0;
+                foreach (var (alterId, weight) in combined) { a[idx] = alterId; w[idx++] = weight; }
+                return (a, w);
+            }
+        }
+
+
+        /// <summary>
         /// Retrieves a collection of edges with their associated values, starting from a specified offset and limited
         /// to a maximum number of results.
         /// </summary>
@@ -221,6 +302,26 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Iterates all ego nodes with their outbound alters and edge values.
+        /// For undirected layers, each edge is yielded only once (from the lower node id).
+        /// <c>values</c> is empty for binary layers.
+        /// </summary>
+        public IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData()
+        {
+            foreach (var (egoId, edgeset) in _edgesets)
+            {
+                var alterList = new List<uint>();
+                List<float>? valueList = IsValued ? [] : null;
+                foreach (var (alterId, val) in edgeset.GetOutboundEdgesWithValues(egoId))
+                {
+                    alterList.Add(alterId);
+                    valueList?.Add(val);
+                }
+                yield return (egoId, alterList.ToArray(), valueList?.ToArray());
+            }
+        }
+
+        /// <summary>
         /// Clears the layer, i.e. clears all Edgeset objects and removes these.
         /// </summary>
         public void ClearLayer()
@@ -228,18 +329,6 @@ namespace Threadle.Core.Model
             foreach (IEdgeset edgeset in Edgesets.Values)
                 edgeset.ClearEdges();
             Edgesets.Clear();
-        }
-
-        /// <summary>
-        /// Returns a HashSet of all unique node ids mentioned in the Layer
-        /// </summary>
-        /// <returns>A HashSet of node ids.</returns>
-        public HashSet<uint> GetMentionedNodeIds()
-        {
-            HashSet<uint> ids = [];
-            foreach (IEdgeset edgeset in Edgesets.Values)
-                ids.UnionWith(edgeset.GetAllNodeIds);
-            return ids;
         }
 
         /// <summary>
@@ -251,7 +340,7 @@ namespace Threadle.Core.Model
         public ILayer CreateFilteredCopy(Nodeset nodeset)
         {
             HashSet<uint> nodeIds = [.. nodeset.NodeIdArray];
-            LayerOneMode layerCopy = CreateEmptyCopy();
+            LayerOneMode layerCopy = new LayerOneMode(this.Name+"_filtered", this.Directionality, this.EdgeValueType, this.Selfties);
 
             foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
             {
@@ -282,6 +371,15 @@ namespace Threadle.Core.Model
             }
 
             return edges;
+        }
+
+        public long GetEstimatedBytes()
+        {
+            int N = _edgesets.Count;
+            long bytes = (long)N * 20 + (long)(N / 0.72 + 1) * 4;
+            foreach (var es in _edgesets.Values)
+                bytes += 72 + (long)es.NbrEdges * 4;
+            return bytes;
         }
         #endregion
 
@@ -324,11 +422,20 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("ConstraintSelftiesNotAllowed", $"Layer {Name} does not allow for selfties.");
             IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1Id);
             IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2Id);
-            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+
+            bool needsInbound = IsSymmetric ? !(node1Id == node2Id) : !UserSettings.OnlyOutboundEdges;
+
+            if (needsInbound)
                 if (!edgeSetNode2.AddInboundEdge(node1Id, value).Success)
                     return OperationResult.Fail("EdgeAlreadyExists", $"Inbound edge to {node2Id} from {node1Id} already exists.");
+
             if (!edgeSetNode1.AddOutboundEdge(node2Id, value).Success)
+            {
+                if (needsInbound)
+                    edgeSetNode2.RemoveInboundEdge(node1Id);
                 return OperationResult.Fail("EdgeAlreadyExists", $"Outbound edge from {node1Id} to {node2Id} already exists.");
+            }
+
             return OperationResult.Ok($"Added edge {Misc.BetweenFromToText(Directionality, node1Id, node2Id)} (value={value}) in layer '{Name}'.");
         }
 
@@ -379,7 +486,7 @@ namespace Threadle.Core.Model
         internal void _addEdge(uint node1Id, uint node2Id, float value = 1)
         {
             GetOrCreateEdgeset(node1Id)._addOutboundEdge(node2Id, value);
-            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+            if ((IsSymmetric && node1Id != node2Id) || (!IsSymmetric && !UserSettings.OnlyOutboundEdges))
                 GetOrCreateEdgeset(node2Id)._addInboundEdge(node1Id, value);
         }
 
@@ -403,7 +510,7 @@ namespace Threadle.Core.Model
             }
             else
                 foreach ((uint alterId, float value) in nodeIdsAlters)
-                    edgeSetEgo.AddOutboundEdge(alterId, value);
+                    edgeSetEgo._addOutboundEdge(alterId, value);
         }
 
         /// <summary>
@@ -437,19 +544,11 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Non-private method to try to initialize the Edgeset-creating factory.
-        /// </summary>
-        internal void TryInitFactory()
-        {
-            InitializeFactory();
-        }
-
-        /// <summary>
         /// Gets the outdegree (i.e. number of outbound edges) for a node id.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         /// <returns>The number of outbound edges this node id has.</returns>
-        internal uint GetOutDegree(uint nodeId)
+        public uint GetOutDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
                 return 0;
@@ -461,20 +560,11 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         /// <returns>The number of inbound edges this node id has.</returns>
-        internal uint GetInDegree(uint nodeId)
+        public uint GetInDegree(uint nodeId)
         {
             if (!Edgesets.TryGetValue(nodeId, out var edgeset))
                 return 0;
             return edgeset.NbrInboundEdges;
-        }
-
-        /// <summary>
-        /// Creates and returns an empty copy of this layer.
-        /// </summary>
-        /// <returns></returns>
-        private LayerOneMode CreateEmptyCopy()
-        {
-            return new LayerOneMode(this.Name, this.Directionality, this.EdgeValueType, this.Selfties);
         }
 
         /// <summary>

@@ -14,7 +14,7 @@ namespace Threadle.Core.Model
         /// To keep track of the next node attribute index.
         /// Note: maximum number of node attributes is 255.
         /// </summary>
-        private byte _nextIndex = 0;
+        private int _nextIndex = 0;
 
         /// <summary>
         /// Collection of internal node attribute index numbers for recycling.
@@ -65,7 +65,9 @@ namespace Threadle.Core.Model
                 return OperationResult<byte>.Fail("MissingAttributeName", "Name of attribute must be at least one character.");
             if (CheckIfAttributeNameExists(attrName))
                 return OperationResult<byte>.Fail("AttributeAlreadyExists", $"Node attribute named '{attrName}' already defined");
-            byte index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : _nextIndex++;
+            if (_recycledIndices.Count == 0 && _nextIndex > 255)
+                return OperationResult<byte>.Fail("MaxAttributesReached", "Maximum of 256 node attributes reached.");
+            byte index = _recycledIndices.Count > 0 ? _recycledIndices.Pop() : (byte)_nextIndex++;
             _nameToIndex[attrName] = index;
             _indexToType[index] = attrType;
             _indexToName[index] = attrName;
@@ -95,6 +97,19 @@ namespace Threadle.Core.Model
         internal IEnumerable<(byte Index, string AttrName, NodeAttributeType AttrType)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Value, kvp.Key, _indexToType[kvp.Value]));
 
         /// <summary>
+        /// Returns the index, name and NodeAttributeType for the specified node attribute, or null if not found.
+        /// </summary>
+        /// <param name="attrName">The name of the node attribute.</param>
+        /// <returns>A tuple of (index, name, type), or null if no such attribute is defined.</returns>
+        internal (byte Index, NodeAttributeType AttrType)? GetNodeAttributeDefinition(string attrName)
+        {
+            if (!_nameToIndex.TryGetValue(attrName, out byte index))
+                return null;
+            return (index, _indexToType[index]);
+        }
+
+
+        /// <summary>
         /// Returns a (deep) clone of this <see cref="NodeAttributeDefinitionManager"/> object.
         /// Used for instance when creating a subset Nodeset where all node attributes should be cloned.
         /// </summary>
@@ -108,6 +123,9 @@ namespace Threadle.Core.Model
                 clone._indexToName[kvp.Key] = kvp.Value;
             foreach (var kvp in _indexToType)
                 clone._indexToType[kvp.Key] = kvp.Value;
+            clone._nextIndex = _nextIndex;
+            foreach (var idx in _recycledIndices.Reverse())
+                clone._recycledIndices.Push(idx);
             return clone;
         }
 
