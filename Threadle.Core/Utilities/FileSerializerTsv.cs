@@ -222,11 +222,17 @@ namespace Threadle.Core.Utilities
                 }
                 if (line.StartsWith("NodesetFile:", StringComparison.OrdinalIgnoreCase))
                 {
+                    // First get the filepath for the nodeset (could have initial paths)
                     string nodesetFilename = line.Substring("NodesetFile:".Length).Trim();
-                    if (nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
-                        || nodesetFilename.Contains('/') || nodesetFilename.Contains('\\'))
+
+                    // If this is empty or contains any illegal stuff, then throw an exception
+                    if (nodesetFilename.Length == 0
+                        || nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+                        || nodesetFilename.Contains('/')
+                        || nodesetFilename.Contains('\\'))
                         throw new InvalidDataException("Nodeset filename in network file contains invalid characters.");
 
+                    // Build up a resolved filepath to the nodeset that uses the same filepath as the network file
                     string networkDir = Path.GetDirectoryName(Path.GetFullPath(filepath))!;
                     string resolvedNodesetPath = Path.Combine(networkDir, nodesetFilename);
 

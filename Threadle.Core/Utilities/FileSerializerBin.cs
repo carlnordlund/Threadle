@@ -160,10 +160,17 @@ namespace Threadle.Core.Utilities
             // Get Network name
             string networkName = ReadString(reader);
 
-            // Get Nodeset filepath (compulsory here)
+            // Get Nodeset filepath (compulsory here): just read as a string
             string nodesetFilename = ReadString(reader);
-            if (Path.GetFileName(nodesetFilename) != nodesetFilename || nodesetFilename.Length == 0)
+
+            // If this is empty or contains any illegal characters, then throw an exception
+            if (nodesetFilename.Length == 0
+                || nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+                || nodesetFilename.Contains('/')
+                || nodesetFilename.Contains('\\'))
                 throw new InvalidDataException("Nodeset filename in network file contains invalid characters.");
+
+            // Build up a resolved filepath to the nodeset, which then uses the dame filepath as for the network file
             string networkDir = Path.GetDirectoryName(Path.GetFullPath(filepath))!;
             string resolvedNodesetPath = Path.Combine(networkDir, nodesetFilename);
 
