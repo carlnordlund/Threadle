@@ -347,12 +347,15 @@ namespace Threadle.Core.Analysis
             }
 
             // Initial pass
-            int nbrWalks = (int)(nodeset.Count * walkfactor);
+            uint[] allNodeIds = nodeset.NodeIdArray;
+            int nbrWalks = (int)(allNodeIds.Length * walkfactor);
             for (int i=0; i<nbrWalks;i++)
             {
                 uint nodeIndex = (uint)Math.Floor(i / walkfactor);
-                if (nodeset.GetNodeIdByIndex(nodeIndex) is uint startNodeId)
-                    RunWalk(startNodeId);
+                if (nodeIndex < allNodeIds.Length)
+                    RunWalk(allNodeIds[nodeIndex]);
+                //if (nodeset.GetNodeIdByIndex(nodeIndex) is uint startNodeId)
+                //    RunWalk(startNodeId);
             }
 
             // Targeted restarts for undersampled category-pairs
