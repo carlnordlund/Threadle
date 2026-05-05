@@ -310,9 +310,7 @@ namespace Threadle.Core.Analysis
                     : nav.ToString(attrType))
                 : "(missing)";
 
-            Dictionary<(uint from, uint to), int[]> fptHistograms = [];
-
-            //Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
+            Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
             Dictionary<uint, int> sourceWalkCount = [];
             
             void RunWalk(uint startNodeId)
@@ -336,17 +334,10 @@ namespace Threadle.Core.Analysis
                         continue; // unmapped category at this step, skip recording but keep walking
                     if (seen.Add(currentCatId))
                     {
-                        //float fstep = step;
                         var key = (sourceCatId, currentCatId);
-
                         if (!fptHistograms.TryGetValue(key, out int[]? hist))
                             fptHistograms[key] = hist = new int[maxSteps];
                         hist[step - 1]++;
-
-                        //if (fptDict.TryGetValue(key, out var existing))
-                        //    fptDict[key] = (existing.sum + fstep, existing.sumSq + fstep * fstep, existing.count + 1);
-                        //else
-                        //    fptDict[key] = (fstep, fstep * fstep, 1);
                     }
                     if (seen.Count == labels.Length)
                         break;
@@ -387,7 +378,7 @@ namespace Threadle.Core.Analysis
                         bool allSatisfied = true;
                         for (uint t = 0; t < (uint)labels.Length; t++)
                         {
-                            if (!fptHistograms.TryGetValue((sourceCatId,t), out int[]? obs) || obs.Sum() < minPairObs)
+                            if (!fptDict.TryGetValue((sourceCatId, t), out var obs) || obs.count < minPairObs)
                             {
                                 allSatisfied = false;
                                 break;
@@ -489,7 +480,6 @@ namespace Threadle.Core.Analysis
 
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
             int totalObs = fptHistograms.Values.Sum(h => h.Sum());
-            //int totalObs = fptDict.Values.Sum(v => v.count);
             return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
         }
 
