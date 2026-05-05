@@ -310,7 +310,7 @@ namespace Threadle.Core.Analysis
                     : nav.ToString(attrType))
                 : "(missing)";
 
-            Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
+            Dictionary<(uint from, uint to), int[]> fptHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
             
             void RunWalk(uint startNodeId)
@@ -334,12 +334,10 @@ namespace Threadle.Core.Analysis
                         continue; // unmapped category at this step, skip recording but keep walking
                     if (seen.Add(currentCatId))
                     {
-                        float fstep = step;
                         var key = (sourceCatId, currentCatId);
-                        if (fptDict.TryGetValue(key, out var existing))
-                            fptDict[key] = (existing.sum + fstep, existing.sumSq + fstep * fstep, existing.count + 1);
-                        else
-                            fptDict[key] = (fstep, fstep * fstep, 1);
+                        if (!fptHistograms.TryGetValue(key, out int[]? hist))
+                            fptHistograms[key] = hist = new int[maxSteps];
+                        hist[step - 1]++;
                     }
                     if (seen.Count == labels.Length)
                         break;
@@ -380,7 +378,7 @@ namespace Threadle.Core.Analysis
                         bool allSatisfied = true;
                         for (uint t = 0; t < (uint)labels.Length; t++)
                         {
-                            if (!fptDict.TryGetValue((sourceCatId, t), out var obs) || obs.count < minPairObs)
+                            if (!fptHistograms.TryGetValue((sourceCatId, t), out int[]? obs) || obs.Sum() < minPairObs)
                             {
                                 allSatisfied = false;
                                 break;
@@ -396,34 +394,72 @@ namespace Threadle.Core.Analysis
 
             // Build output layers
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_fpt_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode medianLayer = new LayerOneMode(attrName + "_fpt_median", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode stdevLayer = new LayerOneMode(attrName + "_fpt_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode seLayer = new LayerOneMode(attrName + "_fpt_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode countLayer = new LayerOneMode(attrName + "_fpt_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode coverageLayer = new LayerOneMode(attrName + "_fpt_coverage", EdgeDirectionality.Directed, EdgeType.Valued, true);
 
-            foreach (var kvp in fptDict)
+            foreach (var kvp in fptHistograms)
             {
-                float mean = kvp.Value.sum / kvp.Value.count;
-                float variance = kvp.Value.count > 1
-                    ? (kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1)
+                int[] hist = kvp.Value;
+
+                // Derive sum, sumSq, count from histogram
+                int count = 0;
+                double sum = 0, sumSq = 0;
+                for (int s = 0; s < hist.Length; s++)
+                {
+                    if (hist[s] == 0) continue;
+                    int step = s + 1;
+                    count += hist[s];
+                    sum += (double)step * hist[s];
+                    sumSq += (double)step * step * hist[s];
+                }
+                if (count == 0) continue;
+
+                float mean = (float)(sum / count);
+                float variance = count > 1
+                    ? (float)((sumSq - sum * sum / count) / (count - 1))
                     : 0f;
                 float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
-                avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
-                stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev);
-                seLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev / (float)Math.Sqrt(kvp.Value.count));
-                countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
-                if (sourceWalkCount.TryGetValue(kvp.Key.from, out int totalWalks) && totalWalks > 0)
-                    coverageLayer.AddEdge(kvp.Key.from, kvp.Key.to, (float)kvp.Value.count / totalWalks);
+
+                // Compute median: scan cumulative histogram to find the lower and upper middle positions
+                int lowerPos = (count + 1) / 2;
+                int upperPos = count / 2 + 1;
+                float lowerVal = 0f, upperVal = 0f;
+                int cumulative = 0;
+                for (int s = 0; s < hist.Length; s++)
+                {
+                    cumulative += hist[s];
+                    if (lowerVal == 0f && cumulative >= lowerPos)
+                        lowerVal = s + 1;
+                    if (cumulative >= upperPos)
+                    {
+                        upperVal = s + 1;
+                        break;
+                    }
+                }
+                float median = (lowerVal + upperVal) / 2f;
+
+                (uint from, uint to) = kvp.Key;
+                avgLayer.AddEdge(from, to, mean);
+                medianLayer.AddEdge(from, to, median);
+                stdevLayer.AddEdge(from, to, stdev);
+                seLayer.AddEdge(from, to, stdev / (float)Math.Sqrt(count));
+                countLayer.AddEdge(from, to, count);
+                if (sourceWalkCount.TryGetValue(from, out int totalWalks) && totalWalks > 0)
+                    coverageLayer.AddEdge(from, to, (float)count / totalWalks);
             }
 
             networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(medianLayer.Name, medianLayer);
             networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
             networkResults.Layers.Add(seLayer.Name, seLayer);
             networkResults.Layers.Add(countLayer.Name, countLayer);
             networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
 
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
-            int totalObs = fptDict.Values.Sum(v => v.count);
+            int totalObs = fptHistograms.Values.Sum(h => h.Sum());
             return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
         }
 
