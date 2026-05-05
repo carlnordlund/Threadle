@@ -96,7 +96,9 @@ namespace Threadle.Core.Analysis
 
             Network networkResults = new Network(attrName + "_sp_results", nodesetResults);
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_sp_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q1Layer = new LayerOneMode(attrName + "_sp_q1", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode medianLayer = new LayerOneMode(attrName + "_sp_median", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q3Layer = new LayerOneMode(attrName + "_sp_q3", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode stdevLayer = new LayerOneMode(attrName + "_sp_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode seLayer = new LayerOneMode(attrName + "_sp_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode countLayer = new LayerOneMode(attrName + "_sp_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
@@ -110,38 +112,47 @@ namespace Threadle.Core.Analysis
                     : 0f;
                 float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
 
-                // Compute median from sparse histogram by scanning sorted distance values
-                float median = 0f;
-                if (distHistDict.TryGetValue(kvp.Key, out var hist))
-                {
-                    int lowerPos = (count + 1) / 2;
-                    int upperPos = count / 2 + 1;
-                    float lowerVal = 0f, upperVal = 0f;
-                    int cumulative = 0;
-                    foreach (int d in hist.Keys.OrderBy(k => k))
-                    {
-                        cumulative += hist[d];
-                        if (lowerVal == 0f && cumulative >= lowerPos)
-                            lowerVal = d;
-                        if (cumulative >= upperPos)
-                        {
-                            upperVal = d;
-                            break;
-                        }
-                    }
-                    median = (lowerVal + upperVal) / 2f;
-                }
+                //// Compute median from sparse histogram by scanning sorted distance values
+                //float median = 0f;
+                //if (distHistDict.TryGetValue(kvp.Key, out var hist))
+                //{
+                //    int lowerPos = (count + 1) / 2;
+                //    int upperPos = count / 2 + 1;
+                //    float lowerVal = 0f, upperVal = 0f;
+                //    int cumulative = 0;
+                //    foreach (int d in hist.Keys.OrderBy(k => k))
+                //    {
+                //        cumulative += hist[d];
+                //        if (lowerVal == 0f && cumulative >= lowerPos)
+                //            lowerVal = d;
+                //        if (cumulative >= upperPos)
+                //        {
+                //            upperVal = d;
+                //            break;
+                //        }
+                //    }
+                //    median = (lowerVal + upperVal) / 2f;
+                //}
 
                 (uint from, uint to) = kvp.Key;
                 avgLayer.AddEdge(from, to, mean);
-                medianLayer.AddEdge(from, to, median);
+
+                if (distHistDict.TryGetValue(kvp.Key, out var hist))
+                {
+                    q1Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.25f));
+                    medianLayer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.50f));
+                    q3Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.75f));
+                }
+
                 stdevLayer.AddEdge(from, to, stdev);
                 seLayer.AddEdge(from, to, stdev / (float)Math.Sqrt(count));
                 countLayer.AddEdge(from, to, count);
             }
 
             networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(q1Layer.Name, q1Layer);
             networkResults.Layers.Add(medianLayer.Name, medianLayer);
+            networkResults.Layers.Add(q3Layer.Name, q3Layer);
             networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
             networkResults.Layers.Add(seLayer.Name, seLayer);
             networkResults.Layers.Add(countLayer.Name, countLayer);
@@ -345,7 +356,6 @@ namespace Threadle.Core.Analysis
                     : nav.ToString(attrType))
                 : "(missing)";
 
-            //Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
             Dictionary<(uint from, uint to), int[]> fptHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
             
@@ -388,8 +398,6 @@ namespace Threadle.Core.Analysis
                 uint nodeIndex = (uint)Math.Floor(i / walkfactor);
                 if (nodeIndex < allNodeIds.Length)
                     RunWalk(allNodeIds[nodeIndex]);
-                //if (nodeset.GetNodeIdByIndex(nodeIndex) is uint startNodeId)
-                //    RunWalk(startNodeId);
             }
 
             // Targeted restarts for undersampled category-pairs
@@ -419,11 +427,6 @@ namespace Threadle.Core.Analysis
                                 allSatisfied = false;
                                 break;
                             }
-                            //if (!fptDict.TryGetValue((sourceCatId, t), out var obs) || obs.count < minPairObs)
-                            //{
-                            //    allSatisfied = false;
-                            //    break;
-                            //}
                         }
                         if (allSatisfied)
                             break;
@@ -435,7 +438,9 @@ namespace Threadle.Core.Analysis
 
             // Build output layers
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_fpt_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q1Layer = new LayerOneMode(attrName + "_fpt_q1", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode medianLayer = new LayerOneMode(attrName + "_fpt_median", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q3Layer = new LayerOneMode(attrName + "_fpt_q3", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode stdevLayer = new LayerOneMode(attrName + "_fpt_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode seLayer = new LayerOneMode(attrName + "_fpt_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode countLayer = new LayerOneMode(attrName + "_fpt_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
@@ -464,27 +469,32 @@ namespace Threadle.Core.Analysis
                     : 0f;
                 float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
 
-                // Compute median: scan cumulative histogram to find the lower and upper middle positions
-                int lowerPos = (count + 1) / 2;
-                int upperPos = count / 2 + 1;
-                float lowerVal = 0f, upperVal = 0f;
-                int cumulative = 0;
-                for (int s = 0; s < hist.Length; s++)
-                {
-                    cumulative += hist[s];
-                    if (lowerVal == 0f && cumulative >= lowerPos)
-                        lowerVal = s + 1;
-                    if (cumulative >= upperPos)
-                    {
-                        upperVal = s + 1;
-                        break;
-                    }
-                }
-                float median = (lowerVal + upperVal) / 2f;
+                //// Compute median: scan cumulative histogram to find the lower and upper middle positions
+                //int lowerPos = (count + 1) / 2;
+                //int upperPos = count / 2 + 1;
+                //float lowerVal = 0f, upperVal = 0f;
+                //int cumulative = 0;
+                //for (int s = 0; s < hist.Length; s++)
+                //{
+                //    cumulative += hist[s];
+                //    if (lowerVal == 0f && cumulative >= lowerPos)
+                //        lowerVal = s + 1;
+                //    if (cumulative >= upperPos)
+                //    {
+                //        upperVal = s + 1;
+                //        break;
+                //    }
+                //}
+                //float median = (lowerVal + upperVal) / 2f;
+
+
+
 
                 (uint from, uint to) = kvp.Key;
                 avgLayer.AddEdge(from, to, mean);
-                medianLayer.AddEdge(from, to, median);
+                q1Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.25f));
+                medianLayer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.50f));
+                q3Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.75f));
                 stdevLayer.AddEdge(from, to, stdev);
                 seLayer.AddEdge(from, to, stdev / (float)Math.Sqrt(count));
                 countLayer.AddEdge(from, to, count);
@@ -492,23 +502,10 @@ namespace Threadle.Core.Analysis
                     coverageLayer.AddEdge(from, to, (float)count / totalWalks);
             }
 
-            //foreach (var kvp in fptDict)
-            //{
-            //    float mean = kvp.Value.sum / kvp.Value.count;
-            //    float variance = kvp.Value.count > 1
-            //        ? (kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1)
-            //        : 0f;
-            //    float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
-            //    avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
-            //    stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev);
-            //    seLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev / (float)Math.Sqrt(kvp.Value.count));
-            //    countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
-            //    if (sourceWalkCount.TryGetValue(kvp.Key.from, out int totalWalks) && totalWalks > 0)
-            //        coverageLayer.AddEdge(kvp.Key.from, kvp.Key.to, (float)kvp.Value.count / totalWalks);
-            //}
-
             networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(q1Layer.Name, q1Layer);
             networkResults.Layers.Add(medianLayer.Name, medianLayer);
+            networkResults.Layers.Add(q3Layer.Name, q3Layer);
             networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
             networkResults.Layers.Add(seLayer.Name, seLayer);
             networkResults.Layers.Add(countLayer.Name, countLayer);
@@ -517,6 +514,53 @@ namespace Threadle.Core.Analysis
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
             int totalObs = fptHistograms.Values.Sum(h => h.Sum());
             return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
+        }
+
+        /// <summary>
+        /// Returns the pth percentile from a fixed-size histogram (array) where bin i
+        /// represents value i+1
+        /// </summary>
+        private static float PercentileFromHistogram(int[] hist, int count, float p)
+        {
+            int lowerPos = (int)Math.Ceiling(p * count);
+            int upperPos = (int)Math.Floor(p * count) + 1;
+            float lowerVal = 0f, upperVal = 0f;
+            int cumulative = 0;
+            for (int s = 0; s < hist.Length; s++)
+            {
+                cumulative += hist[s];
+                if (lowerVal == 0f && cumulative >= lowerPos)
+                    lowerVal = s + 1;
+                if (cumulative >= upperPos)
+                {
+                    upperVal = s + 1;
+                    break;
+                }
+            }
+            return (lowerVal + upperVal) / 2f;
+        }
+
+        /// <summary>
+        /// Returns the pth percentile from a sparse histogram represented by a dict int,int
+        /// </summary>
+        private static float PercentileFromHistogram(Dictionary<int, int> hist, int count, float p)
+        {
+            int lowerPos = (int)Math.Ceiling(p * count);
+            int upperPos = (int)Math.Floor(p * count) + 1;
+            float lowerVal = 0f, upperVal = 0f;
+            int cumulative = 0;
+            foreach (int d in hist.Keys.OrderBy(k => k))
+            {
+                cumulative += hist[d];
+                if (lowerVal == 0f && cumulative >= lowerPos)
+                    lowerVal = d;
+                if (cumulative >= upperPos)
+                {
+                    upperVal = d;
+                    break;
+                }
+            }
+            return (lowerVal + upperVal) / 2f;
         }
 
         private static OperationResult? CheckLayersExist(Network network, string[]? layers)
