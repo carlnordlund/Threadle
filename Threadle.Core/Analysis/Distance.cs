@@ -414,7 +414,7 @@ namespace Threadle.Core.Analysis
                         bool allSatisfied = true;
                         for (uint t = 0; t < (uint)labels.Length; t++)
                         {
-                            if (!fptDict.TryGetValue((sourceCatId, t), out var obs) || obs.count < minPairObs)
+                            if (!fptHistograms.TryGetValue((sourceCatId, t), out int[]? obs) || obs.Sum() < minPairObs)
                             {
                                 allSatisfied = false;
                                 break;
