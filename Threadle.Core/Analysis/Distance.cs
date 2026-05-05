@@ -345,7 +345,8 @@ namespace Threadle.Core.Analysis
                     : nav.ToString(attrType))
                 : "(missing)";
 
-            Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
+            //Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
+            Dictionary<(uint from, uint to), int[]> fptHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
             
             void RunWalk(uint startNodeId)
