@@ -46,6 +46,7 @@ namespace Threadle.Core.Analysis
                 : "(missing)";
 
             Dictionary<(uint from, uint to), (double sum, double sumSq, int count)> distDict = [];
+            Dictionary<(uint from, uint to), Dictionary<int, int>> distHistDict = [];
             uint[] allNodeIds = nodeset.NodeIdArray;
 
             foreach (uint sourceNodeId in allNodeIds)
@@ -87,27 +88,61 @@ namespace Threadle.Core.Analysis
                         distDict[key] = (existing.sum + d, existing.sumSq + d * d, existing.count + 1);
                     else
                         distDict[key] = (d, d * d, 1);
+                    if (!distHistDict.TryGetValue(key, out var hist))
+                        distHistDict[key] = hist = [];
+                    hist[dist] = hist.TryGetValue(dist, out int binCount) ? binCount + 1 : 1;
                 }
             }
 
             Network networkResults = new Network(attrName + "_sp_results", nodesetResults);
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_sp_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode medianLayer = new LayerOneMode(attrName + "_sp_median", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode stdevLayer = new LayerOneMode(attrName + "_sp_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode seLayer = new LayerOneMode(attrName + "_sp_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode countLayer = new LayerOneMode(attrName + "_sp_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
 
             foreach (var kvp in distDict)
             {
-                float mean = (float)(kvp.Value.sum / kvp.Value.count);
-                float variance = kvp.Value.count > 1
-                    ? (float)((kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1))
+                int count = kvp.Value.count;
+                float mean = (float)(kvp.Value.sum / count);
+                float variance = count > 1
+                    ? (float)((kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / count) / (count - 1))
                     : 0f;
-                float se = (float)(Math.Sqrt(Math.Max(0f, variance)) / Math.Sqrt(kvp.Value.count));
-                avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
-                seLayer.AddEdge(kvp.Key.from, kvp.Key.to, se);
-                countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
+                float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
+
+                // Compute median from sparse histogram by scanning sorted distance values
+                float median = 0f;
+                if (distHistDict.TryGetValue(kvp.Key, out var hist))
+                {
+                    int lowerPos = (count + 1) / 2;
+                    int upperPos = count / 2 + 1;
+                    float lowerVal = 0f, upperVal = 0f;
+                    int cumulative = 0;
+                    foreach (int d in hist.Keys.OrderBy(k => k))
+                    {
+                        cumulative += hist[d];
+                        if (lowerVal == 0f && cumulative >= lowerPos)
+                            lowerVal = d;
+                        if (cumulative >= upperPos)
+                        {
+                            upperVal = d;
+                            break;
+                        }
+                    }
+                    median = (lowerVal + upperVal) / 2f;
+                }
+
+                (uint from, uint to) = kvp.Key;
+                avgLayer.AddEdge(from, to, mean);
+                medianLayer.AddEdge(from, to, median);
+                stdevLayer.AddEdge(from, to, stdev);
+                seLayer.AddEdge(from, to, stdev / (float)Math.Sqrt(count));
+                countLayer.AddEdge(from, to, count);
             }
 
             networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(medianLayer.Name, medianLayer);
+            networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
             networkResults.Layers.Add(seLayer.Name, seLayer);
             networkResults.Layers.Add(countLayer.Name, countLayer);
 
