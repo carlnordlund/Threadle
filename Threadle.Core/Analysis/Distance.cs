@@ -376,8 +376,10 @@ namespace Threadle.Core.Analysis
                         break;
 
                     currentNodeId = alterResult.Value;
-                    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
-                        continue; // unmapped category at this step, skip recording but keep walking
+                    // If the current node is back at the start node, skip recording but keep walking
+                    // same if arrived at a node whose category value is not mapped: skip recording, keep on walking
+                    if (currentNodeId==startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
+                        continue;
                     if (seen.Add(currentCatId))
                     {
                         var key = (sourceCatId, currentCatId);
