@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -111,6 +111,28 @@ namespace Threadle.Core.Analysis
                     ? (float)((kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / count) / (count - 1))
                     : 0f;
                 float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
+
+                //// Compute median from sparse histogram by scanning sorted distance values
+                //float median = 0f;
+                //if (distHistDict.TryGetValue(kvp.Key, out var hist))
+                //{
+                //    int lowerPos = (count + 1) / 2;
+                //    int upperPos = count / 2 + 1;
+                //    float lowerVal = 0f, upperVal = 0f;
+                //    int cumulative = 0;
+                //    foreach (int d in hist.Keys.OrderBy(k => k))
+                //    {
+                //        cumulative += hist[d];
+                //        if (lowerVal == 0f && cumulative >= lowerPos)
+                //            lowerVal = d;
+                //        if (cumulative >= upperPos)
+                //        {
+                //            upperVal = d;
+                //            break;
+                //        }
+                //    }
+                //    median = (lowerVal + upperVal) / 2f;
+                //}
 
                 (uint from, uint to) = kvp.Key;
                 avgLayer.AddEdge(from, to, mean);
@@ -306,19 +328,19 @@ namespace Threadle.Core.Analysis
             return OperationResult<StructureResult>.Ok(results, $"Random walk distances computed. {labels.Length} unique attribute values, {maxSteps} step levels.");
         }
 
-        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, int Count)> Histograms) RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
+        public static OperationResult<StructureResult> RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
         {
             if (CheckLayersExist(network, layers) is OperationResult result)
-                return (OperationResult<StructureResult>.Fail(result), []);
+                return OperationResult<StructureResult>.Fail(result);
 
             if (walkfactor <= 0)
-                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero."), []);
+                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
             if (maxSteps <= 0)
-                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero."), []);
+                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero.");
             Nodeset nodeset = network.Nodeset;
             var categoryResult = BuildCategoryNodeset(network, attrName);
             if (!categoryResult.Success)
-                return (OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message), []);
+                return OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message);
             CategoryNodeset cat = categoryResult.Value;
             Nodeset nodesetResults = cat.Nodeset;
             Dictionary<string, uint> nodeAttributeStringToNodeId = cat.LabelToNodeId;
@@ -470,20 +492,9 @@ namespace Threadle.Core.Analysis
             networkResults.Layers.Add(countLayer.Name, countLayer);
             networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
 
-            // Build flat histogram list for optional export
-            var histList = new List<(string From, string To, int Step, int Count)>();
-            foreach (var kvp in fptHistograms)
-            {
-                string fromLabel = labels[kvp.Key.from];
-                string toLabel = labels[kvp.Key.to];
-                for (int s = 0; s < kvp.Value.Length; s++)
-                    if (kvp.Value[s] > 0)
-                        histList.Add((fromLabel, toLabel, s + 1, kvp.Value[s]));
-            }
-
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
             int totalObs = fptHistograms.Values.Sum(h => h.Sum());
-            return (OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
+            return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
         }
 
         /// <summary>
