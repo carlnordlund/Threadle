@@ -195,6 +195,43 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        /// <summary>
+        /// Public-facing method for exporting a layer to a matrix. Checks whether the layer is 1-mode or 2-mode
+        /// and passes control along to the suitable method. Note that a 2-mode exported to a 'matrix' might be
+        /// rectangular.
+        /// </summary>
+        /// <param name="layer">The ILayer to export.</param>
+        /// <param name="filepath">The filepath to export to.</param>
+        /// <param name="separator">The column-separating character to use in the matrix.</param>
+        /// <param name="header">Boolean whether the first row should contain column headers.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
+        public static OperationResult ExportLayerMatrix(ILayer layer, string filepath, char separator, bool header)
+        {
+            try
+            {
+                if (layer is ILayerOneMode layerOneMode)
+                    LayerImportExport.ExportOneModeMatrix(layerOneMode, filepath, separator, header);
+                else if (layer is ILayerTwoMode layerTwoMode)
+                    LayerImportExport.ExportTwoModeMatrix(layerTwoMode, filepath, separator, header);
+                else
+                    return OperationResult.Fail("IOExportError", $"Did not recognize layer type of layer '{layer.Name}'." );
+                return OperationResult.Ok($"Exported layer '{layer.Name}' to filepath: {filepath}");
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOExportError", "Unexpected error when exporting layer to matrix: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Public-facing method for exporting a single-layer network to file. So far, only 'gexf' (Gephi) exists.
+        /// This public-facing method is for exports to single-layer formats, where the layer is specified.
+        /// </summary>
+        /// <param name="network">The network structure to export.</param>
+        /// <param name="format">The format to export to (Only has gexf (Gephi) right now.</param>
+        /// <param name="layerName">The layer to export</param>
+        /// <param name="filepath">Tjhe filepath to export to</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
         public static OperationResult ExportNetworkToFile(Network network, ExportFormat format, string layerName, string filepath)
         {
             try
@@ -218,6 +255,14 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        /// <summary>
+        /// Public-facing method to export a single-layer network to gexf (Gephi) format. As this format is single-layer,
+        /// the specific layer must be specified.
+        /// </summary>
+        /// <param name="network">The network to export to gexf</param>
+        /// <param name="layerName">The layer to use.</param>
+        /// <param name="filepath">The filepath to export to.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
         private static OperationResult ExportNetworkToGexf(Network network, string layerName, string filepath)
         {
             if (!(network._getLayer(layerName) is ILayer layer))

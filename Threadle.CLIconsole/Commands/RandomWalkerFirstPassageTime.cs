@@ -14,7 +14,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:network] = rwfpt(network = [var:network], attrname = [str], maxsteps = [int], *layernames = [semicolon-separated], *walkfactor = [float(default=1.0)], *minpairobs = [int(default=10)], *balanced = ['false'(default),'true'], *weighted = ['false'(default),'true'])";
+        public string Syntax => "[var:network] = rwfpt(network = [var:network], attrname = [str], maxsteps = [int], *layernames = [semicolon-separated], *walkfactor = [float(default=1.0)], *minpairobs = [int(default=10)], *balanced = ['false'(default),'true'], *weighted = ['false'(default),'true']c, *returnhistograms = ['false'(default),'true'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -45,8 +45,9 @@ namespace Threadle.CLIconsole.Commands
             int minPairObs = command.GetArgumentParseInt("minpairobs", 10);
             bool balanced = command.GetArgumentParseBool("balanced", false);
             bool weighted = command.GetArgumentParseBool("weighted", false);
+            bool returnHistograms = command.GetArgumentParseBool("returnhistograms", false);
 
-            var result = Core.Analysis.Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(network, attrName, maxSteps, layers, walkfactor, minPairObs, balanced, weighted);
+            var (result, histograms) = Core.Analysis.Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(network, attrName, maxSteps, layers, walkfactor, minPairObs, balanced, weighted, returnHistograms);
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);
             StructureResult structures = result.Value!;
@@ -59,9 +60,18 @@ namespace Threadle.CLIconsole.Commands
                     context.SetVariable(additionalAssignedVariable, kvp.Value);
                     assigned[additionalAssignedVariable] = kvp.Value.GetType().Name;
                 }
+
+            object? payload = null;
+            if (histograms != null)
+            {
+                var histPayload = new List<object>(histograms.Count);
+                foreach (var h in histograms)
+                    histPayload.Add(new { from = h.From, to = h.To, step = h.Step, count = h.Count });
+                payload = histPayload;
+            }
             return CommandResult.Ok(
                 $"Random-walker-derived first passage time distances on attribute '{attrName}' stored in '{structures.MainStructure.Name}'",
-                null,
+                payload,
                 assigned
                 );
 

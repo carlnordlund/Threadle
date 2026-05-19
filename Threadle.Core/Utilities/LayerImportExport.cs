@@ -65,6 +65,16 @@ namespace Threadle.Core.Utilities
                     writer.WriteLine($"{nodeId}{sep}{hypername}");
         }
 
+        // To do
+        internal static void ExportOneModeMatrix(ILayerOneMode layerOneMode, string filepath, char sep, bool header)
+        {
+        }
+
+        // To do
+        internal static void ExportTwoModeMatrix(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header)
+        {
+        }
+
         /// <summary>
         /// Imports a 1-mode edgelist from file, inserting it into the specified layer. Checks that the node exists
         /// in the Nodeset of the network: will either ignore those lines or add these nodes, depending on the setting

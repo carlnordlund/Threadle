@@ -14,7 +14,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "exportlayer(network = [var:network], layername = [str], file = \"[str]\", *header = ['true'(true),'false'], *sep = [char(default:'\\t')])";
+        public string Syntax => "exportlayer(network = [var:network], layername = [str], file = \"[str]\", *format = ['edgelist'(default),'matrix'], *header = ['true'(true),'false'], *sep = [char(default:'\\t')])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
@@ -39,12 +39,21 @@ namespace Threadle.CLIconsole.Commands
             string filepath = command.GetArgumentThrowExceptionIfMissingOrNull("file", "arg2");
             char separator = command.GetArgumentParseString("sep", "\t").FirstOrDefault('\t');
             bool header = command.GetArgumentParseBool("header", true);
+            string format = command.GetArgumentParseString("format", "edgelist");
 
             OperationResult result;
 
             if (!network.Layers.TryGetValue(layerName, out var layer))
                 return CommandResult.Fail("LayerNotFound", $"!Error: Layer '{layerName}' not found.");
             result = FileManager.ExportLayerEdgelist(layer, filepath, separator, header);
+
+            result = format switch
+            {
+                "edgelist" => FileManager.ExportLayerEdgelist(layer, filepath, separator, header),
+                "matrix" => FileManager.ExportLayerMatrix(layer, filepath, separator, header),
+                _ => OperationResult.Fail("UnsupporedExportFormat", $"Format '' not supported.")
+            };
+
             return CommandResult.FromOperationResult(result);
         }
     }

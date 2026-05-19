@@ -328,19 +328,19 @@ namespace Threadle.Core.Analysis
             return OperationResult<StructureResult>.Ok(results, $"Random walk distances computed. {labels.Length} unique attribute values, {maxSteps} step levels.");
         }
 
-        public static OperationResult<StructureResult> RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
+        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, int Count)>? Histograms) RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
         {
             if (CheckLayersExist(network, layers) is OperationResult result)
-                return OperationResult<StructureResult>.Fail(result);
+                return (OperationResult<StructureResult>.Fail(result),[]);
 
             if (walkfactor <= 0)
-                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
+                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero."), []);
             if (maxSteps <= 0)
-                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero.");
+                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero."), []);
             Nodeset nodeset = network.Nodeset;
             var categoryResult = BuildCategoryNodeset(network, attrName);
             if (!categoryResult.Success)
-                return OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message);
+                return (OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message), []);
             CategoryNodeset cat = categoryResult.Value;
             Nodeset nodesetResults = cat.Nodeset;
             Dictionary<string, uint> nodeAttributeStringToNodeId = cat.LabelToNodeId;
@@ -492,9 +492,23 @@ namespace Threadle.Core.Analysis
             networkResults.Layers.Add(countLayer.Name, countLayer);
             networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
 
+            List<(string From, string To, int Step, int Count)>? histList = null;
+            if (returnHistograms)
+            {
+                histList = new List<(string From, string To, int Step, int Count)>();
+                foreach (var kvp in fptHistograms)
+                {
+                    string fromLabel = labels[kvp.Key.from];
+                    string toLabel = labels[kvp.Key.to];
+                    for (int s = 0; s < kvp.Value.Length; s++)
+                        if (kvp.Value[s] > 0)
+                            histList.Add((fromLabel, toLabel, s + 1, kvp.Value[s]));
+                }
+            }
+
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
             int totalObs = fptHistograms.Values.Sum(h => h.Sum());
-            return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
+            return (OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
         }
 
         /// <summary>
