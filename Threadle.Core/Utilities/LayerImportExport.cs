@@ -68,11 +68,78 @@ namespace Threadle.Core.Utilities
         // To do
         internal static void ExportOneModeMatrix(ILayerOneMode layerOneMode, string filepath, char sep, bool header)
         {
+            var nodeIdSet = new HashSet<uint>();
+            var edgeLookup = new Dictionary<(uint from, uint to), float>();
+            foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
+            {
+                nodeIdSet.Add(egoId);
+                ReadOnlySpan<uint> alterSpan = alters.Span;
+                ReadOnlySpan<float> valSpan = values.Span;
+                for (int i=0; i<alterSpan.Length;i++)
+                {
+                    uint alterId = alterSpan[i];
+                    nodeIdSet.Add(alterId);
+                    float val = layerOneMode.IsValued ? valSpan[i] : 1f;
+                    edgeLookup[(egoId, alterId)] = val;
+                    if (!layerOneMode.IsDirectional)
+                        edgeLookup[(alterId, egoId)] = val;
+                }
+
+                uint[] nodeIds = [.. nodeIdSet.OrderBy(id => id)];
+                using var writer = new StreamWriter(filepath);
+                if (header)
+                {
+                    writer.Write(sep);
+                    writer.WriteLine(string.Join(sep, nodeIds));
+                }
+                foreach (uint rowId in nodeIds)
+                {
+                    writer.Write(rowId);
+                    foreach (uint colId in nodeIds)
+                    {
+                        writer.Write(sep);
+                        if (edgeLookup.TryGetValue((rowId, colId), out float val))
+                            writer.Write(val.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        else
+                            writer.Write(0);
+                    }
+                    writer.WriteLine();
+                }
+            }
         }
 
         // To do
         internal static void ExportTwoModeMatrix(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header)
         {
+            var hyperedgeNodeSets = new Dictionary<string, HashSet<uint>>();
+            var allNodeIds = new HashSet<uint>();
+
+            foreach (var (hypername, nodeIds) in layerTwoMode.GetAllHyperedgeData())
+            {
+                hyperedgeNodeSets[hypername] = new HashSet<uint>(nodeIds);
+                foreach (uint id in nodeIds)
+                    allNodeIds.Add(id);
+            }
+
+            uint[] sortedNodeIds = [.. allNodeIds.OrderBy(id => id)];
+            string[] sortedHyperedgeNames = [.. hyperedgeNodeSets.Keys.OrderBy(n => n)];
+
+            using var writer = new StreamWriter(filepath);
+            if (header)
+            {
+                writer.Write(sep);
+                writer.WriteLine(string.Join(sep, sortedHyperedgeNames));
+            }
+            foreach (uint nodeId in sortedNodeIds)
+            {
+                writer.Write(nodeId);
+                foreach (string hypername in sortedHyperedgeNames)
+                {
+                    writer.Write(sep);
+                    writer.Write(hyperedgeNodeSets[hypername].Contains(nodeId) ? 1 : 0);
+                }
+                writer.WriteLine();
+            }
         }
 
         /// <summary>
