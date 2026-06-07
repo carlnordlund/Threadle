@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -62,7 +62,7 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Boolean indicating whether selfties are allowed.
         /// </summary>
-        public bool Selfties { get; }
+        public bool Selfties { get; set; }
 
         /// <summary>
         /// Returns true if the layer is symmetric, otherwise false.
@@ -451,14 +451,6 @@ namespace Threadle.Core.Model
             IEdgeset edgeSetEgo = GetOrCreateEdgeset(egoNodeId);
             if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
             {
-                // So two reasons to be here:
-                // Layer is symmetric: we should then add references to the other node in both nodes. As it is
-                // symmetric, it doesn't matter if we use _addOutbound... or _addInbound...: both will add partnerNodeId
-                // to the undirectional _connection.
-                // If it is NOT symmetric, we are here because it is directional (not symmetric) and the UserSetting to
-                // only store outbound directional edges is turned off (False). So it is now directional, and we should
-                // add an outgoing edge from ego to alter, and an ingoing edge to alter from ego.
-                // Which we do with the same methods as we used for the symmetric case, but this time they do differ!
                 foreach (uint nodeIdAlter in nodeIdsAlters)
                 {
                     edgeSetEgo._addOutboundEdge(nodeIdAlter, 1);
@@ -467,9 +459,6 @@ namespace Threadle.Core.Model
             }
             else
             {
-                // So we are here because the layer is directional and UserSetting to only store outbound is turned on (true)
-                // I.e. neither symmetric or not only-outbound triggered above. This means: directional, and only store outbound
-                // ties. Which we do:
                 foreach (uint idAlter in nodeIdsAlters)
                     edgeSetEgo._addOutboundEdge(idAlter, 1);
             }
