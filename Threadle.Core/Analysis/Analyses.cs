@@ -270,27 +270,51 @@ namespace Threadle.Core.Analysis
             }
 
             // Non-weighted follows
-            List<uint> alterIds = [];
-            if (layersToUse.Count==1 || !balanced)
+            if (layersToUse.Count == 1 || !balanced)
             {
-                // Not balanced or just a single layer
+                if (layersToUse.Count == 1 && layersToUse[0] is ILayerTwoMode itm_single)
+                {
+                    // Single 2-mode layer (dynamic or static): O(1) fast path, zero allocation
+                    uint? fastPick = itm_single.PickRandomAlterO1(nodeId);
+                    return fastPick.HasValue
+                        ? OperationResult<uint>.Ok(fastPick.Value)
+                        : OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
+                }
+                if (layersToUse.Count == 1)
+                {
+                    // Single 1-mode layer
+                    uint[] alts = layersToUse[0].GetNodeAlters(nodeId, edgeTraversal);
+                    return alts.Length > 0
+                        ? OperationResult<uint>.Ok(alts[Misc.Random.Next(alts.Length)])
+                        : OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
+                }
+                // Multi-layer pooled: reservoir sampling, zero allocation for 2-mode layers
+                uint? selected = null;
+                int totalCount = 0;
                 foreach (var layer in layersToUse)
-                    alterIds.AddRange(layer.GetNodeAlters(nodeId, edgeTraversal));
+                {
+                    if (layer is ILayerTwoMode itm2)
+                        itm2.AppendProjectedAltersReservoir(nodeId, ref selected, ref totalCount);
+                    else
+                        foreach (uint m in layer.GetNodeAlters(nodeId, edgeTraversal))
+                        { totalCount++; if (Misc.Random.Next(totalCount) == 0) selected = m; }
+                }
+                if (totalCount == 0)
+                    return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
+                return OperationResult<uint>.Ok(selected!.Value);
             }
             else
             {
-                // balanced and multiple layers
+                // Balanced and multiple layers: uniform pick of layer, then uniform pick within
                 List<uint[]> layerAltersList = layersToUse
                     .Select(l => l.GetNodeAlters(nodeId, edgeTraversal))
-                    .Where(a => a.Length>0)
+                    .Where(a => a.Length > 0)
                     .ToList();
-                if (layerAltersList.Count==0)
+                if (layerAltersList.Count == 0)
                     return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");
-                alterIds.AddRange(layerAltersList[Misc.Random.Next(layerAltersList.Count)]);
+                uint[] chosenLayerAlters = layerAltersList[Misc.Random.Next(layerAltersList.Count)];
+                return OperationResult<uint>.Ok(chosenLayerAlters[Misc.Random.Next(chosenLayerAlters.Length)]);
             }
-            if (alterIds.Count == 0)
-                return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-            return OperationResult<uint>.Ok(alterIds[Misc.Random.Next(alterIds.Count)]);
         }
 
         /// <summary>

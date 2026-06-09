@@ -52,6 +52,23 @@ namespace Threadle.Core.Model
         /// Iterates all hyperedges, yielding the name and affiliated node ids for each.
         /// </summary>
         IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData();
+
+        /// <summary>
+        /// Picks a random projected alter for nodeId without materialising the full alter set.
+        /// Single-hyperedge nodes: O(1) rejection sampling, zero allocation.
+        /// Multi-hyperedge nodes: two-step proportional pick weighted by hyperedge size, O(k).
+        /// Returns null if the node has no alters.
+        /// </summary>
+        uint? PickRandomAlterO1(uint nodeId);
+
+        /// <summary>
+        /// Streams this node's projected alters into a running reservoir sample (Algorithm R, k=1).
+        /// Caller maintains shared 'selected' and 'totalCount' across multiple layers.
+        /// Single-hyperedge: iterates directly, no dedup needed.
+        /// Multi-hyperedge: deduplicates via a thread-local HashSet before sampling.
+        /// Zero allocation per call.
+        /// </summary>
+        void AppendProjectedAltersReservoir(uint nodeId, ref uint? selected, ref int totalCount);
         #endregion
     }
 }

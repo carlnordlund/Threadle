@@ -358,27 +358,23 @@ namespace Threadle.Core.Analysis
 
             Dictionary<(uint from, uint to), int[]> fptHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
-            
+
             void RunWalk(uint startNodeId)
             {
                 if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
-                    return; // node's category not in the map, skip this walk
+                    return;
                 if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
                     sourceWalkCount[sourceCatId] = existingSWC + 1;
                 else
                     sourceWalkCount[sourceCatId] = 1;
                 HashSet<uint> seen = [];
                 uint currentNodeId = startNodeId;
-                for (int step=1; step<=maxSteps;step++)
+                for (int step = 1; step <= maxSteps; step++)
                 {
-                    var alterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
-                    if (!alterResult.Success)
-                        break;
-
-                    currentNodeId = alterResult.Value;
-                    // If the current node is back at the start node, skip recording but keep walking
-                    // same if arrived at a node whose category value is not mapped: skip recording, keep on walking
-                    if (currentNodeId==startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
+                    var randomAlterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+                    if (!randomAlterResult.Success) break;
+                    currentNodeId = randomAlterResult.Value;
+                    if (currentNodeId == startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
                         continue;
                     if (seen.Add(currentCatId))
                     {
@@ -391,6 +387,39 @@ namespace Threadle.Core.Analysis
                         break;
                 }
             }
+
+            //void RunWalk(uint startNodeId)
+            //{
+            //    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
+            //        return; // node's category not in the map, skip this walk
+            //    if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
+            //        sourceWalkCount[sourceCatId] = existingSWC + 1;
+            //    else
+            //        sourceWalkCount[sourceCatId] = 1;
+            //    HashSet<uint> seen = [];
+            //    uint currentNodeId = startNodeId;
+            //    for (int step=1; step<=maxSteps;step++)
+            //    {
+            //        var alterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+            //        if (!alterResult.Success)
+            //            break;
+
+            //        currentNodeId = alterResult.Value;
+            //        // If the current node is back at the start node, skip recording but keep walking
+            //        // same if arrived at a node whose category value is not mapped: skip recording, keep on walking
+            //        if (currentNodeId==startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
+            //            continue;
+            //        if (seen.Add(currentCatId))
+            //        {
+            //            var key = (sourceCatId, currentCatId);
+            //            if (!fptHistograms.TryGetValue(key, out int[]? hist))
+            //                fptHistograms[key] = hist = new int[maxSteps];
+            //            hist[step - 1]++;
+            //        }
+            //        if (seen.Count == labels.Length)
+            //            break;
+            //    }
+            //}
 
             // Initial pass
             uint[] allNodeIds = nodeset.NodeIdArray;
