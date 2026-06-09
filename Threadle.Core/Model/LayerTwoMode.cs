@@ -335,13 +335,97 @@ namespace Threadle.Core.Model
 
         #region Methods (private, internal)
 
+        internal uint? PickRandomAlterO1(uint nodeId)
+        {
+            if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hec)
+                return null;
+            if (hec.HyperEdges.Count == 1)
+            {
+                // Ok, the node is only connected to a singular hyperedge so just pick a random from there (as long as it isn't itself)
+                Hyperedge? he = null;
+                // Get this one (check approach)
+                foreach (var h in hec.HyperEdges)
+                {
+                    he = h;
+                    break;
+                }
+                if (he!.NbrNodes <= 1)
+                    return null;
+                uint pick;
+                do
+                {
+                    pick = he.NodeIds[Misc.Random.Next(he.NbrNodes)];
+                } while (pick == nodeId);
+                return pick;
+            }
+            else
+            {
+                int total = 0;
+                foreach (var he in hec.HyperEdges)
+                    total += he.NbrNodes - 1;
+                if (total == 0)
+                    return null;
+                int k = Misc.Random.Next(total);
+                int offset = 0;
+                foreach (var he in hec.HyperEdges)
+                {
+                    int heCount = he.NbrNodes - 1;
+                    if (k<offset+heCount)
+                    {
+                        uint pick;
+                        do
+                        {
+                            pick = he.NodeIds[Misc.Random.Next(he.NbrNodes)];
+                        } while (pick == nodeId);
+                        return pick;
+                    }
+                    offset += heCount;
+                }
+                return null;
+            }
+        }
+
+        internal void AppendProjectAltersReservoir(uint nodeId, ref uint? selected, ref int totalCount)
+        {
+            if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hec)
+                return;
+            if (hec.HyperEdges.Count==1)
+            {
+                Hyperedge? he = null;
+                foreach (var h in hec.HyperEdges) { he = h; break; }
+                foreach (uint m in he!.NodeIds)
+                {
+                    if (m == nodeId)
+                        continue;
+                    totalCount++;
+                    if (Misc.Random.Next(totalCount) == 0)
+                        selected = m;
+                }
+            }
+            else
+            {
+                _alterDedupeBuffer ??= new HashSet<uint>(256);
+                _alterDedupeBuffer.Clear();
+                foreach (var he in hec.HyperEdges)
+                    foreach (uint m in he.NodeIds)
+                        if (m!=nodeId && _alterDedupeBuffer.Add(m))
+                        {
+                            totalCount++;
+                            if (Misc.Random.Next(totalCount) == 0)
+                                selected = m;
+                        }
+            }
+
+        }
+
+
         /// <summary>
         /// Support function.
         /// Returns a HashSet of Hyperedge objects that a node is part of. If the node lacks a collection of hyperedges, or
         /// if the collection is empty, return null.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
-        /// <returns>HashSet of Hyperedges, or null </returns>
+        /// <returns>Collection of Hyperedges, or null </returns>
         internal HyperedgeCollection? GetNonEmptyHyperedgeCollection(uint nodeId)
         {
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection) && collection.HyperEdges.Count > 0)
@@ -541,6 +625,10 @@ namespace Threadle.Core.Model
         /// <param name="limit">The maximum number of hyperedge names to retrieve. If less than zero, the value is treated as zero.</param>
         /// <returns>An array of strings containing the names of hyperedges, limited by the specified offset and limit. The array
         /// is empty if no hyperedges are available within the specified range.</returns>
+
+
+        [ThreadStatic]
+        private static HashSet<uint>? _alterDedupeBuffer;
         #endregion
     }
 }
