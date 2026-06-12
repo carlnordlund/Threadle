@@ -189,6 +189,14 @@ namespace Threadle.Core.Analysis
 
             int nbrNodesPerStepLevel = (int)(nodeset.Count * walkfactor);
 
+            // Resolve layers once for all walk steps
+            List<ILayer> resolvedLayers = [];
+            if (layers == null)
+                resolvedLayers.AddRange(network.Layers.Values);
+            else
+                foreach (string ln in layers)
+                    resolvedLayers.Add(network.GetLayer(ln).Value!);
+
             // For each step length s, run walks picking alters from all specified layers simultaneously
             for (int s = 1; s <= maxSteps; s++)
             {
@@ -213,7 +221,7 @@ namespace Threadle.Core.Analysis
                     for (int j = 0; j < s; j++)
                     {
                         // Pick a random alter across all specified layers (null = all layers)
-                        var randomAlterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+                        var randomAlterResult = Analyses.GetRandomAlter(currentNodeId, resolvedLayers, EdgeTraversal.Out, balanced, weighted);
                         if (!randomAlterResult.Success)
                         {
                             abort = true;
@@ -225,7 +233,7 @@ namespace Threadle.Core.Analysis
                         // Enforce no backtrack: try once more to avoid stepping back to the previous node
                         if (!backtrack && previousNodeId.HasValue && candidateId == previousNodeId.Value)
                         {
-                            var retryResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+                            var retryResult = Analyses.GetRandomAlter(currentNodeId, resolvedLayers, EdgeTraversal.Out, balanced, weighted);
                             if (retryResult.Success && retryResult.Value != previousNodeId.Value)
                                 candidateId = retryResult.Value;
                             // else: accept the backtrack rather than aborting
@@ -359,6 +367,14 @@ namespace Threadle.Core.Analysis
             Dictionary<(uint from, uint to), int[]> fptHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
 
+            // Resolve layers once — captured by RunWalk closure, avoids per-step List<ILayer> allocation
+            List<ILayer> resolvedLayers = [];
+            if (layers == null)
+                resolvedLayers.AddRange(network.Layers.Values);
+            else
+                foreach (string ln in layers)
+                    resolvedLayers.Add(network.GetLayer(ln).Value!);
+
             void RunWalk(uint startNodeId)
             {
                 if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
@@ -371,7 +387,7 @@ namespace Threadle.Core.Analysis
                 uint currentNodeId = startNodeId;
                 for (int step = 1; step <= maxSteps; step++)
                 {
-                    var randomAlterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+                    var randomAlterResult = Analyses.GetRandomAlter(currentNodeId, resolvedLayers, EdgeTraversal.Out, balanced, weighted);
                     if (!randomAlterResult.Success) break;
                     currentNodeId = randomAlterResult.Value;
                     if (currentNodeId == startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
