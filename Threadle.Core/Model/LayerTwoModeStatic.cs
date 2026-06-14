@@ -616,5 +616,33 @@ namespace Threadle.Core.Model
             return bytes;
         }
         #endregion
+
+        #region Methods (internal)
+        // CSR accessors for hyperedge-aware BFS in Analyses.ShortestPath.
+        // Allows direct iteration of the flat arrays without allocating intermediate arrays.
+
+        internal bool TryGetNodeHyperedgeRange(uint nodeId, out int start, out int end)
+        {
+            if (_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex))
+            {
+                start = _offsetsNodeIds[nodeIndex];
+                end = _offsetsNodeIds[nodeIndex + 1];
+                return start < end;
+            }
+            start = end = 0;
+            return false;
+        }
+
+        internal int GetNodeHyperedgeIndex(int flatIdx) => _nodeIdHyperedgesFlat[flatIdx];
+
+        internal void GetHyperedgeRange(int h, out int start, out int end)
+        {
+            start = _offsetsHyperedges[h];
+            end = _offsetsHyperedges[h + 1];
+        }
+
+        internal uint GetHyperedgeNodeAt(int flatIdx) => _hyperedgeNodeIdsFlat[flatIdx];
+        #endregion
+
     }
 }

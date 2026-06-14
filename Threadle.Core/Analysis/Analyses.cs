@@ -67,9 +67,12 @@ namespace Threadle.Core.Analysis
         /// the directionality is moot.
         /// If there is no path between the nodes, a distance of -1 is returned: note that this is also
         /// wrapped in a OperationResult.Success.
+        /// Uses bidirectional BFS with hyperedge-aware expansion for 2-mode layers: each hyperedge's members
+        /// are iterated at most once per direction, preventing frontier explosion from large affiliations
+        /// (e.g. workplaces with 10k members).
         /// </summary>
         /// <param name="network">The network.</param>
-        /// <param name="layerName">The name of the layer (or an empty/null string if all layers should be used)</param>
+        /// <param name="layerNames">The names of the layers to use (or null to use all layers).</param>
         /// <param name="nodeIdFrom">The source node id.</param>
         /// <param name="nodeIdTo">The destination node id.</param>
         /// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
@@ -82,7 +85,6 @@ namespace Threadle.Core.Analysis
                 return OperationResult<int>.Ok(0);
 
             List<ILayer> resolvedLayers = [];
-            // If no layerNames specified (i.e. null), use all layers
             if (layerNames == null)
                 resolvedLayers.AddRange(network.Layers.Values);
             else
@@ -96,30 +98,208 @@ namespace Threadle.Core.Analysis
                 }
             }
 
-            Queue<uint> queue = [];
-            HashSet<uint> visited = [];
-            Dictionary<uint, int> distances = [];
-            queue.Enqueue(nodeIdFrom);
-            visited.Add(nodeIdFrom);
-            distances[nodeIdFrom] = 0;
-            while (queue.Count > 0)
+            // Separate layers by type to enable hyperedge-aware BFS for 2-mode layers.
+            // Large hyperedges (e.g. 10k-member workplaces) cause O(N^2) work if re-expanded once
+            // per co-member. Per-direction visited sets ensure each hyperedge is iterated at most once.
+            var oneModes = new List<ILayerOneMode>();
+            var twoModesDynamic = new List<LayerTwoMode>();
+            var twoModesStatic = new List<LayerTwoModeStatic>();
+            foreach (var layer in resolvedLayers)
             {
-                uint current = queue.Dequeue();
-                foreach (var layer in resolvedLayers)
-                    foreach (uint neighborId in layer.GetNodeAlters(current,EdgeTraversal.Out))
+                if (layer is LayerTwoModeStatic lts) twoModesStatic.Add(lts);
+                else if (layer is LayerTwoMode ltm) twoModesDynamic.Add(ltm);
+                else if (layer is ILayerOneMode lom) oneModes.Add(lom);
+            }
+
+            // Per-direction, per-2-mode-layer visited hyperedge sets
+            var fwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
+            var bwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
+            var fwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
+            var bwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
+
+            var distFwd = new Dictionary<uint, int> { [nodeIdFrom] = 0 };
+            var distBwd = new Dictionary<uint, int> { [nodeIdTo] = 0 };
+            List<uint> frontierFwd = [nodeIdFrom];
+            List<uint> frontierBwd = [nodeIdTo];
+            int best = int.MaxValue;
+            int dFwd = 0, dBwd = 0;
+
+            while (frontierFwd.Count > 0 || frontierBwd.Count > 0)
+            {
+                if (best != int.MaxValue && best <= dFwd + dBwd + 1)
+                    break;
+
+                if (frontierFwd.Count > 0 && (frontierBwd.Count == 0 || frontierFwd.Count <= frontierBwd.Count))
+                {
+                    dFwd++;
+                    List<uint> next = [];
+                    foreach (uint u in frontierFwd)
                     {
-                        if (!visited.Contains(neighborId))
+                        foreach (var layer in oneModes)
+                            foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Out))
+                                if (distFwd.TryAdd(v, dFwd))
+                                {
+                                    next.Add(v);
+                                    if (distBwd.TryGetValue(v, out int bd))
+                                        best = Math.Min(best, dFwd + bd);
+                                }
+
+                        for (int li = 0; li < twoModesDynamic.Count; li++)
                         {
-                            visited.Add(neighborId);
-                            distances[neighborId] = distances[current] + 1;
-                            if (neighborId == nodeIdTo)
-                                return OperationResult<int>.Ok(distances[neighborId]);
-                            queue.Enqueue(neighborId);
+                            var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
+                            if (hec == null) continue;
+                            foreach (var he in hec.HyperEdges)
+                                if (fwdDynVisited[li].Add(he))
+                                    foreach (uint m in he.NodeIds)
+                                        if (distFwd.TryAdd(m, dFwd))
+                                        {
+                                            next.Add(m);
+                                            if (distBwd.TryGetValue(m, out int bd))
+                                                best = Math.Min(best, dFwd + bd);
+                                        }
+                        }
+
+                        for (int li = 0; li < twoModesStatic.Count; li++)
+                        {
+                            if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+                            for (int k = nStart; k < nEnd; k++)
+                            {
+                                int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
+                                if (!fwdStatVisited[li].Add(hIdx)) continue;
+                                twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+                                for (int j = hStart; j < hEnd; j++)
+                                {
+                                    uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
+                                    if (distFwd.TryAdd(m, dFwd))
+                                    {
+                                        next.Add(m);
+                                        if (distBwd.TryGetValue(m, out int bd))
+                                            best = Math.Min(best, dFwd + bd);
+                                    }
+                                }
+                            }
                         }
                     }
+                    frontierFwd = next;
+                }
+                else
+                {
+                    dBwd++;
+                    List<uint> next = [];
+                    foreach (uint u in frontierBwd)
+                    {
+                        foreach (var layer in oneModes)
+                            foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.In))
+                                if (distBwd.TryAdd(v, dBwd))
+                                {
+                                    next.Add(v);
+                                    if (distFwd.TryGetValue(v, out int fd))
+                                        best = Math.Min(best, fd + dBwd);
+                                }
+
+                        for (int li = 0; li < twoModesDynamic.Count; li++)
+                        {
+                            var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
+                            if (hec == null) continue;
+                            foreach (var he in hec.HyperEdges)
+                                if (bwdDynVisited[li].Add(he))
+                                    foreach (uint m in he.NodeIds)
+                                        if (distBwd.TryAdd(m, dBwd))
+                                        {
+                                            next.Add(m);
+                                            if (distFwd.TryGetValue(m, out int fd))
+                                                best = Math.Min(best, fd + dBwd);
+                                        }
+                        }
+
+                        for (int li = 0; li < twoModesStatic.Count; li++)
+                        {
+                            if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+                            for (int k = nStart; k < nEnd; k++)
+                            {
+                                int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
+                                if (!bwdStatVisited[li].Add(hIdx)) continue;
+                                twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+                                for (int j = hStart; j < hEnd; j++)
+                                {
+                                    uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
+                                    if (distBwd.TryAdd(m, dBwd))
+                                    {
+                                        next.Add(m);
+                                        if (distFwd.TryGetValue(m, out int fd))
+                                            best = Math.Min(best, fd + dBwd);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    frontierBwd = next;
+                }
             }
-            return OperationResult<int>.Ok(-1);
+
+            return OperationResult<int>.Ok(best == int.MaxValue ? -1 : best);
         }
+
+        ///// <summary>
+        ///// Calculates the shortest path between two nodes, either for a particular layer or for all layers.
+        ///// To work with all layers, set layerName to an empty string. Note that the shortest path takes edge
+        ///// directionality into account: if a layer has directional edges, this matters. For layers that are symmetric,
+        ///// the directionality is moot.
+        ///// If there is no path between the nodes, a distance of -1 is returned: note that this is also
+        ///// wrapped in a OperationResult.Success.
+        ///// </summary>
+        ///// <param name="network">The network.</param>
+        ///// <param name="layerName">The name of the layer (or an empty/null string if all layers should be used)</param>
+        ///// <param name="nodeIdFrom">The source node id.</param>
+        ///// <param name="nodeIdTo">The destination node id.</param>
+        ///// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
+        //public static OperationResult<int> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo)
+        //{
+        //    OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
+        //    if (!nodeCheckResult.Success)
+        //        return OperationResult<int>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
+        //    if (nodeIdFrom == nodeIdTo)
+        //        return OperationResult<int>.Ok(0);
+
+        //    List<ILayer> resolvedLayers = [];
+        //    // If no layerNames specified (i.e. null), use all layers
+        //    if (layerNames == null)
+        //        resolvedLayers.AddRange(network.Layers.Values);
+        //    else
+        //    {
+        //        foreach (string layerName in layerNames)
+        //        {
+        //            var layerResult = network.GetLayer(layerName);
+        //            if (!layerResult.Success)
+        //                return OperationResult<int>.Fail(layerResult);
+        //            resolvedLayers.Add(layerResult.Value!);
+        //        }
+        //    }
+
+        //    Queue<uint> queue = [];
+        //    HashSet<uint> visited = [];
+        //    Dictionary<uint, int> distances = [];
+        //    queue.Enqueue(nodeIdFrom);
+        //    visited.Add(nodeIdFrom);
+        //    distances[nodeIdFrom] = 0;
+        //    while (queue.Count > 0)
+        //    {
+        //        uint current = queue.Dequeue();
+        //        foreach (var layer in resolvedLayers)
+        //            foreach (uint neighborId in layer.GetNodeAlters(current,EdgeTraversal.Out))
+        //            {
+        //                if (!visited.Contains(neighborId))
+        //                {
+        //                    visited.Add(neighborId);
+        //                    distances[neighborId] = distances[current] + 1;
+        //                    if (neighborId == nodeIdTo)
+        //                        return OperationResult<int>.Ok(distances[neighborId]);
+        //                    queue.Enqueue(neighborId);
+        //                }
+        //            }
+        //    }
+        //    return OperationResult<int>.Ok(-1);
+        //}
 
         /// <summary>
         /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
