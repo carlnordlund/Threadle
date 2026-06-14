@@ -1,4 +1,6 @@
 ﻿using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing;
 using Threadle.Core.Utilities.Enums;
 
 namespace Threadle.Core.Utilities
@@ -165,6 +167,22 @@ namespace Threadle.Core.Utilities
             catch (Exception ex)
             {
                 return OperationResult.Fail("IOImportError", "Unexpected error when importing matrix/table to 2-mode layer: " + ex.Message);
+            }
+        }
+
+        public static OperationResult ImportNodeAttributes(string filepath, Nodeset nodeset, bool addMissingNodes = false, char separator='\t')
+        {
+            try
+            {
+                string[] lines = TextFileReader.LoadFile(filepath);
+                var parseResult = ParseNodeAttributeLines(lines, separator);
+                if (!parseResult.Success)
+                    return OperationResult.Fail(parseResult.Code, parseResult.Message);
+                return NodesetProcessor.ImportNodeAttributes(nodeset, parseResult.Value!, addMissingNodes);
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOImportError", $"Unexpected error when importing node attributes: {ex.Message}");
             }
         }
 
@@ -570,6 +588,56 @@ namespace Threadle.Core.Utilities
             {
                 return OperationResult<StructureResult>.Fail("IOError", $"Unexpected error while loading network: {e.Message}");
             }
+        }
+
+        private static OperationResult<List<(string Name, NodeAttributeType Type, Dictionary<uint,string> Values)>> ParseNodeAttributeLines(string[] lines, char separator)
+        {
+            if (lines.Length == 0)
+                return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail("EmptyFile", "The file is empty.");
+            string[] headerCells = lines[0].Split(separator);
+            if (headerCells.Length<2)
+                return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail(
+            "InvalidHeader", "Header row must contain at least one attribute column after the nodeId column.");
+            int nbrAttributes = headerCells.Length - 1;
+            var attributes = new List<(string Name, NodeAttributeType Type, Dictionary<uint, string> Values)>(nbrAttributes);
+
+            for (int i = 0; i < nbrAttributes; i++)
+            {
+                string cell = headerCells[i + 1].Trim();
+                int colonIdx = cell.LastIndexOf(':');
+                string name;
+                NodeAttributeType type;
+                if (colonIdx > 0)
+                {
+                    name = cell[..colonIdx];
+                    string typeStr = cell[(colonIdx + 1)..];
+                    if (Misc.GetAttributeType(typeStr) is not NodeAttributeType parsedType)
+                        return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail(
+                            "InvalidAttributeType",
+                            $"Attribute type '{typeStr}' in header column {i + 2} is not recognized.");
+                    type = parsedType;
+                }
+                else
+                {
+                    name = cell;
+                    type = NodeAttributeType.String;
+                }
+                attributes.Add((name, type, []));
+            }
+
+            for (int lineIdx = 1; lineIdx < lines.Length; lineIdx++)
+            {
+                string line = lines[lineIdx];
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                string[] cells = line.Split(separator);
+                if (!uint.TryParse(cells[0].Trim(), out uint nodeId)) continue;
+                for (int i = 0; i < nbrAttributes; i++)
+                {
+                    string value = (i + 1 < cells.Length) ? cells[i + 1].Trim() : string.Empty;
+                    attributes[i].Values[nodeId] = value;
+                }
+            }
+            return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Ok(attributes);
         }
         #endregion
     }
