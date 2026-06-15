@@ -62,7 +62,7 @@
         /// <summary>
         /// The list of node ids that the hyperedge connects.
         /// </summary>
-        public IReadOnlyList<uint> NodeIds => _nodeIds;
+        public List<uint> NodeIds => _nodeIds;
 
         /// <summary>
         /// Returns the number of nodes connected by the hyperedge.

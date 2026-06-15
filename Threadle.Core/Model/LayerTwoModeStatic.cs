@@ -44,6 +44,8 @@ namespace Threadle.Core.Model
         /// </summary>
         private int[] _nodeIdHyperedgesFlat = [];
 
+        [ThreadStatic]
+        private static HashSet<uint>? _alterDedupeBuffer;
 
         // So: a checkedge(node1id, node2id) would then be like this:
         // 1. Use _nodeIdToIndexMapper to find the index of the node: indexNode
@@ -329,6 +331,107 @@ namespace Threadle.Core.Model
             return (a, w);
         }
 
+        /// <summary>
+        /// Single-hyperedge: O(1) rejection sampling directly into the flat CSR array, zero allocation.
+        /// Multi-hyperedge: two-step proportional pick weighted by (size-1), O(k).
+        /// </summary>
+        public uint? PickRandomAlterO1(uint nodeId)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex)) return null;
+            int nStart = _offsetsNodeIds[nodeIndex];
+            int nEnd = _offsetsNodeIds[nodeIndex + 1];
+            if (nStart == nEnd) return null;
+
+            if (nEnd - nStart == 1)
+            {
+                // Single hyperedge: rejection-sample directly from flat array
+                int h = _nodeIdHyperedgesFlat[nStart];
+                int hStart = _offsetsHyperedges[h];
+                int hSize = _offsetsHyperedges[h + 1] - hStart;
+                if (hSize <= 1) return null;
+                uint pick;
+                do { pick = _hyperedgeNodeIdsFlat[hStart + Misc.Random.Next(hSize)]; } while (pick == nodeId);
+                return pick;
+            }
+            else
+            {
+                // Multiple hyperedges: two-step proportional pick weighted by (size-1)
+                int total = 0;
+                for (int k = nStart; k < nEnd; k++)
+                {
+                    int h = _nodeIdHyperedgesFlat[k];
+                    total += _offsetsHyperedges[h + 1] - _offsetsHyperedges[h] - 1;
+                }
+                if (total == 0) return null;
+                int r = Misc.Random.Next(total);
+                int offset = 0;
+                for (int k = nStart; k < nEnd; k++)
+                {
+                    int h = _nodeIdHyperedgesFlat[k];
+                    int hStart = _offsetsHyperedges[h];
+                    int hCount = _offsetsHyperedges[h + 1] - hStart - 1;
+                    if (r < offset + hCount)
+                    {
+                        int hSize = hCount + 1;
+                        uint pick;
+                        do { pick = _hyperedgeNodeIdsFlat[hStart + Misc.Random.Next(hSize)]; } while (pick == nodeId);
+                        return pick;
+                    }
+                    offset += hCount;
+                }
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Streams projected alters into a running reservoir sample.
+        /// Single-hyperedge: iterates flat array directly, no dedup.
+        /// Multi-hyperedge: deduplicates via thread-local HashSet.
+        /// Zero allocation per call.
+        /// </summary>
+        public void AppendProjectedAltersReservoir(uint nodeId, ref uint? selected, ref int totalCount)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex)) return;
+            int nStart = _offsetsNodeIds[nodeIndex];
+            int nEnd = _offsetsNodeIds[nodeIndex + 1];
+            if (nStart == nEnd) return;
+
+            if (nEnd - nStart == 1)
+            {
+                // Single hyperedge: iterate flat array directly
+                int h = _nodeIdHyperedgesFlat[nStart];
+                int hStart = _offsetsHyperedges[h];
+                int hEnd = _offsetsHyperedges[h + 1];
+                for (int j = hStart; j < hEnd; j++)
+                {
+                    uint m = _hyperedgeNodeIdsFlat[j];
+                    if (m == nodeId) continue;
+                    totalCount++;
+                    if (Misc.Random.Next(totalCount) == 0) selected = m;
+                }
+            }
+            else
+            {
+                // Multiple hyperedges: deduplicate via thread-local buffer
+                _alterDedupeBuffer ??= new HashSet<uint>(256);
+                _alterDedupeBuffer.Clear();
+                for (int k = nStart; k < nEnd; k++)
+                {
+                    int h = _nodeIdHyperedgesFlat[k];
+                    int hStart = _offsetsHyperedges[h];
+                    int hEnd = _offsetsHyperedges[h + 1];
+                    for (int j = hStart; j < hEnd; j++)
+                    {
+                        uint m = _hyperedgeNodeIdsFlat[j];
+                        if (m != nodeId && _alterDedupeBuffer.Add(m))
+                        {
+                            totalCount++;
+                            if (Misc.Random.Next(totalCount) == 0) selected = m;
+                        }
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Clears the layer, i.e. clears all Edgeset objects and removes these.
@@ -513,5 +616,33 @@ namespace Threadle.Core.Model
             return bytes;
         }
         #endregion
+
+        #region Methods (internal)
+        // CSR accessors for hyperedge-aware BFS in Analyses.ShortestPath.
+        // Allows direct iteration of the flat arrays without allocating intermediate arrays.
+
+        internal bool TryGetNodeHyperedgeRange(uint nodeId, out int start, out int end)
+        {
+            if (_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex))
+            {
+                start = _offsetsNodeIds[nodeIndex];
+                end = _offsetsNodeIds[nodeIndex + 1];
+                return start < end;
+            }
+            start = end = 0;
+            return false;
+        }
+
+        internal int GetNodeHyperedgeIndex(int flatIdx) => _nodeIdHyperedgesFlat[flatIdx];
+
+        internal void GetHyperedgeRange(int h, out int start, out int end)
+        {
+            start = _offsetsHyperedges[h];
+            end = _offsetsHyperedges[h + 1];
+        }
+
+        internal uint GetHyperedgeNodeAt(int flatIdx) => _hyperedgeNodeIdsFlat[flatIdx];
+        #endregion
+
     }
 }

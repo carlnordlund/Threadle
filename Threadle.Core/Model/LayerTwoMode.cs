@@ -206,6 +206,84 @@ namespace Threadle.Core.Model
             return (a, w);
         }
 
+        /// <summary>
+        /// For nodes with a single hyperedge (the common case): rejection-samples an alter directly
+        /// from the hyperedge in O(1) expected time with zero allocation.
+        /// For nodes with multiple hyperedges: two-step proportional pick weighted by (size-1), O(k).
+        /// </summary>
+        public uint? PickRandomAlterO1(uint nodeId)
+        {
+            if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hec) return null;
+
+            if (hec.HyperEdges.Count == 1)
+            {
+                Hyperedge? he = null;
+                foreach (var h in hec.HyperEdges) { he = h; break; }
+                if (he!.NbrNodes <= 1) return null;
+                uint pick;
+                do { pick = he.NodeIds[Misc.Random.Next(he.NbrNodes)]; } while (pick == nodeId);
+                return pick;
+            }
+            else
+            {
+                int total = 0;
+                foreach (var he in hec.HyperEdges) total += he.NbrNodes - 1;
+                if (total == 0) return null;
+                int k = Misc.Random.Next(total);
+                int offset = 0;
+                foreach (var he in hec.HyperEdges)
+                {
+                    int heCount = he.NbrNodes - 1;
+                    if (k < offset + heCount)
+                    {
+                        uint pick;
+                        do { pick = he.NodeIds[Misc.Random.Next(he.NbrNodes)]; } while (pick == nodeId);
+                        return pick;
+                    }
+                    offset += heCount;
+                }
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Appends this node's projected alters into a running reservoir sample (Knuth Algorithm R, k=1).
+        /// Single-hyperedge nodes iterate the hyperedge directly (no dedup needed).
+        /// Multi-hyperedge nodes deduplicate via a thread-local HashSet before sampling.
+        /// Zero allocation per call in both cases.
+        /// </summary>
+        public void AppendProjectedAltersReservoir(uint nodeId, ref uint? selected, ref int totalCount)
+        {
+            if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hec) return;
+
+            if (hec.HyperEdges.Count == 1)
+            {
+                Hyperedge? he = null;
+                // Clever way to get something from a hash that is known to only contain one entry
+                foreach (var h in hec.HyperEdges) { he = h; break; }
+                foreach (uint m in he!.NodeIds)
+                {
+                    if (m == nodeId) continue;
+                    totalCount++;
+                    if (Misc.Random.Next(totalCount) == 0) selected = m;
+                }
+            }
+            else
+            {
+                _alterDedupeBuffer ??= new HashSet<uint>(256);
+                _alterDedupeBuffer.Clear();
+                foreach (var he in hec.HyperEdges)
+                    foreach (uint m in he.NodeIds)
+                        if (m != nodeId && _alterDedupeBuffer.Add(m))
+                        {
+                            totalCount++;
+                            if (Misc.Random.Next(totalCount) == 0) selected = m;
+                        }
+            }
+        }
+
+        [ThreadStatic]
+        private static HashSet<uint>? _alterDedupeBuffer;
 
         /// <summary>
         /// Returns a HashSet of all unique node ids mentioned in the Layer
@@ -334,14 +412,13 @@ namespace Threadle.Core.Model
 
 
         #region Methods (private, internal)
-
         /// <summary>
         /// Support function.
         /// Returns a HashSet of Hyperedge objects that a node is part of. If the node lacks a collection of hyperedges, or
         /// if the collection is empty, return null.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
-        /// <returns>HashSet of Hyperedges, or null </returns>
+        /// <returns>Collection of Hyperedges, or null </returns>
         internal HyperedgeCollection? GetNonEmptyHyperedgeCollection(uint nodeId)
         {
             if (HyperEdgeCollections.TryGetValue(nodeId, out var collection) && collection.HyperEdges.Count > 0)
@@ -541,6 +618,7 @@ namespace Threadle.Core.Model
         /// <param name="limit">The maximum number of hyperedge names to retrieve. If less than zero, the value is treated as zero.</param>
         /// <returns>An array of strings containing the names of hyperedges, limited by the specified offset and limit. The array
         /// is empty if no hyperedges are available within the specified range.</returns>
+
         #endregion
     }
 }

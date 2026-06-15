@@ -46,6 +46,7 @@ namespace Threadle.Core.Analysis
                 : "(missing)";
 
             Dictionary<(uint from, uint to), (double sum, double sumSq, int count)> distDict = [];
+            Dictionary<(uint from, uint to), Dictionary<int, int>> distHistDict = [];
             uint[] allNodeIds = nodeset.NodeIdArray;
 
             foreach (uint sourceNodeId in allNodeIds)
@@ -87,27 +88,72 @@ namespace Threadle.Core.Analysis
                         distDict[key] = (existing.sum + d, existing.sumSq + d * d, existing.count + 1);
                     else
                         distDict[key] = (d, d * d, 1);
+                    if (!distHistDict.TryGetValue(key, out var hist))
+                        distHistDict[key] = hist = [];
+                    hist[dist] = hist.TryGetValue(dist, out int binCount) ? binCount + 1 : 1;
                 }
             }
 
             Network networkResults = new Network(attrName + "_sp_results", nodesetResults);
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_sp_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q1Layer = new LayerOneMode(attrName + "_sp_q1", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode medianLayer = new LayerOneMode(attrName + "_sp_median", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q3Layer = new LayerOneMode(attrName + "_sp_q3", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode stdevLayer = new LayerOneMode(attrName + "_sp_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode seLayer = new LayerOneMode(attrName + "_sp_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode countLayer = new LayerOneMode(attrName + "_sp_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
 
             foreach (var kvp in distDict)
             {
-                float mean = (float)(kvp.Value.sum / kvp.Value.count);
-                float variance = kvp.Value.count > 1
-                    ? (float)((kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1))
+                int count = kvp.Value.count;
+                float mean = (float)(kvp.Value.sum / count);
+                float variance = count > 1
+                    ? (float)((kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / count) / (count - 1))
                     : 0f;
-                float se = (float)(Math.Sqrt(Math.Max(0f, variance)) / Math.Sqrt(kvp.Value.count));
-                avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
-                seLayer.AddEdge(kvp.Key.from, kvp.Key.to, se);
-                countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
+                float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
+
+                //// Compute median from sparse histogram by scanning sorted distance values
+                //float median = 0f;
+                //if (distHistDict.TryGetValue(kvp.Key, out var hist))
+                //{
+                //    int lowerPos = (count + 1) / 2;
+                //    int upperPos = count / 2 + 1;
+                //    float lowerVal = 0f, upperVal = 0f;
+                //    int cumulative = 0;
+                //    foreach (int d in hist.Keys.OrderBy(k => k))
+                //    {
+                //        cumulative += hist[d];
+                //        if (lowerVal == 0f && cumulative >= lowerPos)
+                //            lowerVal = d;
+                //        if (cumulative >= upperPos)
+                //        {
+                //            upperVal = d;
+                //            break;
+                //        }
+                //    }
+                //    median = (lowerVal + upperVal) / 2f;
+                //}
+
+                (uint from, uint to) = kvp.Key;
+                avgLayer.AddEdge(from, to, mean);
+
+                if (distHistDict.TryGetValue(kvp.Key, out var hist))
+                {
+                    q1Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.25f));
+                    medianLayer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.50f));
+                    q3Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.75f));
+                }
+
+                stdevLayer.AddEdge(from, to, stdev);
+                seLayer.AddEdge(from, to, stdev / (float)Math.Sqrt(count));
+                countLayer.AddEdge(from, to, count);
             }
 
             networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(q1Layer.Name, q1Layer);
+            networkResults.Layers.Add(medianLayer.Name, medianLayer);
+            networkResults.Layers.Add(q3Layer.Name, q3Layer);
+            networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
             networkResults.Layers.Add(seLayer.Name, seLayer);
             networkResults.Layers.Add(countLayer.Name, countLayer);
 
@@ -143,6 +189,14 @@ namespace Threadle.Core.Analysis
 
             int nbrNodesPerStepLevel = (int)(nodeset.Count * walkfactor);
 
+            // Resolve layers once for all walk steps
+            List<ILayer> resolvedLayers = [];
+            if (layers == null)
+                resolvedLayers.AddRange(network.Layers.Values);
+            else
+                foreach (string ln in layers)
+                    resolvedLayers.Add(network.GetLayer(ln).Value!);
+
             // For each step length s, run walks picking alters from all specified layers simultaneously
             for (int s = 1; s <= maxSteps; s++)
             {
@@ -167,7 +221,7 @@ namespace Threadle.Core.Analysis
                     for (int j = 0; j < s; j++)
                     {
                         // Pick a random alter across all specified layers (null = all layers)
-                        var randomAlterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+                        var randomAlterResult = Analyses.GetRandomAlter(currentNodeId, resolvedLayers, EdgeTraversal.Out, balanced, weighted);
                         if (!randomAlterResult.Success)
                         {
                             abort = true;
@@ -179,7 +233,7 @@ namespace Threadle.Core.Analysis
                         // Enforce no backtrack: try once more to avoid stepping back to the previous node
                         if (!backtrack && previousNodeId.HasValue && candidateId == previousNodeId.Value)
                         {
-                            var retryResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+                            var retryResult = Analyses.GetRandomAlter(currentNodeId, resolvedLayers, EdgeTraversal.Out, balanced, weighted);
                             if (retryResult.Success && retryResult.Value != previousNodeId.Value)
                                 candidateId = retryResult.Value;
                             // else: accept the backtrack rather than aborting
@@ -282,19 +336,19 @@ namespace Threadle.Core.Analysis
             return OperationResult<StructureResult>.Ok(results, $"Random walk distances computed. {labels.Length} unique attribute values, {maxSteps} step levels.");
         }
 
-        public static OperationResult<StructureResult> RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted)
+        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, int Count)>? Histograms) RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
         {
             if (CheckLayersExist(network, layers) is OperationResult result)
-                return OperationResult<StructureResult>.Fail(result);
+                return (OperationResult<StructureResult>.Fail(result),[]);
 
             if (walkfactor <= 0)
-                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero.");
+                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero."), []);
             if (maxSteps <= 0)
-                return OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero.");
+                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero."), []);
             Nodeset nodeset = network.Nodeset;
             var categoryResult = BuildCategoryNodeset(network, attrName);
             if (!categoryResult.Success)
-                return OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message);
+                return (OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message), []);
             CategoryNodeset cat = categoryResult.Value;
             Nodeset nodesetResults = cat.Nodeset;
             Dictionary<string, uint> nodeAttributeStringToNodeId = cat.LabelToNodeId;
@@ -302,7 +356,7 @@ namespace Threadle.Core.Analysis
             NodeAttributeType attrType = cat.AttrType;
             byte attrIndex = cat.AttrIndex;
 
-            Network networkResults = new Network(attrName + "_rwfpt_results", nodesetResults);
+            Network networkResults = new Network(network.Name + "_" + attrName + "_rwfpt_results", nodesetResults);
 
             string GetCategoryString(uint nodeId) => nodeset.GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue nav
                 ? (attrType == NodeAttributeType.String
@@ -310,49 +364,87 @@ namespace Threadle.Core.Analysis
                     : nav.ToString(attrType))
                 : "(missing)";
 
-            Dictionary<(uint from, uint to), (float sum, float sumSq, int count)> fptDict = [];
+            Dictionary<(uint from, uint to), int[]> fptHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
-            
+
+            // Resolve layers once — captured by RunWalk closure, avoids per-step List<ILayer> allocation
+            List<ILayer> resolvedLayers = [];
+            if (layers == null)
+                resolvedLayers.AddRange(network.Layers.Values);
+            else
+                foreach (string ln in layers)
+                    resolvedLayers.Add(network.GetLayer(ln).Value!);
+
             void RunWalk(uint startNodeId)
             {
                 if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
-                    return; // node's category not in the map, skip this walk
+                    return;
                 if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
                     sourceWalkCount[sourceCatId] = existingSWC + 1;
                 else
                     sourceWalkCount[sourceCatId] = 1;
                 HashSet<uint> seen = [];
                 uint currentNodeId = startNodeId;
-                for (int step=1; step<=maxSteps;step++)
+                for (int step = 1; step <= maxSteps; step++)
                 {
-                    var alterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
-                    if (!alterResult.Success)
-                        break;
-
-                    currentNodeId = alterResult.Value;
-                    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
-                        continue; // unmapped category at this step, skip recording but keep walking
+                    var randomAlterResult = Analyses.GetRandomAlter(currentNodeId, resolvedLayers, EdgeTraversal.Out, balanced, weighted);
+                    if (!randomAlterResult.Success) break;
+                    currentNodeId = randomAlterResult.Value;
+                    if (currentNodeId == startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
+                        continue;
                     if (seen.Add(currentCatId))
                     {
-                        float fstep = step;
                         var key = (sourceCatId, currentCatId);
-                        if (fptDict.TryGetValue(key, out var existing))
-                            fptDict[key] = (existing.sum + fstep, existing.sumSq + fstep * fstep, existing.count + 1);
-                        else
-                            fptDict[key] = (fstep, fstep * fstep, 1);
+                        if (!fptHistograms.TryGetValue(key, out int[]? hist))
+                            fptHistograms[key] = hist = new int[maxSteps];
+                        hist[step - 1]++;
                     }
                     if (seen.Count == labels.Length)
                         break;
                 }
             }
 
+            //void RunWalk(uint startNodeId)
+            //{
+            //    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
+            //        return; // node's category not in the map, skip this walk
+            //    if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
+            //        sourceWalkCount[sourceCatId] = existingSWC + 1;
+            //    else
+            //        sourceWalkCount[sourceCatId] = 1;
+            //    HashSet<uint> seen = [];
+            //    uint currentNodeId = startNodeId;
+            //    for (int step=1; step<=maxSteps;step++)
+            //    {
+            //        var alterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
+            //        if (!alterResult.Success)
+            //            break;
+
+            //        currentNodeId = alterResult.Value;
+            //        // If the current node is back at the start node, skip recording but keep walking
+            //        // same if arrived at a node whose category value is not mapped: skip recording, keep on walking
+            //        if (currentNodeId==startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
+            //            continue;
+            //        if (seen.Add(currentCatId))
+            //        {
+            //            var key = (sourceCatId, currentCatId);
+            //            if (!fptHistograms.TryGetValue(key, out int[]? hist))
+            //                fptHistograms[key] = hist = new int[maxSteps];
+            //            hist[step - 1]++;
+            //        }
+            //        if (seen.Count == labels.Length)
+            //            break;
+            //    }
+            //}
+
             // Initial pass
-            int nbrWalks = (int)(nodeset.Count * walkfactor);
+            uint[] allNodeIds = nodeset.NodeIdArray;
+            int nbrWalks = (int)(allNodeIds.Length * walkfactor);
             for (int i=0; i<nbrWalks;i++)
             {
                 uint nodeIndex = (uint)Math.Floor(i / walkfactor);
-                if (nodeset.GetNodeIdByIndex(nodeIndex) is uint startNodeId)
-                    RunWalk(startNodeId);
+                if (nodeIndex < allNodeIds.Length)
+                    RunWalk(allNodeIds[nodeIndex]);
             }
 
             // Targeted restarts for undersampled category-pairs
@@ -377,7 +469,7 @@ namespace Threadle.Core.Analysis
                         bool allSatisfied = true;
                         for (uint t = 0; t < (uint)labels.Length; t++)
                         {
-                            if (!fptDict.TryGetValue((sourceCatId, t), out var obs) || obs.count < minPairObs)
+                            if (!fptHistograms.TryGetValue((sourceCatId, t), out int[]? obs) || obs.Sum() < minPairObs)
                             {
                                 allSatisfied = false;
                                 break;
@@ -393,35 +485,122 @@ namespace Threadle.Core.Analysis
 
             // Build output layers
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_fpt_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q1Layer = new LayerOneMode(attrName + "_fpt_q1", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode medianLayer = new LayerOneMode(attrName + "_fpt_median", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q3Layer = new LayerOneMode(attrName + "_fpt_q3", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode stdevLayer = new LayerOneMode(attrName + "_fpt_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode seLayer = new LayerOneMode(attrName + "_fpt_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode countLayer = new LayerOneMode(attrName + "_fpt_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
             LayerOneMode coverageLayer = new LayerOneMode(attrName + "_fpt_coverage", EdgeDirectionality.Directed, EdgeType.Valued, true);
 
-            foreach (var kvp in fptDict)
+            foreach (var kvp in fptHistograms)
             {
-                float mean = kvp.Value.sum / kvp.Value.count;
-                float variance = kvp.Value.count > 1
-                    ? (kvp.Value.sumSq - kvp.Value.sum * kvp.Value.sum / kvp.Value.count) / (kvp.Value.count - 1)
+                int[] hist = kvp.Value;
+
+                // Derive sum, sumSq, count from histogram
+                int count = 0;
+                double sum = 0, sumSq = 0;
+                for (int s = 0; s < hist.Length; s++)
+                {
+                    if (hist[s] == 0) continue;
+                    int step = s + 1;
+                    count += hist[s];
+                    sum += (double)step * hist[s];
+                    sumSq += (double)step * step * hist[s];
+                }
+                if (count == 0) continue;
+
+                float mean = (float)(sum / count);
+                float variance = count > 1
+                    ? (float)((sumSq - sum * sum / count) / (count - 1))
                     : 0f;
                 float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
-                avgLayer.AddEdge(kvp.Key.from, kvp.Key.to, mean);
-                stdevLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev);
-                seLayer.AddEdge(kvp.Key.from, kvp.Key.to, stdev / (float)Math.Sqrt(kvp.Value.count));
-                countLayer.AddEdge(kvp.Key.from, kvp.Key.to, kvp.Value.count);
-                if (sourceWalkCount.TryGetValue(kvp.Key.from, out int totalWalks) && totalWalks > 0)
-                    coverageLayer.AddEdge(kvp.Key.from, kvp.Key.to, (float)kvp.Value.count / totalWalks);
+
+                (uint from, uint to) = kvp.Key;
+                avgLayer.AddEdge(from, to, mean);
+                q1Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.25f));
+                medianLayer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.50f));
+                q3Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.75f));
+                stdevLayer.AddEdge(from, to, stdev);
+                seLayer.AddEdge(from, to, stdev / (float)Math.Sqrt(count));
+                countLayer.AddEdge(from, to, count);
+                if (sourceWalkCount.TryGetValue(from, out int totalWalks) && totalWalks > 0)
+                    coverageLayer.AddEdge(from, to, (float)count / totalWalks);
             }
 
             networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(q1Layer.Name, q1Layer);
+            networkResults.Layers.Add(medianLayer.Name, medianLayer);
+            networkResults.Layers.Add(q3Layer.Name, q3Layer);
             networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
             networkResults.Layers.Add(seLayer.Name, seLayer);
             networkResults.Layers.Add(countLayer.Name, countLayer);
             networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
 
+            List<(string From, string To, int Step, int Count)>? histList = null;
+            if (returnHistograms)
+            {
+                histList = new List<(string From, string To, int Step, int Count)>();
+                foreach (var kvp in fptHistograms)
+                {
+                    string fromLabel = labels[kvp.Key.from];
+                    string toLabel = labels[kvp.Key.to];
+                    for (int s = 0; s < kvp.Value.Length; s++)
+                        if (kvp.Value[s] > 0)
+                            histList.Add((fromLabel, toLabel, s + 1, kvp.Value[s]));
+                }
+            }
+
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
-            int totalObs = fptDict.Values.Sum(v => v.count);
-            return OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations.");
+            int totalObs = fptHistograms.Values.Sum(h => h.Sum());
+            return (OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
+        }
+
+        /// <summary>
+        /// Returns the pth percentile from a fixed-size histogram (array) where bin i
+        /// represents value i+1
+        /// </summary>
+        private static float PercentileFromHistogram(int[] hist, int count, float p)
+        {
+            int lowerPos = (int)Math.Ceiling(p * count);
+            int upperPos = (int)Math.Floor(p * count) + 1;
+            float lowerVal = 0f, upperVal = 0f;
+            int cumulative = 0;
+            for (int s = 0; s < hist.Length; s++)
+            {
+                cumulative += hist[s];
+                if (lowerVal == 0f && cumulative >= lowerPos)
+                    lowerVal = s + 1;
+                if (cumulative >= upperPos)
+                {
+                    upperVal = s + 1;
+                    break;
+                }
+            }
+            return (lowerVal + upperVal) / 2f;
+        }
+
+        /// <summary>
+        /// Returns the pth percentile from a sparse histogram represented by a dict int,int
+        /// </summary>
+        private static float PercentileFromHistogram(Dictionary<int, int> hist, int count, float p)
+        {
+            int lowerPos = (int)Math.Ceiling(p * count);
+            int upperPos = (int)Math.Floor(p * count) + 1;
+            float lowerVal = 0f, upperVal = 0f;
+            int cumulative = 0;
+            foreach (int d in hist.Keys.OrderBy(k => k))
+            {
+                cumulative += hist[d];
+                if (lowerVal == 0f && cumulative >= lowerPos)
+                    lowerVal = d;
+                if (cumulative >= upperPos)
+                {
+                    upperVal = d;
+                    break;
+                }
+            }
+            return (lowerVal + upperVal) / 2f;
         }
 
         private static OperationResult? CheckLayersExist(Network network, string[]? layers)

@@ -66,6 +66,63 @@ namespace Threadle.Core.Processing
             }
             return OperationResult<Nodeset>.Ok(filtered);
         }
+
+        /// <summary>
+        /// Imports node attributes from structured attribute data into an existing nodeset.
+        /// For each attribute, the Values dictionary maps node id to its string-encoded value.
+        /// Node ids not present in the nodeset are skipped (left-join semantics) unless
+        /// <paramref name="addMissingNodes"/> is true, in which case they are added.
+        /// File I/O and format parsing are handled by the caller (e.g. FileManager).
+        /// </summary>
+        public static OperationResult ImportNodeAttributes(
+            Nodeset nodeset,
+            IReadOnlyList<(string Name, NodeAttributeType Type, Dictionary<uint, string> Values)> attributes,
+            bool addMissingNodes = false)
+        {
+            if (attributes.Count == 0)
+                return OperationResult.Fail("NoAttributes", "No attributes provided.");
+
+            HashSet<uint> allNodeIds = [];
+            foreach (var attr in attributes)
+                foreach (uint id in attr.Values.Keys)
+                    allNodeIds.Add(id);
+
+            int rowsImported = 0, rowsSkipped = 0;
+            HashSet<uint>? ineligible = null;
+
+            foreach (uint nodeId in allNodeIds)
+            {
+                if (nodeset.Contains(nodeId))
+                    rowsImported++;
+                else if (addMissingNodes)
+                {
+                    nodeset.AddNode(nodeId);
+                    rowsImported++;
+                }
+                else
+                {
+                    (ineligible ??= []).Add(nodeId);
+                    rowsSkipped++;
+                }
+            }
+
+            foreach (var (name, type, values) in attributes)
+            {
+                Dictionary<uint, string> toImport = ineligible == null
+                    ? values
+                    : values.Where(kvp => !ineligible.Contains(kvp.Key))
+                            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                OperationResult result = nodeset.DefineAndSetNodeAttributeValues(name, toImport, type);
+                if (!result.Success)
+                    return result;
+            }
+
+            string msg = $"Imported {attributes.Count} attribute(s) for {rowsImported} nodes into nodeset '{nodeset.Name}'."
+                + (rowsSkipped > 0 ? $" {rowsSkipped} rows skipped (node ids not found)." : string.Empty);
+            return OperationResult.Ok(msg);
+        }
+
         #endregion
     }
 }

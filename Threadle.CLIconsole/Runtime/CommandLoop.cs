@@ -40,7 +40,7 @@ namespace Threadle.CLIconsole.Runtime
                     $"  Funding: Swedish Research Council (Vetenskapsrådet), Grant 2024-01861\r\n" +
                     $"  License: MIT · © 2026 Carl Nordlund\r\n"+
                     $"\r\n" +
-                    $"  Type '\u001b[36mhelp\u001b[0m' for commands, '\u001b[36mexit\u001b[0m' to quit.\r\n"
+                    $"  Type '\u001b[36mhelp\u001b[0m' for commands, '\u001b[36mabout\u001b[0m' for Threadle details, '\u001b[36mexit\u001b[0m' to quit.\r\n"
                 };
             }
         }

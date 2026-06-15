@@ -22,6 +22,7 @@ namespace Threadle.CLIconsole.Runtime
         /// </summary>
         private static readonly Dictionary<string, ICommand> _commands = new Dictionary<string, ICommand>
         {
+            ["about"] = new About(),
             ["addaff"] = new AddAffiliation(),
             ["addedge"] = new AddEdge(),
             ["addhyper"] = new AddHyper(),
@@ -64,6 +65,7 @@ namespace Threadle.CLIconsole.Runtime
             ["help"] = new HelpCommand(),
             ["i"] = new Inventory(),
             ["importlayer"] = new ImportLayer(),
+            ["importnodeattributes"] = new ImportNodeAttributes(),
             ["info"] = new Info(),
             ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),

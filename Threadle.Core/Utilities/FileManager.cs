@@ -1,4 +1,6 @@
 ﻿using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing;
 using Threadle.Core.Utilities.Enums;
 
 namespace Threadle.Core.Utilities
@@ -168,6 +170,22 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        public static OperationResult ImportNodeAttributes(string filepath, Nodeset nodeset, bool addMissingNodes = false, char separator='\t')
+        {
+            try
+            {
+                string[] lines = TextFileReader.LoadFile(filepath);
+                var parseResult = ParseNodeAttributeLines(lines, separator);
+                if (!parseResult.Success)
+                    return OperationResult.Fail(parseResult.Code, parseResult.Message);
+                return NodesetProcessor.ImportNodeAttributes(nodeset, parseResult.Value!, addMissingNodes);
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOImportError", $"Unexpected error when importing node attributes: {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// Public-facing method for exporting a layer to an edgelist. Checks whether the layer is 1-mode or 2-mode
         /// and passes control along to the suitable method.
@@ -195,6 +213,43 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        /// <summary>
+        /// Public-facing method for exporting a layer to a matrix. Checks whether the layer is 1-mode or 2-mode
+        /// and passes control along to the suitable method. Note that a 2-mode exported to a 'matrix' might be
+        /// rectangular.
+        /// </summary>
+        /// <param name="layer">The ILayer to export.</param>
+        /// <param name="filepath">The filepath to export to.</param>
+        /// <param name="separator">The column-separating character to use in the matrix.</param>
+        /// <param name="header">Boolean whether the first row should contain column headers.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
+        public static OperationResult ExportLayerMatrix(ILayer layer, string filepath, char separator, bool header)
+        {
+            try
+            {
+                if (layer is ILayerOneMode layerOneMode)
+                    LayerImportExport.ExportOneModeMatrix(layerOneMode, filepath, separator, header);
+                else if (layer is ILayerTwoMode layerTwoMode)
+                    LayerImportExport.ExportTwoModeMatrix(layerTwoMode, filepath, separator, header);
+                else
+                    return OperationResult.Fail("IOExportError", $"Did not recognize layer type of layer '{layer.Name}'." );
+                return OperationResult.Ok($"Exported layer '{layer.Name}' to filepath: {filepath}");
+            }
+            catch (Exception ex)
+            {
+                return OperationResult.Fail("IOExportError", "Unexpected error when exporting layer to matrix: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Public-facing method for exporting a single-layer network to file. So far, only 'gexf' (Gephi) exists.
+        /// This public-facing method is for exports to single-layer formats, where the layer is specified.
+        /// </summary>
+        /// <param name="network">The network structure to export.</param>
+        /// <param name="format">The format to export to (Only has gexf (Gephi) right now.</param>
+        /// <param name="layerName">The layer to export</param>
+        /// <param name="filepath">Tjhe filepath to export to</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
         public static OperationResult ExportNetworkToFile(Network network, ExportFormat format, string layerName, string filepath)
         {
             try
@@ -218,6 +273,14 @@ namespace Threadle.Core.Utilities
             }
         }
 
+        /// <summary>
+        /// Public-facing method to export a single-layer network to gexf (Gephi) format. As this format is single-layer,
+        /// the specific layer must be specified.
+        /// </summary>
+        /// <param name="network">The network to export to gexf</param>
+        /// <param name="layerName">The layer to use.</param>
+        /// <param name="filepath">The filepath to export to.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
         private static OperationResult ExportNetworkToGexf(Network network, string layerName, string filepath)
         {
             if (!(network._getLayer(layerName) is ILayer layer))
@@ -525,6 +588,56 @@ namespace Threadle.Core.Utilities
             {
                 return OperationResult<StructureResult>.Fail("IOError", $"Unexpected error while loading network: {e.Message}");
             }
+        }
+
+        private static OperationResult<List<(string Name, NodeAttributeType Type, Dictionary<uint,string> Values)>> ParseNodeAttributeLines(string[] lines, char separator)
+        {
+            if (lines.Length == 0)
+                return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail("EmptyFile", "The file is empty.");
+            string[] headerCells = lines[0].Split(separator);
+            if (headerCells.Length<2)
+                return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail(
+            "InvalidHeader", "Header row must contain at least one attribute column after the nodeId column.");
+            int nbrAttributes = headerCells.Length - 1;
+            var attributes = new List<(string Name, NodeAttributeType Type, Dictionary<uint, string> Values)>(nbrAttributes);
+
+            for (int i = 0; i < nbrAttributes; i++)
+            {
+                string cell = headerCells[i + 1].Trim();
+                int colonIdx = cell.LastIndexOf(':');
+                string name;
+                NodeAttributeType type;
+                if (colonIdx > 0)
+                {
+                    name = cell[..colonIdx];
+                    string typeStr = cell[(colonIdx + 1)..];
+                    if (Misc.GetAttributeType(typeStr) is not NodeAttributeType parsedType)
+                        return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail(
+                            "InvalidAttributeType",
+                            $"Attribute type '{typeStr}' in header column {i + 2} is not recognized.");
+                    type = parsedType;
+                }
+                else
+                {
+                    name = cell;
+                    type = NodeAttributeType.String;
+                }
+                attributes.Add((name, type, []));
+            }
+
+            for (int lineIdx = 1; lineIdx < lines.Length; lineIdx++)
+            {
+                string line = lines[lineIdx];
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                string[] cells = line.Split(separator);
+                if (!uint.TryParse(cells[0].Trim(), out uint nodeId)) continue;
+                for (int i = 0; i < nbrAttributes; i++)
+                {
+                    string value = (i + 1 < cells.Length) ? cells[i + 1].Trim() : string.Empty;
+                    attributes[i].Values[nodeId] = value;
+                }
+            }
+            return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Ok(attributes);
         }
         #endregion
     }
