@@ -291,7 +291,7 @@ threadleR is not on CRAN. Install it from GitHub using the `remotes` package:
 
 ```r
 install.packages("remotes")
-remotes::install_github("carlnordlund/threadleR")
+remotes::install_github("YukunJiao/threadleR")
 ```
 
 If you installed Threadle using the setup installer (and it is on your `PATH`), start
