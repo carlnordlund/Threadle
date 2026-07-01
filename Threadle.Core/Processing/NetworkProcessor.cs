@@ -38,7 +38,9 @@ namespace Threadle.Core.Processing
             if (originalLayer.IsSymmetric)
                 return OperationResult.Ok($"Layer '{layerName}' is already symmetric.");
 
-            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, originalLayer.EdgeValueType, originalLayer.Selfties);
+            bool needsValuedOutput = method == SymmetrizeMethod.sum || method == SymmetrizeMethod.average;
+            EdgeType outputEdgeType = needsValuedOutput ? EdgeType.Valued : originalLayer.EdgeValueType;
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, outputEdgeType, originalLayer.Selfties);
 
             Func<float, float, float> SymmetrizeFunction = method switch
             {
@@ -61,8 +63,17 @@ namespace Threadle.Core.Processing
                 // Edges are binary
                 foreach (var (nodeId, alters, _) in originalLayer.GetAllEgoData())
                     foreach (uint partnerNodeId in alters.Span)
-                        if (!newLayer.CheckEdgeExists(nodeId, partnerNodeId) && SymmetrizeFunction(1, originalLayer.GetEdgeValue(partnerNodeId, nodeId)) > 0)
-                            newLayer._addEdge(nodeId, partnerNodeId);
+                    {
+                        if (newLayer.CheckEdgeExists(nodeId, partnerNodeId))
+                            continue;
+                        else
+                        {
+                            float reverseVal = originalLayer.GetEdgeValue(partnerNodeId, nodeId) > 0 ? 1f : 0f;
+                            float val = SymmetrizeFunction(1f, reverseVal);
+                            if (val > 0)
+                                newLayer._addEdge(nodeId, partnerNodeId, val);
+                        }
+                    }                
             }
             else
             {

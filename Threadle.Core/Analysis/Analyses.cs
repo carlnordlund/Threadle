@@ -101,7 +101,7 @@ namespace Threadle.Core.Analysis
         /// per-hyperedge summation. Typically applied with EdgeTraversal.Both for undirected networks.
         /// </summary>
         public static OperationResult EigenvectorCentrality(Network network, string[]? layerNames,
-            string? attrName = null, EdgeTraversal traversal = EdgeTraversal.Both,
+            string? attrName = null, EdgeTraversal traversal = EdgeTraversal.Out,
             int maxIterations = 100, double tolerance = 1e-8)
         {
             if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
