@@ -4,6 +4,8 @@ using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Analysis
 {
+    public record ShortestPathResult(int Distance, uint[]? Path);
+
     /// <summary>
     /// A collection of public-facing (and fairly simple) network analysis functions accessible by the frontend.
     /// </summary>
@@ -75,14 +77,15 @@ namespace Threadle.Core.Analysis
         /// <param name="layerNames">The names of the layers to use (or null to use all layers).</param>
         /// <param name="nodeIdFrom">The source node id.</param>
         /// <param name="nodeIdTo">The destination node id.</param>
-        /// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
-        public static OperationResult<int> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo)
+        /// <param name="returnPath">If true, the result also contains the sequence of node ids along the shortest path.</param>
+        /// <returns>An OperationResult containing a ShortestPathResult with distance and optional path.</returns>
+        public static OperationResult<ShortestPathResult> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo, bool returnPath = false)
         {
             OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
             if (!nodeCheckResult.Success)
-                return OperationResult<int>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
+                return OperationResult<ShortestPathResult>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
             if (nodeIdFrom == nodeIdTo)
-                return OperationResult<int>.Ok(0);
+                return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(0, returnPath ? [nodeIdFrom] : null));
 
             List<ILayer> resolvedLayers = [];
             if (layerNames == null)
@@ -93,25 +96,13 @@ namespace Threadle.Core.Analysis
                 {
                     var layerResult = network.GetLayer(layerName);
                     if (!layerResult.Success)
-                        return OperationResult<int>.Fail(layerResult);
+                        return OperationResult<ShortestPathResult>.Fail(layerResult);
                     resolvedLayers.Add(layerResult.Value!);
                 }
             }
 
-            // Separate layers by type to enable hyperedge-aware BFS for 2-mode layers.
-            // Large hyperedges (e.g. 10k-member workplaces) cause O(N^2) work if re-expanded once
-            // per co-member. Per-direction visited sets ensure each hyperedge is iterated at most once.
-            var oneModes = new List<ILayerOneMode>();
-            var twoModesDynamic = new List<LayerTwoMode>();
-            var twoModesStatic = new List<LayerTwoModeStatic>();
-            foreach (var layer in resolvedLayers)
-            {
-                if (layer is LayerTwoModeStatic lts) twoModesStatic.Add(lts);
-                else if (layer is LayerTwoMode ltm) twoModesDynamic.Add(ltm);
-                else if (layer is ILayerOneMode lom) oneModes.Add(lom);
-            }
+            GraphAlgorithms.SplitLayers(resolvedLayers, out var oneModes, out var twoModesDynamic, out var twoModesStatic);
 
-            // Per-direction, per-2-mode-layer visited hyperedge sets
             var fwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
             var bwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
             var fwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
@@ -119,9 +110,12 @@ namespace Threadle.Core.Analysis
 
             var distFwd = new Dictionary<uint, int> { [nodeIdFrom] = 0 };
             var distBwd = new Dictionary<uint, int> { [nodeIdTo] = 0 };
+            Dictionary<uint, uint>? predFwd = returnPath ? [] : null;
+            Dictionary<uint, uint>? predBwd = returnPath ? [] : null;
             List<uint> frontierFwd = [nodeIdFrom];
             List<uint> frontierBwd = [nodeIdTo];
             int best = int.MaxValue;
+            uint meetingNode = 0;
             int dFwd = 0, dBwd = 0;
 
             while (frontierFwd.Count > 0 || frontierBwd.Count > 0)
@@ -140,8 +134,12 @@ namespace Threadle.Core.Analysis
                                 if (distFwd.TryAdd(v, dFwd))
                                 {
                                     next.Add(v);
+                                    if (returnPath) predFwd![v] = u;
                                     if (distBwd.TryGetValue(v, out int bd))
-                                        best = Math.Min(best, dFwd + bd);
+                                    {
+                                        int c = dFwd + bd;
+                                        if (c < best) { best = c; meetingNode = v; }
+                                    }
                                 }
 
                         for (int li = 0; li < twoModesDynamic.Count; li++)
@@ -154,8 +152,12 @@ namespace Threadle.Core.Analysis
                                         if (distFwd.TryAdd(m, dFwd))
                                         {
                                             next.Add(m);
+                                            if (returnPath) predFwd![m] = u;
                                             if (distBwd.TryGetValue(m, out int bd))
-                                                best = Math.Min(best, dFwd + bd);
+                                            {
+                                                int c = dFwd + bd;
+                                                if (c < best) { best = c; meetingNode = m; }
+                                            }
                                         }
                         }
 
@@ -173,8 +175,12 @@ namespace Threadle.Core.Analysis
                                     if (distFwd.TryAdd(m, dFwd))
                                     {
                                         next.Add(m);
+                                        if (returnPath) predFwd![m] = u;
                                         if (distBwd.TryGetValue(m, out int bd))
-                                            best = Math.Min(best, dFwd + bd);
+                                        {
+                                            int c = dFwd + bd;
+                                            if (c < best) { best = c; meetingNode = m; }
+                                        }
                                     }
                                 }
                             }
@@ -193,8 +199,12 @@ namespace Threadle.Core.Analysis
                                 if (distBwd.TryAdd(v, dBwd))
                                 {
                                     next.Add(v);
+                                    if (returnPath) predBwd![v] = u;
                                     if (distFwd.TryGetValue(v, out int fd))
-                                        best = Math.Min(best, fd + dBwd);
+                                    {
+                                        int c = fd + dBwd;
+                                        if (c < best) { best = c; meetingNode = v; }
+                                    }
                                 }
 
                         for (int li = 0; li < twoModesDynamic.Count; li++)
@@ -207,8 +217,12 @@ namespace Threadle.Core.Analysis
                                         if (distBwd.TryAdd(m, dBwd))
                                         {
                                             next.Add(m);
+                                            if (returnPath) predBwd![m] = u;
                                             if (distFwd.TryGetValue(m, out int fd))
-                                                best = Math.Min(best, fd + dBwd);
+                                            {
+                                                int c = fd + dBwd;
+                                                if (c < best) { best = c; meetingNode = m; }
+                                            }
                                         }
                         }
 
@@ -226,8 +240,12 @@ namespace Threadle.Core.Analysis
                                     if (distBwd.TryAdd(m, dBwd))
                                     {
                                         next.Add(m);
+                                        if (returnPath) predBwd![m] = u;
                                         if (distFwd.TryGetValue(m, out int fd))
-                                            best = Math.Min(best, fd + dBwd);
+                                        {
+                                            int c = fd + dBwd;
+                                            if (c < best) { best = c; meetingNode = m; }
+                                        }
                                     }
                                 }
                             }
@@ -237,9 +255,34 @@ namespace Threadle.Core.Analysis
                 }
             }
 
-            return OperationResult<int>.Ok(best == int.MaxValue ? -1 : best);
-        }
+            int distance = best == int.MaxValue ? -1 : best;
 
+            uint[]? path = null;
+            if (returnPath && distance >= 0)
+            {
+                // Trace forward half: meetingNode → nodeIdFrom via predFwd, then reverse
+                var pathList = new List<uint>();
+                uint cur = meetingNode;
+                while (cur != nodeIdFrom)
+                {
+                    pathList.Add(cur);
+                    cur = predFwd![cur];
+                }
+                pathList.Add(nodeIdFrom);
+                pathList.Reverse(); // now [nodeIdFrom, ..., meetingNode]
+
+                // Trace backward half: meetingNode → nodeIdTo via predBwd
+                cur = meetingNode;
+                while (cur != nodeIdTo)
+                {
+                    cur = predBwd![cur];
+                    pathList.Add(cur);
+                }
+                path = [.. pathList];
+            }
+
+            return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(distance, path));
+        }
         ///// <summary>
         ///// Calculates the shortest path between two nodes, either for a particular layer or for all layers.
         ///// To work with all layers, set layerName to an empty string. Note that the shortest path takes edge
