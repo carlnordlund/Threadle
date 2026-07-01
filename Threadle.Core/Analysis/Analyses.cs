@@ -1,4 +1,5 @@
-﻿using Threadle.Core.Model;
+﻿using System.Globalization;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -12,6 +13,125 @@ namespace Threadle.Core.Analysis
     public static class Analyses
     {
         #region Methods (public)
+
+        /// <summary>
+        /// Calculates betweenness centrality for all nodes using Brandes' algorithm with
+        /// hyperedge-aware BFS. Normalizes by (n-1)(n-2) for directed, halved for undirected.
+        /// When sampleSize > 0, scales the result by n/sampleSize.
+        /// </summary>
+        public static OperationResult BetweennessCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, bool directed = true, EdgeTraversal traversal = EdgeTraversal.Out)
+        {
+            if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
+                return err!;
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
+
+            var bw = new Dictionary<uint, double>();
+            var cdSum = new Dictionary<uint, double>();
+            var cdReach = new Dictionary<uint, int>();
+            var hm = new Dictionary<uint, double>();
+
+            foreach (uint s in sources)
+                CentralityFunctions.AccumulateBFSCentralities(s, one, dynTwo, statTwo, traversal, bw, cdSum, cdReach, hm);
+
+            var final = CentralityFunctions.FinalizeBetweenness(bw, nodeIds, sources.Length, directed);
+            attrName = string.IsNullOrEmpty(attrName) ? "betweenness" : attrName;
+            var attrDict = final.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
+        /// <summary>
+        /// Calculates closeness centrality using Wasserman-Faust normalization, which handles
+        /// disconnected components by incorporating the reachable proportion of nodes.
+        /// When sampleSize > 0, uses a random subset of source nodes.
+        /// </summary>
+        public static OperationResult ClosenessCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, EdgeTraversal traversal = EdgeTraversal.Out)
+        {
+            if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
+                return err!;
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
+
+            var bw = new Dictionary<uint, double>();
+            var cdSum = new Dictionary<uint, double>();
+            var cdReach = new Dictionary<uint, int>();
+            var hm = new Dictionary<uint, double>();
+
+            foreach (uint s in sources)
+                CentralityFunctions.AccumulateBFSCentralities(s, one, dynTwo, statTwo, traversal, bw, cdSum, cdReach, hm);
+
+            var final = CentralityFunctions.FinalizeCloseness(cdSum, cdReach, nodeIds);
+            attrName = string.IsNullOrEmpty(attrName) ? "closeness" : attrName;
+            var attrDict = final.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
+        /// <summary>
+        /// Calculates harmonic centrality (sum of inverse distances to all reachable nodes).
+        /// When normalize = true, divides by (n-1). Handles disconnected graphs naturally.
+        /// When sampleSize > 0, uses a random subset of source nodes.
+        /// </summary>
+        public static OperationResult HarmonicCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, bool normalize = true, EdgeTraversal traversal = EdgeTraversal.Out)
+        {
+            if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
+                return err!;
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
+
+            var bw = new Dictionary<uint, double>();
+            var cdSum = new Dictionary<uint, double>();
+            var cdReach = new Dictionary<uint, int>();
+            var hm = new Dictionary<uint, double>();
+
+            foreach (uint s in sources)
+                CentralityFunctions.AccumulateBFSCentralities(s, one, dynTwo, statTwo, traversal, bw, cdSum, cdReach, hm);
+
+            var final = CentralityFunctions.FinalizeHarmonic(hm, nodeIds, normalize);
+            attrName = string.IsNullOrEmpty(attrName) ? "harmonic" : attrName;
+            var attrDict = final.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
+        /// <summary>
+        /// Calculates eigenvector centrality via power iteration. Converges to the dominant
+        /// eigenvector of the (projected) adjacency matrix. For 2-mode layers, uses efficient
+        /// per-hyperedge summation. Typically applied with EdgeTraversal.Both for undirected networks.
+        /// </summary>
+        public static OperationResult EigenvectorCentrality(Network network, string[]? layerNames,
+            string? attrName = null, EdgeTraversal traversal = EdgeTraversal.Both,
+            int maxIterations = 100, double tolerance = 1e-8)
+        {
+            if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
+                return err!;
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var scores = CentralityFunctions.EigenvectorCentrality(nodeIds, one, dynTwo, statTwo, traversal, maxIterations, tolerance);
+
+            attrName = string.IsNullOrEmpty(attrName) ? "eigenvector" : attrName;
+            var attrDict = scores.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
+        /// <summary>
+        /// Calculates PageRank scores. Precomputes projected out-neighbor lists (deduplicated),
+        /// handles dangling nodes, and iterates until convergence. Default damping factor 0.85.
+        /// </summary>
+        public static OperationResult PageRank(Network network, string[]? layerNames, string? attrName = null, double dampingFactor = 0.85, int maxIterations = 100, double tolerance = 1e-8)
+        {
+            if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
+                return err!;
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var scores = CentralityFunctions.PageRank(nodeIds, one, dynTwo, statTwo, dampingFactor, maxIterations, tolerance);
+
+            attrName = string.IsNullOrEmpty(attrName) ? "pagerank" : attrName;
+            var attrDict = scores.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
         /// <summary>
         /// Generates summary info about an attribute in a nodeset. The specific info that is returned depends on the type
         /// of node attribute.
@@ -62,23 +182,6 @@ namespace Threadle.Core.Analysis
             return OperationResult<Dictionary<string, object>>.Ok(results);
         }
 
-        /// <summary>
-        /// Calculates the shortest path between two nodes, either for a particular layer or for all layers.
-        /// To work with all layers, set layerName to an empty string. Note that the shortest path takes edge
-        /// directionality into account: if a layer has directional edges, this matters. For layers that are symmetric,
-        /// the directionality is moot.
-        /// If there is no path between the nodes, a distance of -1 is returned: note that this is also
-        /// wrapped in a OperationResult.Success.
-        /// Uses bidirectional BFS with hyperedge-aware expansion for 2-mode layers: each hyperedge's members
-        /// are iterated at most once per direction, preventing frontier explosion from large affiliations
-        /// (e.g. workplaces with 10k members).
-        /// </summary>
-        /// <param name="network">The network.</param>
-        /// <param name="layerNames">The names of the layers to use (or null to use all layers).</param>
-        /// <param name="nodeIdFrom">The source node id.</param>
-        /// <param name="nodeIdTo">The destination node id.</param>
-        /// <param name="returnPath">If true, the result also contains the sequence of node ids along the shortest path.</param>
-        /// <returns>An OperationResult containing a ShortestPathResult with distance and optional path.</returns>
         public static OperationResult<ShortestPathResult> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo, bool returnPath = false)
         {
             OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
@@ -87,202 +190,14 @@ namespace Threadle.Core.Analysis
             if (nodeIdFrom == nodeIdTo)
                 return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(0, returnPath ? [nodeIdFrom] : null));
 
-            List<ILayer> resolvedLayers = [];
-            if (layerNames == null)
-                resolvedLayers.AddRange(network.Layers.Values);
-            else
-            {
-                foreach (string layerName in layerNames)
-                {
-                    var layerResult = network.GetLayer(layerName);
-                    if (!layerResult.Success)
-                        return OperationResult<ShortestPathResult>.Fail(layerResult);
-                    resolvedLayers.Add(layerResult.Value!);
-                }
-            }
+            if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
+                return OperationResult<ShortestPathResult>.Fail(err!.Code, err.Message);
 
-            GraphAlgorithms.SplitLayers(resolvedLayers, out var oneModes, out var twoModesDynamic, out var twoModesStatic);
-
-            var fwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
-            var bwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
-            var fwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
-            var bwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
-
-            var distFwd = new Dictionary<uint, int> { [nodeIdFrom] = 0 };
-            var distBwd = new Dictionary<uint, int> { [nodeIdTo] = 0 };
-            Dictionary<uint, uint>? predFwd = returnPath ? [] : null;
-            Dictionary<uint, uint>? predBwd = returnPath ? [] : null;
-            List<uint> frontierFwd = [nodeIdFrom];
-            List<uint> frontierBwd = [nodeIdTo];
-            int best = int.MaxValue;
-            uint meetingNode = 0;
-            int dFwd = 0, dBwd = 0;
-
-            while (frontierFwd.Count > 0 || frontierBwd.Count > 0)
-            {
-                if (best != int.MaxValue && best <= dFwd + dBwd + 1)
-                    break;
-
-                if (frontierFwd.Count > 0 && (frontierBwd.Count == 0 || frontierFwd.Count <= frontierBwd.Count))
-                {
-                    dFwd++;
-                    List<uint> next = [];
-                    foreach (uint u in frontierFwd)
-                    {
-                        foreach (var layer in oneModes)
-                            foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Out))
-                                if (distFwd.TryAdd(v, dFwd))
-                                {
-                                    next.Add(v);
-                                    if (returnPath) predFwd![v] = u;
-                                    if (distBwd.TryGetValue(v, out int bd))
-                                    {
-                                        int c = dFwd + bd;
-                                        if (c < best) { best = c; meetingNode = v; }
-                                    }
-                                }
-
-                        for (int li = 0; li < twoModesDynamic.Count; li++)
-                        {
-                            var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
-                            if (hec == null) continue;
-                            foreach (var he in hec.HyperEdges)
-                                if (fwdDynVisited[li].Add(he))
-                                    foreach (uint m in he.NodeIds)
-                                        if (distFwd.TryAdd(m, dFwd))
-                                        {
-                                            next.Add(m);
-                                            if (returnPath) predFwd![m] = u;
-                                            if (distBwd.TryGetValue(m, out int bd))
-                                            {
-                                                int c = dFwd + bd;
-                                                if (c < best) { best = c; meetingNode = m; }
-                                            }
-                                        }
-                        }
-
-                        for (int li = 0; li < twoModesStatic.Count; li++)
-                        {
-                            if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
-                            for (int k = nStart; k < nEnd; k++)
-                            {
-                                int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
-                                if (!fwdStatVisited[li].Add(hIdx)) continue;
-                                twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
-                                for (int j = hStart; j < hEnd; j++)
-                                {
-                                    uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                    if (distFwd.TryAdd(m, dFwd))
-                                    {
-                                        next.Add(m);
-                                        if (returnPath) predFwd![m] = u;
-                                        if (distBwd.TryGetValue(m, out int bd))
-                                        {
-                                            int c = dFwd + bd;
-                                            if (c < best) { best = c; meetingNode = m; }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    frontierFwd = next;
-                }
-                else
-                {
-                    dBwd++;
-                    List<uint> next = [];
-                    foreach (uint u in frontierBwd)
-                    {
-                        foreach (var layer in oneModes)
-                            foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.In))
-                                if (distBwd.TryAdd(v, dBwd))
-                                {
-                                    next.Add(v);
-                                    if (returnPath) predBwd![v] = u;
-                                    if (distFwd.TryGetValue(v, out int fd))
-                                    {
-                                        int c = fd + dBwd;
-                                        if (c < best) { best = c; meetingNode = v; }
-                                    }
-                                }
-
-                        for (int li = 0; li < twoModesDynamic.Count; li++)
-                        {
-                            var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
-                            if (hec == null) continue;
-                            foreach (var he in hec.HyperEdges)
-                                if (bwdDynVisited[li].Add(he))
-                                    foreach (uint m in he.NodeIds)
-                                        if (distBwd.TryAdd(m, dBwd))
-                                        {
-                                            next.Add(m);
-                                            if (returnPath) predBwd![m] = u;
-                                            if (distFwd.TryGetValue(m, out int fd))
-                                            {
-                                                int c = fd + dBwd;
-                                                if (c < best) { best = c; meetingNode = m; }
-                                            }
-                                        }
-                        }
-
-                        for (int li = 0; li < twoModesStatic.Count; li++)
-                        {
-                            if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
-                            for (int k = nStart; k < nEnd; k++)
-                            {
-                                int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
-                                if (!bwdStatVisited[li].Add(hIdx)) continue;
-                                twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
-                                for (int j = hStart; j < hEnd; j++)
-                                {
-                                    uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                    if (distBwd.TryAdd(m, dBwd))
-                                    {
-                                        next.Add(m);
-                                        if (returnPath) predBwd![m] = u;
-                                        if (distFwd.TryGetValue(m, out int fd))
-                                        {
-                                            int c = fd + dBwd;
-                                            if (c < best) { best = c; meetingNode = m; }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    frontierBwd = next;
-                }
-            }
-
-            int distance = best == int.MaxValue ? -1 : best;
-
-            uint[]? path = null;
-            if (returnPath && distance >= 0)
-            {
-                // Trace forward half: meetingNode → nodeIdFrom via predFwd, then reverse
-                var pathList = new List<uint>();
-                uint cur = meetingNode;
-                while (cur != nodeIdFrom)
-                {
-                    pathList.Add(cur);
-                    cur = predFwd![cur];
-                }
-                pathList.Add(nodeIdFrom);
-                pathList.Reverse(); // now [nodeIdFrom, ..., meetingNode]
-
-                // Trace backward half: meetingNode → nodeIdTo via predBwd
-                cur = meetingNode;
-                while (cur != nodeIdTo)
-                {
-                    cur = predBwd![cur];
-                    pathList.Add(cur);
-                }
-                path = [.. pathList];
-            }
-
-            return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(distance, path));
+            return OperationResult<ShortestPathResult>.Ok(
+                PathFunctions.BidirectionalBFS(nodeIdFrom, nodeIdTo, one, dynTwo, statTwo, returnPath));
         }
+
+
         ///// <summary>
         ///// Calculates the shortest path between two nodes, either for a particular layer or for all layers.
         ///// To work with all layers, set layerName to an empty string. Note that the shortest path takes edge
@@ -290,22 +205,25 @@ namespace Threadle.Core.Analysis
         ///// the directionality is moot.
         ///// If there is no path between the nodes, a distance of -1 is returned: note that this is also
         ///// wrapped in a OperationResult.Success.
+        ///// Uses bidirectional BFS with hyperedge-aware expansion for 2-mode layers: each hyperedge's members
+        ///// are iterated at most once per direction, preventing frontier explosion from large affiliations
+        ///// (e.g. workplaces with 10k members).
         ///// </summary>
         ///// <param name="network">The network.</param>
-        ///// <param name="layerName">The name of the layer (or an empty/null string if all layers should be used)</param>
+        ///// <param name="layerNames">The names of the layers to use (or null to use all layers).</param>
         ///// <param name="nodeIdFrom">The source node id.</param>
         ///// <param name="nodeIdTo">The destination node id.</param>
-        ///// <returns>An OperationResult containing the shortest path (integer) if successful; otherwise, an error message.</returns>
-        //public static OperationResult<int> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo)
+        ///// <param name="returnPath">If true, the result also contains the sequence of node ids along the shortest path.</param>
+        ///// <returns>An OperationResult containing a ShortestPathResult with distance and optional path.</returns>
+        //public static OperationResult<ShortestPathResult> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo, bool returnPath = false)
         //{
         //    OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
         //    if (!nodeCheckResult.Success)
-        //        return OperationResult<int>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
+        //        return OperationResult<ShortestPathResult>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
         //    if (nodeIdFrom == nodeIdTo)
-        //        return OperationResult<int>.Ok(0);
+        //        return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(0, returnPath ? [nodeIdFrom] : null));
 
         //    List<ILayer> resolvedLayers = [];
-        //    // If no layerNames specified (i.e. null), use all layers
         //    if (layerNames == null)
         //        resolvedLayers.AddRange(network.Layers.Values);
         //    else
@@ -314,34 +232,192 @@ namespace Threadle.Core.Analysis
         //        {
         //            var layerResult = network.GetLayer(layerName);
         //            if (!layerResult.Success)
-        //                return OperationResult<int>.Fail(layerResult);
+        //                return OperationResult<ShortestPathResult>.Fail(layerResult);
         //            resolvedLayers.Add(layerResult.Value!);
         //        }
         //    }
 
-        //    Queue<uint> queue = [];
-        //    HashSet<uint> visited = [];
-        //    Dictionary<uint, int> distances = [];
-        //    queue.Enqueue(nodeIdFrom);
-        //    visited.Add(nodeIdFrom);
-        //    distances[nodeIdFrom] = 0;
-        //    while (queue.Count > 0)
+        //    GraphAlgorithms.SplitLayers(resolvedLayers, out var oneModes, out var twoModesDynamic, out var twoModesStatic);
+
+        //    var fwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
+        //    var bwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
+        //    var fwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
+        //    var bwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
+
+        //    var distFwd = new Dictionary<uint, int> { [nodeIdFrom] = 0 };
+        //    var distBwd = new Dictionary<uint, int> { [nodeIdTo] = 0 };
+        //    Dictionary<uint, uint>? predFwd = returnPath ? [] : null;
+        //    Dictionary<uint, uint>? predBwd = returnPath ? [] : null;
+        //    List<uint> frontierFwd = [nodeIdFrom];
+        //    List<uint> frontierBwd = [nodeIdTo];
+        //    int best = int.MaxValue;
+        //    uint meetingNode = 0;
+        //    int dFwd = 0, dBwd = 0;
+
+        //    while (frontierFwd.Count > 0 || frontierBwd.Count > 0)
         //    {
-        //        uint current = queue.Dequeue();
-        //        foreach (var layer in resolvedLayers)
-        //            foreach (uint neighborId in layer.GetNodeAlters(current,EdgeTraversal.Out))
+        //        if (best != int.MaxValue && best <= dFwd + dBwd + 1)
+        //            break;
+
+        //        if (frontierFwd.Count > 0 && (frontierBwd.Count == 0 || frontierFwd.Count <= frontierBwd.Count))
+        //        {
+        //            dFwd++;
+        //            List<uint> next = [];
+        //            foreach (uint u in frontierFwd)
         //            {
-        //                if (!visited.Contains(neighborId))
+        //                foreach (var layer in oneModes)
+        //                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Out))
+        //                        if (distFwd.TryAdd(v, dFwd))
+        //                        {
+        //                            next.Add(v);
+        //                            if (returnPath) predFwd![v] = u;
+        //                            if (distBwd.TryGetValue(v, out int bd))
+        //                            {
+        //                                int c = dFwd + bd;
+        //                                if (c < best) { best = c; meetingNode = v; }
+        //                            }
+        //                        }
+
+        //                for (int li = 0; li < twoModesDynamic.Count; li++)
         //                {
-        //                    visited.Add(neighborId);
-        //                    distances[neighborId] = distances[current] + 1;
-        //                    if (neighborId == nodeIdTo)
-        //                        return OperationResult<int>.Ok(distances[neighborId]);
-        //                    queue.Enqueue(neighborId);
+        //                    var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
+        //                    if (hec == null) continue;
+        //                    foreach (var he in hec.HyperEdges)
+        //                        if (fwdDynVisited[li].Add(he))
+        //                            foreach (uint m in he.NodeIds)
+        //                                if (distFwd.TryAdd(m, dFwd))
+        //                                {
+        //                                    next.Add(m);
+        //                                    if (returnPath) predFwd![m] = u;
+        //                                    if (distBwd.TryGetValue(m, out int bd))
+        //                                    {
+        //                                        int c = dFwd + bd;
+        //                                        if (c < best) { best = c; meetingNode = m; }
+        //                                    }
+        //                                }
+        //                }
+
+        //                for (int li = 0; li < twoModesStatic.Count; li++)
+        //                {
+        //                    if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+        //                    for (int k = nStart; k < nEnd; k++)
+        //                    {
+        //                        int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
+        //                        if (!fwdStatVisited[li].Add(hIdx)) continue;
+        //                        twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+        //                        for (int j = hStart; j < hEnd; j++)
+        //                        {
+        //                            uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
+        //                            if (distFwd.TryAdd(m, dFwd))
+        //                            {
+        //                                next.Add(m);
+        //                                if (returnPath) predFwd![m] = u;
+        //                                if (distBwd.TryGetValue(m, out int bd))
+        //                                {
+        //                                    int c = dFwd + bd;
+        //                                    if (c < best) { best = c; meetingNode = m; }
+        //                                }
+        //                            }
+        //                        }
+        //                    }
         //                }
         //            }
+        //            frontierFwd = next;
+        //        }
+        //        else
+        //        {
+        //            dBwd++;
+        //            List<uint> next = [];
+        //            foreach (uint u in frontierBwd)
+        //            {
+        //                foreach (var layer in oneModes)
+        //                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.In))
+        //                        if (distBwd.TryAdd(v, dBwd))
+        //                        {
+        //                            next.Add(v);
+        //                            if (returnPath) predBwd![v] = u;
+        //                            if (distFwd.TryGetValue(v, out int fd))
+        //                            {
+        //                                int c = fd + dBwd;
+        //                                if (c < best) { best = c; meetingNode = v; }
+        //                            }
+        //                        }
+
+        //                for (int li = 0; li < twoModesDynamic.Count; li++)
+        //                {
+        //                    var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
+        //                    if (hec == null) continue;
+        //                    foreach (var he in hec.HyperEdges)
+        //                        if (bwdDynVisited[li].Add(he))
+        //                            foreach (uint m in he.NodeIds)
+        //                                if (distBwd.TryAdd(m, dBwd))
+        //                                {
+        //                                    next.Add(m);
+        //                                    if (returnPath) predBwd![m] = u;
+        //                                    if (distFwd.TryGetValue(m, out int fd))
+        //                                    {
+        //                                        int c = fd + dBwd;
+        //                                        if (c < best) { best = c; meetingNode = m; }
+        //                                    }
+        //                                }
+        //                }
+
+        //                for (int li = 0; li < twoModesStatic.Count; li++)
+        //                {
+        //                    if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+        //                    for (int k = nStart; k < nEnd; k++)
+        //                    {
+        //                        int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
+        //                        if (!bwdStatVisited[li].Add(hIdx)) continue;
+        //                        twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+        //                        for (int j = hStart; j < hEnd; j++)
+        //                        {
+        //                            uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
+        //                            if (distBwd.TryAdd(m, dBwd))
+        //                            {
+        //                                next.Add(m);
+        //                                if (returnPath) predBwd![m] = u;
+        //                                if (distFwd.TryGetValue(m, out int fd))
+        //                                {
+        //                                    int c = fd + dBwd;
+        //                                    if (c < best) { best = c; meetingNode = m; }
+        //                                }
+        //                            }
+        //                        }
+        //                    }
+        //                }
+        //            }
+        //            frontierBwd = next;
+        //        }
         //    }
-        //    return OperationResult<int>.Ok(-1);
+
+        //    int distance = best == int.MaxValue ? -1 : best;
+
+        //    uint[]? path = null;
+        //    if (returnPath && distance >= 0)
+        //    {
+        //        // Trace forward half: meetingNode → nodeIdFrom via predFwd, then reverse
+        //        var pathList = new List<uint>();
+        //        uint cur = meetingNode;
+        //        while (cur != nodeIdFrom)
+        //        {
+        //            pathList.Add(cur);
+        //            cur = predFwd![cur];
+        //        }
+        //        pathList.Add(nodeIdFrom);
+        //        pathList.Reverse(); // now [nodeIdFrom, ..., meetingNode]
+
+        //        // Trace backward half: meetingNode → nodeIdTo via predBwd
+        //        cur = meetingNode;
+        //        while (cur != nodeIdTo)
+        //        {
+        //            cur = predBwd![cur];
+        //            pathList.Add(cur);
+        //        }
+        //        path = [.. pathList];
+        //    }
+
+        //    return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(distance, path));
         //}
 
         /// <summary>
@@ -537,110 +613,6 @@ namespace Threadle.Core.Analysis
             }
         }
 
-
-        /// <summary>
-        /// Given an ego node, this method returns a random alter of this node, either for a specific layer or all layers.
-        /// If no layer is specified, i.e. so that all layers are used, this pick can either be done balanced (first picking
-        /// a random layer, and subsequently picking an alter from one of these layers) or non-balanced (pooling together all
-        /// alters in all layers and then picking one from this set). For the latter, it is thus possible that an alter could
-        /// appear more than once in the choice set.
-        /// For directed layers, it is also possible to specify whether outbound, inbound or both-directional alters should be included.
-        /// </summary>
-        /// <param name="network">The Network object.</param>
-        /// <param name="nodeId">The ego node id.</param>
-        /// <param name="layerNames">The names of the layers to pick from. If left blank or null, all layers are used.</param>
-        /// <param name="edgeTraversal">An <see cref="EdgeTraversal"/> value indicating whether inbound- or outbound-going edges (or both) should be considered.</param>
-        /// <param name="balanced">Indicates whether the pick should be balanced across layers.</param>
-        /// <param name="weighted">If true, uses edge weights as transition probabilities. Binary layers treat each alter as weight 1.0f.</param>
-        /// <returns>An <see cref="OperationResult{T}"/> containing the random alter node id if successful; otherwise, an error message.</returns>
-        //public static OperationResult<uint> GetRandomAlter(Network network, uint nodeId, string[]? layerNames, EdgeTraversal edgeTraversal = EdgeTraversal.Both, bool balanced = false, bool weighted = false)
-        //{
-        //    // Build up the set of layers to use (note: both 1-mode and 2-mode are okay)
-        //    List<ILayer> layersToUse = [];
-        //    if (layerNames == null)
-        //        layersToUse.AddRange(network.Layers.Values);
-        //    else
-        //    {
-        //        foreach (string layerName in layerNames)
-        //        {
-        //            var layerResult=network.GetLayer(layerName);
-        //            if (!layerResult.Success)
-        //                return OperationResult<uint>.Fail(layerResult);
-        //            layersToUse.Add(layerResult.Value!);
-        //        }
-        //    }
-
-        //    if (weighted)
-        //    {
-        //        List<(uint alterId, float weight)> candidates = [];
-        //        if (layersToUse.Count==1 || !balanced)
-        //        {
-        //            foreach (var layer in layersToUse)
-        //                Functions.AppendWeightedCandidates(candidates, layer, nodeId, edgeTraversal);
-        //        }
-        //        else
-        //        {
-        //            // Balanced with more than 1 layer: first uniform pick among layers, then weighted pick within
-        //            List<ILayer> eligibleLayers = layersToUse
-        //                .Where(l => l.GetNodeAlters(nodeId, edgeTraversal).Length > 0)
-        //                .ToList();
-        //            if (eligibleLayers.Count==0)
-        //                return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");
-        //            Functions.AppendWeightedCandidates(candidates, eligibleLayers[Misc.Random.Next(eligibleLayers.Count)], nodeId, edgeTraversal);
-        //        }
-        //        if (candidates.Count==0)
-        //            return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-        //        return OperationResult<uint>.Ok(Functions.WeightedPick(candidates));
-        //    }
-
-        //    // Non-weighted follows
-        //    if (layersToUse.Count == 1 || !balanced)
-        //    {
-        //        if (layersToUse.Count == 1 && layersToUse[0] is ILayerTwoMode itm_single)
-        //        {
-        //            // Single 2-mode layer (dynamic or static): O(1) fast path, zero allocation
-        //            uint? fastPick = itm_single.PickRandomAlterO1(nodeId);
-        //            return fastPick.HasValue
-        //                ? OperationResult<uint>.Ok(fastPick.Value)
-        //                : OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-        //        }
-        //        if (layersToUse.Count == 1)
-        //        {
-        //            // Single 1-mode layer
-        //            uint[] alts = layersToUse[0].GetNodeAlters(nodeId, edgeTraversal);
-        //            return alts.Length > 0
-        //                ? OperationResult<uint>.Ok(alts[Misc.Random.Next(alts.Length)])
-        //                : OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-        //        }
-        //        // Multi-layer pooled: reservoir sampling, zero allocation for 2-mode layers
-        //        uint? selected = null;
-        //        int totalCount = 0;
-        //        foreach (var layer in layersToUse)
-        //        {
-        //            if (layer is ILayerTwoMode itm2)
-        //                itm2.AppendProjectedAltersReservoir(nodeId, ref selected, ref totalCount);
-        //            else
-        //                foreach (uint m in layer.GetNodeAlters(nodeId, edgeTraversal))
-        //                { totalCount++; if (Misc.Random.Next(totalCount) == 0) selected = m; }
-        //        }
-        //        if (totalCount == 0)
-        //            return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in the specified layer(s) with the given edge traversal.");
-        //        return OperationResult<uint>.Ok(selected!.Value);
-        //    }
-        //    else
-        //    {
-        //        // Balanced and multiple layers: uniform pick of layer, then uniform pick within
-        //        List<uint[]> layerAltersList = layersToUse
-        //            .Select(l => l.GetNodeAlters(nodeId, edgeTraversal))
-        //            .Where(a => a.Length > 0)
-        //            .ToList();
-        //        if (layerAltersList.Count == 0)
-        //            return OperationResult<uint>.Fail("ConstraintNoAlters", $"Node {nodeId} has no alters in any of the specified layers with the given edge traversal.");
-        //        uint[] chosenLayerAlters = layerAltersList[Misc.Random.Next(layerAltersList.Count)];
-        //        return OperationResult<uint>.Ok(chosenLayerAlters[Misc.Random.Next(chosenLayerAlters.Length)]);
-        //    }
-        //}
-
         /// <summary>
         /// Selects a random node identifier from the specified nodeset.
         /// </summary>
@@ -687,6 +659,32 @@ namespace Threadle.Core.Analysis
             if (randomEdge == null)
                 return OperationResult<Dictionary<string, object>>.Fail("EdgeNotFound", $"Could not find any edge in layer {layerName}.");
             return OperationResult<Dictionary<string, object>>.Ok(randomEdge, "Random edge found through non-polling.");
+        }
+        #endregion
+
+        #region Methods (private)
+        private static bool TryResolveLayers(Network network, string[]? layerNames, out List<ILayerOneMode> oneModes, out List<LayerTwoMode> twoModesDynamic, out List<LayerTwoModeStatic> twoModesStatic, out OperationResult? error)
+        {
+            List<ILayer> resolved = [];
+            if (layerNames == null)
+                resolved.AddRange(network.Layers.Values);
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success)
+                    {
+                        oneModes = []; twoModesDynamic = []; twoModesStatic = [];
+                        error = OperationResult.Fail(lr.Code, lr.Message);
+                        return false;
+                    }
+                    resolved.Add(lr.Value!);
+                }
+            }
+            GraphAlgorithms.SplitLayers(resolved, out oneModes, out twoModesDynamic, out twoModesStatic);
+            error = null;
+            return true;
         }
         #endregion
     }

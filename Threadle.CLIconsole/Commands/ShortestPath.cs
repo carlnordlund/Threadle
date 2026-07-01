@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates the shortest path from node1id to node2id in a network. Uses all layers unless specific layers are specified as a semicolon-separated list. Note that shortest path measures are directional: for directional layers, the shortest path may indeed be different in the other direction. For symmetric layers, this is however moot. Returns -1 if no path exists. Set returnpath=true to also return the sequence of node ids along the shortest path.";
+        public string Description => "Calculates the shortest path from node1id to node2id in a network. Uses all layers unless specific layers are specified as a semicolon-separated list. Note that shortest path measures are directional: for directional layers, the shortest path may indeed be different in the other direction. For symmetric layers, this is however moot. Returns -1 if no path exists. Set returnpath=true to also return the sequence of node ids along the shortest path. See Pohl (1971) for the bi-directional BFS implemented here.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
