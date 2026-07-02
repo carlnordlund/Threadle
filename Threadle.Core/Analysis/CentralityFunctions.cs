@@ -119,43 +119,58 @@ namespace Threadle.Core.Analysis
         /// 2-mode layers: per-hyperedge summation prevents O(k^2) expansion —
         /// heSum = Σ x[m] over all members, then each member m receives heSum - x[m].
         /// </summary>
-        internal static Dictionary<uint, double> EigenvectorCentrality(uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, int maxIterations = 100, double tolerance = 1e-8)
+        internal static Dictionary<uint, double> EigenvectorCentrality(
+            uint[] nodeIds,
+            List<ILayerOneMode> oneModes,
+            List<LayerTwoMode> twoModesDynamic,
+            List<LayerTwoModeStatic> twoModesStatic,
+            EdgeTraversal traversal,
+            int maxIterations = 100,
+            double tolerance = 1e-8)
         {
             int n = nodeIds.Length;
             if (n == 0) return [];
 
-            var x = new Dictionary<uint, double>(n);
-            foreach (uint v in nodeIds) x[v] = 1.0 / n;
+            // Build nodeId → array-index map (used only during setup, not inside the hot loop)
+            var idx = new Dictionary<uint, int>(n);
+            for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+
+            // Pre-compute 1-mode adjacency as (neighborIdx, weight)[] per node.
+            // Done once so the iteration loop has zero dictionary lookups.
+            var adj = new (int vi, double w)[n][];
+            for (int ui = 0; ui < n; ui++)
+            {
+                uint u = nodeIds[ui];
+                var edges = new List<(int, double)>();
+                foreach (var layer in oneModes)
+                {
+                    var (alters, weights) = layer.GetNodeAltersWithWeights(u, traversal);
+                    bool hasWeights = weights.Length > 0;
+                    for (int i = 0; i < alters.Length; i++)
+                        if (idx.TryGetValue(alters.Span[i], out int vi))
+                            edges.Add((vi, hasWeights ? weights.Span[i] : 1.0));
+                }
+                adj[ui] = [.. edges];
+            }
+
+            // Power iteration — all hot-path operations are array accesses (~1 ns each)
+            double[] x = new double[n];
+            double[] xNew = new double[n];
+            for (int i = 0; i < n; i++) x[i] = 1.0 / n;
 
             for (int iter = 0; iter < maxIterations; iter++)
             {
-                var xNew = new Dictionary<uint, double>(n);
-                foreach (uint v in nodeIds) xNew[v] = 0.0;
+                Array.Clear(xNew, 0, n);
 
-                // 1-mode contribution
-                // 1-mode layers
-                foreach (uint u in nodeIds)
+                // 1-mode: pure array access, no dictionary lookups
+                for (int ui = 0; ui < n; ui++)
                 {
-                    if (traversal == EdgeTraversal.Both)
-                    {
-                        // Deduplicate: mutual ties must not be counted twice
-                        var unique = new HashSet<uint>();
-                        foreach (var layer in oneModes)
-                        {
-                            foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Out)) unique.Add(v);
-                            foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.In)) unique.Add(v);
-                        }
-                        foreach (uint v in unique)
-                            if (xNew.ContainsKey(v)) xNew[v] += x[u];
-                    }
-                    else
-                    {
-                        foreach (var layer in oneModes)
-                            foreach (uint v in layer.GetNodeAlters(u, traversal))
-                                if (xNew.ContainsKey(v)) xNew[v] += x[u];
-                    }
+                    double xu = x[ui];
+                    foreach (var (vi, w) in adj[ui])
+                        xNew[vi] += w * xu;
                 }
-                // 2-mode dynamic: process each hyperedge once via per-hyperedge sum
+
+                // 2-mode dynamic: per-hyperedge sum (hyperedges can't be pre-flattened cheaply)
                 foreach (var layer in twoModesDynamic)
                 {
                     var processed = new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance);
@@ -167,14 +182,15 @@ namespace Threadle.Core.Analysis
                         {
                             if (!processed.Add(he)) continue;
                             double heSum = 0;
-                            foreach (uint m in he.NodeIds) heSum += x.GetValueOrDefault(m);
                             foreach (uint m in he.NodeIds)
-                                if (xNew.ContainsKey(m)) xNew[m] += heSum - x.GetValueOrDefault(m);
+                                if (idx.TryGetValue(m, out int mi)) heSum += x[mi];
+                            foreach (uint m in he.NodeIds)
+                                if (idx.TryGetValue(m, out int mi)) xNew[mi] += heSum - x[mi];
                         }
                     }
                 }
 
-                // 2-mode static: process each CSR hyperedge once via per-hyperedge sum
+                // 2-mode static: per-hyperedge sum
                 foreach (var layer in twoModesStatic)
                 {
                     var processed = new HashSet<int>();
@@ -187,32 +203,32 @@ namespace Threadle.Core.Analysis
                             if (!processed.Add(hIdx)) continue;
                             layer.GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
                             double heSum = 0;
-                            for (int j = hStart; j < hEnd; j++) heSum += x.GetValueOrDefault(layer.GetHyperedgeNodeAt(j));
                             for (int j = hStart; j < hEnd; j++)
-                            {
-                                uint m = layer.GetHyperedgeNodeAt(j);
-                                if (xNew.ContainsKey(m)) xNew[m] += heSum - x.GetValueOrDefault(m);
-                            }
+                                if (idx.TryGetValue(layer.GetHyperedgeNodeAt(j), out int mi)) heSum += x[mi];
+                            for (int j = hStart; j < hEnd; j++)
+                                if (idx.TryGetValue(layer.GetHyperedgeNodeAt(j), out int mi)) xNew[mi] += heSum - x[mi];
                         }
                     }
                 }
 
                 // L2 normalize
                 double l2 = 0;
-                foreach (double v in xNew.Values) l2 += v * v;
+                for (int i = 0; i < n; i++) l2 += xNew[i] * xNew[i];
                 l2 = Math.Sqrt(l2);
                 if (l2 < 1e-15) break;
-                foreach (uint v in nodeIds) xNew[v] /= l2;
+                for (int i = 0; i < n; i++) xNew[i] /= l2;
 
-                // Convergence check
+                // Convergence check, then swap buffers (no allocation)
                 double maxDiff = 0;
-                foreach (uint v in nodeIds) maxDiff = Math.Max(maxDiff, Math.Abs(xNew[v] - x[v]));
-                x = xNew;
+                for (int i = 0; i < n; i++) maxDiff = Math.Max(maxDiff, Math.Abs(xNew[i] - x[i]));
+                (x, xNew) = (xNew, x);
                 if (maxDiff < tolerance) break;
             }
-            return x;
-        }
 
+            var result = new Dictionary<uint, double>(n);
+            for (int i = 0; i < n; i++) result[nodeIds[i]] = x[i];
+            return result;
+        }
         /// <summary>
         /// PageRank with teleportation. Precomputes unique projected out-neighbor lists once
         /// (co-members deduplicated across hyperedges) then iterates until convergence.
