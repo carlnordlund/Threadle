@@ -133,6 +133,112 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Calculates local clustering coefficient for each node in the specified 1-mode layer(s)
+        /// and stores the result as a float node attribute. Only 1-mode layers are accepted;
+        /// 2-mode layers must be projected first via ProjectTwoModeToOneMode().
+        /// Auto-selects formula based on layer type (directed/undirected, binary/valued) unless
+        /// method is specified explicitly.
+        /// When multiple layers are specified, adjacency is the union across all layers.
+        /// </summary>
+        public static OperationResult ClusteringCoefficient(Network network, string[]? layerNames, string? attrName = null, ClusteringMethod method = ClusteringMethod.Auto, int sampleSize = 0)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            List<ILayerOneMode> oneModes = [];
+            if (layerNames == null)
+            {
+                foreach (var (name, layer) in network.Layers)
+                {
+                    if (layer is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
+                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
+                    if (lr.Value is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomodetoonemode() first.");
+                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            if (oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+
+            uint[] allNodeIds = network.Nodeset.NodeIdArray;
+            uint[] sourceIds = (sampleSize > 0 && sampleSize < allNodeIds.Length)
+                ? CentralityFunctions.SampleNodes(allNodeIds, sampleSize)
+                : allNodeIds;
+
+            // Resolve actual method (in case Auto was passed) before naming the attribute
+            ClusteringMethod resolvedMethod = method == ClusteringMethod.Auto
+                ? LocalStructureFunctions.DetectMethod(oneModes)
+                : method;
+
+            string methodSuffix = resolvedMethod switch
+            {
+                ClusteringMethod.WattsStrogatz => "_ws",
+                ClusteringMethod.Fagiolo => "_fagiolo",
+                ClusteringMethod.Barrat => "_barrat",
+                ClusteringMethod.Onnela => "_onnela",
+                _ => ""
+            };
+
+            string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
+            attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "clustering" + methodSuffix;
+
+            var values = LocalStructureFunctions.ClusteringCoefficient(sourceIds, oneModes, resolvedMethod);
+            var attrDict = values.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
+        /// <summary>
+        /// Calculates the global clustering coefficient (transitivity) of the specified 1-mode layer(s):
+        /// ratio of closed triangles to all connected triples, treating edges as undirected.
+        /// Equivalent to 3T / Σ C(k,2) where T is the number of distinct triangles.
+        /// </summary>
+        public static OperationResult<double> Transitivity(Network network, string[]? layerNames)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
+
+            List<ILayerOneMode> oneModes = [];
+            if (layerNames == null)
+            {
+                foreach (var (name, layer) in network.Layers)
+                {
+                    if (layer is ILayerTwoMode)
+                        return OperationResult<double>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Transitivity is not defined for 2-mode layers.");
+                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success) return OperationResult<double>.Fail(lr.Code, lr.Message);
+                    if (lr.Value is ILayerTwoMode)
+                        return OperationResult<double>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer.");
+                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            if (oneModes.Count == 0)
+                return OperationResult<double>.Fail("NoLayers", "No 1-mode layers found.");
+
+            double t = LocalStructureFunctions.Transitivity(network.Nodeset.NodeIdArray, oneModes);
+            return OperationResult<double>.Ok(t);
+        }
+
+        /// <summary>
         /// Generates summary info about an attribute in a nodeset. The specific info that is returned depends on the type
         /// of node attribute.
         /// </summary>

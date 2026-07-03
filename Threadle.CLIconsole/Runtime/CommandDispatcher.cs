@@ -32,6 +32,7 @@ namespace Threadle.CLIconsole.Runtime
             ["checkedge"] = new CheckEdge(),
             ["clearlayer"] = new ClearLayer(),
             ["closenesscentrality"] = new ClosenessCentrality(),
+            ["clusteringcoefficient"] = new ClusteringCoefficient(),
             ["components"] = new Components(),
             ["createnetwork"] = new CreateNetwork(),
             ["createnodeset"] = new CreateNodeset(),
@@ -94,6 +95,7 @@ namespace Threadle.CLIconsole.Runtime
             ["shortestpaths"] = new ShortestPaths(),
             ["subnet"] = new Subnet(),
             ["symmetrize"] = new Symmetrize(),
+            ["transitivity"] = new Transitivity(),
             ["undefineattr"] = new UndefineAttr(),
             ["unpack"] = new Unpack()
         };
