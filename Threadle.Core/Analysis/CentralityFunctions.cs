@@ -153,6 +153,48 @@ namespace Threadle.Core.Analysis
                 adj[ui] = [.. edges];
             }
 
+            // Pre-compute 2-mode dynamic
+            var dynHeMembers = new List<int[]>();
+            foreach (var layer in twoModesDynamic)
+            {
+                var processed = new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance);
+                foreach (uint u in nodeIds)
+                {
+                    var hec = layer.GetNonEmptyHyperedgeCollection(u);
+                    if (hec == null) continue;
+                    foreach (var he in hec.HyperEdges)
+                    {
+                        if (!processed.Add(he)) continue;
+                        var members = new List<int>();
+                        foreach (uint m in he.NodeIds)
+                            if (idx.TryGetValue(m, out int mi)) members.Add(mi);
+                        if (members.Count > 1) dynHeMembers.Add([.. members]);
+                    }
+                }
+            }
+
+            var statHeMembers = new List<int[]>();
+            foreach (var layer in twoModesStatic)
+            {
+                var processed = new HashSet<int>();
+                foreach (uint u in nodeIds)
+                {
+                    if (!layer.TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+                    for (int k = nStart; k < nEnd; k++)
+                    {
+                        int hIdx = layer.GetNodeHyperedgeIndex(k);
+                        if (!processed.Add(hIdx)) continue;
+                        layer.GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+                        var members = new List<int>();
+                        for (int j = hStart; j < hEnd; j++)
+                            if (idx.TryGetValue(layer.GetHyperedgeNodeAt(j), out int mi)) members.Add(mi);
+                        if (members.Count > 1) statHeMembers.Add([.. members]);
+                    }
+                }
+            }
+
+
+
             // Power iteration — all hot-path operations are array accesses (~1 ns each)
             double[] x = new double[n];
             double[] xNew = new double[n];
@@ -170,46 +212,62 @@ namespace Threadle.Core.Analysis
                         xNew[vi] += w * xu;
                 }
 
-                // 2-mode dynamic: per-hyperedge sum (hyperedges can't be pre-flattened cheaply)
-                foreach (var layer in twoModesDynamic)
+                // 2-mode dynamic — pure array access now
+                foreach (int[] members in dynHeMembers)
                 {
-                    var processed = new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance);
-                    foreach (uint u in nodeIds)
-                    {
-                        var hec = layer.GetNonEmptyHyperedgeCollection(u);
-                        if (hec == null) continue;
-                        foreach (var he in hec.HyperEdges)
-                        {
-                            if (!processed.Add(he)) continue;
-                            double heSum = 0;
-                            foreach (uint m in he.NodeIds)
-                                if (idx.TryGetValue(m, out int mi)) heSum += x[mi];
-                            foreach (uint m in he.NodeIds)
-                                if (idx.TryGetValue(m, out int mi)) xNew[mi] += heSum - x[mi];
-                        }
-                    }
+                    double heSum = 0;
+                    foreach (int mi in members) heSum += x[mi];
+                    foreach (int mi in members) xNew[mi] += heSum - x[mi];
                 }
 
-                // 2-mode static: per-hyperedge sum
-                foreach (var layer in twoModesStatic)
+                // 2-mode static — pure array access now
+                foreach (int[] members in statHeMembers)
                 {
-                    var processed = new HashSet<int>();
-                    foreach (uint u in nodeIds)
-                    {
-                        if (!layer.TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
-                        for (int k = nStart; k < nEnd; k++)
-                        {
-                            int hIdx = layer.GetNodeHyperedgeIndex(k);
-                            if (!processed.Add(hIdx)) continue;
-                            layer.GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
-                            double heSum = 0;
-                            for (int j = hStart; j < hEnd; j++)
-                                if (idx.TryGetValue(layer.GetHyperedgeNodeAt(j), out int mi)) heSum += x[mi];
-                            for (int j = hStart; j < hEnd; j++)
-                                if (idx.TryGetValue(layer.GetHyperedgeNodeAt(j), out int mi)) xNew[mi] += heSum - x[mi];
-                        }
-                    }
+                    double heSum = 0;
+                    foreach (int mi in members) heSum += x[mi];
+                    foreach (int mi in members) xNew[mi] += heSum - x[mi];
                 }
+
+                //// 2-mode dynamic: per-hyperedge sum (hyperedges can't be pre-flattened cheaply)
+                //foreach (var layer in twoModesDynamic)
+                //{
+                //    var processed = new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance);
+                //    foreach (uint u in nodeIds)
+                //    {
+                //        var hec = layer.GetNonEmptyHyperedgeCollection(u);
+                //        if (hec == null) continue;
+                //        foreach (var he in hec.HyperEdges)
+                //        {
+                //            if (!processed.Add(he)) continue;
+                //            double heSum = 0;
+                //            foreach (uint m in he.NodeIds)
+                //                if (idx.TryGetValue(m, out int mi)) heSum += x[mi];
+                //            foreach (uint m in he.NodeIds)
+                //                if (idx.TryGetValue(m, out int mi)) xNew[mi] += heSum - x[mi];
+                //        }
+                //    }
+                //}
+
+                //// 2-mode static: per-hyperedge sum
+                //foreach (var layer in twoModesStatic)
+                //{
+                //    var processed = new HashSet<int>();
+                //    foreach (uint u in nodeIds)
+                //    {
+                //        if (!layer.TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+                //        for (int k = nStart; k < nEnd; k++)
+                //        {
+                //            int hIdx = layer.GetNodeHyperedgeIndex(k);
+                //            if (!processed.Add(hIdx)) continue;
+                //            layer.GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+                //            double heSum = 0;
+                //            for (int j = hStart; j < hEnd; j++)
+                //                if (idx.TryGetValue(layer.GetHyperedgeNodeAt(j), out int mi)) heSum += x[mi];
+                //            for (int j = hStart; j < hEnd; j++)
+                //                if (idx.TryGetValue(layer.GetHyperedgeNodeAt(j), out int mi)) xNew[mi] += heSum - x[mi];
+                //        }
+                //    }
+                //}
 
                 // L2 normalize
                 double l2 = 0;
