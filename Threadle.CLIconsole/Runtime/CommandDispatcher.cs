@@ -44,6 +44,7 @@ namespace Threadle.CLIconsole.Runtime
             ["density"] = new Density(),
             ["dichotomize"] = new Dichotomize(),
             ["dir"] = new Dir(),
+            ["dyadcensus"] = new DyadCensus(),
             ["eigenvectorcentrality"] = new EigenvectorCentrality(),
             ["export"] = new Export(),
             ["exportlayer"] = new ExportLayer(),

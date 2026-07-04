@@ -15,6 +15,22 @@ namespace Threadle.Core.Analysis
         #region Methods (public)
 
         /// <summary>
+        /// Computes the MAN dyad census and reciprocity measures for a single 1-mode layer.
+        /// Returns counts of Mutual, Asymmetric and Null dyads plus ArcReciprocity and
+        /// DyadicReciprocity. Undirected layers are accepted: all non-null dyads are Mutual.
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> DyadCensus(Network network, string layerName)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+            var lr = network.GetOneModeLayerForRead(layerName);
+            if (!lr.Success)
+                return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+            var result = NetworkLevelFunctions.DyadCensus(network.Nodeset.Count, lr.Value!);
+            return OperationResult<Dictionary<string, object>>.Ok(result);
+        }
+
+        /// <summary>
         /// Computes the coreness (k-shell index) of each node using k-core decomposition.
         /// Iteratively removes nodes with degree less than k to find the maximal k-core.
         /// Only 1-mode layers are accepted; 2-mode layers must be projected first.
