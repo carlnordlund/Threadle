@@ -15,6 +15,51 @@ namespace Threadle.Core.Analysis
         #region Methods (public)
 
         /// <summary>
+        /// Computes the coreness (k-shell index) of each node using k-core decomposition.
+        /// Iteratively removes nodes with degree less than k to find the maximal k-core.
+        /// Only 1-mode layers are accepted; 2-mode layers must be projected first.
+        /// </summary>
+        public static OperationResult Coreness(Network network, string[]? layerNames, string? attrName = null)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            List<ILayerOneMode> oneModes = [];
+            if (layerNames == null)
+            {
+                foreach (var (name, layer) in network.Layers)
+                {
+                    if (layer is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
+                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
+                    if (lr.Value is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomodetoonemode() first.");
+                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            if (oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+
+            string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
+            attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "coreness";
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var values = LocalStructureFunctions.Coreness(nodeIds, oneModes);
+            var attrDict = values.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+        }
+
+        /// <summary>
         /// Calculates betweenness centrality for all nodes using Brandes' algorithm with
         /// hyperedge-aware BFS. Normalizes by (n-1)(n-2) for directed, halved for undirected.
         /// When sampleSize > 0, scales the result by n/sampleSize.

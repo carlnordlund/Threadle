@@ -34,6 +34,7 @@ namespace Threadle.CLIconsole.Runtime
             ["closenesscentrality"] = new ClosenessCentrality(),
             ["clusteringcoefficient"] = new ClusteringCoefficient(),
             ["components"] = new Components(),
+            ["coreness"] = new Coreness(),
             ["createnetwork"] = new CreateNetwork(),
             ["createnodeset"] = new CreateNodeset(),
             ["defineattr"] = new DefineAttr(),

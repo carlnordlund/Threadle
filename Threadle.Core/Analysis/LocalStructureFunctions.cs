@@ -11,6 +11,79 @@ namespace Threadle.Core.Analysis
         #region Methods (internal)
 
         /// <summary>
+        /// K-core decomposition (Batagelj & Zaversnik, 2003). Returns the coreness (k-shell index)
+        /// of each node: the highest k such that the node survives in the k-core.
+        /// Treats all edges as undirected (union of in/out neighbors) and ignores edge weights.
+        /// </summary>
+        internal static Dictionary<uint, int> Coreness(uint[] nodeIds, List<ILayerOneMode> layers)
+        {
+            int n = nodeIds.Length;
+            if (n == 0 || layers.Count == 0) return new Dictionary<uint, int>(0);
+
+            var idx = new Dictionary<uint, int>(n);
+            for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+
+            // Union of neighbors across all layers (both directions)
+            var neighborSets = new HashSet<int>[n];
+            for (int i = 0; i < n; i++) neighborSets[i] = new HashSet<int>();
+
+            foreach (var layer in layers)
+                foreach (uint u in nodeIds)
+                {
+                    int ui = idx[u];
+                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Both))
+                        if (v != u && idx.TryGetValue(v, out int vi))
+                            neighborSets[ui].Add(vi);
+                }
+
+            int[][] adj = new int[n][];
+            int[] deg = new int[n];
+            for (int i = 0; i < n; i++)
+            {
+                adj[i] = neighborSets[i].Count > 0 ? neighborSets[i].ToArray() : Array.Empty<int>();
+                deg[i] = adj[i].Length;
+            }
+
+            int maxDeg = 0;
+            for (int i = 0; i < n; i++) if (deg[i] > maxDeg) maxDeg = deg[i];
+
+            int[] bin = new int[maxDeg + 1];
+            for (int i = 0; i < n; i++) bin[deg[i]]++;
+
+            int start = 0;
+            for (int d = 0; d <= maxDeg; d++) { int cnt = bin[d]; bin[d] = start; start += cnt; }
+
+            int[] vert = new int[n];
+            int[] pos = new int[n];
+            int[] tmp = (int[])bin.Clone();
+            for (int i = 0; i < n; i++) { pos[i] = tmp[deg[i]]; vert[pos[i]] = i; tmp[deg[i]]++; }
+
+            int[] core = new int[n];
+            for (int i = 0; i < n; i++)
+            {
+                int v = vert[i];
+                core[v] = deg[v];
+                foreach (int u in adj[v])
+                {
+                    if (deg[u] > deg[v])
+                    {
+                        int du = deg[u];
+                        int pu = pos[u];
+                        int pw = bin[du];
+                        int w = vert[pw];
+                        if (u != w) { pos[u] = pw; pos[w] = pu; vert[pw] = u; vert[pu] = w; }
+                        bin[du]++;
+                        deg[u]--;
+                    }
+                }
+            }
+
+            var result = new Dictionary<uint, int>(n);
+            for (int i = 0; i < n; i++) result[nodeIds[i]] = core[i];
+            return result;
+        }
+
+        /// <summary>
         /// Dispatches to the correct clustering coefficient formula based on method (or auto-detects).
         /// </summary>
         internal static Dictionary<uint, double> ClusteringCoefficient(uint[] nodeIds, List<ILayerOneMode> layers, ClusteringMethod method)
