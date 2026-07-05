@@ -15,6 +15,69 @@ namespace Threadle.Core.Analysis
         #region Methods (public)
 
         /// <summary>
+        /// Degree assortativity (Newman 2002): Pearson correlation between the degrees
+        /// of connected node pairs. For directed layers uses out-degree of source and
+        /// in-degree of target; for undirected uses degree of both endpoints.
+        /// Returns a value in [-1, 1]: positive = hubs connect to hubs,
+        /// negative = hubs connect to low-degree nodes.
+        /// </summary>
+        public static OperationResult<double> DegreeAssortativity(Network network, string layerName)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
+            var lr = network.GetOneModeLayerForRead(layerName);
+            if (!lr.Success)
+                return OperationResult<double>.Fail(lr.Code, lr.Message);
+            double r = NetworkLevelFunctions.DegreeAssortativity(network.Nodeset.NodeIdArray, lr.Value!);
+            return OperationResult<double>.Ok(r);
+        }
+
+        /// <summary>
+        /// Attribute assortativity (Newman 2003): tendency of connected nodes to share
+        /// the same value of a node attribute. For Float/Int attributes uses Pearson
+        /// correlation; for Char/String/Bool uses the nominal mixing formula.
+        /// Returns a value in [-1, 1]. Nodes with missing attribute values are skipped.
+        /// </summary>
+        public static OperationResult<double> Assortativity(Network network, string layerName, string attrName)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
+            var lr = network.GetOneModeLayerForRead(layerName);
+            if (!lr.Success)
+                return OperationResult<double>.Fail(lr.Code, lr.Message);
+
+            if (!network.Nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
+                return OperationResult<double>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found.");
+            if (!network.Nodeset.NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
+                return OperationResult<double>.Fail("AttributeTypeNotFound", $"Type not found for attribute '{attrName}'.");
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var rawResult = network.Nodeset.GetMultipleNodeAttributes(nodeIds, attrName);
+            if (!rawResult.Success)
+                return OperationResult<double>.Fail(rawResult.Code, rawResult.Message);
+            var raw = rawResult.Value!;
+
+            double r;
+            if (attrType == NodeAttributeType.Float || attrType == NodeAttributeType.Int)
+            {
+                var vals = new Dictionary<uint, double>(raw.Count);
+                foreach (var (id, obj) in raw)
+                    if (obj != null)
+                        vals[id] = attrType == NodeAttributeType.Int ? (double)(int)obj : (double)(float)obj;
+                r = NetworkLevelFunctions.ContinuousAssortativity(lr.Value!, vals);
+            }
+            else
+            {
+                var cats = new Dictionary<uint, string>(raw.Count);
+                foreach (var (id, obj) in raw)
+                    if (obj != null) cats[id] = obj.ToString()!;
+                r = NetworkLevelFunctions.CategoricalAssortativity(lr.Value!, cats);
+            }
+
+            return OperationResult<double>.Ok(r);
+        }
+
+        /// <summary>
         /// Computes the MAN dyad census and reciprocity measures for a single 1-mode layer.
         /// Returns counts of Mutual, Asymmetric and Null dyads plus ArcReciprocity and
         /// DyadicReciprocity. Undirected layers are accepted: all non-null dyads are Mutual.
