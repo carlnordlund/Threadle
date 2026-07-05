@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Data;
+using System.Text.RegularExpressions;
 using Threadle.CLIconsole.Commands;
 using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
@@ -35,6 +36,7 @@ namespace Threadle.CLIconsole.Runtime
             ["closenesscentrality"] = new ClosenessCentrality(),
             ["clusteringcoefficient"] = new ClusteringCoefficient(),
             ["components"] = new Components(),
+            ["constraints"]=new Commands.Constraint(),
             ["coreness"] = new Coreness(),
             ["createnetwork"] = new CreateNetwork(),
             ["createnodeset"] = new CreateNodeset(),
@@ -47,6 +49,7 @@ namespace Threadle.CLIconsole.Runtime
             ["dichotomize"] = new Dichotomize(),
             ["dir"] = new Dir(),
             ["dyadcensus"] = new DyadCensus(),
+            ["effectivesize"] = new EffectiveSize(),
             ["eigenvectorcentrality"] = new EigenvectorCentrality(),
             ["export"] = new Export(),
             ["exportlayer"] = new ExportLayer(),

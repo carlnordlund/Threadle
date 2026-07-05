@@ -15,6 +15,101 @@ namespace Threadle.Core.Analysis
         #region Methods (public)
 
         /// <summary>
+        /// Computes Burt's constraint for each node in the specified 1-mode layer(s) and stores
+        /// the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)²
+        /// where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many
+        /// structural holes) to ~1 (fully embedded in dense clique). Only 1-mode layers are
+        /// accepted — project 2-mode layers first.
+        /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
+        /// </summary>
+        public static OperationResult Constraint(Network network, string[]? layerNames, string? attrName = null)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            List<ILayerOneMode> oneModes = [];
+            if (layerNames == null)
+            {
+                foreach (var (name, layer) in network.Layers)
+                {
+                    if (layer is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Constraint requires 1-mode layers — use projecttwomodetoonemode() first.");
+                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
+                    if (lr.Value is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Constraint requires 1-mode layers.");
+                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            if (oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+
+            string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
+            attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "constraint";
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (c, _) = LocalStructureFunctions.StructuralHoles(nodeIds, oneModes);
+            var attrDict = c.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
+        /// <summary>
+        /// Computes Burt's effective size for each node in the specified 1-mode layer(s) and stores
+        /// the result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj,
+        /// measuring the number of non-redundant contacts. Higher values indicate more structural
+        /// holes around the ego. Only 1-mode layers are accepted — project 2-mode layers first.
+        /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
+        /// </summary>
+        public static OperationResult EffectiveSize(Network network, string[]? layerNames, string? attrName = null)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            List<ILayerOneMode> oneModes = [];
+            if (layerNames == null)
+            {
+                foreach (var (name, layer) in network.Layers)
+                {
+                    if (layer is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Effective size requires 1-mode layers — use projecttwomodetoonemode() first.");
+                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
+                    if (lr.Value is ILayerTwoMode)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Effective size requires 1-mode layers.");
+                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            if (oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+
+            string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
+            attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "effectivesize";
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (_, es) = LocalStructureFunctions.StructuralHoles(nodeIds, oneModes);
+            var attrDict = es.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+        }
+
+        /// <summary>
         /// Degree assortativity (Newman 2002): Pearson correlation between the degrees
         /// of connected node pairs. For directed layers uses out-degree of source and
         /// in-degree of target; for undirected uses degree of both endpoints.

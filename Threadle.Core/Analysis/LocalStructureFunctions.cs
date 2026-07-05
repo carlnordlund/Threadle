@@ -11,6 +11,126 @@ namespace Threadle.Core.Analysis
         #region Methods (internal)
 
         /// <summary>
+        /// Computes Burt's (1992/2004) constraint and effective size for all nodes simultaneously.
+        /// Weights are symmetrized across all specified 1-mode layers:
+        ///   directed layers  → w_sym(u,v) = w_uv + w_vu  (accumulated from GetAllEgoData arcs)
+        ///   undirected layers → w_sym(u,v) = w_uv         (each edge listed once; added to both ends)
+        /// Returns (constraint, effectiveSize) dictionaries keyed by node id.
+        /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
+        /// </summary>
+        internal static (Dictionary<uint, double> constraint, Dictionary<uint, double> effectiveSize)
+            StructuralHoles(uint[] nodeIds, List<ILayerOneMode> layers)
+        {
+            int n = nodeIds.Length;
+            var constraint = new Dictionary<uint, double>(n);
+            var effectiveSize = new Dictionary<uint, double>(n);
+
+            if (n == 0 || layers.Count == 0)
+            {
+                foreach (uint u in nodeIds) { constraint[u] = 0.0; effectiveSize[u] = 0.0; }
+                return (constraint, effectiveSize);
+            }
+
+            // Build symmetric weight dictionaries: symW[u][v] = symmetrized tie strength.
+            // GetAllEgoData yields each edge/arc once from the source ego.
+            // Adding w to both symW[u][v] and symW[v][u] symmetrizes naturally:
+            //   undirected: edge (u,v) listed once → symW[u][v] = symW[v][u] = w  ✓
+            //   directed:   arc u→v contributes w; arc v→u contributes w separately → sum ✓
+            var symW = new Dictionary<uint, Dictionary<uint, double>>(n);
+            foreach (uint u in nodeIds) symW[u] = new Dictionary<uint, double>();
+
+            foreach (var layer in layers)
+            {
+                foreach (var (egoId, alters, values) in layer.GetAllEgoData())
+                {
+                    if (!symW.TryGetValue(egoId, out var egoDict)) continue;
+                    var aSpan = alters.Span;
+                    var wSpan = values.Span;
+                    bool hasWeights = wSpan.Length > 0;
+                    for (int i = 0; i < aSpan.Length; i++)
+                    {
+                        uint v = aSpan[i];
+                        double w = hasWeights ? wSpan[i] : 1.0;
+                        egoDict[v] = egoDict.GetValueOrDefault(v) + w;
+                        if (symW.TryGetValue(v, out var alterDict))
+                            alterDict[egoId] = alterDict.GetValueOrDefault(egoId) + w;
+                    }
+                }
+            }
+
+            // Total interaction volume (strength) per node
+            var strength = new Dictionary<uint, double>(n);
+            foreach (uint u in nodeIds)
+            {
+                double s = 0;
+                foreach (double w in symW[u].Values) s += w;
+                strength[u] = s;
+            }
+
+            // Per-ego computation — O(k²) inner loop
+            foreach (uint u in nodeIds)
+            {
+                var neighbors = symW[u];
+                int k = neighbors.Count;
+                double s_u = strength[u];
+
+                if (k == 0 || s_u == 0)
+                {
+                    constraint[u] = 0.0;
+                    effectiveSize[u] = 0.0;
+                    continue;
+                }
+
+                // Pre-compute ego's proportions p_uj = symW[u][j] / s_u
+                var p_u = new Dictionary<uint, double>(k);
+                foreach (var (j, w_uj) in neighbors)
+                    p_u[j] = w_uj / s_u;
+
+                double C_u = 0.0;
+                double ES_u = k;
+
+                foreach (var (j, _) in neighbors)
+                {
+                    double p_uj = p_u[j];
+                    // j's neighbor dictionary and total strength (for computing p_qj and p_jq)
+                    var symWj = symW.TryGetValue(j, out var jd) ? jd : null;
+                    double s_j = strength.GetValueOrDefault(j);
+
+                    // Constraint inner sum:  Σ_{q∈N(u), q≠j} p_uq · p_qj
+                    //   p_qj = symW[q][j] / strength[q]  (q's proportion invested in j)
+                    // Effective size inner term: p_uq · p_jq
+                    //   p_jq = symW[j][q] / strength[j]  (j's proportion invested in q)
+                    //   The full ES double-sum Σ_j Σ_{q≠j} p_uq·p_jq equals Burt's formula
+                    //   Σ_j Σ_{q≠j} p_uj·p_qj by a dummy-variable symmetry argument.
+                    double indirect = 0.0;
+                    foreach (var (q, _) in neighbors)
+                    {
+                        if (q == j) continue;
+                        double p_uq = p_u[q];
+                        double w = symWj != null ? symWj.GetValueOrDefault(q) : 0.0; // symW[j][q] = symW[q][j]
+
+                        // Effective size: use p_jq = w / s_j
+                        double p_jq = s_j > 0 ? w / s_j : 0.0;
+                        ES_u -= p_uq * p_jq;
+
+                        // Constraint: use p_qj = w / s_q  (different denominator)
+                        double s_q = strength.GetValueOrDefault(q);
+                        double p_qj = s_q > 0 ? w / s_q : 0.0;
+                        indirect += p_uq * p_qj;
+                    }
+
+                    double c_uj = p_uj + indirect;
+                    C_u += c_uj * c_uj;
+                }
+
+                constraint[u] = C_u;
+                effectiveSize[u] = ES_u;
+            }
+
+            return (constraint, effectiveSize);
+        }
+
+        /// <summary>
         /// K-core decomposition (Batagelj & Zaversnik, 2003). Returns the coreness (k-shell index)
         /// of each node: the highest k such that the node survives in the k-core.
         /// Treats all edges as undirected (union of in/out neighbors) and ignores edge weights.
