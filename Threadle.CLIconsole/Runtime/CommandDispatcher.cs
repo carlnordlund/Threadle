@@ -35,6 +35,7 @@ namespace Threadle.CLIconsole.Runtime
             ["clearlayer"] = new ClearLayer(),
             ["closenesscentrality"] = new ClosenessCentrality(),
             ["clusteringcoefficient"] = new ClusteringCoefficient(),
+            ["communitydetection"] = new CommunityDetection(),
             ["components"] = new Components(),
             ["constraints"]=new Commands.Constraint(),
             ["coreness"] = new Coreness(),
