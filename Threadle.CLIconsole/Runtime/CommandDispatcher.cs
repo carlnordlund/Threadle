@@ -103,6 +103,7 @@ namespace Threadle.CLIconsole.Runtime
             ["subnet"] = new Subnet(),
             ["symmetrize"] = new Symmetrize(),
             ["transitivity"] = new Transitivity(),
+            ["triadiccensus"] = new TriadicCensus(),
             ["undefineattr"] = new UndefineAttr(),
             ["unpack"] = new Unpack()
         };

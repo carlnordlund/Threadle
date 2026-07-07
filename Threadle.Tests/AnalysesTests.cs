@@ -119,7 +119,7 @@ public class AnalysesTests
         AddUndirectedLayer(net, "layer");
         var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 1);
         Assert.True(result.Success);
-        Assert.Equal(0, result.Value);
+        Assert.Equal(0, result.Value!.Distance);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class AnalysesTests
         net.AddEdge("layer", 1, 2);
         var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 2);
         Assert.True(result.Success);
-        Assert.Equal(1, result.Value);
+        Assert.Equal(1, result.Value!.Distance);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class AnalysesTests
         net.AddEdge("layer", 2, 3);
         var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
-        Assert.Equal(2, result.Value);
+        Assert.Equal(2, result.Value!.Distance);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class AnalysesTests
         net.AddEdge("layer", 1, 2);
         var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
-        Assert.Equal(-1, result.Value);
+        Assert.Equal(-1, result.Value!.Distance);
     }
 
     [Fact]
@@ -168,8 +168,8 @@ public class AnalysesTests
         net.AddEdge("layer", 2, 3);
         var forwardResult = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         var reverseResult = Analyses.ShortestPath(net, new[] { "layer" }, 3, 1);
-        Assert.Equal(2, forwardResult.Value);
-        Assert.Equal(-1, reverseResult.Value);
+        Assert.Equal(2, forwardResult.Value!.Distance);
+        Assert.Equal(-1, reverseResult.Value!.Distance);
     }
 
     [Fact]
@@ -193,7 +193,7 @@ public class AnalysesTests
         // Pass null/empty layerName to use all layers
         var result = Analyses.ShortestPath(net, null, 1, 3);
         Assert.True(result.Success);
-        Assert.Equal(2, result.Value);
+        Assert.Equal(2, result.Value!.Distance);
     }
 
     [Fact]
@@ -211,9 +211,9 @@ public class AnalysesTests
         var fullResult = Analyses.ShortestPath(net, new[] { "A", "B", "C" }, 1, 4);
         var partialResult = Analyses.ShortestPath(net, new[] { "A", "B" }, 1, 4);
         Assert.True(fullResult.Success);
-        Assert.Equal(3, fullResult.Value);
+        Assert.Equal(3, fullResult.Value!.Distance);
         Assert.True(partialResult.Success);
-        Assert.Equal(-1, partialResult.Value);
+        Assert.Equal(-1, partialResult.Value!.Distance);
     }
 
     [Fact]
@@ -659,7 +659,7 @@ public class AnalysesTests
 
         var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 2);
         Assert.True(result.Success);
-        Assert.Equal(1, result.Value);
+        Assert.Equal(1, result.Value!.Distance);
     }
 
     [Fact]
@@ -673,7 +673,7 @@ public class AnalysesTests
 
         var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
-        Assert.Equal(2, result.Value);
+        Assert.Equal(2, result.Value!.Distance);
     }
 
     [Fact]
@@ -687,7 +687,7 @@ public class AnalysesTests
 
         var result = Analyses.ShortestPath(net, new[] { "layer" }, 1, 3);
         Assert.True(result.Success);
-        Assert.Equal(-1, result.Value);
+        Assert.Equal(-1, result.Value!.Distance);
     }
 
     [Fact]
@@ -722,9 +722,9 @@ public class AnalysesTests
         var reverse = Analyses.ShortestPath(net, new[] { "layer" }, 3, 1);
 
         Assert.True(forward.Success);
-        Assert.Equal(2, forward.Value);
+        Assert.Equal(2, forward.Value!.Distance);
         Assert.True(reverse.Success);
-        Assert.Equal(-1, reverse.Value);
+        Assert.Equal(-1, reverse.Value!.Distance);
     }
 
     // ── ConnectedComponents: static and two-mode layers ───────────────────────────
@@ -992,6 +992,332 @@ public class AnalysesTests
         Assert.Equal(0, (int)stats["Unique_Values"]);
         Assert.Equal(0, (int)stats["Count"]);
         Assert.Equal(2, (int)stats["Missing"]);
+    }
+
+    // ── TriadicCensus ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void TriadicCensus_NoEdges_AllEmptyTriad()
+    {
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["003"]);
+        Assert.Equal(1L, (long)result.Value!["Total"]);
+        Assert.Equal(0L, (long)result.Value!["012"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_SingleAsymmetricEdge_Is012()
+    {
+        // 1->2, node 3 isolated
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["012"]);
+        Assert.Equal(0L, (long)result.Value!["003"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_SingleMutualEdge_Is102()
+    {
+        // 1<->2, node 3 isolated
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 1);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["102"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_TransitiveTriad_Is030T()
+    {
+        // 1->2, 1->3, 2->3: a feed-forward loop (source=1, middle=2, sink=3)
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["030T"]);
+        Assert.Equal(0L, (long)result.Value!["030C"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_CyclicTriad_Is030C()
+    {
+        // 1->2->3->1: a directed 3-cycle
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 1);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["030C"]);
+        Assert.Equal(0L, (long)result.Value!["030T"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_MutualPairPlusInboundArc_Is111D()
+    {
+        // 1<->2 mutual, 3->1: the extra arc points into the hub (node 1) of the mutual pair
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 1);
+        net.AddEdge("layer", 3, 1);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["111D"]);
+        Assert.Equal(0L, (long)result.Value!["111U"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_MutualPairPlusOutboundArc_Is111U()
+    {
+        // 1<->2 mutual, 1->3: the extra arc points out of the hub (node 1) of the mutual pair
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 1);
+        net.AddEdge("layer", 1, 3);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["111U"]);
+        Assert.Equal(0L, (long)result.Value!["111D"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_HubEmitsToTwoMutualNodes_Is120D()
+    {
+        // 1<->2 mutual, 3->1 and 3->2: hub (node 3) emits to both members of the mutual pair
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 1);
+        net.AddEdge("layer", 3, 1);
+        net.AddEdge("layer", 3, 2);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["120D"]);
+        Assert.Equal(0L, (long)result.Value!["120U"]);
+        Assert.Equal(0L, (long)result.Value!["120C"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_TwoMutualPlusOneAsymmetric_Is210()
+    {
+        // 1<->2 mutual, 1<->3 mutual, 2->3 asymmetric
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 1);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 3, 1);
+        net.AddEdge("layer", 2, 3);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["210"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_AllMutual_Is300()
+    {
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        foreach (var (a, b) in new[] { (1u, 2u), (1u, 3u), (2u, 3u) })
+        {
+            net.AddEdge("layer", a, b);
+            net.AddEdge("layer", b, a);
+        }
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["300"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_UndirectedLayer_OnlySymmetricTypesNonZero()
+    {
+        // 4 nodes, undirected, edges 1-2 and 1-3 (node 4 isolated). Of the four triples:
+        // {1,2,3} is a wedge (hub 1, both ties mutual) -> 201; {1,2,4} and {1,3,4} each have
+        // one mutual edge and an isolated third node -> 102 (x2); {2,3,4} has no edges -> 003.
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(1L, (long)result.Value!["201"]);
+        Assert.Equal(2L, (long)result.Value!["102"]);
+        Assert.Equal(1L, (long)result.Value!["003"]);
+        Assert.Equal(4L, (long)result.Value!["Total"]);
+
+        // Undirected ties are trivially mutual, so no asymmetric-only type can occur.
+        string[] asymmetricTypes = ["012", "021D", "021U", "021C", "111D", "111U", "030T", "030C", "120D", "120U", "120C", "210"];
+        foreach (string key in asymmetricTypes)
+            Assert.Equal(0L, (long)result.Value![key]);
+    }
+
+    [Fact]
+    public void TriadicCensus_TwoModeLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+
+        var result = Analyses.TriadicCensus(net, "clubs");
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void TriadicCensus_DefaultSampleSize_IsExactMethod()
+    {
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+
+        var result = Analyses.TriadicCensus(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal("Exact", (string)result.Value!["Method"]);
+    }
+
+    [Fact]
+    public void TriadicCensus_Sampled_ThreeNodeNetwork_MatchesExactExactly()
+    {
+        // With only 3 nodes there is exactly one possible triple, so every sampled draw
+        // must land on it: p = 1.0 regardless of the random sequence, so the point estimate
+        // and Wilson interval are both fully deterministic (no seeding needed). Unlike a
+        // naive Wald interval, Wilson does NOT collapse to a zero-width [1,1] point at p=1 —
+        // it still reports a (deterministic, closed-form) non-trivial lower bound.
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+
+        var result = Analyses.TriadicCensus(net, "layer", sampleSize: 5);
+
+        Assert.True(result.Success);
+        Assert.Equal("Sampled", (string)result.Value!["Method"]);
+        Assert.Equal(5, (int)result.Value!["SampleSize"]);
+        // Sampled counts are reported as doubles (estimates, not exact tallies) — see the
+        // "double, not long" note on TriadicCensusSampled for why they are never rounded.
+        Assert.Equal(1.0, (double)result.Value!["030T"], precision: 9);
+        Assert.Equal(0.0, (double)result.Value!["030C"], precision: 9);
+        Assert.Equal(1L, (long)result.Value!["Total"]);
+
+        // Closed-form Wilson bounds for p=1, m=5: upper is exactly 1 (Total); lower is
+        // m/(m+z^2) with z=1.959963984540054 (verified independently in Python).
+        var se = (Dictionary<string, object>)result.Value!["StandardErrors"];
+        Assert.Equal(0.110839400, (double)se["030T"], precision: 6);
+
+        var ciLow = (Dictionary<string, object>)result.Value!["ConfidenceIntervalLower"];
+        var ciHigh = (Dictionary<string, object>)result.Value!["ConfidenceIntervalUpper"];
+        Assert.Equal(0.565517535, (double)ciLow["030T"], precision: 6);
+        Assert.Equal(1.0, (double)ciHigh["030T"], precision: 9);
+    }
+
+    [Fact]
+    public void TriadicCensus_Sampled_ZeroObservedCount_HasNonDegenerateConfidenceInterval()
+    {
+        // With sampleSize=1, at most one of the 16 types can have a nonzero sampled count —
+        // the other >=15 are guaranteed to have zero observed hits, regardless of which
+        // triple happens to be drawn. A naive Wald interval collapses to [0,0] in that case,
+        // falsely implying certainty the true count is zero (exactly the bug a real run on
+        // the Lazega network surfaced: a type with a true count of 1 was sampled zero times
+        // and reported a zero-width interval). The fix (Wilson score interval) must report a
+        // strictly positive upper bound instead.
+        var net = MakeNetwork(6);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 1);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 5, 4);
+
+        var result = Analyses.TriadicCensus(net, "layer", sampleSize: 1);
+
+        Assert.True(result.Success);
+        var ciUpper = (Dictionary<string, object>)result.Value!["ConfidenceIntervalUpper"];
+        string[] allTypes = ["003", "012", "102", "021D", "021U", "021C", "111D", "111U", "030T", "030C", "201", "120D", "120U", "120C", "210", "300"];
+        int zeroObservedCount = 0;
+        foreach (string type in allTypes)
+        {
+            if ((double)result.Value![type] == 0.0)
+            {
+                zeroObservedCount++;
+                Assert.True((double)ciUpper[type] > 0.0, $"{type}: a zero-observed type must still have a non-degenerate (nonzero) upper confidence bound");
+            }
+        }
+        Assert.True(zeroObservedCount >= 15, "at most one of the 16 types can be nonzero with sampleSize=1");
+    }
+
+    [Fact]
+    public void TriadicCensus_Sampled_LargerNetwork_HasWellFormedUncertaintyBounds()
+    {
+        // Structural/invariant checks that hold regardless of the random sequence drawn:
+        // every type's key set matches, CI bounds bracket the estimate and stay within [0,Total].
+        var net = MakeNetwork(6);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 1);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 5, 4);
+
+        var result = Analyses.TriadicCensus(net, "layer", sampleSize: 2000);
+
+        Assert.True(result.Success);
+        Assert.Equal("Sampled", (string)result.Value!["Method"]);
+        long total = (long)result.Value!["Total"];
+        Assert.Equal((long)6 * 5 * 4 / 6, total);
+
+        var se = (Dictionary<string, object>)result.Value!["StandardErrors"];
+        var ciLow = (Dictionary<string, object>)result.Value!["ConfidenceIntervalLower"];
+        var ciHigh = (Dictionary<string, object>)result.Value!["ConfidenceIntervalUpper"];
+        string[] allTypes = ["003", "012", "102", "021D", "021U", "021C", "111D", "111U", "030T", "030C", "201", "120D", "120U", "120C", "210", "300"];
+        foreach (string type in allTypes)
+        {
+            double estimate = (double)result.Value![type];
+            double low = (double)ciLow[type];
+            double high = (double)ciHigh[type];
+            double stdErr = (double)se[type];
+
+            Assert.True(stdErr >= 0.0, $"{type}: SE should be non-negative");
+            Assert.True(low <= estimate + 1e-6, $"{type}: CI lower should not exceed the estimate");
+            Assert.True(high >= estimate - 1e-6, $"{type}: CI upper should not be below the estimate");
+            Assert.True(low >= 0.0, $"{type}: CI lower should not be negative");
+            Assert.True(high <= total + 1e-6, $"{type}: CI upper should not exceed Total");
+        }
     }
 
     // ── Density: edge case – single node ─────────────────────────────────────

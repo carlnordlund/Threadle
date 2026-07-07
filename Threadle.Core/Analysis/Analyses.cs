@@ -15,6 +15,36 @@ namespace Threadle.Core.Analysis
         #region Methods (public)
 
         /// <summary>
+        /// Computes the Holland-Leinhardt triadic census for a single 1-mode layer: counts of the
+        /// 16 isomorphism classes of directed triads (003, 012, 102, 021D, 021U, 021C, 111D, 111U,
+        /// 030T, 030C, 201, 120D, 120U, 120C, 210, 300), plus the total number of triples and a
+        /// "Method" field ("Exact" or "Sampled"). For symmetric layers every present dyad is mutual,
+        /// so only 003/102/201/300 can be non-zero.
+        /// When sampleSize is 0 (default), computes the exact census — cost scales with the sum of
+        /// squared node degrees, not network size, so this can still be expensive for networks with
+        /// high-degree hubs. When sampleSize > 0, instead classifies that many uniformly-random
+        /// node triples and extrapolates: the result additionally carries "SampleSize" and, per
+        /// triad type, a "StandardErrors", "ConfidenceIntervalLower" and "ConfidenceIntervalUpper"
+        /// entry (95% Wilson score interval on the estimated count — chosen over the naive Wald
+        /// interval because it stays non-degenerate when a type is observed zero times in the
+        /// sample, which is routine for rare types). Because empty (003) triads dominate real
+        /// sparse networks, rare types will still have wide intervals unless the sample is large.
+        /// Reference: Holland &amp; Leinhardt (1970) doi:10.1086/224727; Batagelj &amp; Mrvar (2001).
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> TriadicCensus(Network network, string layerName, int sampleSize = 0)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+            var lr = network.GetOneModeLayerForRead(layerName);
+            if (!lr.Success)
+                return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+            var result = sampleSize > 0
+                ? NetworkLevelFunctions.TriadicCensusSampled(network.Nodeset.NodeIdArray, lr.Value!, sampleSize)
+                : NetworkLevelFunctions.TriadicCensus(network.Nodeset.NodeIdArray, lr.Value!);
+            return OperationResult<Dictionary<string, object>>.Ok(result);
+        }
+
+        /// <summary>
         /// Computes Burt's constraint for each node in the specified 1-mode layer(s) and stores
         /// the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)²
         /// where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many
