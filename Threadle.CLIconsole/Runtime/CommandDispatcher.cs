@@ -82,6 +82,7 @@ namespace Threadle.CLIconsole.Runtime
             ["info"] = new Info(),
             ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),
+            ["mergelayers"] = new MergeLayers(),
             ["pack"] = new Pack(),
             ["pagerank"] = new PageRank(),
             ["preview"] = new Preview(),
