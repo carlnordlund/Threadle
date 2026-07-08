@@ -19,6 +19,89 @@ namespace Threadle.Core.Processing
 
 
         #region Methods (public)
+
+        /// <summary>
+        /// Merges two 1-mode layers into a new layer by the provided method, storing the result under
+        /// the provided name. Note that merging creates a new layer, without modifying either source layer.
+        /// Both source layers must share the same directionality (both directed or both undirected) —
+        /// symmetrize the directed one first with <see cref="SymmetrizeLayer"/> if they don't match.
+        /// The method fully determines the resulting layer's edge type: And/Or/Xor always produce a
+        /// binary layer (does a tie exist, ignoring its strength); Sum/Average always produce a valued
+        /// layer; Max/Min/Product produce a binary layer only if both source layers are binary, valued
+        /// otherwise. For binary source layers, And is equivalent to Product and Or is equivalent to Max;
+        /// Xor (true iff exactly one source layer has the tie) is not expressible via the other methods.
+        /// </summary>
+        /// <param name="network">The Network object.</param>
+        /// <param name="layerName1">The name of the first 1-mode layer to merge.</param>
+        /// <param name="layerName2">The name of the second 1-mode layer to merge.</param>
+        /// <param name="method">The <see cref="MergeMethod"/> to use when combining edge values.</param>
+        /// <param name="newLayerName">The name of the new layer to store the merged data in.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public static OperationResult MergeLayers(Network network, string layerName1, string layerName2, MergeMethod method, string newLayerName)
+        {
+            if (!network.Layers.TryGetValue(layerName1, out var layerA))
+                return OperationResult.Fail("LayerNotFound", $"Layer '{layerName1}' does not exist in network '{network.Name}'.");
+            if (!network.Layers.TryGetValue(layerName2, out var layerB))
+                return OperationResult.Fail("LayerNotFound", $"Layer '{layerName2}' does not exist in network '{network.Name}'.");
+            if (!(layerA is ILayerOneMode oneModeA))
+                return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName1}' is not a 1-mode layer.");
+            if (!(layerB is ILayerOneMode oneModeB))
+                return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName2}' is not a 1-mode layer.");
+            if (oneModeA.IsSymmetric != oneModeB.IsSymmetric)
+                return OperationResult.Fail("MismatchedDirectionality",
+                    $"Layer '{layerName1}' and '{layerName2}' have different directionality (one is directed, the other undirected). Symmetrize the directed layer first with symmetrizelayer().");
+            if (network.Layers.ContainsKey(newLayerName))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
+
+            bool bothBinary = oneModeA.IsBinary && oneModeB.IsBinary;
+            bool outputBinary = method switch
+            {
+                MergeMethod.And or MergeMethod.Or or MergeMethod.Xor => true,
+                MergeMethod.Sum or MergeMethod.Average => false,
+                _ => bothBinary // Max, Min, Product
+            };
+            EdgeType outputEdgeType = outputBinary ? EdgeType.Binary : EdgeType.Valued;
+
+            Func<float, float, float> MergeFunction = method switch
+            {
+                MergeMethod.And => (a, b) => (a > 0 && b > 0) ? 1f : 0f,
+                MergeMethod.Or => (a, b) => (a > 0 || b > 0) ? 1f : 0f,
+                MergeMethod.Xor => (a, b) => ((a > 0) != (b > 0)) ? 1f : 0f,
+                MergeMethod.Sum => (a, b) => a + b,
+                MergeMethod.Average => (a, b) => (a + b) / 2f,
+                MergeMethod.Max => (a, b) => Math.Max(a, b),
+                MergeMethod.Min => (a, b) => Math.Min(a, b),
+                _ => (a, b) => a * b // Product
+            };
+
+            bool selfties = oneModeA.Selfties || oneModeB.Selfties;
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, oneModeA.Directionality, outputEdgeType, selfties);
+
+            // Union of all node pairs with an edge in either layer.
+            var pairs = new HashSet<(uint, uint)>();
+            foreach (var (nodeId, alters, _) in oneModeA.GetAllEgoData())
+                foreach (uint partnerId in alters.Span)
+                    pairs.Add((nodeId, partnerId));
+            foreach (var (nodeId, alters, _) in oneModeB.GetAllEgoData())
+                foreach (uint partnerId in alters.Span)
+                    pairs.Add((nodeId, partnerId));
+
+            foreach (var (node1, node2) in pairs)
+            {
+                float valA = oneModeA.GetEdgeValue(node1, node2);
+                float valB = oneModeB.GetEdgeValue(node1, node2);
+                float merged = MergeFunction(valA, valB);
+                if (merged > 0)
+                    newLayer._addEdge(node1, node2, merged);
+            }
+
+            newLayer._sortEdgesets();
+            newLayer._deduplicateEdgesets();
+            network.AddLayer(newLayerName, newLayer);
+            return OperationResult.Ok($"Merged layers '{layerName1}' and '{layerName2}' via {method} and stored the result as new layer '{newLayerName}', all in network '{network.Name}'.");
+        }
+
+
         /// <summary>
         /// Symmetrizes the directed edges in a 1-mode layer by the provided method, storing these new symmetrized
         /// edges in a new symmetric 1-mode layer with the same value type with the provided name.
