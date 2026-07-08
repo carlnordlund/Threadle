@@ -229,6 +229,97 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Merged layers '{layerName1}' and '{layerName2}' via {method} and stored the result as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
 
+        /// <summary>
+        /// Converts a binary 1-mode layer into a valued layer with the same directionality, where every
+        /// existing tie is given the value 1. Topology is otherwise unchanged — this is a pure type
+        /// promotion, not a re-weighting. Note that conversion creates a new layer, without modifying
+        /// the original layer.
+        /// </summary>
+        /// <param name="network">The Network object.</param>
+        /// <param name="layerName">The name of the 1-mode binary layer to convert.</param>
+        /// <param name="newLayerName">The name of the new 1-mode valued layer to store the converted data in.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public static OperationResult BinaryToValuedLayer(Network network, string layerName, string newLayerName)
+        {
+            if (!network.Layers.TryGetValue(layerName, out var layer))
+                return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
+            if (!(layer is ILayerOneMode originalLayer))
+                return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 1-mode layer.");
+            if (!originalLayer.IsBinary)
+                return OperationResult.Fail("ConstraintLayerAlreadyValued", $"Layer '{layerName}' is already valued, conversion to a valued layer is not applicable.");
+            if (network.Layers.ContainsKey(newLayerName))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
+
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, originalLayer.Directionality, EdgeType.Valued, originalLayer.Selfties);
+            foreach (var (nodeId, alters, _) in originalLayer.GetAllEgoData())
+                foreach (uint partnerId in alters.Span)
+                    newLayer._addEdge(nodeId, partnerId, 1f);
+
+            // GetAllEgoData() never yields self-loops for symmetric layers — a symmetric edgeset
+            // only yields each edge once, from the lower node id (partnerId > egoId), a condition a
+            // self-loop can never satisfy. Add them explicitly so they aren't silently dropped.
+            if (originalLayer.IsSymmetric && originalLayer.Selfties)
+                foreach (uint nodeId in network.Nodeset.NodeIdArray)
+                    if (originalLayer.GetEdgeValue(nodeId, nodeId) > 0)
+                        newLayer._addEdge(nodeId, nodeId, 1f);
+
+            newLayer._sortEdgesets();
+            network.AddLayer(newLayerName, newLayer);
+            return OperationResult.Ok($"Converted layer '{layerName}' to a valued layer (all ties set to 1) and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
+        }
+
+        /// <summary>
+        /// Converts a symmetric (undirected) 1-mode layer into a directed layer, turning each undirected
+        /// tie into two independent directed arcs (one in each direction) carrying the same value. The
+        /// resulting layer keeps the original's edge value type (binary stays binary, valued stays
+        /// valued) — this is purely a directionality conversion. Note that conversion creates a new
+        /// layer, without modifying the original layer.
+        /// </summary>
+        /// <param name="network">The Network object.</param>
+        /// <param name="layerName">The name of the 1-mode undirected layer to convert.</param>
+        /// <param name="newLayerName">The name of the new 1-mode directed layer to store the converted data in.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public static OperationResult SymmetricToDirectedLayer(Network network, string layerName, string newLayerName)
+        {
+            if (!network.Layers.TryGetValue(layerName, out var layer))
+                return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
+            if (!(layer is ILayerOneMode originalLayer))
+                return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is not a 1-mode layer.");
+            if (!originalLayer.IsSymmetric)
+                return OperationResult.Fail("ConstraintLayerAlreadyDirected", $"Layer '{layerName}' is already directed, conversion to a directed layer is not applicable.");
+            if (network.Layers.ContainsKey(newLayerName))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
+
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Directed, originalLayer.EdgeValueType, originalLayer.Selfties);
+            foreach (var (nodeId, alters, values) in originalLayer.GetAllEgoData())
+            {
+                // GetAllEgoData() never yields self-loops for symmetric layers (see BinaryToValuedLayer),
+                // so every pair here is guaranteed nodeId != partnerId — both directions always apply.
+                bool hasValues = values.Length > 0;
+                for (int i = 0; i < alters.Length; i++)
+                {
+                    uint partnerId = alters.Span[i];
+                    float value = hasValues ? values.Span[i] : 1f;
+                    newLayer._addEdge(nodeId, partnerId, value);
+                    newLayer._addEdge(partnerId, nodeId, value);
+                }
+            }
+
+            // Self-loops are excluded from GetAllEgoData() for symmetric layers (see above) — add
+            // them explicitly. A self-loop needs only one _addEdge call: node i's arc to itself.
+            if (originalLayer.Selfties)
+                foreach (uint nodeId in network.Nodeset.NodeIdArray)
+                {
+                    float selfValue = originalLayer.GetEdgeValue(nodeId, nodeId);
+                    if (selfValue > 0)
+                        newLayer._addEdge(nodeId, nodeId, selfValue);
+                }
+
+            newLayer._sortEdgesets();
+            network.AddLayer(newLayerName, newLayer);
+            return OperationResult.Ok($"Converted layer '{layerName}' to a directed layer (two arcs per original tie) and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
+        }
+
         public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName)
         {
             if (!network.Layers.ContainsKey(layerName))

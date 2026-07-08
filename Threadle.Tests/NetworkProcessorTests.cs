@@ -461,6 +461,299 @@ public class NetworkProcessorTests
                 Assert.Equal(dynLayer.CheckEdgeExists(i, j), packedLayer.CheckEdgeExists(i, j));
     }
 
+    // ── BinaryToValuedLayer ────────────────────────────────────────────────────
+
+    [Fact]
+    public void BinaryToValuedLayer_LayerNotFound_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        var result = NetworkProcessor.BinaryToValuedLayer(net, "ghost", "valued");
+        Assert.False(result.Success);
+        Assert.Equal("LayerNotFound", result.Code);
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_WrongLayerType_Fails()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        var result = NetworkProcessor.BinaryToValuedLayer(net, "clubs", "valued");
+        Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_AlreadyValued_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        var result = NetworkProcessor.BinaryToValuedLayer(net, "trust", "valued");
+        Assert.False(result.Success);
+        Assert.Equal("ConstraintLayerAlreadyValued", result.Code);
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_NewLayerNameAlreadyExists_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddLayerOneMode("valued", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        var result = NetworkProcessor.BinaryToValuedLayer(net, "friends", "valued");
+        Assert.False(result.Success);
+        Assert.Equal("LayerAlreadyExists", result.Code);
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_DynamicBinary_AllTiesSetToOne()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 3, 4);
+
+        var result = NetworkProcessor.BinaryToValuedLayer(net, "friends", "valued");
+
+        Assert.True(result.Success);
+        Assert.Equal(1f, net.Layers["valued"].GetEdgeValue(1, 2));
+        Assert.Equal(1f, net.Layers["valued"].GetEdgeValue(3, 4));
+        Assert.Equal(0f, net.Layers["valued"].GetEdgeValue(1, 3));
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_StaticBinary_MatchesDynamic()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 3, 4);
+        net.Pack("friends");
+
+        var result = NetworkProcessor.BinaryToValuedLayer(net, "friends", "valued");
+
+        Assert.True(result.Success);
+        Assert.Equal(1f, net.Layers["valued"].GetEdgeValue(1, 2));
+        Assert.Equal(1f, net.Layers["valued"].GetEdgeValue(3, 4));
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_PreservesDirectionality()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("follows", EdgeDirectionality.Directed, EdgeType.Binary, false);
+        net.AddEdge("follows", 1, 2);
+
+        NetworkProcessor.BinaryToValuedLayer(net, "follows", "valued");
+
+        var newLayer = (ILayerOneMode)net.Layers["valued"];
+        Assert.True(newLayer.IsDirectional);
+        Assert.Equal(1f, newLayer.GetEdgeValue(1, 2));
+        Assert.Equal(0f, newLayer.GetEdgeValue(2, 1));
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_ResultIsValuedType()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+
+        NetworkProcessor.BinaryToValuedLayer(net, "friends", "valued");
+
+        Assert.Equal(EdgeType.Valued, ((ILayerOneMode)net.Layers["valued"]).EdgeValueType);
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_OriginalLayerUnchanged()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+
+        NetworkProcessor.BinaryToValuedLayer(net, "friends", "valued");
+
+        Assert.Equal(EdgeType.Binary, ((ILayerOneMode)net.Layers["friends"]).EdgeValueType);
+        Assert.True(net.Layers["friends"].CheckEdgeExists(1, 2));
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_OutputIsAlwaysDynamic()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+        net.Pack("friends");
+
+        NetworkProcessor.BinaryToValuedLayer(net, "friends", "valued");
+
+        Assert.False(net.Layers["valued"].IsStatic);
+    }
+
+    [Fact]
+    public void BinaryToValuedLayer_UndirectedSelfloop_Preserved()
+    {
+        // Regression test: GetAllEgoData() never yields self-loops for symmetric layers (a symmetric
+        // edgeset only yields each edge once via partnerId > egoId, which a self-loop can never
+        // satisfy), so self-loops must be picked up via an explicit GetEdgeValue check instead.
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, true);
+        net.AddEdge("friends", 1, 1);
+        net.AddEdge("friends", 1, 2);
+
+        var result = NetworkProcessor.BinaryToValuedLayer(net, "friends", "valued");
+
+        Assert.True(result.Success);
+        Assert.Equal(1f, net.Layers["valued"].GetEdgeValue(1, 1));
+        Assert.Equal(1f, net.Layers["valued"].GetEdgeValue(1, 2));
+    }
+
+    // ── SymmetricToDirectedLayer ──────────────────────────────────────────────
+
+    [Fact]
+    public void SymmetricToDirectedLayer_LayerNotFound_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        var result = NetworkProcessor.SymmetricToDirectedLayer(net, "ghost", "directed");
+        Assert.False(result.Success);
+        Assert.Equal("LayerNotFound", result.Code);
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_WrongLayerType_Fails()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        var result = NetworkProcessor.SymmetricToDirectedLayer(net, "clubs", "directed");
+        Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_AlreadyDirected_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("follows", EdgeDirectionality.Directed, EdgeType.Binary, false);
+        var result = NetworkProcessor.SymmetricToDirectedLayer(net, "follows", "directed");
+        Assert.False(result.Success);
+        Assert.Equal("ConstraintLayerAlreadyDirected", result.Code);
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_NewLayerNameAlreadyExists_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddLayerOneMode("directed", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        var result = NetworkProcessor.SymmetricToDirectedLayer(net, "friends", "directed");
+        Assert.False(result.Success);
+        Assert.Equal("LayerAlreadyExists", result.Code);
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_Binary_CreatesTwoArcsPerTie()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+
+        var result = NetworkProcessor.SymmetricToDirectedLayer(net, "friends", "directed");
+
+        Assert.True(result.Success);
+        Assert.True(net.Layers["directed"].CheckEdgeExists(1, 2));
+        Assert.True(net.Layers["directed"].CheckEdgeExists(2, 1));
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_Valued_PreservesValueInBothDirections()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        net.AddEdge("trust", 1, 2, 7f);
+
+        NetworkProcessor.SymmetricToDirectedLayer(net, "trust", "directed");
+
+        Assert.Equal(7f, net.Layers["directed"].GetEdgeValue(1, 2));
+        Assert.Equal(7f, net.Layers["directed"].GetEdgeValue(2, 1));
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_PreservesEdgeValueType()
+    {
+        var netBinary = new Network("net", MakeNodeset());
+        netBinary.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        netBinary.AddEdge("friends", 1, 2);
+        NetworkProcessor.SymmetricToDirectedLayer(netBinary, "friends", "directed");
+        Assert.Equal(EdgeType.Binary, ((ILayerOneMode)netBinary.Layers["directed"]).EdgeValueType);
+
+        var netValued = new Network("net", MakeNodeset());
+        netValued.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        netValued.AddEdge("trust", 1, 2, 3f);
+        NetworkProcessor.SymmetricToDirectedLayer(netValued, "trust", "directed");
+        Assert.Equal(EdgeType.Valued, ((ILayerOneMode)netValued.Layers["directed"]).EdgeValueType);
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_ResultIsDirected()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+
+        NetworkProcessor.SymmetricToDirectedLayer(net, "friends", "directed");
+
+        Assert.True(((ILayerOneMode)net.Layers["directed"]).IsDirectional);
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_Selfloop_AddedOnce()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Valued, true);
+        net.AddEdge("friends", 1, 1, 5f);
+
+        var result = NetworkProcessor.SymmetricToDirectedLayer(net, "friends", "directed");
+
+        Assert.True(result.Success);
+        var newLayer = (ILayerOneMode)net.Layers["directed"];
+        Assert.Equal(5f, newLayer.GetEdgeValue(1, 1));
+        Assert.Equal(1u, newLayer.NbrEdges);
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_OriginalLayerUnchanged()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("friends", 1, 2);
+
+        NetworkProcessor.SymmetricToDirectedLayer(net, "friends", "directed");
+
+        Assert.False(((ILayerOneMode)net.Layers["friends"]).IsDirectional);
+        Assert.True(net.Layers["friends"].CheckEdgeExists(1, 2));
+    }
+
+    [Fact]
+    public void SymmetricToDirectedLayer_StaticAndDynamic_ProduceIdenticalResults()
+    {
+        var netDyn = new Network("net", MakeNodeset());
+        var netPacked = new Network("net", MakeNodeset());
+        netDyn.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        netPacked.AddLayerOneMode("friends", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        foreach (var net in new[] { netDyn, netPacked })
+        {
+            net.AddEdge("friends", 1, 2, 2f);
+            net.AddEdge("friends", 2, 3, 4f);
+        }
+        netPacked.Pack("friends");
+
+        NetworkProcessor.SymmetricToDirectedLayer(netDyn, "friends", "directed");
+        NetworkProcessor.SymmetricToDirectedLayer(netPacked, "friends", "directed");
+
+        for (uint i = 1; i <= 5; i++)
+            for (uint j = 1; j <= 5; j++)
+                Assert.Equal(
+                    netDyn.Layers["directed"].GetEdgeValue(i, j),
+                    netPacked.Layers["directed"].GetEdgeValue(i, j)
+                );
+    }
+
     // ── NodesetProcessor.Filter with cloned attribute manager ─────────────────
 
     [Fact]
