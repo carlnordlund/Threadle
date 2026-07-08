@@ -1320,10 +1320,10 @@ public class AnalysesTests
         }
     }
 
-    // ── CommunityDetection ────────────────────────────────────────────────────
+    // ── CommunityDetectionLouvain ────────────────────────────────────────────────────
 
     [Fact]
-    public void CommunityDetection_TwoDisconnectedTriangles_FindsTwoCommunities()
+    public void CommunityDetectionLouvain_TwoDisconnectedTriangles_FindsTwoCommunities()
     {
         // Two fully-disconnected triangles: merging them can never improve modularity,
         // so this outcome is deterministic regardless of Louvain's random visitation order.
@@ -1336,7 +1336,7 @@ public class AnalysesTests
         net.AddEdge("layer", 4, 6);
         net.AddEdge("layer", 5, 6);
 
-        var result = Analyses.CommunityDetection(net, new[] { "layer" });
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "layer" });
 
         Assert.True(result.Success);
         Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
@@ -1364,7 +1364,7 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetection_TwoTrianglesWithBridge_KeepsThemSeparate()
+    public void CommunityDetectionLouvain_TwoTrianglesWithBridge_KeepsThemSeparate()
     {
         // Two triangles joined by a single bridging edge: the modularity gain from splitting
         // the bridge outweighs any gain from merging, so the two triangles remain distinct
@@ -1380,7 +1380,7 @@ public class AnalysesTests
         net.AddEdge("layer", 5, 6);
         net.AddEdge("layer", 3, 4); // bridge
 
-        var result = Analyses.CommunityDetection(net, new[] { "layer" });
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "layer" });
 
         Assert.True(result.Success);
         Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
@@ -1391,12 +1391,12 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetection_NoEdges_EveryNodeIsOwnCommunity()
+    public void CommunityDetectionLouvain_NoEdges_EveryNodeIsOwnCommunity()
     {
         var net = MakeNetwork(4);
         AddUndirectedLayer(net, "layer");
 
-        var result = Analyses.CommunityDetection(net, new[] { "layer" });
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "layer" });
 
         Assert.True(result.Success);
         Assert.Equal(4, (int)result.Value!["NbrCommunities"]);
@@ -1404,7 +1404,7 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetection_DirectedLayer_Symmetrizes()
+    public void CommunityDetectionLouvain_DirectedLayer_Symmetrizes()
     {
         // Two triangles built from arcs in one direction only, joined by a bridge: since
         // modularity optimization symmetrizes directed layers (same convention as
@@ -1419,25 +1419,25 @@ public class AnalysesTests
         net.AddEdge("layer", 5, 6);
         net.AddEdge("layer", 3, 4);
 
-        var result = Analyses.CommunityDetection(net, new[] { "layer" });
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "layer" });
 
         Assert.True(result.Success);
         Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
     }
 
     [Fact]
-    public void CommunityDetection_TwoModeLayer_Fails()
+    public void CommunityDetectionLouvain_TwoModeLayer_Fails()
     {
         var net = MakeNetwork(3);
         net.AddLayerTwoMode("clubs");
 
-        var result = Analyses.CommunityDetection(net, new[] { "clubs" });
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "clubs" });
 
         Assert.False(result.Success);
     }
 
     [Fact]
-    public void CommunityDetection_HigherResolution_FindsAtLeastAsManyCommunities()
+    public void CommunityDetectionLouvain_HigherResolution_FindsAtLeastAsManyCommunities()
     {
         // Higher resolution penalizes large communities more, so it should never merge
         // groups that a lower resolution kept separate — it can only split further or match.
@@ -1451,12 +1451,120 @@ public class AnalysesTests
         net.AddEdge("layer", 5, 6);
         net.AddEdge("layer", 3, 4);
 
-        var lowRes = Analyses.CommunityDetection(net, new[] { "layer" }, "lowres", resolution: 0.5);
-        var highRes = Analyses.CommunityDetection(net, new[] { "layer" }, "highres", resolution: 4.0);
+        var lowRes = Analyses.CommunityDetectionLouvain(net, new[] { "layer" }, "lowres", resolution: 0.5);
+        var highRes = Analyses.CommunityDetectionLouvain(net, new[] { "layer" }, "highres", resolution: 4.0);
 
         Assert.True(lowRes.Success);
         Assert.True(highRes.Success);
         Assert.True((int)highRes.Value!["NbrCommunities"] >= (int)lowRes.Value!["NbrCommunities"]);
+    }
+
+    // ── CommunityDetectionLabelPropagation ────────────────────────────────────
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_TwoDisconnectedTriangles_FindsTwoCommunities()
+    {
+        // Label information can never cross a disconnected component (a node's label update
+        // only looks at its own neighbors), so this outcome is deterministic regardless of
+        // random visitation order — verified independently across 20 seeds during development.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+
+        var c1 = net.Nodeset.GetNodeAttribute(1, "layer_community");
+        var c4 = net.Nodeset.GetNodeAttribute(4, "layer_community");
+        var c2 = net.Nodeset.GetNodeAttribute(2, "layer_community");
+        var c3 = net.Nodeset.GetNodeAttribute(3, "layer_community");
+        var c5 = net.Nodeset.GetNodeAttribute(5, "layer_community");
+        var c6 = net.Nodeset.GetNodeAttribute(6, "layer_community");
+        Assert.True(c1.Success && c2.Success && c3.Success && c4.Success && c5.Success && c6.Success);
+
+        object v1 = c1.Value.Value.GetValue(c1.Value.Type)!;
+        object v2 = c2.Value.Value.GetValue(c2.Value.Type)!;
+        object v3 = c3.Value.Value.GetValue(c3.Value.Type)!;
+        object v4 = c4.Value.Value.GetValue(c4.Value.Type)!;
+        object v5 = c5.Value.Value.GetValue(c5.Value.Type)!;
+        object v6 = c6.Value.Value.GetValue(c6.Value.Type)!;
+
+        Assert.Equal(v1, v2);
+        Assert.Equal(v1, v3);
+        Assert.Equal(v4, v5);
+        Assert.Equal(v4, v6);
+        Assert.NotEqual(v1, v4);
+    }
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_NoEdges_EveryNodeIsOwnCommunity()
+    {
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(4, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(0.0, (double)result.Value!["Modularity"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_DirectedLayer_Symmetrizes()
+    {
+        var net = MakeNetwork(6);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_TwoModeLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "clubs" });
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_MaxIterationsOne_StillSucceeds()
+    {
+        // With only 1 pass allowed, the algorithm may not fully converge, but it must still
+        // terminate cleanly and return a valid (if possibly imperfect) partition.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "layer" }, maxIterations: 1);
+
+        Assert.True(result.Success);
+        Assert.True((int)result.Value!["NbrCommunities"] >= 1);
+        var sizes = (List<int>)result.Value!["CommunitySizes"];
+        Assert.Equal(6, sizes.Sum());
     }
 
     // ── Density: edge case – single node ─────────────────────────────────────

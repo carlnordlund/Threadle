@@ -30,34 +30,7 @@ namespace Threadle.Core.Analysis
             if (n0 == 0)
                 return (new Dictionary<uint, int>(0), 0.0);
 
-            var idx = new Dictionary<uint, int>(n0);
-            for (int i = 0; i < n0; i++) idx[nodeIds[i]] = i;
-
-            var adjDict = new Dictionary<int, double>[n0];
-            for (int i = 0; i < n0; i++) adjDict[i] = new Dictionary<int, double>();
-
-            foreach (var layer in layers)
-            {
-                foreach (var (egoId, alters, values) in layer.GetAllEgoData())
-                {
-                    if (!idx.TryGetValue(egoId, out int ui)) continue;
-                    var aSpan = alters.Span;
-                    var wSpan = values.Span;
-                    bool hasWeights = wSpan.Length > 0;
-                    for (int k = 0; k < aSpan.Length; k++)
-                    {
-                        if (!idx.TryGetValue(aSpan[k], out int vi)) continue;
-                        double w = hasWeights ? wSpan[k] : 1.0;
-                        adjDict[ui][vi] = adjDict[ui].GetValueOrDefault(vi) + w;
-                        adjDict[vi][ui] = adjDict[vi].GetValueOrDefault(ui) + w;
-                    }
-                }
-            }
-
-            var (neighbors0, weights0) = ToArrays(adjDict, n0);
-            double[] degree0 = new double[n0];
-            for (int i = 0; i < n0; i++) degree0[i] = SumArray(weights0[i]);
-            double twoM = SumArray(degree0);
+            var (neighbors0, weights0, degree0, twoM) = BuildAdjacency(nodeIds, layers);
 
             if (twoM <= 0)
             {
@@ -118,6 +91,99 @@ namespace Threadle.Core.Analysis
             for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
 
             double modularity = ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping);
+            return (communities, modularity);
+        }
+
+        /// <summary>
+        /// Asynchronous label propagation (Raghavan, Albert &amp; Kumara 2007): every node starts with
+        /// a unique label; repeatedly, in random order, each node adopts whichever label carries the
+        /// greatest total edge weight among its current neighbors (ties broken at random), updating
+        /// in place so later nodes in the same pass see already-updated labels. Stops when a full
+        /// pass produces no changes, or after <paramref name="maxIterations"/> passes — unlike
+        /// Louvain's local-moving phase, LPA has no monotonic quantity guaranteeing convergence
+        /// (labels can cycle), so the cap is required, not just a safety net. Layers are combined and
+        /// symmetrized exactly as in <see cref="LouvainCommunities"/>. The returned modularity is not
+        /// optimized by this method (LPA doesn't target modularity at all) — it's reported purely so
+        /// results are comparable across community detection methods.
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) LabelPropagationCommunities(
+            uint[] nodeIds, List<ILayerOneMode> layers, int maxIterations = 100)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            var (neighbors, weights, degree, twoM) = BuildAdjacency(nodeIds, layers);
+
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            int[] label = new int[n0];
+            for (int i = 0; i < n0; i++) label[i] = i;
+
+            int[] order = new int[n0];
+            for (int i = 0; i < n0; i++) order[i] = i;
+
+            var weightByLabel = new Dictionary<int, double>();
+            var bestLabels = new List<int>();
+
+            for (int pass = 0; pass < maxIterations; pass++)
+            {
+                Shuffle(order);
+                bool changed = false;
+
+                foreach (int u in order)
+                {
+                    var nbrs = neighbors[u];
+                    if (nbrs.Length == 0) continue;
+                    var wts = weights[u];
+
+                    weightByLabel.Clear();
+                    for (int k = 0; k < nbrs.Length; k++)
+                    {
+                        int l = label[nbrs[k]];
+                        weightByLabel[l] = weightByLabel.GetValueOrDefault(l) + wts[k];
+                    }
+
+                    double maxWeight = double.NegativeInfinity;
+                    foreach (double w in weightByLabel.Values)
+                        if (w > maxWeight) maxWeight = w;
+
+                    bestLabels.Clear();
+                    foreach (var (l, w) in weightByLabel)
+                        if (w >= maxWeight - Epsilon) bestLabels.Add(l);
+
+                    int newLabel = bestLabels[Misc.Random.Next(bestLabels.Count)];
+                    if (newLabel != label[u])
+                    {
+                        label[u] = newLabel;
+                        changed = true;
+                    }
+                }
+
+                if (!changed) break;
+            }
+
+            // Compact labels to a contiguous 0-based community index.
+            var labelMap = new Dictionary<int, int>();
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++)
+            {
+                if (!labelMap.TryGetValue(label[i], out int c))
+                {
+                    c = labelMap.Count;
+                    labelMap[label[i]] = c;
+                }
+                communities[nodeIds[i]] = c;
+            }
+
+            int[] mapping = new int[n0];
+            for (int i = 0; i < n0; i++) mapping[i] = labelMap[label[i]];
+            double modularity = ComputeModularity(n0, neighbors, weights, degree, twoM, 1.0, mapping);
             return (communities, modularity);
         }
 
@@ -249,6 +315,49 @@ namespace Threadle.Core.Analysis
             double s = 0;
             foreach (double v in a) s += v;
             return s;
+        }
+
+        /// <summary>
+        /// Builds a symmetrized, weighted adjacency (as parallel neighbor/weight arrays keyed by
+        /// position in <paramref name="nodeIds"/>) combining all specified layers. Directed arcs u→v
+        /// and v→u both accumulate into the same undirected weight (same convention as
+        /// <see cref="LocalStructureFunctions.StructuralHoles"/>); binary layers contribute 1.0 per
+        /// edge; self-ties end up counted twice, per the standard undirected-graph degree convention.
+        /// Also returns each node's total weighted degree and 2m (the sum of all degrees).
+        /// </summary>
+        private static (int[][] neighbors, double[][] weights, double[] degree, double twoM) BuildAdjacency(
+            uint[] nodeIds, List<ILayerOneMode> layers)
+        {
+            int n = nodeIds.Length;
+            var idx = new Dictionary<uint, int>(n);
+            for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+
+            var adjDict = new Dictionary<int, double>[n];
+            for (int i = 0; i < n; i++) adjDict[i] = new Dictionary<int, double>();
+
+            foreach (var layer in layers)
+            {
+                foreach (var (egoId, alters, values) in layer.GetAllEgoData())
+                {
+                    if (!idx.TryGetValue(egoId, out int ui)) continue;
+                    var aSpan = alters.Span;
+                    var wSpan = values.Span;
+                    bool hasWeights = wSpan.Length > 0;
+                    for (int k = 0; k < aSpan.Length; k++)
+                    {
+                        if (!idx.TryGetValue(aSpan[k], out int vi)) continue;
+                        double w = hasWeights ? wSpan[k] : 1.0;
+                        adjDict[ui][vi] = adjDict[ui].GetValueOrDefault(vi) + w;
+                        adjDict[vi][ui] = adjDict[vi].GetValueOrDefault(ui) + w;
+                    }
+                }
+            }
+
+            var (neighbors, weights) = ToArrays(adjDict, n);
+            double[] degree = new double[n];
+            for (int i = 0; i < n; i++) degree[i] = SumArray(weights[i]);
+            double twoM = SumArray(degree);
+            return (neighbors, weights, degree, twoM);
         }
 
         #endregion
