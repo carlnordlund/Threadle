@@ -15,6 +15,73 @@ namespace Threadle.Core.Analysis
         #region Methods (public)
 
         /// <summary>
+        /// Detects communities via Louvain modularity optimization (Blondel et al. 2008) for the
+        /// specified 1-mode layer(s), storing the community index as an integer node attribute.
+        /// Directed layers are symmetrized (arcs in both directions accumulate into an undirected
+        /// weight) since modularity optimization is inherently undirected — the same convention
+        /// used by Constraint/EffectiveSize. Multiple layers combine via summed edge weight; only
+        /// 1-mode layers are accepted — project 2-mode layers first.
+        /// resolution (default 1.0 = standard modularity) scales the null-model term: values above
+        /// 1 favor more, smaller communities; values below 1 favor fewer, larger ones (Reichardt &amp;
+        /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending) and
+        /// the achieved Modularity score Q.
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetection(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+
+            List<ILayerOneMode> oneModes = [];
+            if (layerNames == null)
+            {
+                foreach (var (name, layer) in network.Layers)
+                {
+                    if (layer is ILayerTwoMode)
+                        return OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
+                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success) return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+                    if (lr.Value is ILayerTwoMode)
+                        return OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first.");
+                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            if (oneModes.Count == 0)
+                return OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No 1-mode layers found.");
+
+            string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
+            attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "community";
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (communities, modularity) = CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution);
+
+            var attrDict = communities.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+            var setResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            if (!setResult.Success)
+                return OperationResult<Dictionary<string, object>>.Fail(setResult);
+
+            int nbrCommunities = communities.Count > 0 ? communities.Values.Max() + 1 : 0;
+            int[] communitySizes = new int[nbrCommunities];
+            foreach (int c in communities.Values) communitySizes[c]++;
+
+            var result = new Dictionary<string, object>
+            {
+                ["NbrCommunities"] = nbrCommunities,
+                ["CommunitySizes"] = communitySizes.OrderByDescending(s => s).ToList(),
+                ["Modularity"] = modularity
+            };
+            return OperationResult<Dictionary<string, object>>.Ok(result);
+        }
+
+        /// <summary>
         /// Computes the Holland-Leinhardt triadic census for a single 1-mode layer: counts of the
         /// 16 isomorphism classes of directed triads (003, 012, 102, 021D, 021U, 021C, 111D, 111U,
         /// 030T, 030C, 201, 120D, 120U, 120C, 210, 300), plus the total number of triples and a
