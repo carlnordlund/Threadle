@@ -26,59 +26,39 @@ namespace Threadle.Core.Analysis
         /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending) and
         /// the achieved Modularity score Q.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetection(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLouvain(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+                return err!;
 
-            List<ILayerOneMode> oneModes = [];
-            if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
-                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
-                }
-            }
-            else
-            {
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success) return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
-                        return OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first.");
-                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
-                }
-            }
-            if (oneModes.Count == 0)
-                return OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No 1-mode layers found.");
-
-            string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
-            attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "community";
-
+            attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var (communities, modularity) = CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution);
+            return StoreCommunityResult(network, attrName, communities, modularity);
+        }
 
-            var attrDict = communities.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
-            var setResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
-            if (!setResult.Success)
-                return OperationResult<Dictionary<string, object>>.Fail(setResult);
+        /// <summary>
+        /// Detects communities via asynchronous label propagation (Raghavan, Albert &amp; Kumara 2007)
+        /// for the specified 1-mode layer(s), storing the community index as an integer node
+        /// attribute. Unlike Louvain, this does not optimize modularity — each node repeatedly
+        /// adopts the most common label among its current neighbors until labels stop changing or
+        /// maxIterations passes are reached (a cap is required since, unlike Louvain's local-moving
+        /// phase, label propagation has no guarantee of convergence). Directed layers are
+        /// symmetrized and multiple layers combine via summed edge weight, matching
+        /// CommunityDetectionLouvain; only 1-mode layers are accepted — project 2-mode layers first.
+        /// Returns a summary with NbrCommunities, CommunitySizes (descending) and the achieved
+        /// Modularity score Q of the resulting partition (reported for comparability with other
+        /// methods, not something this method optimizes for).
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLabelPropagation(Network network, string[]? layerNames, string? attrName = null, int maxIterations = 100)
+        {
+            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+                return err!;
 
-            int nbrCommunities = communities.Count > 0 ? communities.Values.Max() + 1 : 0;
-            int[] communitySizes = new int[nbrCommunities];
-            foreach (int c in communities.Values) communitySizes[c]++;
-
-            var result = new Dictionary<string, object>
-            {
-                ["NbrCommunities"] = nbrCommunities,
-                ["CommunitySizes"] = communitySizes.OrderByDescending(s => s).ToList(),
-                ["Modularity"] = modularity
-            };
-            return OperationResult<Dictionary<string, object>>.Ok(result);
+            attrName = ResolveCommunityAttrName(layerNames, attrName);
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (communities, modularity) = CommunityFunctions.LabelPropagationCommunities(nodeIds, oneModes, maxIterations);
+            return StoreCommunityResult(network, attrName, communities, modularity);
         }
 
         /// <summary>
@@ -1107,6 +1087,93 @@ namespace Threadle.Core.Analysis
             GraphAlgorithms.SplitLayers(resolved, out oneModes, out twoModesDynamic, out twoModesStatic);
             error = null;
             return true;
+        }
+
+        /// <summary>
+        /// Resolves layerNames to a 1-mode-only layer list, shared by every community detection
+        /// method (CommunityDetectionLouvain, CommunityDetectionLabelPropagation, and future ones).
+        /// Rejects 2-mode layers with a "project first" message, matching Coreness/ClusteringCoefficient.
+        /// </summary>
+        private static bool TryResolveOneModeLayersForCommunityDetection(Network network, string[]? layerNames, out List<ILayerOneMode> oneModes, out OperationResult<Dictionary<string, object>>? error)
+        {
+            oneModes = [];
+            if (network.Nodeset.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+                return false;
+            }
+
+            if (layerNames == null)
+            {
+                foreach (var (name, layer) in network.Layers)
+                {
+                    if (layer is ILayerTwoMode)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
+                        return false;
+                    }
+                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+                        return false;
+                    }
+                    if (lr.Value is ILayerTwoMode)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first.");
+                        return false;
+                    }
+                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                }
+            }
+            if (oneModes.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No 1-mode layers found.");
+                return false;
+            }
+            error = null;
+            return true;
+        }
+
+        /// <summary>Default attribute name for community detection results, shared across methods.</summary>
+        private static string ResolveCommunityAttrName(string[]? layerNames, string? attrName)
+        {
+            if (!string.IsNullOrEmpty(attrName)) return attrName;
+            string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
+            return layerTag + "community";
+        }
+
+        /// <summary>
+        /// Writes the community index as an int node attribute and builds the standard
+        /// NbrCommunities/CommunitySizes/Modularity summary shared by every community detection method.
+        /// </summary>
+        private static OperationResult<Dictionary<string, object>> StoreCommunityResult(Network network, string attrName, Dictionary<uint, int> communities, double modularity)
+        {
+            var attrDict = communities.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+            var setResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            if (!setResult.Success)
+                return OperationResult<Dictionary<string, object>>.Fail(setResult);
+
+            int nbrCommunities = communities.Count > 0 ? communities.Values.Max() + 1 : 0;
+            int[] communitySizes = new int[nbrCommunities];
+            foreach (int c in communities.Values) communitySizes[c]++;
+
+            var result = new Dictionary<string, object>
+            {
+                ["NbrCommunities"] = nbrCommunities,
+                ["CommunitySizes"] = communitySizes.OrderByDescending(s => s).ToList(),
+                ["Modularity"] = modularity
+            };
+            return OperationResult<Dictionary<string, object>>.Ok(result);
         }
         #endregion
     }

@@ -14,12 +14,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "communitydetection(network=[var:network], *layernames=[semicolon-separated], *attrname=[str], *resolution=[double])";
+        public string Syntax => "communitydetection(network=[var:network], *layernames=[semicolon-separated], *attrname=[str], *type=['louvain'(default),'labelpropagation'], +resolution=[double], +maxiterations=[int])\"";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Detects communities via Louvain modularity optimization, storing the community index as an integer node attribute. Directed layers are symmetrized (arcs in both directions accumulate into an undirected weight) since modularity optimization is inherently undirected. Multiple layers combine via summed edge weight. Only 1-mode layers are accepted — project 2-mode layers first with projecttwomodetoonemode(). resolution (default 1.0) scales the null-model term: values above 1 favor more, smaller communities; values below 1 favor fewer, larger ones. Returns NbrCommunities, CommunitySizes (descending) and the achieved Modularity score. Reference: Blondel, Guillaume, Lambiotte & Lefebvre (2008) doi:10.1088/1742-5468/2008/10/P10008.";
+        public string Description => "Detects communities for the specified 1-mode layer(s), storing the community index as an integer node attribute. Directed layers are symmetrized (arcs in both directions accumulate into an undirected weight) since community detection is inherently undirected; multiple layers combine via summed edge weight. Only 1-mode layers are accepted — project 2-mode layers first with projecttwomodetoonemode(). Two methods are available via 'type': 'louvain' (default) — modularity optimization; resolution (default 1.0) scales the null-model term, values above 1 favor more/smaller communities, values below 1 favor fewer/larger ones. 'labelpropagation' — each node repeatedly adopts the most common label among its neighbors; maxiterations (default 100) caps the number of passes, since unlike Louvain this method has no guaranteed convergence. Arguments marked with (+) only apply to the corresponding type and are ignored otherwise. Returns NbrCommunities, CommunitySizes (descending) and the achieved Modularity score (for labelpropagation this is reported, not optimized). References: Blondel, Guillaume, Lambiotte & Lefebvre (2008) doi:10.1088/1742-5468/2008/10/P10008; Raghavan, Albert & Kumara (2007) doi:10.1103/PhysRevE.76.036106.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -37,11 +37,23 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerNames = command.GetArgumentParseString("layernames", "");
             string? attrName = command.GetArgumentParseString("attrname", "");
-            double resolution = command.GetArgumentParseDouble("resolution", 1.0);
+            string type = command.GetArgumentParseString("type", "louvain").ToLowerInvariant();
             string[]? layers = layerNames.Length > 0 ? layerNames.Split(';') : null;
             string? attr = attrName.Length > 0 ? attrName : null;
-            var result = Analyses.CommunityDetection(network, layers, attr, resolution);
-            return CommandResult.FromOperationResult(result, result.Value);
+
+            switch (type)
+            {
+                case "louvain":
+                    double resolution = command.GetArgumentParseDouble("resolution", 1.0);
+                    var louvainResult = Analyses.CommunityDetectionLouvain(network, layers, attr, resolution);
+                    return CommandResult.FromOperationResult(louvainResult, louvainResult.Value);
+                case "labelpropagation":
+                    int maxIterations = command.GetArgumentParseInt("maxiterations", 100);
+                    var lpaResult = Analyses.CommunityDetectionLabelPropagation(network, layers, attr, maxIterations);
+                    return CommandResult.FromOperationResult(lpaResult, lpaResult.Value);
+                default:
+                    return CommandResult.Fail("CommunityMethodNotFound", $"Community detection method '{type}' not recognized.");
+            }
         }
     }
 }
