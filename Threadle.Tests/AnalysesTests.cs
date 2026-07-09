@@ -1459,6 +1459,157 @@ public class AnalysesTests
         Assert.True((int)highRes.Value!["NbrCommunities"] >= (int)lowRes.Value!["NbrCommunities"]);
     }
 
+    // ── CommunityDetectionLeiden ─────────────────────────────────────────────────
+
+    [Fact]
+    public void CommunityDetectionLeiden_TwoDisconnectedTriangles_FindsTwoCommunities()
+    {
+        // Same deterministic case used for Louvain: merging across a disconnected component
+        // can never improve modularity, so the outcome holds regardless of Leiden's randomized
+        // refinement step.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+
+        var c1 = net.Nodeset.GetNodeAttribute(1, "layer_community");
+        var c2 = net.Nodeset.GetNodeAttribute(2, "layer_community");
+        var c3 = net.Nodeset.GetNodeAttribute(3, "layer_community");
+        var c4 = net.Nodeset.GetNodeAttribute(4, "layer_community");
+        var c5 = net.Nodeset.GetNodeAttribute(5, "layer_community");
+        var c6 = net.Nodeset.GetNodeAttribute(6, "layer_community");
+        Assert.True(c1.Success && c2.Success && c3.Success && c4.Success && c5.Success && c6.Success);
+
+        object v1 = c1.Value.Value.GetValue(c1.Value.Type)!;
+        object v2 = c2.Value.Value.GetValue(c2.Value.Type)!;
+        object v3 = c3.Value.Value.GetValue(c3.Value.Type)!;
+        object v4 = c4.Value.Value.GetValue(c4.Value.Type)!;
+        object v5 = c5.Value.Value.GetValue(c5.Value.Type)!;
+        object v6 = c6.Value.Value.GetValue(c6.Value.Type)!;
+
+        Assert.Equal(v1, v2);
+        Assert.Equal(v1, v3);
+        Assert.Equal(v4, v5);
+        Assert.Equal(v4, v6);
+        Assert.NotEqual(v1, v4);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_TwoTrianglesWithBridge_KeepsThemSeparate()
+    {
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4); // bridge
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        Assert.True((double)result.Value!["Modularity"] > 0.0);
+
+        var sizes = (List<int>)result.Value!["CommunitySizes"];
+        Assert.Equal(new List<int> { 3, 3 }, sizes);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_NoEdges_EveryNodeIsOwnCommunity()
+    {
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(4, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(0.0, (double)result.Value!["Modularity"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_DirectedLayer_Symmetrizes()
+    {
+        var net = MakeNetwork(6);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4);
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_TwoModeLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "clubs" });
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_HigherResolution_FindsAtLeastAsManyCommunities()
+    {
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4);
+
+        var lowRes = Analyses.CommunityDetectionLeiden(net, new[] { "layer" }, "lowres", resolution: 0.5);
+        var highRes = Analyses.CommunityDetectionLeiden(net, new[] { "layer" }, "highres", resolution: 4.0);
+
+        Assert.True(lowRes.Success);
+        Assert.True(highRes.Success);
+        Assert.True((int)highRes.Value!["NbrCommunities"] >= (int)lowRes.Value!["NbrCommunities"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_NearZeroRandomness_StillSucceeds()
+    {
+        // randomness is clamped to a small positive floor internally, so even a caller-supplied
+        // 0 (fully "greedy" refinement) must not throw (e.g. divide-by-zero in the softmax).
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "layer" }, randomness: 0.0);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+    }
+
     // ── CommunityDetectionLabelPropagation ────────────────────────────────────
 
     [Fact]
