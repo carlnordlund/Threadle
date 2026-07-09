@@ -15,6 +15,35 @@ namespace Threadle.Core.Analysis
         #region Methods (public)
 
         /// <summary>
+        /// Detects communities via Leiden (Traag, Waltman &amp; van Eck 2019) for the specified 1-mode
+        /// layer(s), storing the community index as an integer node attribute. Like
+        /// CommunityDetectionLouvain, this alternates local-moving and aggregation, but inserts a
+        /// randomized refinement step before each aggregation that guarantees every resulting
+        /// community is internally connected — a node is only ever merged into a sub-community it
+        /// shares a direct edge with, fixing a known Louvain flaw where aggregation can occasionally
+        /// strand a node in a community it has no real path through. randomness (default 0.01, θ in
+        /// the original paper) controls how much refinement's merge choices deviate from picking the
+        /// single best candidate — values near 0 are effectively greedy, larger values explore more
+        /// and can escape local optima that a purely greedy method gets stuck in across repeated
+        /// runs. resolution behaves as in CommunityDetectionLouvain (this uses the same
+        /// resolution-scaled modularity objective, not the CPM objective from the original paper, so
+        /// results are directly comparable to Louvain's). Directed layers are symmetrized and
+        /// multiple layers combine via summed edge weight, matching CommunityDetectionLouvain; only
+        /// 1-mode layers are accepted — project 2-mode layers first. Returns a summary with
+        /// NbrCommunities, CommunitySizes (descending) and the achieved Modularity score Q.
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLeiden(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, double randomness = 0.01)
+        {
+            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+                return err!;
+
+            attrName = ResolveCommunityAttrName(layerNames, attrName);
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (communities, modularity) = CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness);
+            return StoreCommunityResult(network, attrName, communities, modularity);
+        }
+
+        /// <summary>
         /// Detects communities via Louvain modularity optimization (Blondel et al. 2008) for the
         /// specified 1-mode layer(s), storing the community index as an integer node attribute.
         /// Directed layers are symmetrized (arcs in both directions accumulate into an undirected

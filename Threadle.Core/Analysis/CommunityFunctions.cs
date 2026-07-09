@@ -13,6 +13,123 @@ namespace Threadle.Core.Analysis
         #region Methods (internal)
 
         /// <summary>
+        /// Leiden (Traag, Waltman &amp; van Eck 2019): multi-level local-moving + aggregation, like
+        /// <see cref="LouvainCommunities"/>, but with a refinement step inserted before each
+        /// aggregation that fixes Louvain's known flaw of occasionally producing internally
+        /// disconnected communities. After the local-moving phase produces a (coarse) partition P,
+        /// <see cref="RefinePartition"/> rebuilds it from singletons, only ever merging a node into a
+        /// sub-community it shares a direct edge with, and only within its own P-community — every
+        /// resulting sub-community is therefore guaranteed connected by construction. Aggregation
+        /// then groups nodes by this refined partition rather than by P directly, so a coarser-level
+        /// super-node's members are always connected too. Merge choices within refinement are drawn
+        /// via a softmax over positive modularity gains (<paramref name="randomness"/>, θ in the
+        /// original paper; near 0 is effectively greedy, larger values explore more), rather than
+        /// picking the single best candidate — this randomization is what lets Leiden escape local
+        /// optima that a purely greedy method gets stuck in across repeated runs. Each subsequent
+        /// aggregation level seeds its local-moving phase from the previous level's P-groups (instead
+        /// of restarting from singletons), continuing from where the coarser level left off. Uses the
+        /// same resolution-scaled modularity objective as CommunityDetectionLouvain (not the CPM
+        /// objective from the original paper), so results are directly comparable. Directed layers
+        /// are symmetrized and multiple layers combine via summed weight, matching
+        /// CommunityDetectionLouvain. Returns the community index (0-based, compacted) for every node
+        /// plus the achieved modularity Q.
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) LeidenCommunities(
+            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, double randomness = 0.01)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            randomness = Math.Max(randomness, 1e-6);
+
+            var (neighbors0, weights0, degree0, twoM) = BuildAdjacency(nodeIds, layers);
+
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            int[] mapping = new int[n0];
+            for (int i = 0; i < n0; i++) mapping[i] = i;
+
+            int curN = n0;
+            int[][] curNeighbors = neighbors0;
+            double[][] curWeights = weights0;
+            double[] curDegree = degree0;
+            int[]? seedCommunity = null; // null => start level 0 from singletons
+
+            while (true)
+            {
+                int[] community = new int[curN];
+                if (seedCommunity == null)
+                    for (int i = 0; i < curN; i++) community[i] = i;
+                else
+                    Array.Copy(seedCommunity, community, curN);
+
+                bool improved = LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community);
+                int[] refined = RefinePartition(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community, randomness);
+
+                var commMap = new Dictionary<int, int>(curN);
+                for (int i = 0; i < curN; i++)
+                    if (!commMap.ContainsKey(refined[i])) commMap[refined[i]] = commMap.Count;
+                int newN = commMap.Count;
+
+                for (int i = 0; i < n0; i++)
+                    mapping[i] = commMap[refined[mapping[i]]];
+
+                if (!improved || newN == curN)
+                    break;
+
+                var newAdj = new Dictionary<int, double>[newN];
+                for (int i = 0; i < newN; i++) newAdj[i] = new Dictionary<int, double>();
+                for (int u = 0; u < curN; u++)
+                {
+                    int cu = commMap[refined[u]];
+                    var nbrs = curNeighbors[u];
+                    var wts = curWeights[u];
+                    for (int k = 0; k < nbrs.Length; k++)
+                    {
+                        int cv = commMap[refined[nbrs[k]]];
+                        newAdj[cu][cv] = newAdj[cu].GetValueOrDefault(cv) + wts[k];
+                    }
+                }
+
+                // Seed the next level's local-moving from the P-groups computed at this level
+                // (every super-node's members share one P value, since refinement never crosses
+                // a P boundary), so aggregation continues from Leiden's own prior progress instead
+                // of restarting from singletons — same efficiency/quality trick as the paper.
+                var pGroupToId = new Dictionary<int, int>(newN);
+                int[] nextSeed = new int[newN];
+                for (int u = 0; u < curN; u++)
+                {
+                    int cu = commMap[refined[u]];
+                    int pu = community[u];
+                    if (!pGroupToId.TryGetValue(pu, out int seedId))
+                    {
+                        seedId = pGroupToId.Count;
+                        pGroupToId[pu] = seedId;
+                    }
+                    nextSeed[cu] = seedId;
+                }
+
+                (curNeighbors, curWeights) = ToArrays(newAdj, newN);
+                curDegree = new double[newN];
+                for (int i = 0; i < newN; i++) curDegree[i] = SumArray(curWeights[i]);
+                curN = newN;
+                seedCommunity = nextSeed;
+            }
+
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
+
+            double modularity = ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping);
+            return (communities, modularity);
+        }
+
+        /// <summary>
         /// Louvain modularity optimization (Blondel et al. 2008): multi-level local-moving +
         /// aggregation. Directed layers are symmetrized (arc u→v and v→u both accumulate into an
         /// undirected weight, same convention as <see cref="LocalStructureFunctions.StructuralHoles"/>)
@@ -192,6 +309,107 @@ namespace Threadle.Core.Analysis
         #region Methods (private)
 
         /// <summary>
+        /// Leiden's refinement step: rebuilds <paramref name="P"/> from singletons, merging a node
+        /// into a neighboring sub-community only if (a) that neighbor shares the same P-community —
+        /// merges never cross a P boundary — and (b) the node has a direct edge to a member of that
+        /// sub-community, since candidates are drawn only from neighbors' current sub-community
+        /// labels. Both conditions together guarantee every sub-community in the result is
+        /// internally connected. Each node is visited at most once (it is skipped once it has left
+        /// its own singleton), and its move — if any — is drawn via a softmax over positive
+        /// modularity-gain candidates (temperature <paramref name="randomness"/>), not a greedy
+        /// argmax, so repeated runs can explore different, still-valid refinements.
+        /// </summary>
+        private static int[] RefinePartition(int n, int[][] neighbors, double[][] weights,
+            double[] degree, double twoM, double resolution, int[] P, double randomness)
+        {
+            int[] refined = new int[n];
+            for (int i = 0; i < n; i++) refined[i] = i;
+
+            var sigmaTot = new double[n];
+            for (int i = 0; i < n; i++) sigmaTot[i] = degree[i];
+
+            int[] order = new int[n];
+            for (int i = 0; i < n; i++) order[i] = i;
+            Shuffle(order);
+
+            var candidateWeight = new Dictionary<int, double>();
+            var candidateIds = new List<int>();
+            var candidateGains = new List<double>();
+            var candidateWeights = new List<double>();
+
+            foreach (int u in order)
+            {
+                if (refined[u] != u) continue; // already merged away from its singleton
+
+                int pu = P[u];
+                candidateWeight.Clear();
+                var nbrs = neighbors[u];
+                var wts = weights[u];
+                for (int k = 0; k < nbrs.Length; k++)
+                {
+                    int v = nbrs[k];
+                    if (v == u || P[v] != pu) continue; // stay within u's own P-community
+                    int c = refined[v];
+                    candidateWeight[c] = candidateWeight.GetValueOrDefault(c) + wts[k];
+                }
+                if (candidateWeight.Count == 0) continue; // no eligible neighbor: stays singleton
+
+                sigmaTot[u] -= degree[u];
+
+                candidateIds.Clear();
+                candidateGains.Clear();
+                double bestGain = 0.0; // staying singleton has gain 0 by definition
+                foreach (var (c, kIn) in candidateWeight)
+                {
+                    double gain = kIn - resolution * sigmaTot[c] * degree[u] / twoM;
+                    if (gain > Epsilon)
+                    {
+                        candidateIds.Add(c);
+                        candidateGains.Add(gain);
+                        if (gain > bestGain) bestGain = gain;
+                    }
+                }
+
+                if (candidateIds.Count == 0)
+                {
+                    sigmaTot[u] += degree[u]; // no improving move: stays singleton
+                    continue;
+                }
+
+                // Numerically-stable softmax: shifting by bestGain keeps every exponent <= 0.
+                candidateWeights.Clear();
+                for (int k = 0; k < candidateGains.Count; k++)
+                    candidateWeights.Add(Math.Exp((candidateGains[k] - bestGain) / randomness));
+
+                int chosen = WeightedRandomChoice(candidateIds, candidateWeights);
+                refined[u] = chosen;
+                sigmaTot[chosen] += degree[u];
+            }
+
+            return refined;
+        }
+
+        /// <summary>
+        /// Picks one of <paramref name="ids"/> at random, with probability proportional to the
+        /// corresponding entry in <paramref name="weights"/> (assumed non-negative, not necessarily
+        /// normalized).
+        /// </summary>
+        private static int WeightedRandomChoice(List<int> ids, List<double> weights)
+        {
+            double total = 0.0;
+            foreach (double w in weights) total += w;
+
+            double r = Misc.Random.NextDouble() * total;
+            double cumulative = 0.0;
+            for (int i = 0; i < ids.Count; i++)
+            {
+                cumulative += weights[i];
+                if (r <= cumulative) return ids[i];
+            }
+            return ids[^1]; // floating-point fallback
+        }
+
+        /// <summary>
         /// Repeatedly sweeps all nodes (in random order) moving each to whichever neighboring
         /// community (including its own) yields the greatest modularity gain, until a full sweep
         /// produces no moves. Returns whether any node ever moved.
@@ -199,8 +417,11 @@ namespace Threadle.Core.Analysis
         private static bool LocalMovingPhase(int n, int[][] neighbors, double[][] weights,
             double[] degree, double twoM, double resolution, int[] community)
         {
+            // Aggregated by the actual starting groups in `community` rather than assumed to be
+            // singletons — matters once callers (e.g. Leiden) seed this with a non-singleton
+            // partition; reduces to the old sigmaTot[i] = degree[i] when community[i] == i for all i.
             var sigmaTot = new double[n];
-            for (int i = 0; i < n; i++) sigmaTot[i] = degree[i];
+            for (int i = 0; i < n; i++) sigmaTot[community[i]] += degree[i];
 
             int[] order = new int[n];
             for (int i = 0; i < n; i++) order[i] = i;
@@ -254,22 +475,20 @@ namespace Threadle.Core.Analysis
                 }
             }
             return improvedAny;
-        }
-
-        /// <summary>
-        /// LPAm (Barber &amp; Clark 2009): label propagation constrained by modularity — every node
-        /// starts with a unique label; repeatedly, in random order, each node adopts whichever label
-        /// among its current neighbors (or keeps its own) yields the greatest modularity gain,
-        /// rather than plain majority vote. This is the same greedy move rule as one level of
-        /// <see cref="LocalMovingPhase"/>, but — unlike <see cref="LouvainCommunities"/> — it is run
-        /// at a single level only, with no aggregation into a coarser graph afterwards. Because moves
-        /// are gated on actually improving modularity, it avoids vanilla label propagation's
-        /// "monster community" collapse (a move that would merge everything into one giant blob
-        /// always has negative gain once that blob's own internal density stops exceeding the null
-        /// model). It typically yields more, smaller communities than Louvain, since it can't escape
-        /// local optima the way Louvain's aggregation levels do. Layers are combined and symmetrized
-        /// exactly as in <see cref="LouvainCommunities"/>.
-        /// </summary>
+        }        /// <summary>
+                 /// LPAm (Barber &amp; Clark 2009): label propagation constrained by modularity — every node
+                 /// starts with a unique label; repeatedly, in random order, each node adopts whichever label
+                 /// among its current neighbors (or keeps its own) yields the greatest modularity gain,
+                 /// rather than plain majority vote. This is the same greedy move rule as one level of
+                 /// <see cref="LocalMovingPhase"/>, but — unlike <see cref="LouvainCommunities"/> — it is run
+                 /// at a single level only, with no aggregation into a coarser graph afterwards. Because moves
+                 /// are gated on actually improving modularity, it avoids vanilla label propagation's
+                 /// "monster community" collapse (a move that would merge everything into one giant blob
+                 /// always has negative gain once that blob's own internal density stops exceeding the null
+                 /// model). It typically yields more, smaller communities than Louvain, since it can't escape
+                 /// local optima the way Louvain's aggregation levels do. Layers are combined and symmetrized
+                 /// exactly as in <see cref="LouvainCommunities"/>.
+                 /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LPAmCommunities(
             uint[] nodeIds, List<ILayerOneMode> layers)
         {
