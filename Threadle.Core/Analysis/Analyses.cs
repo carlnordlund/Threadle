@@ -62,6 +62,33 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Detects communities via LPAm (Barber &amp; Clark 2009) for the specified 1-mode layer(s),
+        /// storing the community index as an integer node attribute. Like CommunityDetectionLabelPropagation,
+        /// every node starts with a unique label and repeatedly adopts a label from among its
+        /// neighbors — but here each move is only accepted if it actually increases modularity,
+        /// rather than simply following the majority. This fixes vanilla label propagation's
+        /// tendency to collapse a well-connected network into one "monster community": a move that
+        /// would merge everything together has negative modularity gain once the resulting
+        /// community's internal density stops exceeding the null model, so it is never taken. Unlike
+        /// CommunityDetectionLouvain, LPAm runs a single level with no aggregation step afterwards,
+        /// so it typically finds more, smaller communities than Louvain since it cannot escape local
+        /// optima the same way. Directed layers are symmetrized and multiple layers combine via
+        /// summed edge weight, matching CommunityDetectionLouvain; only 1-mode layers are accepted —
+        /// project 2-mode layers first. Returns a summary with NbrCommunities, CommunitySizes
+        /// (descending) and the achieved Modularity score Q.
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null)
+        {
+            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+                return err!;
+
+            attrName = ResolveCommunityAttrName(layerNames, attrName);
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (communities, modularity) = CommunityFunctions.LPAmCommunities(nodeIds, oneModes);
+            return StoreCommunityResult(network, attrName, communities, modularity);
+        }
+
+        /// <summary>
         /// Computes the Holland-Leinhardt triadic census for a single 1-mode layer: counts of the
         /// 16 isomorphism classes of directed triads (003, 012, 102, 021D, 021U, 021C, 111D, 111U,
         /// 030T, 030C, 201, 120D, 120U, 120C, 210, 300), plus the total number of triples and a
