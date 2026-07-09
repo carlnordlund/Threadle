@@ -367,6 +367,46 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Detects communities via Infomap (Rosvall &amp; Bergstrom 2008) for the specified layer(s),
+        /// storing the community index as an integer node attribute. Unlike
+        /// CommunityDetectionLouvain/Leiden/LPAm, this does not optimize modularity at all — it
+        /// minimizes the two-level map-equation codelength, the expected bits per step needed to
+        /// describe a random walker's trajectory when nodes are named within per-module codebooks
+        /// plus a shared codebook for crossing between modules. That asks where flow gets trapped,
+        /// not where edge density exceeds a null-model baseline, so it can find structure the other
+        /// three miss (and vice versa); Modularity is still reported for comparability, but
+        /// Codelength is this method's actual objective, and lower is better for it — the opposite
+        /// direction from Modularity. Like Louvain, it is a greedy local search and can occasionally
+        /// settle in a local optimum, particularly on small or highly symmetric structures.
+        /// <para/>
+        /// This is the only community detection method that accepts 2-mode layers directly, alongside
+        /// or instead of 1-mode ones — no projecttwomodetoonemode() call needed. A random walk has a
+        /// well-defined step on a hyperedge (pick an incident hyperedge weighted by its size, then a
+        /// member of it other than the ego) without ever materializing a projected layer, unlike
+        /// modularity's null model, which has no comparably natural unprojected formulation here.
+        /// That said, computing the *exact* co-membership weight between every pair of a hyperedge's
+        /// members still costs O(hyperedge size squared) for that hyperedge — the same cost
+        /// projecting would have, just not persisted as a stored layer — so a 2-mode layer with very
+        /// large hyperedges (e.g. thousands of people sharing one "works at company X" affiliation)
+        /// can still be expensive here even though nothing gets materialized.
+        /// <para/>
+        /// Directed 1-mode layers are symmetrized and multiple layers combine via summed edge weight,
+        /// matching CommunityDetectionLouvain. Returns a summary with NbrCommunities, CommunitySizes
+        /// (descending), the achieved Modularity score (for comparability, not optimized), and
+        /// Codelength in bits (this method's actual objective — lower is better).
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionInfomap(Network network, string[]? layerNames, string? attrName = null)
+        {
+            if (!TryResolveLayersForInfomap(network, layerNames, out var layers, out var err))
+                return err!;
+
+            attrName = ResolveCommunityAttrName(layerNames, attrName);
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (communities, modularity, codelength) = CommunityFunctions.InfomapCommunities(nodeIds, layers);
+            return StoreCommunityResult(network, attrName, communities, modularity, codelength);
+        }
+
+        /// <summary>
         /// Calculates betweenness centrality for all nodes using Brandes' algorithm with
         /// hyperedge-aware BFS. Normalizes by (n-1)(n-2) for directed, halved for undirected.
         /// When sampleSize > 0, scales the result by n/sampleSize.
@@ -1201,6 +1241,48 @@ namespace Threadle.Core.Analysis
             return true;
         }
 
+        /// <summary>
+        /// Resolves layerNames to a layer list for CommunityDetectionInfomap — unlike
+        /// TryResolveOneModeLayersForCommunityDetection, 2-mode layers are accepted directly rather
+        /// than rejected, since Infomap's flow-based objective has a well-defined formulation on
+        /// hyperedges without ever materializing a projected layer (see
+        /// CommunityFunctions.BuildAdjacencyMixed).
+        /// </summary>
+        private static bool TryResolveLayersForInfomap(Network network, string[]? layerNames, out List<ILayer> layers, out OperationResult<Dictionary<string, object>>? error)
+        {
+            layers = [];
+            if (network.Nodeset.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+                return false;
+            }
+
+            if (layerNames == null)
+            {
+                layers.AddRange(network.Layers.Values);
+            }
+            else
+            {
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+                        return false;
+                    }
+                    layers.Add(lr.Value!);
+                }
+            }
+            if (layers.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No layers found.");
+                return false;
+            }
+            error = null;
+            return true;
+        }
+
         /// <summary>Default attribute name for community detection results, shared across methods.</summary>
         private static string ResolveCommunityAttrName(string[]? layerNames, string? attrName)
         {
@@ -1211,9 +1293,12 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Writes the community index as an int node attribute and builds the standard
-        /// NbrCommunities/CommunitySizes/Modularity summary shared by every community detection method.
+        /// NbrCommunities/CommunitySizes/Modularity summary shared by every community detection
+        /// method. codelengthBits is only supplied by CommunityDetectionInfomap, whose actual
+        /// objective is codelength rather than modularity — when present, an additional
+        /// "Codelength" entry is added to the result (lower is better, unlike Modularity).
         /// </summary>
-        private static OperationResult<Dictionary<string, object>> StoreCommunityResult(Network network, string attrName, Dictionary<uint, int> communities, double modularity)
+        private static OperationResult<Dictionary<string, object>> StoreCommunityResult(Network network, string attrName, Dictionary<uint, int> communities, double modularity, double? codelengthBits = null)
         {
             var attrDict = communities.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
             var setResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
@@ -1230,6 +1315,8 @@ namespace Threadle.Core.Analysis
                 ["CommunitySizes"] = communitySizes.OrderByDescending(s => s).ToList(),
                 ["Modularity"] = modularity
             };
+            if (codelengthBits.HasValue)
+                result["Codelength"] = codelengthBits.Value;
             return OperationResult<Dictionary<string, object>>.Ok(result);
         }
         #endregion

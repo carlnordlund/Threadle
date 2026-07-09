@@ -1831,6 +1831,115 @@ public class AnalysesTests
         Assert.False(result.Success);
     }
 
+    // ── CommunityDetectionInfomap ────────────────────────────────────────────────
+
+    [Fact]
+    public void CommunityDetectionInfomap_TwoTrianglesWithBridge_KeepsThemSeparate()
+    {
+        // Same bridge case used for Louvain/Leiden. Unlike the plain disconnected-triangles case
+        // (which, being a highly symmetric structure with no bridge to break, can occasionally
+        // settle in a worse local optimum — verified independently across seeds during
+        // development, matching the well-known "greedy local search" caveat this method shares
+        // with Louvain), the bridge case's codelength gain from separating the two triangles is
+        // unambiguous enough to be deterministic here too.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4); // bridge
+
+        var result = Analyses.CommunityDetectionInfomap(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        var sizes = (List<int>)result.Value!["CommunitySizes"];
+        Assert.Equal(new List<int> { 3, 3 }, sizes);
+
+        // Unlike the other four types, Infomap's actual objective is Codelength, not Modularity;
+        // Modularity is still reported for comparability, but Codelength must also be present.
+        Assert.True(result.Value!.ContainsKey("Codelength"));
+        Assert.True((double)result.Value!["Codelength"] >= 0.0);
+    }
+
+    [Fact]
+    public void CommunityDetectionInfomap_NoEdges_EveryNodeIsOwnCommunity()
+    {
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+
+        var result = Analyses.CommunityDetectionInfomap(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(4, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(0.0, (double)result.Value!["Codelength"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionInfomap_DirectedLayer_Symmetrizes()
+    {
+        var net = MakeNetwork(6);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4);
+
+        var result = Analyses.CommunityDetectionInfomap(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionInfomap_TwoModeLayer_SucceedsUnlikeOtherMethods()
+    {
+        // Unlike CommunityDetectionLouvain/Leiden/LabelPropagation/LPAm (which all reject 2-mode
+        // layers outright), Infomap accepts them directly. These three hyperedges reproduce
+        // exactly the same effective weighted graph as the bridge case above (h1/h2 are
+        // 3-member hyperedges, so every pair within each gets co-membership weight 1, matching
+        // the triangle edges; h3 is a 2-member hyperedge, matching the single bridge edge) —
+        // without ever projecting to a 1-mode layer.
+        var net = MakeNetwork(6);
+        net.AddLayerTwoMode("affiliations");
+        net.AddHyperedge("affiliations", "h1", [1u, 2u, 3u]);
+        net.AddHyperedge("affiliations", "h2", [4u, 5u, 6u]);
+        net.AddHyperedge("affiliations", "h3", [3u, 4u]);
+
+        var result = Analyses.CommunityDetectionInfomap(net, new[] { "affiliations" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        var sizes = (List<int>)result.Value!["CommunitySizes"];
+        Assert.Equal(new List<int> { 3, 3 }, sizes);
+    }
+
+    [Fact]
+    public void CommunityDetectionInfomap_MixedOneModeAndTwoModeLayers_Succeeds()
+    {
+        // Combining a 1-mode layer and a 2-mode layer in the same call: BuildAdjacencyMixed must
+        // handle both within one pass without erroring or double-counting.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddLayerTwoMode("affiliations");
+        net.AddHyperedge("affiliations", "h1", [4u, 5u, 6u]);
+
+        var result = Analyses.CommunityDetectionInfomap(net, new[] { "layer", "affiliations" });
+
+        Assert.True(result.Success);
+        var sizes = (List<int>)result.Value!["CommunitySizes"];
+        Assert.Equal(6, sizes.Sum());
+    }
+
     // ── Density: edge case – single node ─────────────────────────────────────
 
     [Fact]
