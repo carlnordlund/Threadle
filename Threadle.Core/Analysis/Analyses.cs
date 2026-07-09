@@ -311,6 +311,33 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Detects communities via LPAm (Barber &amp; Clark 2009) for the specified 1-mode layer(s),
+        /// storing the community index as an integer node attribute. Like CommunityDetectionLabelPropagation,
+        /// every node starts with a unique label and repeatedly adopts a label from among its
+        /// neighbors — but here each move is only accepted if it actually increases modularity,
+        /// rather than simply following the majority. This fixes vanilla label propagation's
+        /// tendency to collapse a well-connected network into one "monster community": a move that
+        /// would merge everything together has negative modularity gain once the resulting
+        /// community's internal density stops exceeding the null model, so it is never taken. Unlike
+        /// CommunityDetectionLouvain, LPAm runs a single level with no aggregation step afterwards,
+        /// so it typically finds more, smaller communities than Louvain since it cannot escape local
+        /// optima the same way. Directed layers are symmetrized and multiple layers combine via
+        /// summed edge weight, matching CommunityDetectionLouvain; only 1-mode layers are accepted —
+        /// project 2-mode layers first. Returns a summary with NbrCommunities, CommunitySizes
+        /// (descending) and the achieved Modularity score Q.
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null)
+        {
+            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+                return err!;
+
+            attrName = ResolveCommunityAttrName(layerNames, attrName);
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (communities, modularity) = CommunityFunctions.LPAmCommunities(nodeIds, oneModes);
+            return StoreCommunityResult(network, attrName, communities, modularity);
+        }
+
+        /// <summary>
         /// Calculates betweenness centrality for all nodes using Brandes' algorithm with
         /// hyperedge-aware BFS. Normalizes by (n-1)(n-2) for directed, halved for undirected.
         /// When sampleSize > 0, scales the result by n/sampleSize.
@@ -1091,8 +1118,9 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Resolves layerNames to a 1-mode-only layer list, shared by every community detection
-        /// method (CommunityDetectionLouvain, CommunityDetectionLabelPropagation, and future ones).
-        /// Rejects 2-mode layers with a "project first" message, matching Coreness/ClusteringCoefficient.
+        /// method (CommunityDetectionLouvain, CommunityDetectionLabelPropagation,
+        /// CommunityDetectionLPAm, and future ones). Rejects 2-mode layers with a "project first"
+        /// message, matching Coreness/ClusteringCoefficient.
         /// </summary>
         private static bool TryResolveOneModeLayersForCommunityDetection(Network network, string[]? layerNames, out List<ILayerOneMode> oneModes, out OperationResult<Dictionary<string, object>>? error)
         {

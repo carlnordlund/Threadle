@@ -187,6 +187,59 @@ namespace Threadle.Core.Analysis
             return (communities, modularity);
         }
 
+        /// <summary>
+        /// LPAm (Barber &amp; Clark 2009): label propagation constrained by modularity — every node
+        /// starts with a unique label; repeatedly, in random order, each node adopts whichever label
+        /// among its current neighbors (or keeps its own) yields the greatest modularity gain,
+        /// rather than plain majority vote. This is the same greedy move rule as one level of
+        /// <see cref="LocalMovingPhase"/>, but — unlike <see cref="LouvainCommunities"/> — it is run
+        /// at a single level only, with no aggregation into a coarser graph afterwards. Because moves
+        /// are gated on actually improving modularity, it avoids vanilla label propagation's
+        /// "monster community" collapse (a move that would merge everything into one giant blob
+        /// always has negative gain once that blob's own internal density stops exceeding the null
+        /// model). It typically yields more, smaller communities than Louvain, since it can't escape
+        /// local optima the way Louvain's aggregation levels do. Layers are combined and symmetrized
+        /// exactly as in <see cref="LouvainCommunities"/>.
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) LPAmCommunities(
+            uint[] nodeIds, List<ILayerOneMode> layers)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            var (neighbors, weights, degree, twoM) = BuildAdjacency(nodeIds, layers);
+
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            int[] community = new int[n0];
+            for (int i = 0; i < n0; i++) community[i] = i;
+
+            LocalMovingPhase(n0, neighbors, weights, degree, twoM, 1.0, community);
+
+            var commMap = new Dictionary<int, int>(n0);
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++)
+            {
+                if (!commMap.TryGetValue(community[i], out int c))
+                {
+                    c = commMap.Count;
+                    commMap[community[i]] = c;
+                }
+                communities[nodeIds[i]] = c;
+            }
+
+            int[] mapping = new int[n0];
+            for (int i = 0; i < n0; i++) mapping[i] = commMap[community[i]];
+            double modularity = ComputeModularity(n0, neighbors, weights, degree, twoM, 1.0, mapping);
+            return (communities, modularity);
+        }
+
         #endregion
 
         #region Methods (private)

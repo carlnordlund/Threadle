@@ -1567,6 +1567,119 @@ public class AnalysesTests
         Assert.Equal(6, sizes.Sum());
     }
 
+    // ── CommunityDetectionLPAm ─────────────────────────────────────────────────
+
+    [Fact]
+    public void CommunityDetectionLPAm_TwoDisconnectedTriangles_FindsTwoCommunities()
+    {
+        // Moves are only taken when they increase modularity, and merging across a
+        // disconnected component can never do that, so this is deterministic regardless
+        // of random visitation order.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+
+        var c1 = net.Nodeset.GetNodeAttribute(1, "layer_community");
+        var c2 = net.Nodeset.GetNodeAttribute(2, "layer_community");
+        var c3 = net.Nodeset.GetNodeAttribute(3, "layer_community");
+        var c4 = net.Nodeset.GetNodeAttribute(4, "layer_community");
+        var c5 = net.Nodeset.GetNodeAttribute(5, "layer_community");
+        var c6 = net.Nodeset.GetNodeAttribute(6, "layer_community");
+        Assert.True(c1.Success && c2.Success && c3.Success && c4.Success && c5.Success && c6.Success);
+
+        object v1 = c1.Value.Value.GetValue(c1.Value.Type)!;
+        object v2 = c2.Value.Value.GetValue(c2.Value.Type)!;
+        object v3 = c3.Value.Value.GetValue(c3.Value.Type)!;
+        object v4 = c4.Value.Value.GetValue(c4.Value.Type)!;
+        object v5 = c5.Value.Value.GetValue(c5.Value.Type)!;
+        object v6 = c6.Value.Value.GetValue(c6.Value.Type)!;
+
+        Assert.Equal(v1, v2);
+        Assert.Equal(v1, v3);
+        Assert.Equal(v4, v5);
+        Assert.Equal(v4, v6);
+        Assert.NotEqual(v1, v4);
+    }
+
+    [Fact]
+    public void CommunityDetectionLPAm_TwoTrianglesWithBridge_KeepsThemSeparate()
+    {
+        // Same bridge case used for Louvain: unlike plain label-propagation majority voting,
+        // LPAm's modularity-gated moves keep the two triangles apart instead of collapsing
+        // into one "monster community" across the bridge.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4); // bridge
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        Assert.True((double)result.Value!["Modularity"] > 0.0);
+
+        var sizes = (List<int>)result.Value!["CommunitySizes"];
+        Assert.Equal(new List<int> { 3, 3 }, sizes);
+    }
+
+    [Fact]
+    public void CommunityDetectionLPAm_NoEdges_EveryNodeIsOwnCommunity()
+    {
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(4, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(0.0, (double)result.Value!["Modularity"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLPAm_DirectedLayer_Symmetrizes()
+    {
+        var net = MakeNetwork(6);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4);
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLPAm_TwoModeLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "clubs" });
+
+        Assert.False(result.Success);
+    }
+
     // ── Density: edge case – single node ─────────────────────────────────────
 
     [Fact]
