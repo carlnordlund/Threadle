@@ -82,15 +82,6 @@
                 default:
                     return OperationResult.Fail("SettingNotFound", $"Unknown setting: '{key}'.");
             }
-
-            //if (key.Equals("nodecache"))
-            //    NodeCache = value;
-            //else if (key.Equals("blockmultiedges"))
-            //    BlockMultiedges = value;
-            //else if (key.Equals("onlyoutboundedges"))
-            //    OnlyOutboundEdges = value;
-            //else
-            //    return OperationResult.Fail("SettingNotFound", $"Unknown setting: '{key}'.");
             return OperationResult.Ok($"Setting '{key}' to {value}.");
         }
 
