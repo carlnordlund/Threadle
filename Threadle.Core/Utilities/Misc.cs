@@ -450,6 +450,52 @@ namespace Threadle.Core.Utilities
                 return $"{bytes / (double)(1L << 10):F1} kB";
             return $"{bytes} B";
         }
+
+        /// <summary>
+        /// Converts 'value' to a bool, whether it already is one (returned as-is) or is a string that can
+        /// be parsed as one. Returns false (with result set to default) for any other case.
+        /// </summary>
+        /// <param name="value">The value to convert, either a bool or a string.</param>
+        /// <param name="result">The converted bool value, if successful.</param>
+        /// <returns>True if 'value' could be converted to a bool, false otherwise.</returns>
+        internal static bool TryConvertToBool(object value, out bool result)
+        {
+            switch (value)
+            {
+                case bool b:
+                    result = b;
+                    return true;
+                case string s when bool.TryParse(s, out bool parsed):
+                    result = parsed;
+                    return true;
+                default:
+                    result = default;
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Converts 'value' to an int, whether it already is one (returned as-is) or is a string that can
+        /// be parsed as one. Returns false (with result set to default) for any other case.
+        /// </summary>
+        /// <param name="value">The value to convert, either an int or a string.</param>
+        /// <param name="result">The converted int value, if successful.</param>
+        /// <returns>True if 'value' could be converted to an int, false otherwise.</returns>
+        internal static bool TryConvertToInt(object value, out int result)
+        {
+            switch (value)
+            {
+                case int i:
+                    result = i;
+                    return true;
+                case string s when int.TryParse(s, out int parsed):
+                    result = parsed;
+                    return true;
+                default:
+                    result = default;
+                    return false;
+            }
+        }
         #endregion
     }
 }
