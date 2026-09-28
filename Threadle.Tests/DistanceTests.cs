@@ -498,4 +498,143 @@ public class DistanceTests
             .ToArray();
         Assert.Equal(new[] { "a", "b", "c" }, labels);
     }
+
+    // ── RandomWalkNodeAttributeFirstPassageTimeDistances (parallelized initial pass) ─────
+
+    [Fact]
+    public void RwFpt_ValidNetworkAndAttr_Succeeds()
+    {
+        var net = MakeCompleteNetwork(10);
+        AssignTwoGroupCharAttr(net, "role", 5);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 3, null, 2f, 0, false, false);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void RwFpt_UnknownAttribute_Fails()
+    {
+        var net = MakeCompleteNetwork(4);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "nonexistent", 2, null, 1f, 0, false, false);
+
+        Assert.False(result.Success);
+        Assert.Equal("AttributeUnknown", result.Code);
+    }
+
+    [Fact]
+    public void RwFpt_FloatAttribute_Fails()
+    {
+        var net = MakeCompleteNetwork(4);
+        net.Nodeset.DefineNodeAttribute("score", "float");
+
+        var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "score", 2, null, 1f, 0, false, false);
+
+        Assert.False(result.Success);
+        Assert.Equal("InvalidAttributeType", result.Code);
+    }
+
+    [Fact]
+    public void RwFpt_UnknownLayerName_Fails()
+    {
+        var net = MakeCompleteNetwork(4);
+        AssignTwoGroupCharAttr(net, "role", 2);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 2, ["nonexistent"], 1f, 0, false, false);
+
+        Assert.False(result.Success);
+        Assert.Equal("LayerNotFound", result.Code);
+    }
+
+    [Fact]
+    public void RwFpt_ResultNodesetHasOneNodePerUniqueValue()
+    {
+        var net = MakeCompleteNetwork(12);
+        net.Nodeset.DefineNodeAttribute("role", "char");
+        foreach (uint id in net.Nodeset.NodeIdArray)
+            net.Nodeset.SetNodeAttribute(id, "role", id <= 4 ? "a" : id <= 8 ? "b" : "c");
+
+        var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 2, null, 2f, 0, false, false);
+
+        Assert.Equal(3, GetResultNodeset(result.Value!).Count);
+    }
+
+    [Fact]
+    public void RwFpt_MinPairObsZero_SkipsTargetedRestarts_Succeeds()
+    {
+        var net = MakeCompleteNetwork(10);
+        AssignTwoGroupCharAttr(net, "role", 5);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 3, null, 2f, 0, false, false);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void RwFpt_MinPairObsPositive_TriggersTargetedRestarts_Succeeds()
+    {
+        // Small, heavily imbalanced groups so the initial pass alone is unlikely to satisfy minPairObs,
+        // exercising the (now randomly-sampled) targeted-restart phase.
+        var net = MakeCompleteNetwork(12);
+        AssignTwoGroupCharAttr(net, "role", 1);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 3, null, 1f, 5, false, false);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void RwFpt_ReturnHistogramsTrue_HistogramsPopulated()
+    {
+        var net = MakeCompleteNetwork(10);
+        AssignTwoGroupCharAttr(net, "role", 5);
+
+        var (result, histograms) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 3, null, 3f, 0, false, false, returnHistograms: true);
+
+        Assert.True(result.Success);
+        Assert.NotNull(histograms);
+        Assert.NotEmpty(histograms!);
+    }
+
+    [Fact]
+    public void RwFpt_MaxThreadsOne_Succeeds()
+    {
+        try
+        {
+            UserSettings.Set("maxthreads", 1);
+            var net = MakeCompleteNetwork(10);
+            AssignTwoGroupCharAttr(net, "role", 5);
+
+            var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 3, null, 2f, 0, false, false);
+
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void RwFpt_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeCompleteNetwork(20);
+            AssignTwoGroupCharAttr(net, "role", 10);
+
+            var (result, _) = Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(net, "role", 3, null, 3f, 0, false, false);
+
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
 }

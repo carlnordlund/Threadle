@@ -339,7 +339,7 @@ namespace Threadle.Core.Analysis
         public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, int Count)>? Histograms) RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
         {
             if (CheckLayersExist(network, layers) is OperationResult result)
-                return (OperationResult<StructureResult>.Fail(result),[]);
+                return (OperationResult<StructureResult>.Fail(result), []);
 
             if (walkfactor <= 0)
                 return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero."), []);
@@ -375,14 +375,11 @@ namespace Threadle.Core.Analysis
                 foreach (string ln in layers)
                     resolvedLayers.Add(network.GetLayer(ln).Value!);
 
-            void RunWalk(uint startNodeId)
+            void RunWalk(uint startNodeId, Dictionary<(uint from, uint to), int[]> histograms, Dictionary<uint, int> walkCounts)
             {
                 if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
                     return;
-                if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
-                    sourceWalkCount[sourceCatId] = existingSWC + 1;
-                else
-                    sourceWalkCount[sourceCatId] = 1;
+                walkCounts[sourceCatId] = walkCounts.TryGetValue(sourceCatId, out int existingSWC) ? existingSWC + 1 : 1;
                 HashSet<uint> seen = [];
                 uint currentNodeId = startNodeId;
                 for (int step = 1; step <= maxSteps; step++)
@@ -395,8 +392,8 @@ namespace Threadle.Core.Analysis
                     if (seen.Add(currentCatId))
                     {
                         var key = (sourceCatId, currentCatId);
-                        if (!fptHistograms.TryGetValue(key, out int[]? hist))
-                            fptHistograms[key] = hist = new int[maxSteps];
+                        if (!histograms.TryGetValue(key, out int[]? hist))
+                            histograms[key] = hist = new int[maxSteps];
                         hist[step - 1]++;
                     }
                     if (seen.Count == labels.Length)
@@ -404,50 +401,44 @@ namespace Threadle.Core.Analysis
                 }
             }
 
-            //void RunWalk(uint startNodeId)
-            //{
-            //    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
-            //        return; // node's category not in the map, skip this walk
-            //    if (sourceWalkCount.TryGetValue(sourceCatId, out int existingSWC))
-            //        sourceWalkCount[sourceCatId] = existingSWC + 1;
-            //    else
-            //        sourceWalkCount[sourceCatId] = 1;
-            //    HashSet<uint> seen = [];
-            //    uint currentNodeId = startNodeId;
-            //    for (int step=1; step<=maxSteps;step++)
-            //    {
-            //        var alterResult = Analyses.GetRandomAlter(network, currentNodeId, layers, EdgeTraversal.Out, balanced, weighted);
-            //        if (!alterResult.Success)
-            //            break;
-
-            //        currentNodeId = alterResult.Value;
-            //        // If the current node is back at the start node, skip recording but keep walking
-            //        // same if arrived at a node whose category value is not mapped: skip recording, keep on walking
-            //        if (currentNodeId==startNodeId || !nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
-            //            continue;
-            //        if (seen.Add(currentCatId))
-            //        {
-            //            var key = (sourceCatId, currentCatId);
-            //            if (!fptHistograms.TryGetValue(key, out int[]? hist))
-            //                fptHistograms[key] = hist = new int[maxSteps];
-            //            hist[step - 1]++;
-            //        }
-            //        if (seen.Count == labels.Length)
-            //            break;
-            //    }
-            //}
-
-            // Initial pass
+            // Initial pass: walks are independent of each other, so this runs in parallel (up to the
+            // 'maxthreads' setting) with each task accumulating into its own local histograms/walkCounts,
+            // merged into the shared dictionaries once the task's share of walks is done. Because Misc.Random
+            // is thread-static rather than seeded per worker thread, exact reproducibility via randomseed()
+            // is only guaranteed when maxthreads is set to 1.
             uint[] allNodeIds = nodeset.NodeIdArray;
             int nbrWalks = (int)(allNodeIds.Length * walkfactor);
-            for (int i=0; i<nbrWalks;i++)
-            {
-                uint nodeIndex = (uint)Math.Floor(i / walkfactor);
-                if (nodeIndex < allNodeIds.Length)
-                    RunWalk(allNodeIds[nodeIndex]);
-            }
+            object mergeLock = new();
 
-            // Targeted restarts for undersampled category-pairs
+            Parallel.For(0, nbrWalks, UserSettings.GetParallelOptions(),
+                localInit: () => (Histograms: new Dictionary<(uint, uint), int[]>(), WalkCounts: new Dictionary<uint, int>()),
+                body: (i, loopState, local) =>
+                {
+                    uint nodeIndex = (uint)Math.Floor(i / walkfactor);
+                    if (nodeIndex < allNodeIds.Length)
+                        RunWalk(allNodeIds[nodeIndex], local.Histograms, local.WalkCounts);
+                    return local;
+                },
+                localFinally: local =>
+                {
+                    lock (mergeLock)
+                    {
+                        foreach (var (key, hist) in local.Histograms)
+                        {
+                            if (!fptHistograms.TryGetValue(key, out int[]? existingHist))
+                                fptHistograms[key] = hist;
+                            else
+                                for (int s = 0; s < hist.Length; s++)
+                                    existingHist[s] += hist[s];
+                        }
+                        foreach (var (catId, count) in local.WalkCounts)
+                            sourceWalkCount[catId] = sourceWalkCount.TryGetValue(catId, out int existing) ? existing + count : count;
+                    }
+                });
+
+            // Targeted restarts for undersampled category-pairs. Kept sequential: each attempt's
+            // "are we done yet" check depends on the accumulated results of previous attempts for the
+            // same source category, so this isn't embarrassingly parallel the way the initial pass is.
             if (minPairObs > 0)
             {
                 Dictionary<uint, List<uint>> categoryToNodes = [];
@@ -462,7 +453,6 @@ namespace Threadle.Core.Analysis
 
                 foreach (var (sourceCatId, sourceNodes) in categoryToNodes)
                 {
-                    int nodeIdx = 0;
                     int maxAttempts = minPairObs * labels.Length * 3;
                     for (int attempt = 0; attempt < maxAttempts; attempt++)
                     {
@@ -477,8 +467,7 @@ namespace Threadle.Core.Analysis
                         }
                         if (allSatisfied)
                             break;
-                        RunWalk(sourceNodes[nodeIdx % sourceNodes.Count]);
-                        nodeIdx++;
+                        RunWalk(sourceNodes[Misc.Random.Next(sourceNodes.Count)], fptHistograms, sourceWalkCount);
                     }
                 }
             }
@@ -555,7 +544,6 @@ namespace Threadle.Core.Analysis
             int totalObs = fptHistograms.Values.Sum(h => h.Sum());
             return (OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
         }
-
         /// <summary>
         /// Returns the pth percentile from a fixed-size histogram (array) where bin i
         /// represents value i+1

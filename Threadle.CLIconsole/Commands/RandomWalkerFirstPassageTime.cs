@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Initializes and executes a first-passage-time-based distance-measuring random walker (experimental).";
+        public string Description => "Initializes and executes a first-passage-time-based distance-measuring random walker (experimental). The initial sampling pass runs in parallel across up to 'maxthreads' threads (see 'setting()'); exact reproducibility via 'randomseed()' is only guaranteed when maxthreads is set to 1.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
