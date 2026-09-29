@@ -18,7 +18,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Changes the setting 'name' to 'value'. Boolean settings are 'nodecache' (use node cache, lazy initialized), 'blockmultiedges' (prohibits the creation of multiple edges with identical connections and directions), 'onlyoutboundedges' (only stores outbound edges, i.e. no inbound edges, all to save memory for walker-only applications), and 'verbose'. The integer setting 'maxthreads' caps the number of threads parallelized methods (e.g. betweennesscentrality) may use concurrently; -1 (the default) is unconstrained, i.e. .NET decides based on available cores, and it cannot exceed the number of available processor cores (see 'system()').";
+        public string Description => "Changes the setting 'name' to 'value'. Boolean settings are 'nodecache' (use node cache, lazy initialized), 'blockmultiedges' (prohibits the creation of multiple edges with identical connections and directions), 'onlyoutboundedges' (only stores outbound edges, i.e. no inbound edges, all to save memory for walker-only applications), and 'verbose'. The integer setting 'maxthreads' caps the number of threads parallelized methods (e.g. betweennesscentrality) may use concurrently; -1 (the default) is unconstrained, i.e. .NET decides based on available cores, and it cannot exceed the number of available processor cores (see 'systeminfo()').";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

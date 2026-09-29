@@ -106,7 +106,7 @@ namespace Threadle.CLIconsole.Runtime
             ["subnet"] = new Subnet(),
             ["symmetrictodirected"] = new SymmetricToDirected(),
             ["symmetrize"] = new Symmetrize(),
-            ["system"] = new SystemInfo(),
+            ["systeminfo"] = new SystemInfo(),
             ["transitivity"] = new Transitivity(),
             ["triadiccensus"] = new TriadicCensus(),
             ["undefineattr"] = new UndefineAttr(),

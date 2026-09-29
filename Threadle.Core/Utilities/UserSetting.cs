@@ -74,7 +74,7 @@
                     if (maxThreadsValue != -1 && maxThreadsValue < 1)
                         return OperationResult.Fail("InvalidValue", "Setting 'maxthreads' must be -1 (unconstrained) or a positive integer.");
                     if (maxThreadsValue > Environment.ProcessorCount)
-                        return OperationResult.Fail("InvalidValue", $"Setting 'maxthreads' ({maxThreadsValue}) exceeds the number of available processor cores ({Environment.ProcessorCount}). Use 'system()' to check available cores.");
+                        return OperationResult.Fail("InvalidValue", $"Setting 'maxthreads' ({maxThreadsValue}) exceeds the number of available processor cores ({Environment.ProcessorCount}). Use 'systeminfo()' to check available cores.");
 
                     MaxDegreeOfParallelism = maxThreadsValue;
                     break;
