@@ -95,8 +95,6 @@ namespace Threadle.CLIconsole.Runtime
             ["removehyper"] = new RemoveHyper(),
             ["removelayer"] = new RemoveLayer(),
             ["removenode"] = new RemoveNode(),
-            ["rwdistances"] = new RandomWalkerDistances(),
-            ["rwed"] = new RandomWalkerExposureDistances(),
             ["rwfpt"] = new RandomWalkerFirstPassageTime(),
             ["savefile"] = new SaveFile(),
             ["setattr"] = new SetAttr(),
