@@ -83,13 +83,18 @@ namespace Threadle.Core.Utilities
         /// <param name="hasHeader">Boolean to indicate whether the first line has headers (that should be ignored).</param>
         /// <param name="separator">The value-separating character/string used in the data filepath.</param>
         /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <param name="labelAttr">Optional name of a string node attribute holding node labels. If provided, node identifiers in the file are
+        /// treated as string labels that are matched against this attribute, with new nodes getting new node ids and their labels stored in this attribute.</param>
+        /// <param name="filterCol">Optional column index to filter lines on: if non-negative, only lines where this column equals <paramref name="filterValue"/> are imported.</param>
+        /// <param name="filterValue">The value that the filter column must have for a line to be imported.</param>
         /// <returns>An OperationResult informing how well it went.</returns>
-        public static OperationResult ImportOneModeEdgeList(string filepath, Network network, LayerOneMode layer, int node1col, int node2col, int valueCol, bool hasHeader, char separator, bool addMissingNodes)
+        public static OperationResult ImportOneModeEdgeList(string filepath, Network network, LayerOneMode layer, int node1col, int node2col, int valueCol, bool hasHeader, char separator, bool addMissingNodes, string? labelAttr = null, int filterCol = -1, string? filterValue = null)
         {
             try
             {
-                LayerImportExport.ImportOneModeEdgelist(filepath, network, layer, node1col, node2col, valueCol, hasHeader, separator, addMissingNodes);
-                return OperationResult.Ok($"Imported edgelist to 1-mode layer '{layer.Name}'");
+                var resolver = NodeIdResolver.Create(network.Nodeset, labelAttr, addMissingNodes);
+                LayerImportExport.ImportOneModeEdgelist(filepath, network, layer, node1col, node2col, valueCol, hasHeader, separator, resolver, filterCol, filterValue);
+                return OperationResult.Ok($"Imported edgelist to 1-mode layer '{layer.Name}'" + NodesAddedMessage(resolver));
 
             }
             catch (Exception ex)
@@ -106,13 +111,16 @@ namespace Threadle.Core.Utilities
         /// <param name="layer">The <see cref="LayerOneMode"/> to install the data to.</param>
         /// <param name="separator">The value-separating character/string used in the data filepath.</param>
         /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <param name="labelAttr">Optional name of a string node attribute holding node labels. If provided, node identifiers in the file are
+        /// treated as string labels that are matched against this attribute, with new nodes getting new node ids and their labels stored in this attribute.</param>
         /// <returns>An OperationResult informing how well it went.</returns>
-        public static OperationResult ImportOneModeMatrix(string filepath, Network network, LayerOneMode layer, char separator, bool addMissingNodes)
+        public static OperationResult ImportOneModeMatrix(string filepath, Network network, LayerOneMode layer, char separator, bool addMissingNodes, string? labelAttr = null)
         {
             try
             {
-                LayerImportExport.ImportOneModeMatrix(filepath, network, layer, separator, addMissingNodes);
-                return OperationResult.Ok($"Imported matrix to 1-mode layer '{layer.Name}'");
+                var resolver = NodeIdResolver.Create(network.Nodeset, labelAttr, addMissingNodes);
+                LayerImportExport.ImportOneModeMatrix(filepath, network, layer, separator, resolver);
+                return OperationResult.Ok($"Imported matrix to 1-mode layer '{layer.Name}'" + NodesAddedMessage(resolver));
             }
             catch (Exception ex)
             {
@@ -132,13 +140,18 @@ namespace Threadle.Core.Utilities
         /// <param name="hasHeader">Boolean to indicate whether the first line has headers (that should be ignored).</param>
         /// <param name="separator">The value-separating character/string used in the data filepath.</param>
         /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <param name="labelAttr">Optional name of a string node attribute holding node labels. If provided, node identifiers in the file are
+        /// treated as string labels that are matched against this attribute, with new nodes getting new node ids and their labels stored in this attribute.</param>
+        /// <param name="filterCol">Optional column index to filter lines on: if non-negative, only lines where this column equals <paramref name="filterValue"/> are imported.</param>
+        /// <param name="filterValue">The value that the filter column must have for a line to be imported.</param>
         /// <returns>An OperationResult informing how well it went.</returns>
-        public static OperationResult ImportTwoModeEdgeList(string filepath, Network network, LayerTwoMode layer, int nodeCol, int affCol, bool hasHeader, char separator, bool addMissingNodes)
+        public static OperationResult ImportTwoModeEdgeList(string filepath, Network network, LayerTwoMode layer, int nodeCol, int affCol, bool hasHeader, char separator, bool addMissingNodes, string? labelAttr = null, int filterCol = -1, string? filterValue = null)
         {
             try
             {
-                LayerImportExport.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, hasHeader, addMissingNodes);
-                return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
+                var resolver = NodeIdResolver.Create(network.Nodeset, labelAttr, addMissingNodes);
+                LayerImportExport.ImportTwoModeEdgelist(filepath, network, layer, nodeCol, affCol, separator, hasHeader, resolver, filterCol, filterValue);
+                return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'" + NodesAddedMessage(resolver));
             }
             catch (Exception ex)
             {
@@ -156,13 +169,16 @@ namespace Threadle.Core.Utilities
         /// <param name="layer">The <see cref="LayerTwoMode"/> to install the data to.</param>
         /// <param name="separator">The value-separating character/string used in the data filepath.</param>
         /// <param name="addMissingNodes">A boolean indicating whether newly discovered node id's should be added to the Nodeset of the network or not.</param>
+        /// <param name="labelAttr">Optional name of a string node attribute holding node labels. If provided, node identifiers in the file are
+        /// treated as string labels that are matched against this attribute, with new nodes getting new node ids and their labels stored in this attribute.</param>
         /// <returns>An OperationResult informing how well it went.</param>
-        public static OperationResult ImportTwoModeMatrix(string filepath, Network network, LayerTwoMode layer, char separator, bool addMissingNodes)
+        public static OperationResult ImportTwoModeMatrix(string filepath, Network network, LayerTwoMode layer, char separator, bool addMissingNodes, string? labelAttr = null)
         {
             try
             {
-                LayerImportExport.ImportTwoModeMatrix(filepath, network, layer, separator, addMissingNodes);
-                return OperationResult.Ok($"Imported edgelist to 2-mode layer '{layer.Name}'");
+                var resolver = NodeIdResolver.Create(network.Nodeset, labelAttr, addMissingNodes);
+                LayerImportExport.ImportTwoModeMatrix(filepath, network, layer, separator, resolver);
+                return OperationResult.Ok($"Imported matrix/table to 2-mode layer '{layer.Name}'" + NodesAddedMessage(resolver));
             }
             catch (Exception ex)
             {
@@ -416,6 +432,16 @@ namespace Threadle.Core.Utilities
 
 
         #region Methods (private)
+        /// <summary>
+        /// Creates a message suffix informing how many nodes were added to the Nodeset during an import.
+        /// </summary>
+        /// <param name="resolver">The <see cref="NodeIdResolver"/> used during the import.</param>
+        /// <returns>The message suffix (empty if no nodes were added).</returns>
+        private static string NodesAddedMessage(NodeIdResolver resolver)
+        {
+            return resolver.NbrNodesAdded > 0 ? $" ({resolver.NbrNodesAdded} new nodes added to nodeset)" : "";
+        }
+
         /// <summary>
         /// Internal method to save a Nodeset to filepath.
         /// The filepath format is derived from the filepath ending.

@@ -143,27 +143,33 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Imports a 1-mode edgelist from file, inserting it into the specified layer. Checks that the node exists
-        /// in the Nodeset of the network: will either ignore those lines or add these nodes, depending on the setting
-        /// of <paramref name="addMissingNodes"/>.
+        /// Imports a 1-mode edgelist from file, inserting it into the specified layer. Node identifiers are resolved
+        /// through the provided <see cref="NodeIdResolver"/>: this either treats them as numeric node ids or as string
+        /// labels, and either ignores unknown nodes or adds them to the Nodeset.
         /// Note that any existing edges in the layer are not removed.
         /// Note also that a deduplication cleanup is done after importing: as edges are added without checking for
         /// multiedges, this will remove any would-be occurrences of multiedges.
-        /// This method separates into different code blocks depending on whether it is binary or valued, and whether
-        /// missing nodes should be added or not, i.e. a total of 4 different code blocks.
         /// The edgelist file:
-        /// The first column contains the first nodeid, the second column contains the second node id.
-        /// The file might have a header: that will be ignored.
-        /// For valued layers, the edgelist must have a third column containing the edge value.
+        /// The columns given by node1col and node2col contain the node identifiers.
+        /// The file might have a header: that will be ignored. Lines that can't be parsed are also ignored.
+        /// For valued layers, the edgelist must have a column (valueCol) containing the edge value.
+        /// If filterCol is non-negative, only lines where that column equals filterValue are imported. This makes
+        /// it possible to import edgelists with a column specifying the layer/relation, one layer at a time.
         /// </summary>
         /// <param name="filepath">The filepath to the edgelist</param>
         /// <param name="network">The network (to obtain the Nodeset)</param>
         /// <param name="layerOneMode">The 1-mode layer to import to.</param>
+        /// <param name="node1col">The column index of the first node.</param>
+        /// <param name="node2col">The column index of the second node.</param>
+        /// <param name="valueCol">The column index of the edge value (only for valued layers).</param>
+        /// <param name="hasHeader">Whether the first line is a header.</param>
         /// <param name="separator">Character that separates columns</param>
-        /// <param name="addMissingNodes">Set to true if nodes not in the Nodeset should be added to it.</param>
+        /// <param name="resolver">The <see cref="NodeIdResolver"/> that translates node identifiers to node ids.</param>
+        /// <param name="filterCol">The column index to filter lines on (negative for no filtering).</param>
+        /// <param name="filterValue">The value that the filter column must have for the line to be imported.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, int node1col, int node2col, int valueCol, bool hasHeader, char separator, bool addMissingNodes)
+        internal static void ImportOneModeEdgelist(string filepath, Network network, LayerOneMode layerOneMode, int node1col, int node2col, int valueCol, bool hasHeader, char separator, NodeIdResolver resolver, int filterCol = -1, string? filterValue = null)
         {
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");
@@ -171,138 +177,49 @@ namespace Threadle.Core.Utilities
             string? line;
             int lineNumber = 0;
 
+            bool isValued = layerOneMode.IsValued;
+            bool useFilter = filterCol >= 0;
             int maxColIndex = Math.Max(node1col, node2col);
-            uint node1Id, node2Id;
-            if (layerOneMode.IsBinary)
-            {
-                // Importing binary data
-                if (addMissingNodes)
-                {
-                    // Add nodes if missing from Nodeset
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        lineNumber++;
-
-                        if (lineNumber == 1 && hasHeader)
-                            continue;
-
-                        if (string.IsNullOrWhiteSpace(line))
-                            continue;
-
-                        string[] columns = line.Split(separator);
-
-                        // Skip rows that don't have enough columns
-                        if (columns.Length <= maxColIndex)
-                            continue;
-
-                        // Skip rows where we can't parse node ids
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id))
-                            continue;
-
-                        // Add nodes that are missing
-                        if (!network.Nodeset.Contains(node1Id))
-                            network.Nodeset._addNodeWithoutAttribute(node1Id);
-                        if (!network.Nodeset.Contains(node2Id))
-                            network.Nodeset._addNodeWithoutAttribute(node2Id);
-                        layerOneMode._addEdge(node1Id, node2Id);
-                    }
-                }
-                else
-                {
-                    // Ignore edges that refers to non-existing nodes
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        lineNumber++;
-
-                        if (lineNumber == 1 && hasHeader)
-                            continue;
-
-                        if (string.IsNullOrWhiteSpace(line))
-                            continue;
-
-                        string[] columns = line.Split(separator);
-
-                        // Skip rows that don't have enough columns
-                        if (columns.Length <= maxColIndex)
-                            continue;
-
-                        // Skip rows where we can't parse node ids
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id))
-                            continue;
-
-                        // Skip edges with nodes that are missing
-                        if (!network.Nodeset.Contains(node1Id) || !network.Nodeset.Contains(node2Id))
-                            continue;
-                        layerOneMode._addEdge(node1Id, node2Id);
-                    }
-                }
-            }
-            else if (layerOneMode.IsValued)
-            {
-                // Now also include the valueCol in the minCol check
+            if (isValued)
                 maxColIndex = Math.Max(maxColIndex, valueCol);
+            if (useFilter)
+                maxColIndex = Math.Max(maxColIndex, filterCol);
 
-                // Importing valued data
-                float value = 1;
-                if (addMissingNodes)
-                {
-                    // Add nodes if missing from Nodeset
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        lineNumber++;
+            float value = 1;
+            while ((line = reader.ReadLine()) != null)
+            {
+                lineNumber++;
 
-                        if (lineNumber == 1 && hasHeader)
-                            continue;
+                if (lineNumber == 1 && hasHeader)
+                    continue;
 
-                        if (string.IsNullOrWhiteSpace(line))
-                            continue;
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
 
-                        string[] columns = line.Split(separator);
+                string[] columns = line.Split(separator);
 
-                        // Skip rows that don't have enough columns
-                        if (columns.Length <= maxColIndex)
-                            continue;
+                // Skip rows that don't have enough columns
+                if (columns.Length <= maxColIndex)
+                    continue;
 
-                        // Skip rows where we can't parse node ids or float value
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
-                            continue;
+                // Skip rows that don't match the filter
+                if (useFilter && !MatchesFilter(columns[filterCol], filterValue))
+                    continue;
 
-                        // Add nodes that are missing                        
-                        if (!network.Nodeset.Contains(node1Id))
-                            network.Nodeset._addNodeWithoutAttribute(node1Id);
-                        if (!network.Nodeset.Contains(node2Id))
-                            network.Nodeset._addNodeWithoutAttribute(node2Id);
-                        layerOneMode._addEdge(node1Id, node2Id, value);
-                    }
-                }
+                // Skip rows where node identifiers or (for valued layers) the edge value can't be parsed
+                if (!resolver.IsValidToken(columns[node1col]) || !resolver.IsValidToken(columns[node2col]))
+                    continue;
+                if (isValued && !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
+                    continue;
+
+                // Resolve node ids: skips edges with nodes that are missing (unless missing nodes are added)
+                if (!resolver.TryResolve(columns[node1col], out uint node1Id) || !resolver.TryResolve(columns[node2col], out uint node2Id))
+                    continue;
+
+                if (isValued)
+                    layerOneMode._addEdge(node1Id, node2Id, value);
                 else
-                {
-                    // Ignore edges that refers to non-existing nodes
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        lineNumber++;
-                        if (lineNumber == 1 && hasHeader)
-                            continue;
-
-                        if (string.IsNullOrWhiteSpace(line))
-                            continue;
-
-                        string[] columns = line.Split(separator);
-
-                        // Skip rows that don't have enough columns
-                        if (columns.Length <= maxColIndex)
-                            continue;
-
-                        // Skip rows where we can't parse node ids or float value
-                        if (!uint.TryParse(Misc.TrimQuotes(columns[node1col]), out node1Id) || !uint.TryParse(Misc.TrimQuotes(columns[node2col]), out node2Id) || !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
-                            continue;
-
-                        // Skip edges that have missing nodes
-                        if (!network.Nodeset.Contains(node1Id) || !network.Nodeset.Contains(node2Id))
-                            continue;
-                        layerOneMode._addEdge(node1Id, node2Id, value);
-                    }
-                }
+                    layerOneMode._addEdge(node1Id, node2Id);
             }
             // Deduplicate edges
             layerOneMode._deduplicateEdgesets();
@@ -310,8 +227,10 @@ namespace Threadle.Core.Utilities
 
         /// <summary>
         /// Imports a one-mode matrix file into a 1-mode network layer, with node ids given on first row and first column.
-        /// Will add new nodes if addMissingNodes is true. Note that the order of rows and column nodes can be different:
+        /// Will add new nodes if the resolver is set to add missing nodes. Note that the order of rows and column nodes can be different:
         /// it keeps track of these separately. Uses the normal Network.AddEdge() method: that will take care of the addMissingNodes.
+        /// If the resolver is in label mode, row and column headers are node labels rather than node ids: headers that can't
+        /// be resolved to nodes (i.e. unknown labels when missing nodes are not added) are ignored.
         /// </summary>
         /// <remarks>The file must contain a square matrix where the first row and column represent
         /// unsigned integer node IDs. The matrix values represent edge weights between the nodes. If the matrix is not
@@ -323,11 +242,10 @@ namespace Threadle.Core.Utilities
         /// <param name="network">The <see cref="Network"/> instance to which the edges will be added.</param>
         /// <param name="layerOneMode">The one-mode layer of the network where the edges will be added.</param>
         /// <param name="separator">The character used to separate values in the file</param>
-        /// <param name="addMissingNodes">A value indicating whether nodes that are referenced in the matrix but do not exist in the network should be
-        /// automatically added. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
+        /// <param name="resolver">The <see cref="NodeIdResolver"/> that translates node identifiers to node ids.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportOneModeMatrix(string filepath, Network network, LayerOneMode layerOneMode, char separator, bool addMissingNodes)
+        internal static void ImportOneModeMatrix(string filepath, Network network, LayerOneMode layerOneMode, char separator, NodeIdResolver resolver)
         {
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");
@@ -335,29 +253,23 @@ namespace Threadle.Core.Utilities
             int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
             if (nbrRows != nbrCols)
                 throw new Exception($"Number of rows ({nbrRows}) different than number of columns ({nbrCols}) in file '{filepath}'");
-            uint[] rowIds = new uint[nbrRows - 1];
-            uint[] colIds = new uint[nbrCols - 1];
+            uint?[] rowIds = new uint?[nbrRows - 1];
+            uint?[] colIds = new uint?[nbrCols - 1];
             for (int i = 1; i < nbrCols; i++)
             {
-                if (!uint.TryParse(cells[0, i], out colIds[i - 1]))
-                    throw new Exception($"Column header '{cells[0, i]}' in file '{filepath}' not an unsigned integer.");
-                if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
-                    throw new Exception($"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
+                colIds[i - 1] = ResolveMatrixHeader(cells[0, i], resolver, filepath, "Column");
+                rowIds[i - 1] = ResolveMatrixHeader(cells[i, 0], resolver, filepath, "Row");
             }
             float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
-            if (layerOneMode.Directionality == EdgeDirectionality.Directed)
+            bool addMissingNodes = resolver.AddMissingNodes;
+            bool isDirected = layerOneMode.Directionality == EdgeDirectionality.Directed;
+            for (int r = 1; r < nbrRows; r++)
             {
-                for (int r = 1; r < nbrRows; r++)
-                    for (int c = 1; c < nbrCols; c++)
-                        if (data[r - 1, c - 1] != 0)
-                            network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
-            }
-            else
-            {
-                for (int r = 1; r < nbrRows; r++)
-                    for (int c = r; c < nbrCols; c++)
-                        if (data[r - 1, c - 1] != 0)
-                            network.AddEdge(layerOneMode, rowIds[r - 1], colIds[c - 1], data[r - 1, c - 1], addMissingNodes);
+                if (rowIds[r - 1] is not uint rowId)
+                    continue;
+                for (int c = isDirected ? 1 : r; c < nbrCols; c++)
+                    if (data[r - 1, c - 1] != 0 && colIds[c - 1] is uint colId)
+                        network.AddEdge(layerOneMode, rowId, colId, data[r - 1, c - 1], addMissingNodes);
             }
         }
 
@@ -366,17 +278,20 @@ namespace Threadle.Core.Utilities
         /// </summary>
         /// <remarks>The edgelist file must contain exactly two columns: the first column represents node
         /// ids (as unsigned integers),  and the second column represents affiliation codes (as non-empty strings). Rows
-        /// with invalid or empty values are ignored. Note that affiliation codes must be unique - this is not checked/validated here.</remarks>
+        /// with invalid or empty values are ignored. Note that affiliation codes must be unique - this is not checked/validated here.
+        /// Node identifiers are resolved through the provided <see cref="NodeIdResolver"/>, i.e. either as numeric node ids or as
+        /// string labels. If filterCol is non-negative, only lines where that column equals filterValue are imported.</remarks>
         /// <param name="filepath">The path to the file containing the two-mode edgelist. The file must have two columns separated by the
         /// specified <paramref name="separator"/>.</param>
         /// <param name="network">The <see cref="Network"/> instance to which the hyperedges will be added.</param>
         /// <param name="layerTwoMode">The two-mode layer of the network where the hyperedges will be added.</param>
         /// <param name="separator">The character used to separate columns in the edgelist file.</param>
-        /// <param name="addMissingNodes">A value indicating whether nodes that are referenced in the edgelist but do not exist in the network should
-        /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
+        /// <param name="resolver">The <see cref="NodeIdResolver"/> that translates node identifiers to node ids.</param>
+        /// <param name="filterCol">The column index to filter lines on (negative for no filtering).</param>
+        /// <param name="filterValue">The value that the filter column must have for the line to be imported.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, char separator, bool hasHeader, bool addMissingNodes)
+        internal static void ImportTwoModeEdgelist(string filepath, Network network, LayerTwoMode layerTwoMode, int nodeCol, int affCol, char separator, bool hasHeader, NodeIdResolver resolver, int filterCol = -1, string? filterValue = null)
         {
             // Check that file exists
             if (!File.Exists(filepath))
@@ -387,7 +302,9 @@ namespace Threadle.Core.Utilities
             int lineNumber = 0;
             // Get max col index referred to
             int maxColIndex = Math.Max(nodeCol, affCol);
-            uint nodeId;
+            bool useFilter = filterCol >= 0;
+            if (useFilter)
+                maxColIndex = Math.Max(maxColIndex, filterCol);
             string hyperedgeName;
             while ((line = reader.ReadLine()) != null)
             {
@@ -402,8 +319,11 @@ namespace Threadle.Core.Utilities
                 // Check that it contains necessary columns
                 if (columns.Length <= maxColIndex)
                     continue;
-                // Silent continue if not able to parse nodeId
-                if (!uint.TryParse(Misc.TrimQuotes(columns[nodeCol]), out nodeId))
+                // Skip rows that don't match the filter
+                if (useFilter && !MatchesFilter(columns[filterCol], filterValue))
+                    continue;
+                // Silent continue if not able to parse node identifier
+                if (!resolver.IsValidToken(columns[nodeCol]))
                     continue;
                 // Get hyperedge name
                 hyperedgeName = Misc.TrimQuotes(columns[affCol]).Trim();
@@ -412,12 +332,9 @@ namespace Threadle.Core.Utilities
                     continue;
                 if (!Misc.IsNameWithinBinaryLimit(hyperedgeName))
                     throw new InvalidOperationException($"NameTooLong: {hyperedgeName}");
-                if (!network.Nodeset.Contains(nodeId))
-                {
-                    if (!addMissingNodes)
-                        continue;
-                    network.Nodeset._addNodeWithoutAttribute(nodeId);
-                }
+                // Resolve node id: skips nodes that are missing (unless missing nodes are added)
+                if (!resolver.TryResolve(columns[nodeCol], out uint nodeId))
+                    continue;
                 layerTwoMode._addAffiliation(nodeId, hyperedgeName);
             }
         }
@@ -426,6 +343,8 @@ namespace Threadle.Core.Utilities
         /// Imports a two-mode matrix file into a two-mode network layer, with node ids given on first column and affiliation
         /// (hyperedge) names given on first row. Will add new nodes if addMissingNodes is true. Uses the normal
         /// Network.AddHyperedge() method: that will take care of validation and the addMissingNodes option.
+        /// If the resolver is in label mode, row headers are node labels rather than node ids: rows whose labels can't be
+        /// resolved to nodes (i.e. unknown labels when missing nodes are not added) are ignored.
         /// </summary>
         /// <remarks>The file must have a specific format: <list type="bullet"> <item>The first row
         /// contains column headers representing the names of the hyperedges. Note that these
@@ -439,21 +358,19 @@ namespace Threadle.Core.Utilities
         /// <param name="network">The <see cref="Network"/> instance to which the hyperedges will be added.</param>
         /// <param name="layerTwoMode">The two-mode layer of the network where the hyperedges will be added.</param>
         /// <param name="separator">The character used to separate values in the file</param>
-        /// <param name="addMissingNodes">A value indicating whether nodes that are referenced in the edgelist but do not exist in the network should
-        /// be added automatically. <see langword="true"/> to add missing nodes; otherwise, <see langword="false"/>.</param>
+        /// <param name="resolver">The <see cref="NodeIdResolver"/> that translates node identifiers to node ids.</param>
         /// <exception cref="FileNotFoundException">Thrown if the file is not found</exception>
         /// <exception cref="Exception">Exceptions when something went wrong.</exception>
-        internal static void ImportTwoModeMatrix(string filepath, Network network, LayerTwoMode layerTwoMode, char separator, bool addMissingNodes)
+        internal static void ImportTwoModeMatrix(string filepath, Network network, LayerTwoMode layerTwoMode, char separator, NodeIdResolver resolver)
         {
             if (!File.Exists(filepath))
                 throw new FileNotFoundException($"File not found: {filepath}");
             string[,] cells = ReadCells(filepath, separator);
             int nbrRows = cells.GetLength(0), nbrCols = cells.GetLength(1);
-            uint[] rowIds = new uint[nbrRows - 1];
+            uint?[] rowIds = new uint?[nbrRows - 1];
             string[] colNames = new string[nbrCols - 1];
             for (int i = 1; i < nbrRows; i++)
-                if (!uint.TryParse(cells[i, 0], out rowIds[i - 1]))
-                    throw new Exception($"Row header '{cells[i, 0]}' in file '{filepath}' not an unsigned integer.");
+                rowIds[i - 1] = ResolveMatrixHeader(cells[i, 0], resolver, filepath, "Row");
             for (int i = 1; i < nbrCols; i++)
             {
                 colNames[i - 1] = cells[0, i].Trim();
@@ -462,17 +379,52 @@ namespace Threadle.Core.Utilities
 
             }
             float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
+            bool addMissingNodes = resolver.AddMissingNodes;
             for (int c = 0; c < colNames.Length; c++)
             {
                 for (int r = 0; r < rowIds.Length; r++)
-                    if (data[r, c] > 0)
-                        network.AddAffiliation(layerTwoMode, colNames[c], rowIds[r], addMissingNodes, true);
+                    if (data[r, c] > 0 && rowIds[r] is uint rowId)
+                        network.AddAffiliation(layerTwoMode, colNames[c], rowId, addMissingNodes, true);
             }
         }
         #endregion
 
 
         #region Methods (private)
+        /// <summary>
+        /// Checks whether a column value matches the filter value (ignoring surrounding quotes and whitespace).
+        /// </summary>
+        /// <param name="columnValue">The value in the filter column.</param>
+        /// <param name="filterValue">The value to match.</param>
+        /// <returns>True if the values match, false otherwise.</returns>
+        private static bool MatchesFilter(string columnValue, string? filterValue)
+        {
+            return Misc.TrimQuotes(columnValue.Trim()) == (filterValue ?? "");
+        }
+
+        /// <summary>
+        /// Resolves a row or column header of a matrix file to a node id. In numeric mode, the header must be an
+        /// unsigned integer (otherwise an exception is thrown), and the node id is returned as-is: missing nodes are then
+        /// handled when adding edges. In label mode, the header is resolved (and possibly added) through the resolver,
+        /// returning null if it can't be resolved.
+        /// </summary>
+        /// <param name="header">The header cell.</param>
+        /// <param name="resolver">The <see cref="NodeIdResolver"/> that translates node identifiers to node ids.</param>
+        /// <param name="filepath">The filepath (for error messages).</param>
+        /// <param name="headerKind">'Row' or 'Column' (for error messages).</param>
+        /// <returns>The node id, or null if it couldn't be resolved.</returns>
+        /// <exception cref="Exception">Thrown if the header is not an unsigned integer in numeric mode.</exception>
+        private static uint? ResolveMatrixHeader(string header, NodeIdResolver resolver, string filepath, string headerKind)
+        {
+            if (!resolver.IsLabelMode)
+            {
+                if (!uint.TryParse(header, out uint nodeId))
+                    throw new Exception($"{headerKind} header '{header}' in file '{filepath}' not an unsigned integer.");
+                return nodeId;
+            }
+            return resolver.TryResolve(header, out uint id) ? id : null;
+        }
+
         /// <summary>
         /// Reads the contents of a delimited text file and returns a two-dimensional array of strings representing the
         /// parsed cells.

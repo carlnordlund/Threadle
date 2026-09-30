@@ -551,7 +551,8 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id to add.</param>
         internal void _addNodeWithoutAttribute(uint nodeId)
         {
-            _nodesWithoutAttributes.Add(nodeId);
+            if (_nodesWithoutAttributes.Add(nodeId))
+                _nodeIdCache = null;
         }
 
         /// <summary>
@@ -566,6 +567,7 @@ namespace Threadle.Core.Model
                 _nodesWithAttributes[nodeId] = (nodeAttributes.Value.attrIndexes, nodeAttributes.Value.attrValues);
             else
                 _nodesWithoutAttributes.Add(nodeId);
+            _nodeIdCache = null;
         }
 
 
