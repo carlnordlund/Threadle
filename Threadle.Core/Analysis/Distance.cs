@@ -336,7 +336,7 @@ namespace Threadle.Core.Analysis
             return OperationResult<StructureResult>.Ok(results, $"Random walk distances computed. {labels.Length} unique attribute values, {maxSteps} step levels.");
         }
 
-        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, int Count)>? Histograms) RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
+        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, long Count)>? Histograms) RandomWalkNodeAttributeFirstPassageTimeDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
         {
             if (CheckLayersExist(network, layers) is OperationResult result)
                 return (OperationResult<StructureResult>.Fail(result), []);
@@ -364,7 +364,7 @@ namespace Threadle.Core.Analysis
                     : nav.ToString(attrType))
                 : "(missing)";
 
-            Dictionary<(uint from, uint to), int[]> fptHistograms = [];
+            Dictionary<(uint from, uint to), long[]> fptHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
 
             // Resolve layers once — captured by RunWalk closure, avoids per-step List<ILayer> allocation
@@ -375,7 +375,7 @@ namespace Threadle.Core.Analysis
                 foreach (string ln in layers)
                     resolvedLayers.Add(network.GetLayer(ln).Value!);
 
-            void RunWalk(uint startNodeId, Dictionary<(uint from, uint to), int[]> histograms, Dictionary<uint, int> walkCounts)
+            void RunWalk(uint startNodeId, Dictionary<(uint from, uint to), long[]> histograms, Dictionary<uint, int> walkCounts)
             {
                 if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
                     return;
@@ -392,8 +392,8 @@ namespace Threadle.Core.Analysis
                     if (seen.Add(currentCatId))
                     {
                         var key = (sourceCatId, currentCatId);
-                        if (!histograms.TryGetValue(key, out int[]? hist))
-                            histograms[key] = hist = new int[maxSteps];
+                        if (!histograms.TryGetValue(key, out long[]? hist))
+                            histograms[key] = hist = new long[maxSteps];
                         hist[step - 1]++;
                     }
                     if (seen.Count == labels.Length)
@@ -411,7 +411,7 @@ namespace Threadle.Core.Analysis
             object mergeLock = new();
 
             Parallel.For(0, nbrWalks, UserSettings.GetParallelOptions(),
-                localInit: () => (Histograms: new Dictionary<(uint, uint), int[]>(), WalkCounts: new Dictionary<uint, int>()),
+                localInit: () => (Histograms: new Dictionary<(uint, uint), long[]>(), WalkCounts: new Dictionary<uint, int>()),
                 body: (i, loopState, local) =>
                 {
                     uint nodeIndex = (uint)Math.Floor(i / walkfactor);
@@ -425,7 +425,7 @@ namespace Threadle.Core.Analysis
                     {
                         foreach (var (key, hist) in local.Histograms)
                         {
-                            if (!fptHistograms.TryGetValue(key, out int[]? existingHist))
+                            if (!fptHistograms.TryGetValue(key, out long[]? existingHist))
                                 fptHistograms[key] = hist;
                             else
                                 for (int s = 0; s < hist.Length; s++)
@@ -459,7 +459,7 @@ namespace Threadle.Core.Analysis
                         bool allSatisfied = true;
                         for (uint t = 0; t < (uint)labels.Length; t++)
                         {
-                            if (!fptHistograms.TryGetValue((sourceCatId, t), out int[]? obs) || obs.Sum() < minPairObs)
+                            if (!fptHistograms.TryGetValue((sourceCatId, t), out long[]? obs) || obs.Sum() < minPairObs)
                             {
                                 allSatisfied = false;
                                 break;
@@ -484,10 +484,10 @@ namespace Threadle.Core.Analysis
 
             foreach (var kvp in fptHistograms)
             {
-                int[] hist = kvp.Value;
+                long[] hist = kvp.Value;
 
                 // Derive sum, sumSq, count from histogram
-                int count = 0;
+                long count = 0;
                 double sum = 0, sumSq = 0;
                 for (int s = 0; s < hist.Length; s++)
                 {
@@ -526,10 +526,10 @@ namespace Threadle.Core.Analysis
             networkResults.Layers.Add(countLayer.Name, countLayer);
             networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
 
-            List<(string From, string To, int Step, int Count)>? histList = null;
+            List<(string From, string To, int Step, long Count)>? histList = null;
             if (returnHistograms)
             {
-                histList = new List<(string From, string To, int Step, int Count)>();
+                histList = new List<(string From, string To, int Step, long Count)>();
                 foreach (var kvp in fptHistograms)
                 {
                     string fromLabel = labels[kvp.Key.from];
@@ -541,10 +541,9 @@ namespace Threadle.Core.Analysis
             }
 
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
-            int totalObs = fptHistograms.Values.Sum(h => h.Sum());
+            long totalObs = fptHistograms.Values.Sum(h => h.Sum());
             return (OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
         }
-
         /// <summary>
         /// A generalization of <see cref="RandomWalkNodeAttributeFirstPassageTimeDistances"/>: instead of
         /// recording only the first-passage time to each attribute *category* (and stopping once every
@@ -560,7 +559,7 @@ namespace Threadle.Core.Analysis
         /// Walks always run the full 'maxSteps' budget: unlike the FPT method there is no meaningful early
         /// exit, since "every node visited" essentially never happens on a real network before maxSteps.
         /// </summary>
-        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, int Count)>? Histograms) RandomWalkNodeAttributeExposureDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
+        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, long Count)>? Histograms) RandomWalkNodeAttributeExposureDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
         {
             if (CheckLayersExist(network, layers) is OperationResult result)
                 return (OperationResult<StructureResult>.Fail(result), []);
@@ -588,7 +587,7 @@ namespace Threadle.Core.Analysis
                     : nav.ToString(attrType))
                 : "(missing)";
 
-            Dictionary<(uint from, uint to), int[]> exposureHistograms = [];
+            Dictionary<(uint from, uint to), long[]> exposureHistograms = [];
             Dictionary<uint, int> sourceWalkCount = [];
             Dictionary<(uint from, uint to), int> coverageCounts = [];
 
@@ -600,7 +599,7 @@ namespace Threadle.Core.Analysis
                 foreach (string ln in layers)
                     resolvedLayers.Add(network.GetLayer(ln).Value!);
 
-            void RunWalk(uint startNodeId, Dictionary<(uint from, uint to), int[]> histograms, Dictionary<uint, int> walkCounts, Dictionary<(uint from, uint to), int> coverage)
+            void RunWalk(uint startNodeId, Dictionary<(uint from, uint to), long[]> histograms, Dictionary<uint, int> walkCounts, Dictionary<(uint from, uint to), int> coverage)
             {
                 if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
                     return;
@@ -624,8 +623,8 @@ namespace Threadle.Core.Analysis
                         continue;
 
                     var key = (sourceCatId, currentCatId);
-                    if (!histograms.TryGetValue(key, out int[]? hist))
-                        histograms[key] = hist = new int[maxSteps];
+                    if (!histograms.TryGetValue(key, out long[]? hist))
+                        histograms[key] = hist = new long[maxSteps];
                     hist[step - 1]++;
 
                     if (seenCategories.Add(currentCatId))
@@ -641,7 +640,7 @@ namespace Threadle.Core.Analysis
             object mergeLock = new();
 
             Parallel.For(0, nbrWalks, UserSettings.GetParallelOptions(),
-                localInit: () => (Histograms: new Dictionary<(uint, uint), int[]>(), WalkCounts: new Dictionary<uint, int>(), Coverage: new Dictionary<(uint, uint), int>()),
+                localInit: () => (Histograms: new Dictionary<(uint, uint), long[]>(), WalkCounts: new Dictionary<uint, int>(), Coverage: new Dictionary<(uint, uint), int>()),
                 body: (i, loopState, local) =>
                 {
                     uint nodeIndex = (uint)Math.Floor(i / walkfactor);
@@ -655,7 +654,7 @@ namespace Threadle.Core.Analysis
                     {
                         foreach (var (key, hist) in local.Histograms)
                         {
-                            if (!exposureHistograms.TryGetValue(key, out int[]? existingHist))
+                            if (!exposureHistograms.TryGetValue(key, out long[]? existingHist))
                                 exposureHistograms[key] = hist;
                             else
                                 for (int s = 0; s < hist.Length; s++)
@@ -691,7 +690,7 @@ namespace Threadle.Core.Analysis
                         bool allSatisfied = true;
                         for (uint t = 0; t < (uint)labels.Length; t++)
                         {
-                            if (!exposureHistograms.TryGetValue((sourceCatId, t), out int[]? obs) || obs.Sum() < minPairObs)
+                            if (!exposureHistograms.TryGetValue((sourceCatId, t), out long[]? obs) || obs.Sum() < minPairObs)
                             {
                                 allSatisfied = false;
                                 break;
@@ -716,9 +715,9 @@ namespace Threadle.Core.Analysis
 
             foreach (var kvp in exposureHistograms)
             {
-                int[] hist = kvp.Value;
+                long[] hist = kvp.Value;
 
-                int count = 0;
+                long count = 0;
                 double sum = 0, sumSq = 0;
                 for (int s = 0; s < hist.Length; s++)
                 {
@@ -757,10 +756,10 @@ namespace Threadle.Core.Analysis
             networkResults.Layers.Add(countLayer.Name, countLayer);
             networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
 
-            List<(string From, string To, int Step, int Count)>? histList = null;
+            List<(string From, string To, int Step, long Count)>? histList = null;
             if (returnHistograms)
             {
-                histList = new List<(string From, string To, int Step, int Count)>();
+                histList = new List<(string From, string To, int Step, long Count)>();
                 foreach (var kvp in exposureHistograms)
                 {
                     string fromLabel = labels[kvp.Key.from];
@@ -772,20 +771,19 @@ namespace Threadle.Core.Analysis
             }
 
             StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
-            int totalObs = exposureHistograms.Values.Sum(h => h.Sum());
+            long totalObs = exposureHistograms.Values.Sum(h => h.Sum());
             return (OperationResult<StructureResult>.Ok(results, $"Random walk exposure distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
         }
-
         /// <summary>
         /// Returns the pth percentile from a fixed-size histogram (array) where bin i
         /// represents value i+1
         /// </summary>
-        private static float PercentileFromHistogram(int[] hist, int count, float p)
+        private static float PercentileFromHistogram(long[] hist, long count, float p)
         {
-            int lowerPos = (int)Math.Ceiling(p * count);
-            int upperPos = (int)Math.Floor(p * count) + 1;
+            long lowerPos = (long)Math.Ceiling(p * count);
+            long upperPos = (long)Math.Floor(p * count) + 1;
             float lowerVal = 0f, upperVal = 0f;
-            int cumulative = 0;
+            long cumulative = 0;
             for (int s = 0; s < hist.Length; s++)
             {
                 cumulative += hist[s];
