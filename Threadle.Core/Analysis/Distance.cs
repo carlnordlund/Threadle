@@ -544,6 +544,238 @@ namespace Threadle.Core.Analysis
             int totalObs = fptHistograms.Values.Sum(h => h.Sum());
             return (OperationResult<StructureResult>.Ok(results, $"Random walk FPT distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
         }
+
+        /// <summary>
+        /// A generalization of <see cref="RandomWalkNodeAttributeFirstPassageTimeDistances"/>: instead of
+        /// recording only the first-passage time to each attribute *category* (and stopping once every
+        /// category has been seen), this records the first-passage time to every individual *node* the walk
+        /// discovers, bucketed by that node's category. A single walk can therefore contribute several
+        /// observations to the same (source category, target category) pair — one per distinct node of that
+        /// target category encountered — giving a fuller "exposure" distribution (how much and how quickly a
+        /// walk is exposed to a category) rather than just the nearest-instance distance. The first
+        /// observation for a given (source, target) pair within a walk is exactly the FPT statistic; later
+        /// ones add information about further/repeated exposure. Coverage (whether a walk reaches a category
+        /// at all) is tracked separately from the per-node histogram, since a walk that discovers several
+        /// nodes of the same target category must still only count as one "covered" walk, not several.
+        /// Walks always run the full 'maxSteps' budget: unlike the FPT method there is no meaningful early
+        /// exit, since "every node visited" essentially never happens on a real network before maxSteps.
+        /// </summary>
+        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, int Count)>? Histograms) RandomWalkNodeAttributeExposureDistances(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false)
+        {
+            if (CheckLayersExist(network, layers) is OperationResult result)
+                return (OperationResult<StructureResult>.Fail(result), []);
+
+            if (walkfactor <= 0)
+                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'walkfactor' parameter must be greater than zero."), []);
+            if (maxSteps <= 0)
+                return (OperationResult<StructureResult>.Fail("InvalidParameter", $"The 'maxSteps' parameter must be greater than zero."), []);
+            Nodeset nodeset = network.Nodeset;
+            var categoryResult = BuildCategoryNodeset(network, attrName);
+            if (!categoryResult.Success)
+                return (OperationResult<StructureResult>.Fail(categoryResult.Code, categoryResult.Message), []);
+            CategoryNodeset cat = categoryResult.Value;
+            Nodeset nodesetResults = cat.Nodeset;
+            Dictionary<string, uint> nodeAttributeStringToNodeId = cat.LabelToNodeId;
+            string[] labels = cat.Labels;
+            NodeAttributeType attrType = cat.AttrType;
+            byte attrIndex = cat.AttrIndex;
+
+            Network networkResults = new Network(network.Name + "_" + attrName + "_rwed_results", nodesetResults);
+
+            string GetCategoryString(uint nodeId) => nodeset.GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue nav
+                ? (attrType == NodeAttributeType.String
+                    ? nodeset.GetStringFromPool((int)nav.GetValue(attrType)!)
+                    : nav.ToString(attrType))
+                : "(missing)";
+
+            Dictionary<(uint from, uint to), int[]> exposureHistograms = [];
+            Dictionary<uint, int> sourceWalkCount = [];
+            Dictionary<(uint from, uint to), int> coverageCounts = [];
+
+            // Resolve layers once — captured by RunWalk closure, avoids per-step List<ILayer> allocation
+            List<ILayer> resolvedLayers = [];
+            if (layers == null)
+                resolvedLayers.AddRange(network.Layers.Values);
+            else
+                foreach (string ln in layers)
+                    resolvedLayers.Add(network.GetLayer(ln).Value!);
+
+            void RunWalk(uint startNodeId, Dictionary<(uint from, uint to), int[]> histograms, Dictionary<uint, int> walkCounts, Dictionary<(uint from, uint to), int> coverage)
+            {
+                if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(startNodeId), out uint sourceCatId))
+                    return;
+                walkCounts[sourceCatId] = walkCounts.TryGetValue(sourceCatId, out int existingSWC) ? existingSWC + 1 : 1;
+
+                // seenNodes gates the exposure histogram (first visit to this exact node); seenCategories
+                // gates coverage (first visit to any node of this category) — deliberately separate, since
+                // one walk can discover several distinct nodes of the same category.
+                HashSet<uint> seenNodes = [startNodeId];
+                HashSet<uint> seenCategories = [];
+                uint currentNodeId = startNodeId;
+                for (int step = 1; step <= maxSteps; step++)
+                {
+                    var randomAlterResult = Analyses.GetRandomAlter(currentNodeId, resolvedLayers, EdgeTraversal.Out, balanced, weighted);
+                    if (!randomAlterResult.Success) break;
+                    currentNodeId = randomAlterResult.Value;
+
+                    if (!seenNodes.Add(currentNodeId))
+                        continue;
+                    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(currentNodeId), out uint currentCatId))
+                        continue;
+
+                    var key = (sourceCatId, currentCatId);
+                    if (!histograms.TryGetValue(key, out int[]? hist))
+                        histograms[key] = hist = new int[maxSteps];
+                    hist[step - 1]++;
+
+                    if (seenCategories.Add(currentCatId))
+                        coverage[key] = coverage.TryGetValue(key, out int existingCov) ? existingCov + 1 : 1;
+                }
+            }
+
+            // Initial pass: same parallelization approach as RandomWalkNodeAttributeFirstPassageTimeDistances
+            // — independent walks, thread-local accumulators merged once per task. Same caveat: exact
+            // reproducibility via randomseed() requires maxthreads=1.
+            uint[] allNodeIds = nodeset.NodeIdArray;
+            int nbrWalks = (int)(allNodeIds.Length * walkfactor);
+            object mergeLock = new();
+
+            Parallel.For(0, nbrWalks, UserSettings.GetParallelOptions(),
+                localInit: () => (Histograms: new Dictionary<(uint, uint), int[]>(), WalkCounts: new Dictionary<uint, int>(), Coverage: new Dictionary<(uint, uint), int>()),
+                body: (i, loopState, local) =>
+                {
+                    uint nodeIndex = (uint)Math.Floor(i / walkfactor);
+                    if (nodeIndex < allNodeIds.Length)
+                        RunWalk(allNodeIds[nodeIndex], local.Histograms, local.WalkCounts, local.Coverage);
+                    return local;
+                },
+                localFinally: local =>
+                {
+                    lock (mergeLock)
+                    {
+                        foreach (var (key, hist) in local.Histograms)
+                        {
+                            if (!exposureHistograms.TryGetValue(key, out int[]? existingHist))
+                                exposureHistograms[key] = hist;
+                            else
+                                for (int s = 0; s < hist.Length; s++)
+                                    existingHist[s] += hist[s];
+                        }
+                        foreach (var (catId, count) in local.WalkCounts)
+                            sourceWalkCount[catId] = sourceWalkCount.TryGetValue(catId, out int existing) ? existing + count : count;
+                        foreach (var (key, count) in local.Coverage)
+                            coverageCounts[key] = coverageCounts.TryGetValue(key, out int existing) ? existing + count : count;
+                    }
+                });
+
+            // Targeted restarts for undersampled category-pairs — kept sequential, same reasoning as FPT.
+            // Undersampling is judged on the exposure histogram (i.e. on getting enough distance
+            // observations), not on coverage.
+            if (minPairObs > 0)
+            {
+                Dictionary<uint, List<uint>> categoryToNodes = [];
+                foreach (uint nodeId in nodeset.NodeIdArray)
+                {
+                    if (!nodeAttributeStringToNodeId.TryGetValue(GetCategoryString(nodeId), out uint catId))
+                        continue;
+                    if (!categoryToNodes.TryGetValue(catId, out var nodeList))
+                        categoryToNodes[catId] = nodeList = [];
+                    nodeList.Add(nodeId);
+                }
+
+                foreach (var (sourceCatId, sourceNodes) in categoryToNodes)
+                {
+                    int maxAttempts = minPairObs * labels.Length * 3;
+                    for (int attempt = 0; attempt < maxAttempts; attempt++)
+                    {
+                        bool allSatisfied = true;
+                        for (uint t = 0; t < (uint)labels.Length; t++)
+                        {
+                            if (!exposureHistograms.TryGetValue((sourceCatId, t), out int[]? obs) || obs.Sum() < minPairObs)
+                            {
+                                allSatisfied = false;
+                                break;
+                            }
+                        }
+                        if (allSatisfied)
+                            break;
+                        RunWalk(sourceNodes[Misc.Random.Next(sourceNodes.Count)], exposureHistograms, sourceWalkCount, coverageCounts);
+                    }
+                }
+            }
+
+            // Build output layers
+            LayerOneMode avgLayer = new LayerOneMode(attrName + "_rwed_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q1Layer = new LayerOneMode(attrName + "_rwed_q1", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode medianLayer = new LayerOneMode(attrName + "_rwed_median", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode q3Layer = new LayerOneMode(attrName + "_rwed_q3", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode stdevLayer = new LayerOneMode(attrName + "_rwed_stdev", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode seLayer = new LayerOneMode(attrName + "_rwed_se", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode countLayer = new LayerOneMode(attrName + "_rwed_count", EdgeDirectionality.Directed, EdgeType.Valued, true);
+            LayerOneMode coverageLayer = new LayerOneMode(attrName + "_rwed_coverage", EdgeDirectionality.Directed, EdgeType.Valued, true);
+
+            foreach (var kvp in exposureHistograms)
+            {
+                int[] hist = kvp.Value;
+
+                int count = 0;
+                double sum = 0, sumSq = 0;
+                for (int s = 0; s < hist.Length; s++)
+                {
+                    if (hist[s] == 0) continue;
+                    int step = s + 1;
+                    count += hist[s];
+                    sum += (double)step * hist[s];
+                    sumSq += (double)step * step * hist[s];
+                }
+                if (count == 0) continue;
+
+                float mean = (float)(sum / count);
+                float variance = count > 1
+                    ? (float)((sumSq - sum * sum / count) / (count - 1))
+                    : 0f;
+                float stdev = (float)Math.Sqrt(Math.Max(0f, variance));
+
+                (uint from, uint to) = kvp.Key;
+                avgLayer.AddEdge(from, to, mean);
+                q1Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.25f));
+                medianLayer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.50f));
+                q3Layer.AddEdge(from, to, PercentileFromHistogram(hist, count, 0.75f));
+                stdevLayer.AddEdge(from, to, stdev);
+                seLayer.AddEdge(from, to, stdev / (float)Math.Sqrt(count));
+                countLayer.AddEdge(from, to, count);
+                if (sourceWalkCount.TryGetValue(from, out int totalWalks) && totalWalks > 0 && coverageCounts.TryGetValue(kvp.Key, out int coveredWalks))
+                    coverageLayer.AddEdge(from, to, (float)coveredWalks / totalWalks);
+            }
+
+            networkResults.Layers.Add(avgLayer.Name, avgLayer);
+            networkResults.Layers.Add(q1Layer.Name, q1Layer);
+            networkResults.Layers.Add(medianLayer.Name, medianLayer);
+            networkResults.Layers.Add(q3Layer.Name, q3Layer);
+            networkResults.Layers.Add(stdevLayer.Name, stdevLayer);
+            networkResults.Layers.Add(seLayer.Name, seLayer);
+            networkResults.Layers.Add(countLayer.Name, countLayer);
+            networkResults.Layers.Add(coverageLayer.Name, coverageLayer);
+
+            List<(string From, string To, int Step, int Count)>? histList = null;
+            if (returnHistograms)
+            {
+                histList = new List<(string From, string To, int Step, int Count)>();
+                foreach (var kvp in exposureHistograms)
+                {
+                    string fromLabel = labels[kvp.Key.from];
+                    string toLabel = labels[kvp.Key.to];
+                    for (int s = 0; s < kvp.Value.Length; s++)
+                        if (kvp.Value[s] > 0)
+                            histList.Add((fromLabel, toLabel, s + 1, kvp.Value[s]));
+                }
+            }
+
+            StructureResult results = new StructureResult(networkResults, new Dictionary<string, IStructure> { { "nodeset", nodesetResults } });
+            int totalObs = exposureHistograms.Values.Sum(h => h.Sum());
+            return (OperationResult<StructureResult>.Ok(results, $"Random walk exposure distances computed. {labels.Length} unique attribute values, {totalObs} total observations."), histList);
+        }
+
         /// <summary>
         /// Returns the pth percentile from a fixed-size histogram (array) where bin i
         /// represents value i+1

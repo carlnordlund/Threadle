@@ -637,4 +637,143 @@ public class DistanceTests
             UserSettings.MaxDegreeOfParallelism = -1;
         }
     }
+
+    // ── RandomWalkNodeAttributeExposureDistances (dual node/category tracking) ──────────
+
+    [Fact]
+    public void RwEd_ValidNetworkAndAttr_Succeeds()
+    {
+        var net = MakeCompleteNetwork(10);
+        AssignTwoGroupCharAttr(net, "role", 5);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeExposureDistances(net, "role", 3, null, 2f, 0, false, false);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void RwEd_UnknownAttribute_Fails()
+    {
+        var net = MakeCompleteNetwork(4);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeExposureDistances(net, "nonexistent", 2, null, 1f, 0, false, false);
+
+        Assert.False(result.Success);
+        Assert.Equal("AttributeUnknown", result.Code);
+    }
+
+    [Fact]
+    public void RwEd_FloatAttribute_Fails()
+    {
+        var net = MakeCompleteNetwork(4);
+        net.Nodeset.DefineNodeAttribute("score", "float");
+
+        var (result, _) = Distance.RandomWalkNodeAttributeExposureDistances(net, "score", 2, null, 1f, 0, false, false);
+
+        Assert.False(result.Success);
+        Assert.Equal("InvalidAttributeType", result.Code);
+    }
+
+    [Fact]
+    public void RwEd_UnknownLayerName_Fails()
+    {
+        var net = MakeCompleteNetwork(4);
+        AssignTwoGroupCharAttr(net, "role", 2);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeExposureDistances(net, "role", 2, ["nonexistent"], 1f, 0, false, false);
+
+        Assert.False(result.Success);
+        Assert.Equal("LayerNotFound", result.Code);
+    }
+
+    [Fact]
+    public void RwEd_ResultNodesetHasOneNodePerUniqueValue()
+    {
+        var net = MakeCompleteNetwork(12);
+        net.Nodeset.DefineNodeAttribute("role", "char");
+        foreach (uint id in net.Nodeset.NodeIdArray)
+            net.Nodeset.SetNodeAttribute(id, "role", id <= 4 ? "a" : id <= 8 ? "b" : "c");
+
+        var (result, _) = Distance.RandomWalkNodeAttributeExposureDistances(net, "role", 2, null, 2f, 0, false, false);
+
+        Assert.Equal(3, GetResultNodeset(result.Value!).Count);
+    }
+
+    [Fact]
+    public void RwEd_MinPairObsPositive_TriggersTargetedRestarts_Succeeds()
+    {
+        var net = MakeCompleteNetwork(12);
+        AssignTwoGroupCharAttr(net, "role", 1);
+
+        var (result, _) = Distance.RandomWalkNodeAttributeExposureDistances(net, "role", 3, null, 1f, 5, false, false);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void RwEd_ReturnHistogramsTrue_HistogramsPopulated()
+    {
+        var net = MakeCompleteNetwork(10);
+        AssignTwoGroupCharAttr(net, "role", 5);
+
+        var (result, histograms) = Distance.RandomWalkNodeAttributeExposureDistances(net, "role", 3, null, 3f, 0, false, false, returnHistograms: true);
+
+        Assert.True(result.Success);
+        Assert.NotNull(histograms);
+        Assert.NotEmpty(histograms!);
+    }
+
+    [Fact]
+    public void RwEd_SameCategoryCanBeHitMultipleTimesPerWalk_CountExceedsWalkCount()
+    {
+        // Complete graph of 12 nodes, one big group 'b' (11 nodes) reachable from a single 'a' node.
+        // With maxSteps large enough to discover several distinct 'b' nodes in the one walk from 'a',
+        // the exposure count for (a,b) should exceed the number of walks from 'a' (there's only 1),
+        // while coverage must still be capped at 1.0 (one walk, and it did reach 'b').
+        var net = MakeCompleteNetwork(12);
+        AssignTwoGroupCharAttr(net, "role", 1); // node 1 = 'a', nodes 2..12 = 'b'
+
+        var (result, _) = Distance.RandomWalkNodeAttributeExposureDistances(net, "role", 8, null, walkfactor: 1f, minPairObs: 0, balanced: false, weighted: false);
+
+        Assert.True(result.Success);
+        var resultNet = (Network)result.Value!.MainStructure;
+        var countLayer = (ILayerOneMode)resultNet.Layers["role_rwed_count"];
+        var coverageLayer = (ILayerOneMode)resultNet.Layers["role_rwed_coverage"];
+
+        var resultNs = GetResultNodeset(result.Value!);
+        uint aId = resultNs.NodeIdArray.First(id => resultNs.GetNodeAttributeString(id, "label").Value == "a");
+        uint bId = resultNs.NodeIdArray.First(id => resultNs.GetNodeAttributeString(id, "label").Value == "b");
+
+        float count = countLayer.GetEdgeValue(aId, bId);
+        float coverage = coverageLayer.GetEdgeValue(aId, bId);
+
+        Assert.True(count > 1, $"Expected multiple distinct 'b' nodes discovered in one walk, got count={count}");
+        Assert.True(coverage <= 1.0f, $"Coverage must never exceed 1.0 regardless of how many same-category nodes are hit, got {coverage}");
+    }
+
+    [Fact]
+    public void RwEd_MaxThreadsOneVersusMany_ProducesValidResultsBothWays()
+    {
+        try
+        {
+            UserSettings.Set("maxthreads", 1);
+            var net1 = MakeCompleteNetwork(10);
+            AssignTwoGroupCharAttr(net1, "role", 5);
+            var (single, _) = Distance.RandomWalkNodeAttributeExposureDistances(net1, "role", 3, null, 2f, 0, false, false);
+            Assert.True(single.Success);
+
+            if (Environment.ProcessorCount >= 2)
+            {
+                UserSettings.Set("maxthreads", 2);
+                var net2 = MakeCompleteNetwork(10);
+                AssignTwoGroupCharAttr(net2, "role", 5);
+                var (multi, _) = Distance.RandomWalkNodeAttributeExposureDistances(net2, "role", 3, null, 2f, 0, false, false);
+                Assert.True(multi.Success);
+            }
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
 }
