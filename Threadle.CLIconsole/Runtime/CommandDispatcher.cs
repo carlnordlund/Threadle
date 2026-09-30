@@ -104,6 +104,7 @@ namespace Threadle.CLIconsole.Runtime
             ["setwd"] = new SetWorkingDirectory(),
             ["shortestpath"] = new ShortestPath(),
             ["shortestpaths"] = new ShortestPaths(),
+            ["shortestpathsattributes"] = new ShortestPathsAttributes(),
             ["subnet"] = new Subnet(),
             ["symmetrictodirected"] = new SymmetricToDirected(),
             ["symmetrize"] = new Symmetrize(),

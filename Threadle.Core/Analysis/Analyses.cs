@@ -655,6 +655,46 @@ namespace Threadle.Core.Analysis
                 PathFunctions.BidirectionalBFS(nodeIdFrom, nodeIdTo, one, dynTwo, statTwo, returnPath));
         }
 
+        /// <summary>
+        /// Calculates exact shortest paths for a batch of node pairs, in parallel (up to the 'maxthreads'
+        /// setting, see 'setting()'). Layers are resolved once and shared (read-only) across all pairs; each
+        /// pair's result is written to its own independent output slot, so no merging of shared state is
+        /// needed. Results are returned in the same order as 'pairs'.
+        /// </summary>
+        /// <param name="network">The network.</param>
+        /// <param name="layerNames">The names of the layers to use (or null to use all layers).</param>
+        /// <param name="pairs">The node id pairs (from, to) to compute shortest paths for.</param>
+        /// <param name="returnPath">If true, each result also contains the sequence of node ids along the shortest path.</param>
+        /// <returns>An <see cref="OperationResult"/> containing a list of (From, To, Result) tuples, one per pair, in the same order as 'pairs'.</returns>
+        public static OperationResult<List<(uint From, uint To, ShortestPathResult Result)>> ShortestPaths(Network network, string[]? layerNames, IReadOnlyList<(uint From, uint To)> pairs, bool returnPath = false)
+        {
+            if (pairs.Count == 0)
+                return OperationResult<List<(uint, uint, ShortestPathResult)>>.Ok([]);
+
+            foreach ((uint from, uint to) in pairs)
+            {
+                OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(from, to);
+                if (!nodeCheckResult.Success)
+                    return OperationResult<List<(uint, uint, ShortestPathResult)>>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
+            }
+
+            if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
+                return OperationResult<List<(uint, uint, ShortestPathResult)>>.Fail(err!.Code, err.Message);
+
+            var results = new (uint From, uint To, ShortestPathResult Result)[pairs.Count];
+
+            System.Threading.Tasks.Parallel.For(0, pairs.Count, UserSettings.GetParallelOptions(), i =>
+            {
+                (uint from, uint to) = pairs[i];
+                ShortestPathResult result = from == to
+                    ? new ShortestPathResult(0, returnPath ? [from] : null)
+                    : PathFunctions.BidirectionalBFS(from, to, one, dynTwo, statTwo, returnPath);
+                results[i] = (from, to, result);
+            });
+
+            return OperationResult<List<(uint, uint, ShortestPathResult)>>.Ok([.. results]);
+        }
+
 
         ///// <summary>
         ///// Calculates the shortest path between two nodes, either for a particular layer or for all layers.

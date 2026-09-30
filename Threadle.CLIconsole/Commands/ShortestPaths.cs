@@ -1,6 +1,7 @@
 ﻿using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
+using Threadle.Core.Analysis;
 using Threadle.Core.Model;
 using Threadle.Core.Utilities;
 
@@ -14,17 +15,17 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:network] = shortestpaths(network = [var:network], attrname = [str], *layernames = [semicolon-separated])";
+        public string Syntax => "[list] = shortestpaths(network = [var:network], pairs = [semicolon-separated 'from:to' pairs], *layernames = [semicolon-separated], *returnpaths = ['false'(default),'true'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates the exact shortest path (BFS) between all node pairs and aggregates by node attribute category. Returns a result network whose nodes are the unique attribute values and whose layers hold mean path length ({attrname}_sp_avg), standard error ({attrname}_sp_se), and reachable pair count ({attrname}_sp_count). Unreachable pairs are excluded. Note: runs in O(N×(N+E)) time — only feasible for smaller networks.";
+        public string Description => "Calculates exact shortest paths (bidirectional BFS) for a batch of node pairs, e.g. pairs='1:2;3:4;5:6' (colon between the two node ids of a pair, semicolon between pairs — not commas, which are the CLI's own argument separator). Runs in parallel across up to 'maxthreads' threads (see 'setting()' and 'system()'). Uses all layers unless specific layers are specified as a semicolon-separated list. Returns a list of {node1id, node2id, distance, [path]} for each pair, in the same order as given. Distance is -1 if no path exists. Set returnpaths=true to also return the sequence of node ids along each shortest path. For aggregating shortest paths by node attribute category instead, see 'shortestpathsattributes()'.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
         /// </summary>
-        public bool ToAssign => true;
+        public bool ToAssign => false;
 
         /// <summary>
         /// Executes the command.
@@ -33,32 +34,37 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console variable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            var assigned = new Dictionary<string, string>();
-            string variableName = command.GetAssignmentVariableNameThrowExceptionIfNull();
             if (CommandHelpers.TryGetVariable<Network>(context, command.GetArgumentThrowExceptionIfMissingOrNull("network", "arg0"), out var network) is CommandResult commandResult)
                 return commandResult;
-            string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
+
+            string pairsString = command.GetArgumentThrowExceptionIfMissingOrNull("pairs", "arg1");
+            List<(uint, uint)>? pairs = Misc.ParseUintPairList(pairsString);
+            if (pairs == null)
+                return CommandResult.Fail("InvalidArgument", "Argument 'pairs' is malformed; expected semicolon-separated 'from:to' pairs, e.g. '1:2;3:4'.");
+
             string layerNames = command.GetArgumentParseString("layernames", "");
             string[]? layers = (layerNames.Length > 0) ? layerNames.Split(';') : null;
+            bool returnPaths = command.GetArgumentParseBool("returnpaths", false);
 
-            var result = Core.Analysis.Distance.ShortestPathsNodeAttributeDistances(network, attrName, layers);
+            var result = Analyses.ShortestPaths(network, layers, pairs, returnPaths);
             if (!result.Success)
-                return CommandResult.Fail(result.Code, result.Message);
-            StructureResult structures = result.Value!;
-            context.SetVariable(variableName, structures.MainStructure);
-            assigned[variableName] = structures.MainStructure.GetType().Name;
-            if (structures.AdditionalStructures.Count > 0)
-                foreach (var kvp in structures.AdditionalStructures)
+                return CommandResult.FromOperationResult(result);
+
+            var payload = new List<Dictionary<string, object>>(result.Value!.Count);
+            foreach (var (from, to, sp) in result.Value!)
+            {
+                var entry = new Dictionary<string, object>
                 {
-                    string additionalAssignedVariable = variableName + "_" + kvp.Key;
-                    context.SetVariable(additionalAssignedVariable, kvp.Value);
-                    assigned[additionalAssignedVariable] = kvp.Value.GetType().Name;
-                }
-            return CommandResult.Ok(
-                $"Shortest paths on attribute '{attrName}' stored in '{structures.MainStructure.Name}'",
-                null,
-                assigned
-            );
+                    ["node1id"] = from,
+                    ["node2id"] = to,
+                    ["distance"] = sp.Distance
+                };
+                if (returnPaths && sp.Path != null)
+                    entry["path"] = string.Join(";", sp.Path);
+                payload.Add(entry);
+            }
+
+            return CommandResult.Ok($"Computed shortest paths for {pairs.Count} node pair(s).", payload);
         }
     }
 }

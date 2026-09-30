@@ -496,6 +496,32 @@ namespace Threadle.Core.Utilities
                     return false;
             }
         }
+
+        /// <summary>
+        /// Converts a string of pairSep-separated node id pairs (each pair itself valueSep-separated,
+        /// e.g. "1:2;3:4;5:6") into a list of (uint,uint) tuples. Returns null if the string is malformed
+        /// (a pair doesn't have exactly two values, or a value isn't a valid uint).
+        /// Note: the default valueSep is a colon, not a comma, since commas are the CLI's top-level argument
+        /// separator (see TextCommandParser) — an unquoted value containing a comma would be split apart
+        /// before it ever reaches this method.
+        /// </summary>
+        /// <param name="pairsString">A string with pairSep-separated node id pairs.</param>
+        /// <param name="pairSep">The separator character between pairs (default is semicolon ;)</param>
+        /// <param name="valueSep">The separator character between the two values within a pair (default is colon :)</param>
+        /// <returns>A list of (uint,uint) tuples, or null if the string could not be parsed.</returns>
+        public static List<(uint, uint)>? ParseUintPairList(string pairsString, char pairSep = ';', char valueSep = ':')
+        {
+            var pairStrings = pairsString.Split(pairSep, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var result = new List<(uint, uint)>(pairStrings.Length);
+            foreach (string pairString in pairStrings)
+            {
+                var values = pairString.Split(valueSep, StringSplitOptions.TrimEntries);
+                if (values.Length != 2 || !uint.TryParse(values[0], out uint first) || !uint.TryParse(values[1], out uint second))
+                    return null;
+                result.Add((first, second));
+            }
+            return result;
+        }
         #endregion
     }
 }
