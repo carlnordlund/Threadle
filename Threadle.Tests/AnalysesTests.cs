@@ -1840,4 +1840,89 @@ public class AnalysesTests
             UserSettings.MaxDegreeOfParallelism = -1;
         }
     }
+
+    // ── ClusteringCoefficient ────────────────────────────────────────────────────
+    // Each node's coefficient is computed independently (LocalStructureFunctions.
+    // ComputePerNodeParallel); tests below cover the Watts-Strogatz formula's math plus
+    // that all four formulas merge to the same result under parallel execution.
+
+    [Fact]
+    public void ClusteringCoefficient_TriangleWithPendant_ComputesExpectedValues()
+    {
+        // Triangle 1-2-3, plus pendant 4 attached only to node 1.
+        // Node 1: neighbors {2,3,4}; only pair (2,3) is connected → C = 1/3.
+        // Node 2: neighbors {1,3}; pair (1,3) is connected → C = 1.0.
+        // Node 3: neighbors {1,2}; pair (1,2) is connected → C = 1.0.
+        // Node 4: only 1 neighbor → C = 0.0.
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 1, 4);
+
+        var result = Analyses.ClusteringCoefficient(net, new[] { "layer" }, "cc", ClusteringMethod.WattsStrogatz);
+
+        Assert.True(result.Success);
+        Assert.Equal(1.0 / 3.0, GetFloatAttr(net, 1, "cc"), precision: 5);
+        Assert.Equal(1.0, GetFloatAttr(net, 2, "cc"), precision: 5);
+        Assert.Equal(1.0, GetFloatAttr(net, 3, "cc"), precision: 5);
+        Assert.Equal(0.0, GetFloatAttr(net, 4, "cc"), precision: 5);
+    }
+
+    [Fact]
+    public void ClusteringCoefficient_NonExistentLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        var result = Analyses.ClusteringCoefficient(net, new[] { "ghost" });
+        Assert.False(result.Success);
+    }
+
+    [Theory]
+    [InlineData(ClusteringMethod.WattsStrogatz)]
+    [InlineData(ClusteringMethod.Fagiolo)]
+    [InlineData(ClusteringMethod.Barrat)]
+    [InlineData(ClusteringMethod.Onnela)]
+    public void ClusteringCoefficient_MaxThreadsOneVsMany_ProduceSameValues(ClusteringMethod method)
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            Analyses.ClusteringCoefficient(netSeq, new[] { "layer" }, "cc", method);
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            Analyses.ClusteringCoefficient(netPar, new[] { "layer" }, "cc", method);
+
+            for (uint id = 1; id <= 20; id++)
+                Assert.Equal(GetFloatAttr(netSeq, id, "cc"), GetFloatAttr(netPar, id, "cc"), precision: 5);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void ClusteringCoefficient_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeRingWithChordsNetwork(15);
+            var result = Analyses.ClusteringCoefficient(net, new[] { "layer" }, "cc", ClusteringMethod.WattsStrogatz);
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
 }

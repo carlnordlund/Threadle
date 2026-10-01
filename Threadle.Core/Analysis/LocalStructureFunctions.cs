@@ -1,5 +1,6 @@
 ﻿using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Analysis
 {
@@ -261,16 +262,14 @@ namespace Threadle.Core.Analysis
         /// </summary>
         private static Dictionary<uint, double> ClusteringWattsStrogatz(uint[] nodeIds, List<ILayerOneMode> layers)
         {
-            var result = new Dictionary<uint, double>(nodeIds.Length);
-            foreach (uint u in nodeIds)
+            return ComputePerNodeParallel(nodeIds, u =>
             {
                 var N = CombinedNeighborSet(u, layers, EdgeTraversal.Both);
                 int k = N.Count;
-                if (k < 2) { result[u] = 0.0; continue; }
+                if (k < 2) return 0.0;
                 double t = CountClosedPairs(u, N, layers);
-                result[u] = t / (k * (k - 1) / 2.0);
-            }
-            return result;
+                return t / (k * (k - 1) / 2.0);
+            });
         }
 
         /// <summary>
@@ -283,13 +282,12 @@ namespace Threadle.Core.Analysis
         /// </summary>
         private static Dictionary<uint, double> ClusteringFagiolo(uint[] nodeIds, List<ILayerOneMode> layers)
         {
-            var result = new Dictionary<uint, double>(nodeIds.Length);
-            foreach (uint u in nodeIds)
+            return ComputePerNodeParallel(nodeIds, u =>
             {
                 var outN = CombinedNeighborSet(u, layers, EdgeTraversal.Out);
                 var inN = CombinedNeighborSet(u, layers, EdgeTraversal.In);
                 int d_tot = outN.Count + inN.Count;
-                if (d_tot < 2) { result[u] = 0.0; continue; }
+                if (d_tot < 2) return 0.0;
 
                 int b = 0;
                 foreach (uint v in outN) if (inN.Contains(v)) b++;
@@ -317,9 +315,8 @@ namespace Threadle.Core.Analysis
                 t /= 2.0;  // Fagiolo's formula divides by 2
 
                 double denom = (double)d_tot * (d_tot - 1) - 2.0 * b;
-                result[u] = denom > 0 ? t / denom : 0.0;
-            }
-            return result;
+                return denom > 0 ? t / denom : 0.0;
+            });
         }
 
         /// <summary>
@@ -331,22 +328,15 @@ namespace Threadle.Core.Analysis
         /// </summary>
         private static Dictionary<uint, double> ClusteringBarrat(uint[] nodeIds, List<ILayerOneMode> layers)
         {
-            var result = new Dictionary<uint, double>(nodeIds.Length);
-            foreach (uint u in nodeIds)
+            return ComputePerNodeParallel(nodeIds, u =>
             {
                 var N = CombinedNeighborSet(u, layers, EdgeTraversal.Out);
                 int k = N.Count;
-                if (k < 2) {
-                    result[u] = 0.0;
-                    continue;
-                }
+                if (k < 2) return 0.0;
 
                 var edgeWeights = CombinedEdgeWeights(u, layers, EdgeTraversal.Out);
                 double s_u = edgeWeights.Values.Sum();
-                if (s_u == 0) {
-                    result[u] = 0.0;
-                    continue;
-                }
+                if (s_u == 0) return 0.0;
 
                 // Sum over ordered pairs (j,h): both (j,h) and (h,j) are counted separately
                 double triW = 0;
@@ -357,9 +347,8 @@ namespace Threadle.Core.Analysis
                                 triW += (edgeWeights.GetValueOrDefault(v) +
                                          edgeWeights.GetValueOrDefault(w)) / 2.0;
                 // No divide-by-2: Barrat sums over ordered (j,h) pairs
-                result[u] = triW / (s_u * (k - 1));
-            }
-            return result;
+                return triW / (s_u * (k - 1));
+            });
         }
 
         /// <summary>
@@ -373,15 +362,11 @@ namespace Threadle.Core.Analysis
             double maxW = MaxEdgeWeight(layers);
             if (maxW == 0) maxW = 1;
 
-            var result = new Dictionary<uint, double>(nodeIds.Length);
-            foreach (uint u in nodeIds)
+            return ComputePerNodeParallel(nodeIds, u =>
             {
                 var N = CombinedNeighborSet(u, layers, EdgeTraversal.Out);
                 int k = N.Count;
-                if (k < 2) {
-                    result[u] = 0.0;
-                    continue;
-                }
+                if (k < 2) return 0.0;
 
                 var edgeWeights = CombinedEdgeWeights(u, layers, EdgeTraversal.Out);
 
@@ -398,9 +383,8 @@ namespace Threadle.Core.Analysis
                                 t += Math.Pow(w_uv * w_uw * w_vw, 1.0 / 3.0);
                             }
                 // No divide-by-2: Onnela sums over ordered (j,h) pairs
-                result[u] = t / ((double)k * (k - 1));
-            }
-            return result;
+                return t / ((double)k * (k - 1));
+            });
         }
 
         #endregion
@@ -485,6 +469,28 @@ namespace Threadle.Core.Analysis
                             if (v > max)
                                 max = v;
             return max;
+        }
+
+        /// <summary>
+        /// Computes perNode(u) for every node in parallel (up to 'maxthreads', see 'setting()') and
+        /// collects the results into a dictionary. Each node's value is written to its own
+        /// pre-assigned array slot, so — unlike writing directly into a shared Dictionary, which is
+        /// not safe for concurrent writes even to distinct keys — no merging or locking is needed.
+        /// Used by all four clustering-coefficient formulas, whose per-node computations are fully
+        /// independent of one another.
+        /// </summary>
+        private static Dictionary<uint, double> ComputePerNodeParallel(uint[] nodeIds, Func<uint, double> perNode)
+        {
+            int n = nodeIds.Length;
+            var values = new double[n];
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(), i =>
+            {
+                values[i] = perNode(nodeIds[i]);
+            });
+
+            var result = new Dictionary<uint, double>(n);
+            for (int i = 0; i < n; i++) result[nodeIds[i]] = values[i];
+            return result;
         }
 
         #endregion

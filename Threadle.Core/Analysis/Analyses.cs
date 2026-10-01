@@ -479,6 +479,8 @@ namespace Threadle.Core.Analysis
         /// Auto-selects formula based on layer type (directed/undirected, binary/valued) unless
         /// method is specified explicitly.
         /// When multiple layers are specified, adjacency is the union across all layers.
+        /// Each node's coefficient is independent of every other's, so the per-node computations
+        /// run in parallel across up to 'maxthreads' threads (see 'setting()').
         /// </summary>
         public static OperationResult ClusteringCoefficient(Network network, string[]? layerNames, string? attrName = null, ClusteringMethod method = ClusteringMethod.Auto, int sampleSize = 0)
         {
