@@ -1,11 +1,10 @@
 ﻿namespace Threadle.Core.Utilities.Enums
 {
     /// <summary>
-    /// Enum with the available export formats
+    /// Enum with the available formats for importing networks from other software
     /// </summary>
-    public enum ExportFormat
+    public enum ImportFormat
     {
-        Gexf,
         Graphml
     }
 }

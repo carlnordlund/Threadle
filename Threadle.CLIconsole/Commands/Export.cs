@@ -15,12 +15,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "export(network = [var:network], format = ['gexf'], file = [str], +layername = [str])";
+        public string Syntax => "export(network = [var:network], format = ['gexf','graphml'], file = [str], +layername = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Export a network info different external file formats. So far, only 'gexf' (Gephi format) is implemented, which still has to be specified with the 'format' argument. For gephi, the specific layer to export is specified with the 'layername' argument.";
+        public string Description => "Exports a network to an external file format: 'gexf' (Gephi format) or 'graphml'. As gexf is a single-layer format, the layer to export must be specified with the 'layername' argument. For graphml, all nodes, node attributes and layers are exported, unless 'layername' is given, in which case only that layer is exported. When exporting several layers to graphml, each edge gets a 'layer' attribute, and 1-mode layers are exported as edges and 2-mode layers as hyperedges. Such a file can be imported back with 'importnetwork()'.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

@@ -258,11 +258,12 @@ namespace Threadle.Core.Utilities
         }
 
         /// <summary>
-        /// Public-facing method for exporting a single-layer network to file. So far, only 'gexf' (Gephi) exists.
-        /// This public-facing method is for exports to single-layer formats, where the layer is specified.
+        /// Public-facing method for exporting a network to file in an external format: 'gexf' (Gephi) or 'graphml'.
+        /// For single-layer formats (gexf), the layer must be specified. For multilayer formats (graphml), an empty
+        /// layer name exports all layers.
         /// </summary>
         /// <param name="network">The network structure to export.</param>
-        /// <param name="format">The format to export to (Only has gexf (Gephi) right now.</param>
+        /// <param name="format">The format to export to.</param>
         /// <param name="layerName">The layer to export</param>
         /// <param name="filepath">Tjhe filepath to export to</param>
         /// <returns>An OperationResult informing how well it went.</returns>
@@ -280,6 +281,8 @@ namespace Threadle.Core.Utilities
                     // so that this looks similar to the other public-facing API:s for load/save
                     case ExportFormat.Gexf:
                         return ExportNetworkToGexf(network, layerName, filepath);
+                    case ExportFormat.Graphml:
+                        return ExportNetworkToGraphml(network, layerName, filepath);
                 }
                 return OperationResult.Fail("ExportFormatNotFound", $"Export format '{format}' not implemented.");                
             }
@@ -287,6 +290,55 @@ namespace Threadle.Core.Utilities
             {
                 return OperationResult.Fail("IOExportError", "Unexpected error when exporting network to filepath: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Public-facing method for importing a network from a file in an external format. Creates a new Network
+        /// and a new Nodeset, returned in a <see cref="StructureResult"/> (where the Nodeset is an additional structure).
+        /// </summary>
+        /// <param name="filepath">The file to import.</param>
+        /// <param name="format">The format of the file.</param>
+        /// <param name="layerAttr">Name of the edge attribute whose values specify the layer of each edge (null or empty: all edges in one layer).</param>
+        /// <param name="weightAttr">Name of the edge attribute holding edge values (null or empty: binary edges).</param>
+        /// <param name="idAttr">Name of the string node attribute to store the original node ids in, if these are not unsigned integers.</param>
+        /// <param name="packLayers">Whether layers should be packed after import.</param>
+        /// <returns>An OperationResult with a StructureResult holding the imported structures.</returns>
+        public static OperationResult<StructureResult> ImportNetwork(string filepath, ImportFormat format, string? layerAttr = "layer", string? weightAttr = "weight", string idAttr = "id", bool packLayers = false)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filepath))
+                    return OperationResult<StructureResult>.Fail("MissingFilePath", "No filepath provided.");
+                filepath = Path.GetFullPath(filepath);
+                StructureResult structureResult = format switch
+                {
+                    ImportFormat.Graphml => FileSerializerGraphml.Import(filepath, layerAttr, weightAttr, idAttr),
+                    _ => throw new NotSupportedException($"Import format '{format}' not implemented.")
+                };
+                if (packLayers && structureResult.MainStructure is Network network)
+                    network.Pack(null);
+                return OperationResult<StructureResult>.Ok(structureResult);
+            }
+            catch (Exception e)
+            {
+                return OperationResult<StructureResult>.Fail("IOImportError", $"Error while importing network: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Exports a network (or one of its layers) to GraphML format. If no layer name is given, all layers are exported.
+        /// </summary>
+        /// <param name="network">The network to export.</param>
+        /// <param name="layerName">The layer to export (empty: all layers).</param>
+        /// <param name="filepath">The filepath to export to.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
+        private static OperationResult ExportNetworkToGraphml(Network network, string layerName, string filepath)
+        {
+            if (!string.IsNullOrEmpty(layerName) && network._getLayer(layerName) is null)
+                return OperationResult.Fail("LayerNotFound", $"No layer named '{layerName}' found.");
+            FileSerializerGraphml.Export(network, layerName, filepath);
+            string what = string.IsNullOrEmpty(layerName) ? $"Network '{network.Name}'" : $"Layer '{layerName}' in network '{network.Name}'";
+            return OperationResult.Ok($"{what} exported to 'graphml' format to file: {filepath}");
         }
 
         /// <summary>

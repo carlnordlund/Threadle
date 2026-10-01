@@ -79,6 +79,7 @@ namespace Threadle.CLIconsole.Runtime
             ["help"] = new HelpCommand(),
             ["i"] = new Inventory(),
             ["importlayer"] = new ImportLayer(),
+            ["importnetwork"] = new ImportNetwork(),
             ["importnodeattributes"] = new ImportNodeAttributes(),
             ["info"] = new Info(),
             ["loadscript"] = new LoadScript(),
