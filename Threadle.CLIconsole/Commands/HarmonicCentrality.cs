@@ -20,7 +20,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates harmonic centrality (sum of inverse distances to all reachable nodes) for each node and stores the result as a node attribute. When normalize=true, divides by (n-1). Handles disconnected graphs naturally. When samplesize > 0, a random subset of source nodes is used. See Rochat (2009); Marchiori & Latora (2000).";
+        public string Description => "Calculates harmonic centrality (sum of inverse distances to all reachable nodes) for each node and stores the result as a node attribute. When normalize=true, divides by (n-1). Handles disconnected graphs naturally. When samplesize > 0, a random subset of source nodes is used. The per-source BFS passes run in parallel across up to 'maxthreads' threads (see 'setting()'). See Rochat (2009); Marchiori & Latora (2000).";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

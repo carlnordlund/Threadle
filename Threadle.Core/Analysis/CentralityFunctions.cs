@@ -64,6 +64,54 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Runs AccumulateBFSCentralities for every source node in parallel (up to 'maxthreads',
+        /// see 'setting()'), then merges the per-source contributions into shared accumulators.
+        /// Each thread accumulates into its own local dictionaries (thread-local partial sums, one
+        /// BFS per source with no locking on the hot path); the partial sums are merged under a
+        /// single lock once per thread's batch, not once per source. Used by BetweennessCentrality,
+        /// ClosenessCentrality, and HarmonicCentrality, which all share this same BFS pass.
+        /// </summary>
+        internal static (Dictionary<uint, double> Betweenness, Dictionary<uint, double> ClosenessDistSum, Dictionary<uint, int> ClosenessReachable, Dictionary<uint, double> Harmonic)
+            AccumulateBFSCentralitiesForSources(uint[] sources, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        {
+            var betweenness = new Dictionary<uint, double>();
+            var closenessDistSum = new Dictionary<uint, double>();
+            var closenessReachable = new Dictionary<uint, int>();
+            var harmonic = new Dictionary<uint, double>();
+            var mergeLock = new object();
+
+            System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
+                () => (
+                    Betweenness: new Dictionary<uint, double>(),
+                    ClosenessDistSum: new Dictionary<uint, double>(),
+                    ClosenessReachable: new Dictionary<uint, int>(),
+                    Harmonic: new Dictionary<uint, double>()
+                ),
+                (i, loopState, local) =>
+                {
+                    AccumulateBFSCentralities(sources[i], oneModes, twoModesDynamic, twoModesStatic, traversal,
+                        local.Betweenness, local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic);
+                    return local;
+                },
+                local =>
+                {
+                    lock (mergeLock)
+                    {
+                        foreach (var (node, value) in local.Betweenness)
+                            betweenness[node] = betweenness.GetValueOrDefault(node) + value;
+                        foreach (var (node, value) in local.ClosenessDistSum)
+                            closenessDistSum[node] = closenessDistSum.GetValueOrDefault(node) + value;
+                        foreach (var (node, value) in local.ClosenessReachable)
+                            closenessReachable[node] = closenessReachable.GetValueOrDefault(node) + value;
+                        foreach (var (node, value) in local.Harmonic)
+                            harmonic[node] = harmonic.GetValueOrDefault(node) + value;
+                    }
+                });
+
+            return (betweenness, closenessDistSum, closenessReachable, harmonic);
+        }
+
+        /// <summary>
         /// Normalizes raw betweenness scores.
         /// Directed: divide by (n-1)(n-2). Undirected: divide by (n-1)(n-2)/2.
         /// When sampled (totalSources < n): scale up by n/totalSources.

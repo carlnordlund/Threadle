@@ -1,6 +1,7 @@
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Tests;
 
@@ -1691,5 +1692,152 @@ public class AnalysesTests
         var result = Analyses.Density(net, "layer");
         Assert.True(result.Success);
         Assert.Equal(0.0, result.Value);
+    }
+
+    // ── BetweennessCentrality / ClosenessCentrality / HarmonicCentrality ──────────
+    // These three share a single parallelized BFS pass (CentralityFunctions.
+    // AccumulateBFSCentralitiesForSources); correctness tests below cover both the
+    // per-metric math and that parallel execution merges to the same result as sequential.
+
+    private static double GetFloatAttr(Network net, uint nodeId, string attrName)
+    {
+        var attrResult = net.Nodeset.GetNodeAttribute(nodeId, attrName);
+        Assert.True(attrResult.Success);
+        var (val, type) = attrResult.Value;
+        return (float)val.GetValue(type)!;
+    }
+
+    /// <summary>
+    /// Builds an n-node ring (1-2-...-n-1) plus a few non-adjacent chords, so the graph is
+    /// asymmetric enough to exercise many distinct BFS sources without being a trivial shape.
+    /// </summary>
+    private static Network MakeRingWithChordsNetwork(int nodeCount)
+    {
+        var net = MakeNetwork(nodeCount);
+        AddUndirectedLayer(net, "layer");
+        for (int i = 1; i <= nodeCount; i++)
+        {
+            int next = i == nodeCount ? 1 : i + 1;
+            net.AddEdge("layer", (uint)i, (uint)next);
+        }
+        for (int i = 1; i + 3 <= nodeCount; i += 3)
+            net.AddEdge("layer", (uint)i, (uint)(i + 3));
+        return net;
+    }
+
+    [Fact]
+    public void BetweennessCentrality_PathGraph_MiddleNodeHighest()
+    {
+        // 1-2-3-4-5 undirected path: node 3 sits on every shortest path between {1,2} and {4,5}
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 4);
+        net.AddEdge("layer", 4, 5);
+
+        var result = Analyses.BetweennessCentrality(net, new[] { "layer" }, "bw", directed: false);
+
+        Assert.True(result.Success);
+        double bwMiddle = GetFloatAttr(net, 3, "bw");
+        double bwEnd = GetFloatAttr(net, 1, "bw");
+        Assert.Equal(0.0, bwEnd, precision: 6);
+        Assert.True(bwMiddle > bwEnd);
+    }
+
+    [Fact]
+    public void ClosenessCentrality_StarGraph_CenterReachesAllAtDistanceOne()
+    {
+        // Node 1 is the hub, connected to 2,3,4,5: closeness of node 1 is 1.0
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 1, 4);
+        net.AddEdge("layer", 1, 5);
+
+        var result = Analyses.ClosenessCentrality(net, new[] { "layer" }, "cl");
+
+        Assert.True(result.Success);
+        Assert.Equal(1.0, GetFloatAttr(net, 1, "cl"), precision: 6);
+    }
+
+    [Fact]
+    public void HarmonicCentrality_StarGraph_CenterHighest()
+    {
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 1, 4);
+        net.AddEdge("layer", 1, 5);
+
+        var result = Analyses.HarmonicCentrality(net, new[] { "layer" }, "hm", normalize: false);
+
+        Assert.True(result.Success);
+        double hmCenter = GetFloatAttr(net, 1, "hm");
+        double hmLeaf = GetFloatAttr(net, 2, "hm");
+        Assert.Equal(4.0, hmCenter, precision: 6); // 4 leaves, each at distance 1
+        Assert.True(hmCenter > hmLeaf);
+    }
+
+    [Fact]
+    public void BetweennessCentrality_NonExistentLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        var result = Analyses.BetweennessCentrality(net, new[] { "ghost" });
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void BetweennessClosenessHarmonic_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            Analyses.BetweennessCentrality(netSeq, new[] { "layer" }, "bw", directed: false);
+            Analyses.ClosenessCentrality(netSeq, new[] { "layer" }, "cl");
+            Analyses.HarmonicCentrality(netSeq, new[] { "layer" }, "hm");
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            Analyses.BetweennessCentrality(netPar, new[] { "layer" }, "bw", directed: false);
+            Analyses.ClosenessCentrality(netPar, new[] { "layer" }, "cl");
+            Analyses.HarmonicCentrality(netPar, new[] { "layer" }, "hm");
+
+            for (uint id = 1; id <= 20; id++)
+            {
+                Assert.Equal(GetFloatAttr(netSeq, id, "bw"), GetFloatAttr(netPar, id, "bw"), precision: 5);
+                Assert.Equal(GetFloatAttr(netSeq, id, "cl"), GetFloatAttr(netPar, id, "cl"), precision: 5);
+                Assert.Equal(GetFloatAttr(netSeq, id, "hm"), GetFloatAttr(netPar, id, "hm"), precision: 5);
+            }
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void BetweennessCentrality_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeRingWithChordsNetwork(15);
+            var result = Analyses.BetweennessCentrality(net, new[] { "layer" }, "bw", directed: false);
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
     }
 }

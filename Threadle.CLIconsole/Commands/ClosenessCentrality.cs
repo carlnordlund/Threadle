@@ -20,7 +20,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates closeness centrality for each node using Wasserman-Faust normalization, which handles disconnected components by incorporating the reachable proportion of nodes. Stores the result as a node attribute. When samplesize > 0, a random subset of source nodes is used. See Freeman (1978); normalization for disconnected graphs: Wasserman & Faust (1994).";
+        public string Description => "Calculates closeness centrality for each node using Wasserman-Faust normalization, which handles disconnected components by incorporating the reachable proportion of nodes. Stores the result as a node attribute. When samplesize > 0, a random subset of source nodes is used. The per-source BFS passes run in parallel across up to 'maxthreads' threads (see 'setting()'). See Freeman (1978); normalization for disconnected graphs: Wasserman & Faust (1994).";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

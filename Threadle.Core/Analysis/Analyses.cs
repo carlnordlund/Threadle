@@ -369,7 +369,9 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Calculates betweenness centrality for all nodes using Brandes' algorithm with
         /// hyperedge-aware BFS. Normalizes by (n-1)(n-2) for directed, halved for undirected.
-        /// When sampleSize > 0, scales the result by n/sampleSize.
+        /// When sampleSize > 0, scales the result by n/sampleSize. The per-source BFS passes
+        /// (shared with ClosenessCentrality and HarmonicCentrality) run in parallel across up to
+        /// 'maxthreads' threads (see 'setting()').
         /// </summary>
         public static OperationResult BetweennessCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, bool directed = true, EdgeTraversal traversal = EdgeTraversal.Out)
         {
@@ -379,13 +381,7 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
 
-            var bw = new Dictionary<uint, double>();
-            var cdSum = new Dictionary<uint, double>();
-            var cdReach = new Dictionary<uint, int>();
-            var hm = new Dictionary<uint, double>();
-
-            foreach (uint s in sources)
-                CentralityFunctions.AccumulateBFSCentralities(s, one, dynTwo, statTwo, traversal, bw, cdSum, cdReach, hm);
+            var (bw, _, _, _) = CentralityFunctions.AccumulateBFSCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeBetweenness(bw, nodeIds, sources.Length, directed);
             attrName = string.IsNullOrEmpty(attrName) ? "betweenness" : attrName;
@@ -396,7 +392,9 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Calculates closeness centrality using Wasserman-Faust normalization, which handles
         /// disconnected components by incorporating the reachable proportion of nodes.
-        /// When sampleSize > 0, uses a random subset of source nodes.
+        /// When sampleSize > 0, uses a random subset of source nodes. The per-source BFS passes
+        /// (shared with BetweennessCentrality and HarmonicCentrality) run in parallel across up to
+        /// 'maxthreads' threads (see 'setting()').
         /// </summary>
         public static OperationResult ClosenessCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, EdgeTraversal traversal = EdgeTraversal.Out)
         {
@@ -406,13 +404,7 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
 
-            var bw = new Dictionary<uint, double>();
-            var cdSum = new Dictionary<uint, double>();
-            var cdReach = new Dictionary<uint, int>();
-            var hm = new Dictionary<uint, double>();
-
-            foreach (uint s in sources)
-                CentralityFunctions.AccumulateBFSCentralities(s, one, dynTwo, statTwo, traversal, bw, cdSum, cdReach, hm);
+            var (_, cdSum, cdReach, _) = CentralityFunctions.AccumulateBFSCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeCloseness(cdSum, cdReach, nodeIds);
             attrName = string.IsNullOrEmpty(attrName) ? "closeness" : attrName;
@@ -423,7 +415,9 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Calculates harmonic centrality (sum of inverse distances to all reachable nodes).
         /// When normalize = true, divides by (n-1). Handles disconnected graphs naturally.
-        /// When sampleSize > 0, uses a random subset of source nodes.
+        /// When sampleSize > 0, uses a random subset of source nodes. The per-source BFS passes
+        /// (shared with BetweennessCentrality and ClosenessCentrality) run in parallel across up to
+        /// 'maxthreads' threads (see 'setting()').
         /// </summary>
         public static OperationResult HarmonicCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, bool normalize = true, EdgeTraversal traversal = EdgeTraversal.Out)
         {
@@ -433,13 +427,7 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
 
-            var bw = new Dictionary<uint, double>();
-            var cdSum = new Dictionary<uint, double>();
-            var cdReach = new Dictionary<uint, int>();
-            var hm = new Dictionary<uint, double>();
-
-            foreach (uint s in sources)
-                CentralityFunctions.AccumulateBFSCentralities(s, one, dynTwo, statTwo, traversal, bw, cdSum, cdReach, hm);
+            var (_, _, _, hm) = CentralityFunctions.AccumulateBFSCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeHarmonic(hm, nodeIds, normalize);
             attrName = string.IsNullOrEmpty(attrName) ? "harmonic" : attrName;
