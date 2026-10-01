@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Computes Burt's effective size for each node in the specified 1-mode layer(s) and stores the result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj, measuring the number of non-redundant contacts: higher values indicate more structural holes around the ego. Weights are symmetrized across layers. Only 1-mode layers are accepted — project 2-mode layers first. Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.";
+        public string Description => "Computes Burt's effective size for each node in the specified 1-mode layer(s) and stores the result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj, measuring the number of non-redundant contacts: higher values indicate more structural holes around the ego. Weights are symmetrized across layers. Only 1-mode layers are accepted — project 2-mode layers first. The per-node computation runs in parallel across up to 'maxthreads' threads (see 'setting()'). Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

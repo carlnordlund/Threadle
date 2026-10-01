@@ -152,7 +152,8 @@ namespace Threadle.Core.Analysis
         /// the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)²
         /// where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many
         /// structural holes) to ~1 (fully embedded in dense clique). Only 1-mode layers are
-        /// accepted — project 2-mode layers first.
+        /// accepted — project 2-mode layers first. The per-node O(k²) computation (shared with
+        /// EffectiveSize) runs in parallel across up to 'maxthreads' threads (see 'setting()').
         /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
         /// </summary>
         public static OperationResult Constraint(Network network, string[]? layerNames, string? attrName = null)
@@ -200,6 +201,8 @@ namespace Threadle.Core.Analysis
         /// the result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj,
         /// measuring the number of non-redundant contacts. Higher values indicate more structural
         /// holes around the ego. Only 1-mode layers are accepted — project 2-mode layers first.
+        /// The per-node O(k²) computation (shared with Constraint) runs in parallel across up to
+        /// 'maxthreads' threads (see 'setting()').
         /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
         /// </summary>
         public static OperationResult EffectiveSize(Network network, string[]? layerNames, string? attrName = null)

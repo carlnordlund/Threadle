@@ -1925,4 +1925,104 @@ public class AnalysesTests
             UserSettings.MaxDegreeOfParallelism = -1;
         }
     }
+
+    // ── Constraint / EffectiveSize (Burt's structural holes) ───────────────────────
+    // StructuralHoles' per-node O(k²) computation is independent across nodes once the
+    // symmetrized weight/strength tables are built; tests below cover both the math and
+    // that parallel execution merges to the same result as sequential.
+
+    [Fact]
+    public void Constraint_StarGraph_CenterLowLeavesHigh()
+    {
+        // Center (1) connects to 4 mutually-unconnected leaves: no redundancy among ties.
+        // Center: C = k * (1/k)^2 = 1/4 = 0.25. Leaves: single contact → C = 1.0.
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 1, 4);
+        net.AddEdge("layer", 1, 5);
+
+        var result = Analyses.Constraint(net, new[] { "layer" }, "con");
+
+        Assert.True(result.Success);
+        Assert.Equal(0.25, GetFloatAttr(net, 1, "con"), precision: 5);
+        Assert.Equal(1.0, GetFloatAttr(net, 2, "con"), precision: 5);
+    }
+
+    [Fact]
+    public void EffectiveSize_StarGraph_CenterEqualsDegreeLeavesEqualOne()
+    {
+        // No redundancy among center's 4 unconnected leaves → effective size = k = 4.
+        // Leaves have a single contact → effective size = 1.
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 1, 4);
+        net.AddEdge("layer", 1, 5);
+
+        var result = Analyses.EffectiveSize(net, new[] { "layer" }, "es");
+
+        Assert.True(result.Success);
+        Assert.Equal(4.0, GetFloatAttr(net, 1, "es"), precision: 5);
+        Assert.Equal(1.0, GetFloatAttr(net, 2, "es"), precision: 5);
+    }
+
+    [Fact]
+    public void Constraint_NonExistentLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        var result = Analyses.Constraint(net, new[] { "ghost" });
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void ConstraintEffectiveSize_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            Analyses.Constraint(netSeq, new[] { "layer" }, "con");
+            Analyses.EffectiveSize(netSeq, new[] { "layer" }, "es");
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            Analyses.Constraint(netPar, new[] { "layer" }, "con");
+            Analyses.EffectiveSize(netPar, new[] { "layer" }, "es");
+
+            for (uint id = 1; id <= 20; id++)
+            {
+                Assert.Equal(GetFloatAttr(netSeq, id, "con"), GetFloatAttr(netPar, id, "con"), precision: 5);
+                Assert.Equal(GetFloatAttr(netSeq, id, "es"), GetFloatAttr(netPar, id, "es"), precision: 5);
+            }
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void Constraint_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeRingWithChordsNetwork(15);
+            var result = Analyses.Constraint(net, new[] { "layer" }, "con");
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
 }

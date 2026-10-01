@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Computes Burt's constraint for each node in the specified 1-mode layer(s) and stores the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)² where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many structural holes) to ~1 (fully embedded in dense clique). Weights are symmetrized across layers. Only 1-mode layers are accepted — project 2-mode layers first. Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.";
+        public string Description => "Computes Burt's constraint for each node in the specified 1-mode layer(s) and stores the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)² where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many structural holes) to ~1 (fully embedded in dense clique). Weights are symmetrized across layers. Only 1-mode layers are accepted — project 2-mode layers first. The per-node computation runs in parallel across up to 'maxthreads' threads (see 'setting()'). Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

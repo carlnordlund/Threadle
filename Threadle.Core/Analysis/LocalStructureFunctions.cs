@@ -16,7 +16,9 @@ namespace Threadle.Core.Analysis
         /// Weights are symmetrized across all specified 1-mode layers:
         ///   directed layers  → w_sym(u,v) = w_uv + w_vu  (accumulated from GetAllEgoData arcs)
         ///   undirected layers → w_sym(u,v) = w_uv         (each edge listed once; added to both ends)
-        /// Returns (constraint, effectiveSize) dictionaries keyed by node id.
+        /// Returns (constraint, effectiveSize) dictionaries keyed by node id. The per-ego O(k²)
+        /// computation is independent across nodes once symW/strength are built, so it runs in
+        /// parallel across up to 'maxthreads' threads (see 'setting()').
         /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
         /// </summary>
         internal static (Dictionary<uint, double> constraint, Dictionary<uint, double> effectiveSize)
@@ -68,18 +70,24 @@ namespace Threadle.Core.Analysis
                 strength[u] = s;
             }
 
-            // Per-ego computation — O(k²) inner loop
-            foreach (uint u in nodeIds)
+            // Per-ego computation — O(k²) inner loop. Independent per node (reads only the
+            // already-built, now-read-only symW/strength), so each node writes to its own
+            // pre-assigned array slot in parallel — no merge needed.
+            var constraintArr = new double[n];
+            var esArr = new double[n];
+
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(), i =>
             {
+                uint u = nodeIds[i];
                 var neighbors = symW[u];
                 int k = neighbors.Count;
                 double s_u = strength[u];
 
                 if (k == 0 || s_u == 0)
                 {
-                    constraint[u] = 0.0;
-                    effectiveSize[u] = 0.0;
-                    continue;
+                    constraintArr[i] = 0.0;
+                    esArr[i] = 0.0;
+                    return;
                 }
 
                 // Pre-compute ego's proportions p_uj = symW[u][j] / s_u
@@ -124,8 +132,14 @@ namespace Threadle.Core.Analysis
                     C_u += c_uj * c_uj;
                 }
 
-                constraint[u] = C_u;
-                effectiveSize[u] = ES_u;
+                constraintArr[i] = C_u;
+                esArr[i] = ES_u;
+            });
+
+            for (int i = 0; i < n; i++)
+            {
+                constraint[nodeIds[i]] = constraintArr[i];
+                effectiveSize[nodeIds[i]] = esArr[i];
             }
 
             return (constraint, effectiveSize);
