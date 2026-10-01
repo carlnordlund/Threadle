@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates the exact shortest path (BFS) between all node pairs and aggregates by node attribute category. Returns a result network whose nodes are the unique attribute values and whose layers hold mean path length ({attrname}_sp_avg), standard error ({attrname}_sp_se), and reachable pair count ({attrname}_sp_count). Unreachable pairs are excluded. Note: runs in O(N×(N+E)) time — only feasible for smaller networks. For larger networks, sample specific node pairs and use 'shortestpaths()' instead.";
+        public string Description => "Calculates the exact shortest path (BFS) between all node pairs and aggregates by node attribute category. Returns a result network whose nodes are the unique attribute values and whose layers hold mean path length ({attrname}_sp_avg), standard error ({attrname}_sp_se), and reachable pair count ({attrname}_sp_count). Unreachable pairs are excluded. Note: runs in O(N×(N+E)) time — only feasible for smaller networks; the per-source BFS passes run in parallel across up to 'maxthreads' threads (see 'setting()'). For larger networks, sample specific node pairs and use 'shortestpaths()' instead.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

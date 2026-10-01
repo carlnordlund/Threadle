@@ -357,4 +357,115 @@ public class DistanceTests
         }
     }
 
+    // ── ShortestPathsNodeAttributeDistances (parallelized per-source BFS) ────────
+
+    /// <summary>Builds an n-node ring (1-2-...-n-1), undirected binary.</summary>
+    private static Network MakeRingNetwork(int n, string layerName = "layer")
+    {
+        var net = MakeNetwork(n);
+        AddUndirected(net, layerName);
+        for (int i = 1; i <= n; i++)
+        {
+            int next = i == n ? 1 : i + 1;
+            net.AddEdge(layerName, (uint)i, (uint)next);
+        }
+        return net;
+    }
+
+    /// <summary>Assigns a char attribute based on (nodeId mod modulus), as category labels '0'..'modulus-1'.</summary>
+    private static void AssignModuloGroupCharAttr(Network net, string attrName, int modulus)
+    {
+        net.Nodeset.DefineNodeAttribute(attrName, "char");
+        foreach (uint id in net.Nodeset.NodeIdArray)
+            net.Nodeset.SetNodeAttribute(id, attrName, (id % (uint)modulus).ToString());
+    }
+
+    [Fact]
+    public void ShortestPathsNodeAttributeDistances_CompleteGraph_ComputesExpectedMeanAndCount()
+    {
+        // Complete graph on 4 nodes: every distinct pair is at distance 1. Nodes 1,2 -> 'a'
+        // (category node id 0, alphabetically first), nodes 3,4 -> 'b' (category node id 1).
+        var net = MakeCompleteNetwork(4);
+        AssignTwoGroupCharAttr(net, "grp", 2);
+
+        var result = Distance.ShortestPathsNodeAttributeDistances(net, "grp", null);
+
+        Assert.True(result.Success);
+        var resultNet = (Network)result.Value!.MainStructure;
+        var avgLayer = (ILayerOneMode)resultNet.Layers["grp_sp_avg"];
+        var countLayer = (ILayerOneMode)resultNet.Layers["grp_sp_count"];
+
+        Assert.Equal(1.0f, avgLayer.GetEdgeValue(0, 1), 5);
+        Assert.Equal(4f, countLayer.GetEdgeValue(0, 1), 5);
+    }
+
+    [Fact]
+    public void ShortestPathsNodeAttributeDistances_NonExistentAttribute_Fails()
+    {
+        var net = MakeCompleteNetwork(3);
+        var result = Distance.ShortestPathsNodeAttributeDistances(net, "nonexistent", null);
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void ShortestPathsNodeAttributeDistances_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        string[] metrics = ["sp_avg", "sp_q1", "sp_median", "sp_q3", "sp_stdev", "sp_se", "sp_count"];
+
+        try
+        {
+            var netSeq = MakeRingNetwork(20);
+            AssignModuloGroupCharAttr(netSeq, "grp", 3);
+            UserSettings.Set("maxthreads", 1);
+            var seqResult = Distance.ShortestPathsNodeAttributeDistances(netSeq, "grp", null);
+
+            var netPar = MakeRingNetwork(20);
+            AssignModuloGroupCharAttr(netPar, "grp", 3);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            var parResult = Distance.ShortestPathsNodeAttributeDistances(netPar, "grp", null);
+
+            Assert.True(seqResult.Success);
+            Assert.True(parResult.Success);
+
+            var seqNet = (Network)seqResult.Value!.MainStructure;
+            var parNet = (Network)parResult.Value!.MainStructure;
+
+            foreach (string metric in metrics)
+            {
+                var seqLayer = (ILayerOneMode)seqNet.Layers["grp_" + metric];
+                var parLayer = (ILayerOneMode)parNet.Layers["grp_" + metric];
+                for (uint from = 0; from < 3; from++)
+                    for (uint to = 0; to < 3; to++)
+                        if (from != to)
+                            Assert.Equal(seqLayer.GetEdgeValue(from, to), parLayer.GetEdgeValue(from, to), 4);
+            }
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void ShortestPathsNodeAttributeDistances_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeRingNetwork(15);
+            AssignModuloGroupCharAttr(net, "grp", 3);
+            var result = Distance.ShortestPathsNodeAttributeDistances(net, "grp", null);
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
 }

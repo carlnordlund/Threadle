@@ -11,6 +11,14 @@ namespace Threadle.Core.Analysis
 {
     public static class Distance
     {
+        /// <summary>
+        /// Calculates exact shortest-path distances between all reachable node pairs and aggregates
+        /// them by node attribute category, returning mean/quartile/stdev/count layers per category
+        /// pair. Runs a full BFS from every node — O(N×(N+E)) — so it's only feasible for smaller
+        /// networks; use shortestpaths() with a sampled set of node pairs for larger ones. Each
+        /// source node's BFS and category-pair accumulation is independent of every other source's,
+        /// so this runs in parallel across up to 'maxthreads' threads (see 'setting()').
+        /// </summary>
         public static OperationResult<StructureResult> ShortestPathsNodeAttributeDistances(Network network, string attrName, string[]? layerNames)
         {
             if (CheckLayersExist(network, layerNames) is OperationResult result)
@@ -48,51 +56,83 @@ namespace Threadle.Core.Analysis
             Dictionary<(uint from, uint to), (double sum, double sumSq, int count)> distDict = [];
             Dictionary<(uint from, uint to), Dictionary<int, int>> distHistDict = [];
             uint[] allNodeIds = nodeset.NodeIdArray;
+            var mergeLock = new object();
 
-            foreach (uint sourceNodeId in allNodeIds)
-            {
-                if (!labelToNodeId.TryGetValue(GetCategoryString(sourceNodeId), out uint sourceCatId))
-                    continue;
-
-                // BFS from sourceNodeId; use distances dict as visited set
-                Queue<uint> queue = [];
-                Dictionary<uint, int> distances = [];
-                queue.Enqueue(sourceNodeId);
-                distances[sourceNodeId] = 0;
-                while (queue.Count > 0)
+            // Each source node's BFS and category-pair accumulation is independent of every
+            // other source's, so this runs in parallel across up to 'maxthreads' threads (see
+            // 'setting()'), with thread-local partial accumulators merged under a lock after
+            // each thread's batch.
+            System.Threading.Tasks.Parallel.For(0, allNodeIds.Length, UserSettings.GetParallelOptions(),
+                () => (
+                    DistDict: new Dictionary<(uint from, uint to), (double sum, double sumSq, int count)>(),
+                    HistDict: new Dictionary<(uint from, uint to), Dictionary<int, int>>()
+                ),
+                (idx, loopState, local) =>
                 {
-                    uint current = queue.Dequeue();
-                    int nextDist = distances[current] + 1;
-                    foreach (var layer in resolvedLayers)
-                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
-                        {
-                            if (!distances.ContainsKey(neighborId))
+                    uint sourceNodeId = allNodeIds[idx];
+                    if (!labelToNodeId.TryGetValue(GetCategoryString(sourceNodeId), out uint sourceCatId))
+                        return local;
+
+                    // BFS from sourceNodeId; use distances dict as visited set
+                    Queue<uint> queue = [];
+                    Dictionary<uint, int> distances = [];
+                    queue.Enqueue(sourceNodeId);
+                    distances[sourceNodeId] = 0;
+                    while (queue.Count > 0)
+                    {
+                        uint current = queue.Dequeue();
+                        int nextDist = distances[current] + 1;
+                        foreach (var layer in resolvedLayers)
+                            foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
                             {
-                                distances[neighborId] = nextDist;
-                                queue.Enqueue(neighborId);
+                                if (!distances.ContainsKey(neighborId))
+                                {
+                                    distances[neighborId] = nextDist;
+                                    queue.Enqueue(neighborId);
+                                }
                             }
-                        }
-                }
+                    }
 
-                foreach (uint targetNodeId in allNodeIds)
+                    foreach (uint targetNodeId in allNodeIds)
+                    {
+                        if (targetNodeId == sourceNodeId)
+                            continue;
+                        if (!distances.TryGetValue(targetNodeId, out int dist))
+                            continue;
+                        if (!labelToNodeId.TryGetValue(GetCategoryString(targetNodeId), out uint targetCatId))
+                            continue;
+                        double d = dist;
+                        var key = (sourceCatId, targetCatId);
+                        if (local.DistDict.TryGetValue(key, out var existing))
+                            local.DistDict[key] = (existing.sum + d, existing.sumSq + d * d, existing.count + 1);
+                        else
+                            local.DistDict[key] = (d, d * d, 1);
+                        if (!local.HistDict.TryGetValue(key, out var hist))
+                            local.HistDict[key] = hist = [];
+                        hist[dist] = hist.TryGetValue(dist, out int binCount) ? binCount + 1 : 1;
+                    }
+                    return local;
+                },
+                local =>
                 {
-                    if (targetNodeId == sourceNodeId)
-                        continue;
-                    if (!distances.TryGetValue(targetNodeId, out int dist))
-                        continue;
-                    if (!labelToNodeId.TryGetValue(GetCategoryString(targetNodeId), out uint targetCatId))
-                        continue;
-                    double d = dist;
-                    var key = (sourceCatId, targetCatId);
-                    if (distDict.TryGetValue(key, out var existing))
-                        distDict[key] = (existing.sum + d, existing.sumSq + d * d, existing.count + 1);
-                    else
-                        distDict[key] = (d, d * d, 1);
-                    if (!distHistDict.TryGetValue(key, out var hist))
-                        distHistDict[key] = hist = [];
-                    hist[dist] = hist.TryGetValue(dist, out int binCount) ? binCount + 1 : 1;
-                }
-            }
+                    lock (mergeLock)
+                    {
+                        foreach (var (key, value) in local.DistDict)
+                        {
+                            if (distDict.TryGetValue(key, out var existing))
+                                distDict[key] = (existing.sum + value.sum, existing.sumSq + value.sumSq, existing.count + value.count);
+                            else
+                                distDict[key] = value;
+                        }
+                        foreach (var (key, hist) in local.HistDict)
+                        {
+                            if (!distHistDict.TryGetValue(key, out var globalHist))
+                                distHistDict[key] = globalHist = [];
+                            foreach (var (dist, binCount) in hist)
+                                globalHist[dist] = globalHist.TryGetValue(dist, out int existingCount) ? existingCount + binCount : binCount;
+                        }
+                    }
+                });
 
             Network networkResults = new Network(attrName + "_sp_results", nodesetResults);
             LayerOneMode avgLayer = new LayerOneMode(attrName + "_sp_avg", EdgeDirectionality.Directed, EdgeType.Valued, true);
