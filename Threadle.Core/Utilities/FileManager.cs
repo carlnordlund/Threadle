@@ -186,7 +186,7 @@ namespace Threadle.Core.Utilities
             }
         }
 
-        public static OperationResult ImportNodeAttributes(string filepath, Nodeset nodeset, bool addMissingNodes = false, char separator='\t')
+        public static OperationResult ImportNodeAttributes(string filepath, Nodeset nodeset, bool addMissingNodes = false, char separator = '\t')
         {
             try
             {
@@ -210,15 +210,19 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">The filepath to export to.</param>
         /// <param name="separator">The column-separating character to use in the edgelist.</param>
         /// <param name="header">Boolean whether the first row should contain column headers.</param>
+        /// <param name="nodeset">The Nodeset to resolve 'labelAttr' against (required if 'labelAttr' is given).</param>
+        /// <param name="labelAttr">Optional node attribute name whose value is written instead of the numeric node id.</param>
         /// <returns>An OperationResult informing how well it went.</returns>
-        public static OperationResult ExportLayerEdgelist(ILayer layer, string filepath, char separator, bool header)
+        public static OperationResult ExportLayerEdgelist(ILayer layer, string filepath, char separator, bool header, Nodeset? nodeset = null, string? labelAttr = null)
         {
             try
             {
+                if (!TryBuildLabelLookup(nodeset, labelAttr, out var idToLabel, out var error))
+                    return error!;
                 if (layer is ILayerOneMode layerOneMode)
-                    LayerImportExport.ExportOneModeEdgeList(layerOneMode, filepath, separator, header);
+                    LayerImportExport.ExportOneModeEdgeList(layerOneMode, filepath, separator, header, idToLabel);
                 else if (layer is ILayerTwoMode layerTwoMode)
-                    LayerImportExport.ExportTwoModeEdgeList(layerTwoMode, filepath, separator, header);
+                    LayerImportExport.ExportTwoModeEdgeList(layerTwoMode, filepath, separator, header, idToLabel);
                 else
                     return OperationResult.Fail("IOExportError", $"Did not recognize layer type of layer '{layer.Name}'.");
                 return OperationResult.Ok($"Exported layer '{layer.Name}' to filepath: {filepath}");
@@ -238,23 +242,67 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">The filepath to export to.</param>
         /// <param name="separator">The column-separating character to use in the matrix.</param>
         /// <param name="header">Boolean whether the first row should contain column headers.</param>
+        /// <param name="nodeset">The Nodeset to resolve 'labelAttr' against (required if 'labelAttr' is given).</param>
+        /// <param name="labelAttr">Optional node attribute name whose value is written instead of the numeric node id.</param>
         /// <returns>An OperationResult informing how well it went.</returns>
-        public static OperationResult ExportLayerMatrix(ILayer layer, string filepath, char separator, bool header)
+        public static OperationResult ExportLayerMatrix(ILayer layer, string filepath, char separator, bool header, Nodeset? nodeset = null, string? labelAttr = null)
         {
             try
             {
+                if (!TryBuildLabelLookup(nodeset, labelAttr, out var idToLabel, out var error))
+                    return error!;
                 if (layer is ILayerOneMode layerOneMode)
-                    LayerImportExport.ExportOneModeMatrix(layerOneMode, filepath, separator, header);
+                    LayerImportExport.ExportOneModeMatrix(layerOneMode, filepath, separator, header, idToLabel);
                 else if (layer is ILayerTwoMode layerTwoMode)
-                    LayerImportExport.ExportTwoModeMatrix(layerTwoMode, filepath, separator, header);
+                    LayerImportExport.ExportTwoModeMatrix(layerTwoMode, filepath, separator, header, idToLabel);
                 else
-                    return OperationResult.Fail("IOExportError", $"Did not recognize layer type of layer '{layer.Name}'." );
+                    return OperationResult.Fail("IOExportError", $"Did not recognize layer type of layer '{layer.Name}'.");
                 return OperationResult.Ok($"Exported layer '{layer.Name}' to filepath: {filepath}");
             }
             catch (Exception ex)
             {
                 return OperationResult.Fail("IOExportError", "Unexpected error when exporting layer to matrix: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Builds a node-id-to-string formatter for layer exports. With no 'labelAttr', every node is formatted
+        /// as its plain numeric id. With 'labelAttr', each node is formatted using its value for that node
+        /// attribute (of any type — not necessarily string), converted to its display string; a node with no
+        /// value for the attribute falls back to its numeric id individually. Neither a string type nor unique
+        /// values are required or checked for 'labelAttr' — if several nodes share a value, or lack one, that
+        /// is reflected as-is in the exported file.
+        /// </summary>
+        /// <param name="nodeset">The Nodeset to resolve 'labelAttr' against (ignored if 'labelAttr' is null/empty).</param>
+        /// <param name="labelAttr">Optional node attribute name whose value is written instead of the numeric node id.</param>
+        /// <param name="idToLabel">The resulting formatter.</param>
+        /// <param name="error">Set if 'labelAttr' was given but doesn't name an existing node attribute.</param>
+        /// <returns>True on success; false (with 'error' set) if 'labelAttr' names an attribute that doesn't exist.</returns>
+        private static bool TryBuildLabelLookup(Nodeset? nodeset, string? labelAttr, out Func<uint, string> idToLabel, out OperationResult? error)
+        {
+            error = null;
+            static string NumericLabel(uint id) => id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            if (nodeset == null || string.IsNullOrEmpty(labelAttr))
+            {
+                idToLabel = NumericLabel;
+                return true;
+            }
+
+            var definition = nodeset.NodeAttributeDefinitionManager.GetNodeAttributeDefinition(labelAttr);
+            if (definition is null)
+            {
+                idToLabel = NumericLabel;
+                error = OperationResult.Fail("LabelAttributeNotFound", $"!Error: Label attribute '{labelAttr}' not found.");
+                return false;
+            }
+
+            byte attrIndex = definition.Value.Index;
+            NodeAttributeType attrType = definition.Value.AttrType;
+            idToLabel = id => nodeset.GetNodeAttribute(id, attrIndex) is NodeAttributeValue value
+                ? (attrType == NodeAttributeType.String ? nodeset.GetStringFromPool(value.RawValueAsInt()) : value.ToString(attrType))
+                : NumericLabel(id);
+            return true;
         }
 
         /// <summary>
@@ -284,7 +332,7 @@ namespace Threadle.Core.Utilities
                     case ExportFormat.Graphml:
                         return ExportNetworkToGraphml(network, layerName, filepath);
                 }
-                return OperationResult.Fail("ExportFormatNotFound", $"Export format '{format}' not implemented.");                
+                return OperationResult.Fail("ExportFormatNotFound", $"Export format '{format}' not implemented.");
             }
             catch (Exception ex)
             {
@@ -668,12 +716,12 @@ namespace Threadle.Core.Utilities
             }
         }
 
-        private static OperationResult<List<(string Name, NodeAttributeType Type, Dictionary<uint,string> Values)>> ParseNodeAttributeLines(string[] lines, char separator)
+        private static OperationResult<List<(string Name, NodeAttributeType Type, Dictionary<uint, string> Values)>> ParseNodeAttributeLines(string[] lines, char separator)
         {
             if (lines.Length == 0)
                 return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail("EmptyFile", "The file is empty.");
             string[] headerCells = lines[0].Split(separator);
-            if (headerCells.Length<2)
+            if (headerCells.Length < 2)
                 return OperationResult<List<(string, NodeAttributeType, Dictionary<uint, string>)>>.Fail(
             "InvalidHeader", "Header row must contain at least one attribute column after the nodeId column.");
             int nbrAttributes = headerCells.Length - 1;

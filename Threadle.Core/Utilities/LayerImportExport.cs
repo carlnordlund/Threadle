@@ -20,7 +20,8 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">File to write the edgelist to</param>
         /// <param name="sep">The separator to use</param>
         /// <param name="header">Boolean whether the first line is to contain headers.</param>
-        internal static void ExportOneModeEdgeList(ILayerOneMode layerOneMode, string filepath, char sep, bool header)
+        /// <param name="idToLabel">Formats a node id for output (plain numeric id, or a node attribute value when 'labelattr' is used).</param>
+        internal static void ExportOneModeEdgeList(ILayerOneMode layerOneMode, string filepath, char sep, bool header, Func<uint, string> idToLabel)
         {
             using var writer = new StreamWriter(filepath);
 
@@ -35,14 +36,14 @@ namespace Threadle.Core.Utilities
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     foreach (var alterId in alters.Span)
                         if (layerOneMode.IsDirectional || alterId > egoId)
-                            writer.WriteLine($"{egoId}{sep}{alterId}");
+                            writer.WriteLine($"{idToLabel(egoId)}{sep}{idToLabel(alterId)}");
             }
             else
             {
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     for (int i = 0; i < alters.Length; i++)
                         if (layerOneMode.IsDirectional || alters.Span[i] > egoId)
-                            writer.WriteLine($"{egoId}{sep}{alters.Span[i]}{sep}{values.Span[i]}");
+                            writer.WriteLine($"{idToLabel(egoId)}{sep}{idToLabel(alters.Span[i])}{sep}{values.Span[i]}");
             }
         }
 
@@ -55,18 +56,23 @@ namespace Threadle.Core.Utilities
         /// <param name="filepath">File to write the edgelist to</param>
         /// <param name="sep">The separator to use</param>
         /// <param name="header">Boolean whether the first line is to contain headers.</param>
-        internal static void ExportTwoModeEdgeList(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header)
+        /// <param name="idToLabel">Formats a node id for output (plain numeric id, or a node attribute value when 'labelattr' is used).</param>
+        internal static void ExportTwoModeEdgeList(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header, Func<uint, string> idToLabel)
         {
             using var writer = new StreamWriter(filepath);
             if (header)
                 writer.WriteLine($"node{sep}affiliation");
             foreach (var (hypername, nodeIds) in layerTwoMode.GetAllHyperedgeData())
                 foreach (var nodeId in nodeIds)
-                    writer.WriteLine($"{nodeId}{sep}{hypername}");
+                    writer.WriteLine($"{idToLabel(nodeId)}{sep}{hypername}");
         }
 
-        // To do
-        internal static void ExportOneModeMatrix(ILayerOneMode layerOneMode, string filepath, char sep, bool header)
+        /// <param name="layerOneMode">The 1-mode layer</param>
+        /// <param name="filepath">File to write the matrix to</param>
+        /// <param name="sep">The separator to use</param>
+        /// <param name="header">Boolean whether the first row/column are to contain headers.</param>
+        /// <param name="idToLabel">Formats a node id for output (plain numeric id, or a node attribute value when 'labelattr' is used).</param>
+        internal static void ExportOneModeMatrix(ILayerOneMode layerOneMode, string filepath, char sep, bool header, Func<uint, string> idToLabel)
         {
             var nodeIdSet = new HashSet<uint>();
             var edgeLookup = new Dictionary<(uint from, uint to), float>();
@@ -75,7 +81,7 @@ namespace Threadle.Core.Utilities
                 nodeIdSet.Add(egoId);
                 ReadOnlySpan<uint> alterSpan = alters.Span;
                 ReadOnlySpan<float> valSpan = values.Span;
-                for (int i=0; i<alterSpan.Length;i++)
+                for (int i = 0; i < alterSpan.Length; i++)
                 {
                     uint alterId = alterSpan[i];
                     nodeIdSet.Add(alterId);
@@ -84,32 +90,36 @@ namespace Threadle.Core.Utilities
                     if (!layerOneMode.IsDirectional)
                         edgeLookup[(alterId, egoId)] = val;
                 }
+            }
 
-                uint[] nodeIds = [.. nodeIdSet.OrderBy(id => id)];
-                using var writer = new StreamWriter(filepath);
-                if (header)
+            uint[] nodeIds = [.. nodeIdSet.OrderBy(id => id)];
+            using var writer = new StreamWriter(filepath);
+            if (header)
+            {
+                writer.Write(sep);
+                writer.WriteLine(string.Join(sep, nodeIds.Select(idToLabel)));
+            }
+            foreach (uint rowId in nodeIds)
+            {
+                writer.Write(idToLabel(rowId));
+                foreach (uint colId in nodeIds)
                 {
                     writer.Write(sep);
-                    writer.WriteLine(string.Join(sep, nodeIds));
+                    if (edgeLookup.TryGetValue((rowId, colId), out float val))
+                        writer.Write(val.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    else
+                        writer.Write(0);
                 }
-                foreach (uint rowId in nodeIds)
-                {
-                    writer.Write(rowId);
-                    foreach (uint colId in nodeIds)
-                    {
-                        writer.Write(sep);
-                        if (edgeLookup.TryGetValue((rowId, colId), out float val))
-                            writer.Write(val.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                        else
-                            writer.Write(0);
-                    }
-                    writer.WriteLine();
-                }
+                writer.WriteLine();
             }
         }
 
-        // To do
-        internal static void ExportTwoModeMatrix(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header)
+        /// <param name="layerTwoMode">The 2-mode layer</param>
+        /// <param name="filepath">File to write the matrix to</param>
+        /// <param name="sep">The separator to use</param>
+        /// <param name="header">Boolean whether the first row/column are to contain headers.</param>
+        /// <param name="idToLabel">Formats a node id for output (plain numeric id, or a node attribute value when 'labelattr' is used).</param>
+        internal static void ExportTwoModeMatrix(ILayerTwoMode layerTwoMode, string filepath, char sep, bool header, Func<uint, string> idToLabel)
         {
             var hyperedgeNodeSets = new Dictionary<string, HashSet<uint>>();
             var allNodeIds = new HashSet<uint>();
@@ -132,7 +142,7 @@ namespace Threadle.Core.Utilities
             }
             foreach (uint nodeId in sortedNodeIds)
             {
-                writer.Write(nodeId);
+                writer.Write(idToLabel(nodeId));
                 foreach (string hypername in sortedHyperedgeNames)
                 {
                     writer.Write(sep);
