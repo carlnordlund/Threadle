@@ -23,8 +23,11 @@ namespace Threadle.Core.Analysis
         /// candidate "hub", each unordered pair of its neighbors is classified as a wedge (only the
         /// hub connects to both — counted once, from the hub) or a triangle (all three mutually
         /// connected — counted once, only when the hub has the smallest node id of the three).
-        /// The empty triad count (003) is the combinatorial remainder. Reference: Holland & Leinhardt
-        /// (1970) doi:10.1086/224727; Batagelj & Mrvar (2001) triadic census algorithm.
+        /// The empty triad count (003) is the combinatorial remainder. Both passes are independent
+        /// per source node once the neighbor sets are built, so each runs in parallel across up to
+        /// 'maxthreads' threads (see 'setting()'), with thread-local partial counts merged under a
+        /// lock. Reference: Holland & Leinhardt (1970) doi:10.1086/224727; Batagelj & Mrvar (2001)
+        /// triadic census algorithm.
         /// </summary>
         internal static Dictionary<string, object> TriadicCensus(uint[] nodeIds, ILayerOneMode layer)
         {
@@ -61,43 +64,76 @@ namespace Threadle.Core.Analysis
                 set.Remove(v); // ignore self-ties
                 nbr[v] = set;
             }
+            var mergeLock = new object();
+
             // Pass 1: for every dyad with an edge, bucket the triples where the third node is
             // isolated from both endpoints into 012 (asymmetric dyad) or 102 (mutual dyad).
-            foreach (uint v in nodeIds)
-            {
-                var Nv = nbr[v];
-                foreach (uint u in Nv)
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                () => new Dictionary<string, long>(),
+                (i, loopState, local) =>
                 {
-                    if (u <= v) continue; // canonical order: process each dyad once
-                    var Nu = nbr[u];
-                    int unionSize = Nv.Count + Nu.Count - CountIntersection(Nv, Nu);
-                    int thirdCandidates = unionSize - 2; // exclude v and u themselves
-                    long isolated = (n - 2) - thirdCandidates;
-                    if (isolated <= 0) continue;
-                    bool mutual = layer.GetEdgeValue(v, u) > 0 && layer.GetEdgeValue(u, v) > 0;
-                    counts[mutual ? "102" : "012"] += isolated;
-                }
-            }
+                    uint v = nodeIds[i];
+                    var Nv = nbr[v];
+                    foreach (uint u in Nv)
+                    {
+                        if (u <= v) continue; // canonical order: process each dyad once
+                        var Nu = nbr[u];
+                        int unionSize = Nv.Count + Nu.Count - CountIntersection(Nv, Nu);
+                        int thirdCandidates = unionSize - 2; // exclude v and u themselves
+                        long isolated = (n - 2) - thirdCandidates;
+                        if (isolated <= 0) continue;
+                        bool mutual = layer.GetEdgeValue(v, u) > 0 && layer.GetEdgeValue(u, v) > 0;
+                        string key = mutual ? "102" : "012";
+                        local[key] = local.GetValueOrDefault(key) + isolated;
+                    }
+                    return local;
+                },
+                local =>
+                {
+                    lock (mergeLock)
+                    {
+                        foreach (var (key, value) in local)
+                            counts[key] = counts.GetValueOrDefault(key) + value;
+                    }
+                });
+
             // Pass 2: for every node as candidate hub, classify each pair of its neighbors as a
             // wedge (hub is the sole shared node) or a triangle (all three interconnected).
-            foreach (uint v in nodeIds)
-            {
-                var Nv = nbr[v];
-                if (Nv.Count < 2) continue;
-                uint[] arr = [.. Nv];
-                for (int i = 0; i < arr.Length; i++)
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                () => new Dictionary<string, long>(),
+                (i, loopState, local) =>
                 {
-                    uint u = arr[i];
-                    for (int j = i + 1; j < arr.Length; j++)
+                    uint v = nodeIds[i];
+                    var Nv = nbr[v];
+                    if (Nv.Count < 2) return local;
+                    uint[] arr = [.. Nv];
+                    for (int ai = 0; ai < arr.Length; ai++)
                     {
-                        uint w = arr[j];
-                        if (!nbr[u].Contains(w))
-                            counts[ClassifyWedge(layer, v, u, w)]++;
-                        else if (v < u && v < w)
-                            counts[ClassifyTriangle(layer, v, u, w)]++;
+                        uint u = arr[ai];
+                        for (int bi = ai + 1; bi < arr.Length; bi++)
+                        {
+                            uint w = arr[bi];
+                            string key;
+                            if (!nbr[u].Contains(w))
+                                key = ClassifyWedge(layer, v, u, w);
+                            else if (v < u && v < w)
+                                key = ClassifyTriangle(layer, v, u, w);
+                            else
+                                continue;
+                            local[key] = local.GetValueOrDefault(key) + 1;
+                        }
                     }
-                }
-            }
+                    return local;
+                },
+                local =>
+                {
+                    lock (mergeLock)
+                    {
+                        foreach (var (key, value) in local)
+                            counts[key] = counts.GetValueOrDefault(key) + value;
+                    }
+                });
+
             long n003 = total - counts.Values.Sum();
             var result = BuildResult(counts, n003, total);
             result["Method"] = "Exact";
@@ -177,7 +213,7 @@ namespace Threadle.Core.Analysis
             double zsq = z * z;
             int m = Math.Max(sampleSize, 1);
             double denom = 1.0 + zsq / m;
-            
+
             var result = new Dictionary<string, object>(TriadTypeOrder.Length + 6);
             var standardErrors = new Dictionary<string, object>(TriadTypeOrder.Length);
             var ciLower = new Dictionary<string, object>(TriadTypeOrder.Length);
@@ -193,13 +229,13 @@ namespace Threadle.Core.Analysis
                 //ciUpper[type] = Math.Min((double)total, estCount + z95 * seCount);
                 double p = (double)counts[type] / m;
                 result[type] = p * total;
-                
+
                 // Wilson score interval on p, then scaled to counts.
                 double center = (p + zsq / (2.0 * m)) / denom;
                 double halfWidth = (z / denom) * Math.Sqrt(p * (1 - p) / m + zsq / (4.0 * m * m));
                 double pLow = Math.Max(0.0, center - halfWidth);
                 double pHigh = Math.Min(1.0, center + halfWidth);
-                
+
                 standardErrors[type] = halfWidth / z * total;
                 ciLower[type] = pLow * total;
                 ciUpper[type] = pHigh * total;

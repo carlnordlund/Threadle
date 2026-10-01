@@ -125,7 +125,8 @@ namespace Threadle.Core.Analysis
         /// so only 003/102/201/300 can be non-zero.
         /// When sampleSize is 0 (default), computes the exact census — cost scales with the sum of
         /// squared node degrees, not network size, so this can still be expensive for networks with
-        /// high-degree hubs. When sampleSize > 0, instead classifies that many uniformly-random
+        /// high-degree hubs; both passes run in parallel across up to 'maxthreads' threads (see
+        /// 'setting()'). When sampleSize > 0, instead classifies that many uniformly-random
         /// node triples and extrapolates: the result additionally carries "SampleSize" and, per
         /// triad type, a "StandardErrors", "ConfidenceIntervalLower" and "ConfidenceIntervalUpper"
         /// entry (95% Wilson score interval on the estimated count — chosen over the naive Wald

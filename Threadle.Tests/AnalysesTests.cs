@@ -1321,6 +1321,56 @@ public class AnalysesTests
         }
     }
 
+    [Fact]
+    public void TriadicCensus_MaxThreadsOneVsMany_ProduceSameCounts()
+    {
+        // Exact integer arithmetic, no randomness involved: parallel execution should match
+        // sequential execution bit-for-bit, not just approximately.
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        string[] allTypes = ["003", "012", "102", "021D", "021U", "021C", "111D", "111U", "030T", "030C", "201", "120D", "120U", "120C", "210", "300"];
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            var seqResult = Analyses.TriadicCensus(netSeq, "layer");
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            var parResult = Analyses.TriadicCensus(netPar, "layer");
+
+            Assert.True(seqResult.Success);
+            Assert.True(parResult.Success);
+            foreach (string type in allTypes)
+                Assert.Equal((long)seqResult.Value![type], (long)parResult.Value![type]);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void TriadicCensus_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeRingWithChordsNetwork(15);
+            var result = Analyses.TriadicCensus(net, "layer");
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
     // ── CommunityDetectionLouvain ────────────────────────────────────────────────────
 
     [Fact]
