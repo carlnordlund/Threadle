@@ -30,17 +30,20 @@ namespace Threadle.Core.Analysis
         /// results are directly comparable to Louvain's). Directed layers are symmetrized and
         /// multiple layers combine via summed edge weight, matching CommunityDetectionLouvain; only
         /// 1-mode layers are accepted — project 2-mode layers first. Returns a summary with
-        /// NbrCommunities, CommunitySizes (descending) and the achieved Modularity score Q.
+        /// NbrCommunities, CommunitySizes (descending), the achieved Modularity score Q, and
+        /// NumRestarts. When numRestarts &gt; 1, runs that many independent restarts in parallel
+        /// across up to 'maxthreads' threads (see 'setting()') and keeps the highest-modularity
+        /// result — a way to escape local optima that a single run can get stuck in.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionLeiden(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, double randomness = 0.01)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLeiden(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
         {
             if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness);
-            return StoreCommunityResult(network, attrName, communities, modularity);
+            var (communities, modularity) = CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness, numRestarts);
+            return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
         /// <summary>
@@ -52,18 +55,21 @@ namespace Threadle.Core.Analysis
         /// 1-mode layers are accepted — project 2-mode layers first.
         /// resolution (default 1.0 = standard modularity) scales the null-model term: values above
         /// 1 favor more, smaller communities; values below 1 favor fewer, larger ones (Reichardt &amp;
-        /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending) and
-        /// the achieved Modularity score Q.
+        /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending), the
+        /// achieved Modularity score Q, and NumRestarts. When numRestarts &gt; 1, runs that many
+        /// independent restarts in parallel across up to 'maxthreads' threads (see 'setting()') and
+        /// keeps the highest-modularity result — a way to escape local optima that a single run can
+        /// get stuck in.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionLouvain(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLouvain(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1)
         {
             if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution);
-            return StoreCommunityResult(network, attrName, communities, modularity);
+            var (communities, modularity) = CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution, numRestarts);
+            return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
         /// <summary>
@@ -75,19 +81,22 @@ namespace Threadle.Core.Analysis
         /// phase, label propagation has no guarantee of convergence). Directed layers are
         /// symmetrized and multiple layers combine via summed edge weight, matching
         /// CommunityDetectionLouvain; only 1-mode layers are accepted — project 2-mode layers first.
-        /// Returns a summary with NbrCommunities, CommunitySizes (descending) and the achieved
+        /// Returns a summary with NbrCommunities, CommunitySizes (descending), the achieved
         /// Modularity score Q of the resulting partition (reported for comparability with other
-        /// methods, not something this method optimizes for).
+        /// methods, not something this method optimizes for), and NumRestarts. When numRestarts &gt; 1,
+        /// runs that many independent restarts in parallel across up to 'maxthreads' threads (see
+        /// 'setting()') and keeps the one with the highest modularity — a secondary selection
+        /// criterion here, since LPA itself doesn't target modularity.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionLabelPropagation(Network network, string[]? layerNames, string? attrName = null, int maxIterations = 100)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLabelPropagation(Network network, string[]? layerNames, string? attrName = null, int maxIterations = 100, int numRestarts = 1)
         {
             if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LabelPropagationCommunities(nodeIds, oneModes, maxIterations);
-            return StoreCommunityResult(network, attrName, communities, modularity);
+            var (communities, modularity) = CommunityFunctions.LabelPropagationCommunities(nodeIds, oneModes, maxIterations, numRestarts);
+            return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
         /// <summary>
@@ -104,17 +113,19 @@ namespace Threadle.Core.Analysis
         /// optima the same way. Directed layers are symmetrized and multiple layers combine via
         /// summed edge weight, matching CommunityDetectionLouvain; only 1-mode layers are accepted —
         /// project 2-mode layers first. Returns a summary with NbrCommunities, CommunitySizes
-        /// (descending) and the achieved Modularity score Q.
+        /// (descending), the achieved Modularity score Q, and NumRestarts. When numRestarts &gt; 1,
+        /// runs that many independent restarts in parallel across up to 'maxthreads' threads (see
+        /// 'setting()') and keeps the highest-modularity result.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null, int numRestarts = 1)
         {
             if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LPAmCommunities(nodeIds, oneModes);
-            return StoreCommunityResult(network, attrName, communities, modularity);
+            var (communities, modularity) = CommunityFunctions.LPAmCommunities(nodeIds, oneModes, numRestarts);
+            return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
         /// <summary>
@@ -1244,9 +1255,10 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Writes the community index as an int node attribute and builds the standard
-        /// NbrCommunities/CommunitySizes/Modularity summary shared by every community detection method.
+        /// NbrCommunities/CommunitySizes/Modularity/NumRestarts summary shared by every community
+        /// detection method.
         /// </summary>
-        private static OperationResult<Dictionary<string, object>> StoreCommunityResult(Network network, string attrName, Dictionary<uint, int> communities, double modularity)
+        private static OperationResult<Dictionary<string, object>> StoreCommunityResult(Network network, string attrName, Dictionary<uint, int> communities, double modularity, int numRestarts = 1)
         {
             var attrDict = communities.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
             var setResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
@@ -1261,7 +1273,8 @@ namespace Threadle.Core.Analysis
             {
                 ["NbrCommunities"] = nbrCommunities,
                 ["CommunitySizes"] = communitySizes.OrderByDescending(s => s).ToList(),
-                ["Modularity"] = modularity
+                ["Modularity"] = modularity,
+                ["NumRestarts"] = numRestarts
             };
             return OperationResult<Dictionary<string, object>>.Ok(result);
         }

@@ -1510,6 +1510,107 @@ public class AnalysesTests
         Assert.True((int)highRes.Value!["NbrCommunities"] >= (int)lowRes.Value!["NbrCommunities"]);
     }
 
+    [Fact]
+    public void CommunityDetectionLouvain_DefaultNumRestarts_IsOneAndReported()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(1, (int)result.Value!["NumRestarts"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLouvain_NumRestartsGreaterThanOne_StillFindsCorrectCommunities()
+    {
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "layer" }, numRestarts: 5);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(5, (int)result.Value!["NumRestarts"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLouvain_NumRestartsWithMaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeNetwork(6);
+            AddUndirectedLayer(net, "layer");
+            net.AddEdge("layer", 1, 2);
+            net.AddEdge("layer", 1, 3);
+            net.AddEdge("layer", 2, 3);
+            net.AddEdge("layer", 4, 5);
+            net.AddEdge("layer", 4, 6);
+            net.AddEdge("layer", 5, 6);
+
+            var result = Analyses.CommunityDetectionLouvain(net, new[] { "layer" }, numRestarts: 8);
+
+            Assert.True(result.Success);
+            Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    // ── CommunityDetectionLeiden ───────────────────────────────────────────────
+
+    [Fact]
+    public void CommunityDetectionLeiden_TwoDisconnectedTriangles_FindsTwoCommunities()
+    {
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "layer" });
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_NumRestartsGreaterThanOne_StillFindsCorrectCommunities()
+    {
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "layer" }, numRestarts: 5);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(5, (int)result.Value!["NumRestarts"]);
+    }
+
     // ── CommunityDetectionLabelPropagation ────────────────────────────────────
 
     [Fact]
@@ -1616,6 +1717,27 @@ public class AnalysesTests
         Assert.True((int)result.Value!["NbrCommunities"] >= 1);
         var sizes = (List<int>)result.Value!["CommunitySizes"];
         Assert.Equal(6, sizes.Sum());
+    }
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_NumRestartsGreaterThanOne_StillFindsCorrectCommunities()
+    {
+        // Label information can never cross a disconnected component, so this holds regardless
+        // of how many restarts (or which one is picked by modularity) are used.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "layer" }, numRestarts: 5);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(5, (int)result.Value!["NumRestarts"]);
     }
 
     // ── CommunityDetectionLPAm ─────────────────────────────────────────────────
@@ -1729,6 +1851,25 @@ public class AnalysesTests
         var result = Analyses.CommunityDetectionLPAm(net, new[] { "clubs" });
 
         Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void CommunityDetectionLPAm_NumRestartsGreaterThanOne_StillFindsCorrectCommunities()
+    {
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "layer" }, numRestarts: 5);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["NbrCommunities"]);
+        Assert.Equal(5, (int)result.Value!["NumRestarts"]);
     }
 
     // ── Density: edge case – single node ─────────────────────────────────────
