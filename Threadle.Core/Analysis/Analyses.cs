@@ -645,6 +645,31 @@ namespace Threadle.Core.Analysis
             return OperationResult<Dictionary<string, object>>.Ok(results);
         }
 
+        /// <summary>
+        /// Computes summary statistics (Mean, Median, StdDev, Min, Max, Q1, Q3) over the edge values
+        /// of a valued 1-mode layer, using the same statistics machinery as GetAttributeSummary.
+        /// Requires a valued layer — a binary layer has no varying values to summarize. For symmetric
+        /// (undirected) layers, each edge is counted once, not once per endpoint.
+        /// </summary>
+        /// <param name="network">The Network structure.</param>
+        /// <param name="layerName">The name of the (valued) 1-mode layer.</param>
+        /// <returns>An <see cref="OperationResult"/> with Mean, Median, StdDev, Min, Max, Q1, Q3, LayerName and EdgeCount.</returns>
+        public static OperationResult<Dictionary<string, object>> GetLayerStats(Network network, string layerName)
+        {
+            var lr = network.GetOneModeLayerForRead(layerName);
+            if (!lr.Success)
+                return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+            ILayerOneMode layer = lr.Value!;
+            if (!layer.IsValued)
+                return OperationResult<Dictionary<string, object>>.Fail("LayerNotValued", $"Layer '{layerName}' is binary — getlayerstats() requires a valued layer.");
+
+            List<float> values = Functions.GetLayerEdgeValues(layer);
+            var stats = Functions.CalculateValueStatistics(values);
+            stats["LayerName"] = layerName;
+            stats["EdgeCount"] = values.Count;
+            return OperationResult<Dictionary<string, object>>.Ok(stats);
+        }
+
         public static OperationResult<ShortestPathResult> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo, bool returnPath = false)
         {
             OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);

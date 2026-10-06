@@ -67,6 +67,7 @@ namespace Threadle.CLIconsole.Runtime
             ["getdegree"]=new GetDegree(),
             ["getedge"] = new GetEdge(),
             ["gethyperedgenodes"] = new GetHyperedgeNodes(),
+            ["getlayerstats"] = new GetLayerStats(),
             ["getnbrnodes"] = new GetNbrNodes(),
             ["getnodealters"] = new GetNodeAlters(),
             ["getnodehyperedges"] = new GetNodeHyperedges(),

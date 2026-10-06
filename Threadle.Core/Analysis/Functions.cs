@@ -80,7 +80,7 @@ namespace Threadle.Core.Analysis
                 sumAlters += (ulong)layer.GetNodeAlters(ids[i], EdgeTraversal.Out).Length;
 
             double meanAlters = (double)sumAlters / actualSample;
-            return meanAlters*nbrNodes/(double)nbrPotentialEdges;
+            return meanAlters * nbrNodes / (double)nbrPotentialEdges;
         }
 
         /// <summary>
@@ -179,8 +179,20 @@ namespace Threadle.Core.Analysis
                     values.Add((float)attrValue.Value.GetValue(NodeAttributeType.Float)!);
             }
             countWithValue = values.Count;
-            Dictionary<string, object> stats = [];
+            return CalculateValueStatistics(values);
+        }
 
+        /// <summary>
+        /// Computes Mean/Median/StdDev/Min/Max/Q1/Q3 for an arbitrary set of float values. Shared
+        /// by node-attribute statistics (<see cref="CalculateFloatStatistics"/>) and layer edge-value
+        /// statistics (<see cref="GetLayerEdgeValues"/> callers), so both compute these the same way.
+        /// Returns an empty dictionary if 'values' is empty.
+        /// </summary>
+        /// <param name="values">The values to summarize.</param>
+        /// <returns>A string-object dictionary with Mean, Median, StdDev, Min, Max, Q1, Q3.</returns>
+        internal static Dictionary<string, object> CalculateValueStatistics(List<float> values)
+        {
+            Dictionary<string, object> stats = [];
             if (values.Count == 0)
                 return stats;
 
@@ -199,6 +211,34 @@ namespace Threadle.Core.Analysis
             stats["Q1"] = GetPercentile(sorted, 25);
             stats["Q3"] = GetPercentile(sorted, 75);
             return stats;
+        }
+
+        /// <summary>
+        /// Gathers every edge value in a 1-mode layer into a flat list, for feeding into
+        /// <see cref="CalculateValueStatistics"/>. For symmetric (undirected) layers, each edge is
+        /// counted once (only when alterId &gt; egoId), matching the dedup convention
+        /// Threadle.Core.Utilities.LayerImportExport.ExportOneModeEdgeList uses to avoid writing
+        /// each undirected edge twice; directed layers count every arc independently, since each
+        /// direction is its own tie with its own value.
+        /// </summary>
+        /// <param name="layer">The (valued) 1-mode layer to gather edge values from.</param>
+        /// <returns>A flat list of every edge's value.</returns>
+        internal static List<float> GetLayerEdgeValues(ILayerOneMode layer)
+        {
+            List<float> values = [];
+            foreach (var (egoId, alters, edgeValues) in layer.GetAllEgoData())
+            {
+                var alterSpan = alters.Span;
+                var valueSpan = edgeValues.Span;
+                for (int i = 0; i < alterSpan.Length; i++)
+                {
+                    uint alterId = alterSpan[i];
+                    if (!layer.IsDirectional && alterId <= egoId)
+                        continue; // undirected: count each edge once
+                    values.Add(valueSpan[i]);
+                }
+            }
+            return values;
         }
 
         /// <summary>
