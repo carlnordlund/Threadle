@@ -32,10 +32,13 @@ namespace Threadle.Core.Analysis
         /// objective from the original paper), so results are directly comparable. Directed layers
         /// are symmetrized and multiple layers combine via summed weight, matching
         /// CommunityDetectionLouvain. Returns the community index (0-based, compacted) for every node
-        /// plus the achieved modularity Q.
+        /// plus the achieved modularity Q. When numRestarts &gt; 1, runs that many independent restarts
+        /// (each with its own random node order and refinement draws, via Misc.Random's thread-local
+        /// stream) in parallel across up to 'maxthreads' threads (see 'setting()') and keeps the
+        /// highest-modularity result.
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LeidenCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, double randomness = 0.01)
+            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -51,6 +54,23 @@ namespace Threadle.Core.Analysis
                 for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
                 return (singletons, 0.0);
             }
+
+            if (numRestarts <= 1)
+                return LeidenSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, randomness);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LeidenSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, randomness));
+        }
+
+        /// <summary>
+        /// A single Leiden pass: multi-level local-moving + refinement + aggregation starting from
+        /// the given (shared, never mutated in place) level-0 adjacency. Safe to call concurrently
+        /// for independent restarts against the same arrays.
+        /// </summary>
+        private static (Dictionary<uint, int> communities, double modularity) LeidenSingleRun(
+            uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution, double randomness)
+        {
+            int n0 = nodeIds.Length;
 
             int[] mapping = new int[n0];
             for (int i = 0; i < n0; i++) mapping[i] = i;
@@ -139,9 +159,13 @@ namespace Threadle.Core.Analysis
         /// Returns the community index (0-based, compacted) for every node plus the achieved
         /// modularity Q using the given resolution (1.0 = standard modularity; &gt;1 favors more,
         /// smaller communities; &lt;1 favors fewer, larger ones — Reichardt &amp; Bornholdt 2006).
+        /// When numRestarts &gt; 1, runs that many independent restarts (each with its own random node
+        /// order, via Misc.Random's thread-local stream) in parallel across up to 'maxthreads'
+        /// threads (see 'setting()') and keeps the highest-modularity result — local-moving's random
+        /// sweep order means different restarts can land in different local optima.
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LouvainCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0)
+            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, int numRestarts = 1)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -156,6 +180,23 @@ namespace Threadle.Core.Analysis
                 for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
                 return (singletons, 0.0);
             }
+
+            if (numRestarts <= 1)
+                return LouvainSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LouvainSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution));
+        }
+
+        /// <summary>
+        /// A single Louvain pass: multi-level local-moving + aggregation starting from the given
+        /// (shared, never mutated in place — each aggregation level builds brand-new arrays) level-0
+        /// adjacency. Safe to call concurrently for independent restarts against the same arrays.
+        /// </summary>
+        private static (Dictionary<uint, int> communities, double modularity) LouvainSingleRun(
+            uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution)
+        {
+            int n0 = nodeIds.Length;
 
             // mapping[i] = the current-level node index that original node i currently belongs to.
             int[] mapping = new int[n0];
@@ -221,10 +262,15 @@ namespace Threadle.Core.Analysis
         /// (labels can cycle), so the cap is required, not just a safety net. Layers are combined and
         /// symmetrized exactly as in <see cref="LouvainCommunities"/>. The returned modularity is not
         /// optimized by this method (LPA doesn't target modularity at all) — it's reported purely so
-        /// results are comparable across community detection methods.
+        /// results are comparable across community detection methods. When numRestarts &gt; 1, runs
+        /// that many independent restarts (each with its own random sweep order and tie-breaks, via
+        /// Misc.Random's thread-local stream) in parallel across up to 'maxthreads' threads (see
+        /// 'setting()') and keeps the one with the highest modularity — a secondary selection
+        /// criterion here, since LPA itself doesn't target modularity, but still a reasonable way to
+        /// pick among otherwise-arbitrary runs.
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LabelPropagationCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers, int maxIterations = 100)
+            uint[] nodeIds, List<ILayerOneMode> layers, int maxIterations = 100, int numRestarts = 1)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -238,6 +284,22 @@ namespace Threadle.Core.Analysis
                 for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
                 return (singletons, 0.0);
             }
+
+            if (numRestarts <= 1)
+                return LabelPropagationSingleRun(nodeIds, neighbors, weights, degree, twoM, maxIterations);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LabelPropagationSingleRun(nodeIds, neighbors, weights, degree, twoM, maxIterations));
+        }
+
+        /// <summary>
+        /// A single label-propagation pass against the given (shared, never mutated in place) level-0
+        /// adjacency. Safe to call concurrently for independent restarts against the same arrays.
+        /// </summary>
+        private static (Dictionary<uint, int> communities, double modularity) LabelPropagationSingleRun(
+            uint[] nodeIds, int[][] neighbors, double[][] weights, double[] degree, double twoM, int maxIterations)
+        {
+            int n0 = nodeIds.Length;
 
             int[] label = new int[n0];
             for (int i = 0; i < n0; i++) label[i] = i;
@@ -307,6 +369,44 @@ namespace Threadle.Core.Analysis
         #endregion
 
         #region Methods (private)
+
+        /// <summary>
+        /// Runs 'numRestarts' independent trials of a community-detection algorithm in parallel
+        /// (up to 'maxthreads', see 'setting()') and returns the one with the highest modularity.
+        /// Each trial is a fully self-contained call (its own freshly-allocated working arrays; no
+        /// shared mutable state between trials beyond the read-only level-0 adjacency the caller's
+        /// closure captures), and each draws from Misc.Random's thread-local stream, so restarts on
+        /// different threads explore genuinely different node orders/tie-breaks/refinement choices
+        /// without any coordination between them — no locking needed except for the final
+        /// keep-the-best comparison.
+        /// </summary>
+        private static (Dictionary<uint, int> communities, double modularity) RunBestOfRestarts(
+            int numRestarts, Func<(Dictionary<uint, int> communities, double modularity)> singleRun)
+        {
+            var mergeLock = new object();
+            (Dictionary<uint, int> communities, double modularity)? best = null;
+
+            System.Threading.Tasks.Parallel.For(0, numRestarts, UserSettings.GetParallelOptions(),
+                () => ((Dictionary<uint, int> communities, double modularity)?)null,
+                (i, loopState, localBest) =>
+                {
+                    var candidate = singleRun();
+                    if (localBest == null || candidate.modularity > localBest.Value.modularity)
+                        return candidate;
+                    return localBest;
+                },
+                localBest =>
+                {
+                    if (localBest == null) return;
+                    lock (mergeLock)
+                    {
+                        if (best == null || localBest.Value.modularity > best.Value.modularity)
+                            best = localBest;
+                    }
+                });
+
+            return best!.Value;
+        }
 
         /// <summary>
         /// Leiden's refinement step: rebuilds <paramref name="P"/> from singletons, merging a node
@@ -487,10 +587,13 @@ namespace Threadle.Core.Analysis
                  /// always has negative gain once that blob's own internal density stops exceeding the null
                  /// model). It typically yields more, smaller communities than Louvain, since it can't escape
                  /// local optima the way Louvain's aggregation levels do. Layers are combined and symmetrized
-                 /// exactly as in <see cref="LouvainCommunities"/>.
+                 /// exactly as in <see cref="LouvainCommunities"/>. When numRestarts &gt; 1, runs that many
+                 /// independent restarts (each with its own random sweep order, via Misc.Random's
+                 /// thread-local stream) in parallel across up to 'maxthreads' threads (see 'setting()')
+                 /// and keeps the highest-modularity result.
                  /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LPAmCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers)
+            uint[] nodeIds, List<ILayerOneMode> layers, int numRestarts = 1)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -504,6 +607,22 @@ namespace Threadle.Core.Analysis
                 for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
                 return (singletons, 0.0);
             }
+
+            if (numRestarts <= 1)
+                return LPAmSingleRun(nodeIds, neighbors, weights, degree, twoM);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LPAmSingleRun(nodeIds, neighbors, weights, degree, twoM));
+        }
+
+        /// <summary>
+        /// A single LPAm pass against the given (shared, never mutated in place) level-0 adjacency.
+        /// Safe to call concurrently for independent restarts against the same arrays.
+        /// </summary>
+        private static (Dictionary<uint, int> communities, double modularity) LPAmSingleRun(
+            uint[] nodeIds, int[][] neighbors, double[][] weights, double[] degree, double twoM)
+        {
+            int n0 = nodeIds.Length;
 
             int[] community = new int[n0];
             for (int i = 0; i < n0; i++) community[i] = i;
