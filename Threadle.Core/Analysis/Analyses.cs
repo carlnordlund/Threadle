@@ -405,6 +405,47 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Calculates edge betweenness centrality for every edge in a single 1-mode layer, storing
+        /// the result as a new valued layer (same directionality and selfties setting as the source
+        /// layer). Uses the same Brandes-based approach as BetweennessCentrality — each predecessor
+        /// edge on a shortest-path DAG is credited with the same contribution normally folded into
+        /// node betweenness — so it shares that command's cost profile and 'sampleSize'-based
+        /// approximation for large networks (Brandes &amp; Pich 2007), and normalizes the same way:
+        /// divide by (n-1)(n-2) for directed layers, (n-1)(n-2)/2 for undirected (when normalize is
+        /// true, the default), scaled by n/sampleSize when sampled. Kept as a separate command from
+        /// BetweennessCentrality rather than an option on it, since edge identity — unlike node
+        /// identity — has no clean mapping across combined layers, so this only operates on a single
+        /// named layer rather than a combined set. The per-source BFS passes run in parallel across
+        /// up to 'maxthreads' threads (see 'setting()').
+        /// </summary>
+        public static OperationResult EdgeBetweennessCentrality(Network network, string layerName, string newLayerName, int sampleSize = 0, bool normalize = true)
+        {
+            var lr = network.GetOneModeLayerForRead(layerName);
+            if (!lr.Success)
+                return OperationResult.Fail(lr.Code, lr.Message);
+            ILayerOneMode layer = lr.Value!;
+            if (network.Layers.ContainsKey(newLayerName))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
+
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
+
+            var raw = CentralityFunctions.AccumulateEdgeBetweennessForSources(sources, layer, EdgeTraversal.Out);
+            var final = normalize
+                ? CentralityFunctions.FinalizeEdgeBetweenness(raw, nodeIds.Length, sources.Length, layer.IsDirectional)
+                : raw;
+
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, layer.Directionality, EdgeType.Valued, layer.Selfties);
+            foreach (var ((from, to), value) in final)
+                newLayer._addEdge(from, to, (float)value);
+            newLayer._sortEdgesets();
+            newLayer._deduplicateEdgesets();
+            network.AddLayer(newLayerName, newLayer);
+
+            return OperationResult.Ok($"Edge betweenness centrality for layer '{layerName}' computed and stored as new layer '{newLayerName}'.");
+        }
+
+        /// <summary>
         /// Calculates closeness centrality using Wasserman-Faust normalization, which handles
         /// disconnected components by incorporating the reachable proportion of nodes.
         /// When sampleSize > 0, uses a random subset of source nodes. The per-source BFS passes

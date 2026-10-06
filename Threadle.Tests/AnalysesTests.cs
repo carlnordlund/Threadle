@@ -2105,6 +2105,169 @@ public class AnalysesTests
         }
     }
 
+    // ── EdgeBetweennessCentrality ────────────────────────────────────────────────
+    // Shares the Brandes backward pass with node betweenness (CentralityFunctions.
+    // AccumulateEdgeBetweenness credits each predecessor edge with the same
+    // contribution term node betweenness folds into the node's delta).
+
+    private static ILayerOneMode GetLayer(Network net, string layerName) => (ILayerOneMode)net.Layers[layerName];
+
+    [Fact]
+    public void EdgeBetweennessCentrality_TwoTrianglesWithBridge_BridgeHasHighestScore()
+    {
+        // Two triangles {1,2,3} and {4,5,6} joined by a single bridge edge (3,4): every
+        // cross-triangle shortest path must cross the bridge, so it should dominate every
+        // triangle-internal edge.
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4);
+
+        var result = Analyses.EdgeBetweennessCentrality(net, "layer", "layer-edgebetweenness");
+
+        Assert.True(result.Success);
+        var eb = GetLayer(net, "layer-edgebetweenness");
+        double bridge = eb.GetEdgeValue(3, 4);
+        double internalEdge = eb.GetEdgeValue(1, 2);
+        Assert.True(bridge > internalEdge, $"Bridge ({bridge}) should exceed an internal triangle edge ({internalEdge})");
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_DefaultNewLayerName_UsesEdgebetweennessSuffix()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "friends");
+        net.AddEdge("friends", 1, 2);
+        net.AddEdge("friends", 2, 3);
+
+        string newLayerName = net.GetNextAvailableLayerName("friends-edgebetweenness");
+        var result = Analyses.EdgeBetweennessCentrality(net, "friends", newLayerName);
+
+        Assert.True(result.Success);
+        Assert.True(net.Layers.ContainsKey("friends-edgebetweenness"));
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_NewLayer_MatchesSourceDirectionality()
+    {
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var result = Analyses.EdgeBetweennessCentrality(net, "layer", "layer-edgebetweenness");
+
+        Assert.True(result.Success);
+        var eb = GetLayer(net, "layer-edgebetweenness");
+        Assert.True(eb.IsDirectional);
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_NormalizeFalse_YieldsLargerRawValues()
+    {
+        var net = MakeNetwork(6);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 4, 6);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 3, 4);
+
+        Analyses.EdgeBetweennessCentrality(net, "layer", "normalized", normalize: true);
+        Analyses.EdgeBetweennessCentrality(net, "layer", "raw", normalize: false);
+
+        double normalizedBridge = GetLayer(net, "normalized").GetEdgeValue(3, 4);
+        double rawBridge = GetLayer(net, "raw").GetEdgeValue(3, 4);
+        Assert.True(rawBridge > normalizedBridge);
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_NonExistentLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        var result = Analyses.EdgeBetweennessCentrality(net, "ghost", "ghost-edgebetweenness");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_TwoModeLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+
+        var result = Analyses.EdgeBetweennessCentrality(net, "clubs", "clubs-edgebetweenness");
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_NewLayerNameAlreadyExists_Fails()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        AddUndirectedLayer(net, "taken");
+
+        var result = Analyses.EdgeBetweennessCentrality(net, "layer", "taken");
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            Analyses.EdgeBetweennessCentrality(netSeq, "layer", "eb");
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            Analyses.EdgeBetweennessCentrality(netPar, "layer", "eb");
+
+            var seqLayer = GetLayer(netSeq, "eb");
+            var parLayer = GetLayer(netPar, "eb");
+            foreach (var (egoId, alters, _) in seqLayer.GetAllEgoData())
+                foreach (uint alterId in alters.Span)
+                    if (alterId > egoId)
+                        Assert.Equal(seqLayer.GetEdgeValue(egoId, alterId), parLayer.GetEdgeValue(egoId, alterId), precision: 5);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void EdgeBetweennessCentrality_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeRingWithChordsNetwork(15);
+            var result = Analyses.EdgeBetweennessCentrality(net, "layer", "eb");
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
     // ── ClusteringCoefficient ────────────────────────────────────────────────────
     // Each node's coefficient is computed independently (LocalStructureFunctions.
     // ComputePerNodeParallel); tests below cover the Watts-Strogatz formula's math plus

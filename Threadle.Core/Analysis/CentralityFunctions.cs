@@ -131,6 +131,88 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Single-source BFSBrandes pass that accumulates contributions to edge betweenness for a
+        /// single 1-mode layer. Each predecessor edge (v,w) on a shortest-path DAG is credited with
+        /// the exact same per-predecessor contribution term that AccumulateBFSCentralities folds
+        /// into node w's cumulative delta, so this reuses the identical Brandes backward pass —
+        /// it just also credits the edge, not only the node. For undirected layers, the edge key is
+        /// canonicalized (lower node id first) so both discovery directions accumulate into the same
+        /// entry, representing one undirected edge; for directed layers, (v,w) is kept as-is, since
+        /// arcs v→w and w→v (if both exist) are distinct ties with independent scores.
+        /// </summary>
+        internal static void AccumulateEdgeBetweenness(uint source, ILayerOneMode layer, EdgeTraversal traversal, Dictionary<(uint From, uint To), double> edgeBetweenness)
+        {
+            GraphAlgorithms.BFSBrandes(source, [layer], [], [], traversal,
+                out var dist, out var sigma, out var pred, out var order);
+
+            bool directed = layer.IsDirectional;
+            var delta = new Dictionary<uint, double>(order.Count);
+            while (order.Count > 0)
+            {
+                uint w = order.Pop();
+                if (!pred.TryGetValue(w, out var preds)) continue;
+                double sigmaw = (double)sigma.GetValueOrDefault(w, 1L);
+                foreach (uint v in preds)
+                {
+                    double sigmav = (double)sigma.GetValueOrDefault(v, 1L);
+                    double contrib = (sigmav / sigmaw) * (1.0 + delta.GetValueOrDefault(w));
+                    delta[v] = delta.GetValueOrDefault(v) + contrib;
+
+                    var edgeKey = (directed || v < w) ? (v, w) : (w, v);
+                    edgeBetweenness[edgeKey] = edgeBetweenness.GetValueOrDefault(edgeKey) + contrib;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs AccumulateEdgeBetweenness for every source node in parallel (up to 'maxthreads', see
+        /// 'setting()'), merging thread-local partial sums into a shared accumulator under a lock
+        /// after each thread's batch — same accumulate+merge pattern as
+        /// AccumulateBFSCentralitiesForSources.
+        /// </summary>
+        internal static Dictionary<(uint From, uint To), double> AccumulateEdgeBetweennessForSources(uint[] sources, ILayerOneMode layer, EdgeTraversal traversal)
+        {
+            var edgeBetweenness = new Dictionary<(uint From, uint To), double>();
+            var mergeLock = new object();
+
+            System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
+                () => new Dictionary<(uint From, uint To), double>(),
+                (i, loopState, local) =>
+                {
+                    AccumulateEdgeBetweenness(sources[i], layer, traversal, local);
+                    return local;
+                },
+                local =>
+                {
+                    lock (mergeLock)
+                    {
+                        foreach (var (edge, value) in local)
+                            edgeBetweenness[edge] = edgeBetweenness.GetValueOrDefault(edge) + value;
+                    }
+                });
+
+            return edgeBetweenness;
+        }
+
+        /// <summary>
+        /// Normalizes raw edge betweenness scores, using the same bound as node betweenness: divide
+        /// by (n-1)(n-2) for directed layers, (n-1)(n-2)/2 for undirected. When sampled
+        /// (totalSources &lt; n): scale up by n/totalSources.
+        /// </summary>
+        internal static Dictionary<(uint From, uint To), double> FinalizeEdgeBetweenness(Dictionary<(uint From, uint To), double> raw, int n, int totalSources, bool directed)
+        {
+            double norm = directed
+                ? (n - 1.0) * (n - 2.0)
+                : (n - 1.0) * (n - 2.0) / 2.0;
+            double scale = (totalSources > 0 && totalSources < n) ? (double)n / totalSources : 1.0;
+
+            var result = new Dictionary<(uint From, uint To), double>(raw.Count);
+            foreach (var (edge, value) in raw)
+                result[edge] = norm > 0 ? value * scale / norm : 0.0;
+            return result;
+        }
+
+        /// <summary>
         /// Wasserman-Faust closeness: ((reachable)^2) / ((n-1) * distSum).
         /// Handles disconnected components gracefully (unreachable nodes get 0).
         /// </summary>

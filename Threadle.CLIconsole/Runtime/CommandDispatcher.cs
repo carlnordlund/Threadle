@@ -51,6 +51,7 @@ namespace Threadle.CLIconsole.Runtime
             ["dichotomize"] = new Dichotomize(),
             ["dir"] = new Dir(),
             ["dyadcensus"] = new DyadCensus(),
+            ["edgebetweennesscentrality"] = new EdgeBetweennessCentrality(),
             ["effectivesize"] = new EffectiveSize(),
             ["eigenvectorcentrality"] = new EigenvectorCentrality(),
             ["export"] = new Export(),
