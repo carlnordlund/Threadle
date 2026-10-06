@@ -408,6 +408,79 @@ public class AnalysesTests
         Assert.Equal(2, (int)stats["Missing"]);
     }
 
+    // ── GetLayerStats ────────────────────────────────────────────────────────────
+    // Shares its statistics machinery (Functions.CalculateValueStatistics) with
+    // GetAttributeSummary's int/float branch, so the field set and math are the same.
+
+    [Fact]
+    public void GetLayerStats_ValuedUndirectedLayer_CountsEachEdgeOnceAndComputesExpectedStats()
+    {
+        // Undirected: 1-2 (value 2), 2-3 (value 4), 1-3 (value 6). Each edge must be counted
+        // once (EdgeCount=3), not twice (GetAllEgoData surfaces it from both endpoints).
+        var net = MakeNetwork(3);
+        net.AddLayerOneMode("trust", EdgeDirectionality.Undirected, EdgeType.Valued, false);
+        net.AddEdge("trust", 1, 2, 2.0f);
+        net.AddEdge("trust", 2, 3, 4.0f);
+        net.AddEdge("trust", 1, 3, 6.0f);
+
+        var result = Analyses.GetLayerStats(net, "trust");
+
+        Assert.True(result.Success);
+        Assert.Equal(3, (int)result.Value!["EdgeCount"]);
+        Assert.Equal(4.0, (double)result.Value!["Mean"], precision: 5);
+        Assert.Equal(4.0, (double)result.Value!["Median"], precision: 5);
+        Assert.Equal(2.0f, (float)result.Value!["Min"]);
+        Assert.Equal(6.0f, (float)result.Value!["Max"]);
+    }
+
+    [Fact]
+    public void GetLayerStats_ValuedDirectedLayer_CountsEachArcIndependently()
+    {
+        // Directed: 1->2 (value 10) and 2->1 (value 20) are distinct arcs with distinct
+        // values, so both must be counted (EdgeCount=2), not deduplicated like undirected edges.
+        var net = MakeNetwork(2);
+        net.AddLayerOneMode("flow", EdgeDirectionality.Directed, EdgeType.Valued, false);
+        net.AddEdge("flow", 1, 2, 10.0f);
+        net.AddEdge("flow", 2, 1, 20.0f);
+
+        var result = Analyses.GetLayerStats(net, "flow");
+
+        Assert.True(result.Success);
+        Assert.Equal(2, (int)result.Value!["EdgeCount"]);
+        Assert.Equal(15.0, (double)result.Value!["Mean"], precision: 5);
+    }
+
+    [Fact]
+    public void GetLayerStats_BinaryLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+
+        var result = Analyses.GetLayerStats(net, "layer");
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void GetLayerStats_NonExistentLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        var result = Analyses.GetLayerStats(net, "ghost");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void GetLayerStats_TwoModeLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+
+        var result = Analyses.GetLayerStats(net, "clubs");
+
+        Assert.False(result.Success);
+    }
+
     // ── DegreeCentralities: static (packed) layers ───────────────────────────────
 
     // Helper: read a stored integer node attribute
