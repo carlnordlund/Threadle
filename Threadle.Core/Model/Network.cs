@@ -125,6 +125,33 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Renames a layer. The layer's edges and properties are unaffected — only the name it is
+        /// looked up by (and its own <see cref="ILayer.Name"/>) changes.
+        /// </summary>
+        /// <param name="from">The current name of the layer.</param>
+        /// <param name="to">The new name for the layer.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult RenameLayer(string from, string to)
+        {
+            var layerResult = GetLayer(from);
+            if (!layerResult.Success)
+                return layerResult;
+            to = to.Trim();
+            if (string.IsNullOrEmpty(to))
+                return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");
+            if (from == to)
+                return OperationResult.Ok($"Layer '{from}' already has that name.");
+            if (Layers.ContainsKey(to))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer with name '{to}' already exists.");
+            ILayer layer = layerResult.Value!;
+            Layers.Remove(from);
+            layer.Name = to;
+            Layers[to] = layer;
+            IsModified = true;
+            return OperationResult.Ok($"Layer '{from}' renamed to '{to}' in network '{Name}'.");
+        }
+
+        /// <summary>
         /// Clears a layer, i.e. removing all edges from that layer
         /// </summary>
         /// <param name="layerName">The name of the layer.</param>

@@ -147,6 +147,29 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Renames an existing node attribute. The attribute's index is unchanged, so all currently
+        /// set values for it remain valid — only the name-to-index mapping changes.
+        /// </summary>
+        /// <param name="from">The current name of the node attribute.</param>
+        /// <param name="to">The new name for the node attribute.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        internal OperationResult RenameNodeAttribute(string from, string to)
+        {
+            if (!_nameToIndex.TryGetValue(from, out byte index))
+                return OperationResult.Fail("AttributeUnknown", $"Node attribute '{from}' not found.");
+            if (to.Length < 1)
+                return OperationResult.Fail("MissingAttributeName", "New name of attribute must be at least one character.");
+            if (from == to)
+                return OperationResult.Ok($"Node attribute '{from}' already has that name.");
+            if (CheckIfAttributeNameExists(to))
+                return OperationResult.Fail("AttributeAlreadyExists", $"Node attribute named '{to}' already defined.");
+            _nameToIndex.Remove(from);
+            _nameToIndex[to] = index;
+            _indexToName[index] = to;
+            return OperationResult.Ok($"Node attribute '{from}' renamed to '{to}'.");
+        }
+
+        /// <summary>
         /// Returns a dictionary of information about the defined node attributes
         /// </summary>
         /// <returns>A dictionary with details about the defined node attributes.</returns>

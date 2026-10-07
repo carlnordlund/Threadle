@@ -118,6 +118,73 @@ public class NetworkTests
         Assert.False(result.Success);
     }
 
+    // ── RenameLayer ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RenameLayer_NewName_Succeeds()
+    {
+        var (net, layer) = MakeNetworkWithUndirectedLayer();
+        var result = net.RenameLayer(layer, "besties");
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void RenameLayer_NewName_MovesKeyAndUpdatesLayerNameProperty()
+    {
+        var (net, layer) = MakeNetworkWithUndirectedLayer();
+        net.RenameLayer(layer, "besties");
+
+        Assert.False(net.Layers.ContainsKey(layer));
+        Assert.True(net.Layers.ContainsKey("besties"));
+        Assert.Equal("besties", net.Layers["besties"].Name);
+    }
+
+    [Fact]
+    public void RenameLayer_PreservesEdges()
+    {
+        var (net, layer) = MakeNetworkWithUndirectedLayer();
+        net.AddEdge(layer, 1, 2);
+        net.RenameLayer(layer, "besties");
+
+        Assert.True(net.CheckEdgeExists("besties", 1, 2).Value);
+    }
+
+    [Fact]
+    public void RenameLayer_NonExistentLayer_Fails()
+    {
+        var net = MakeNetwork();
+        var result = net.RenameLayer("ghost", "whatever");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void RenameLayer_NameAlreadyExists_Fails()
+    {
+        var (net, layer) = MakeNetworkWithUndirectedLayer();
+        net.AddLayerOneMode("taken", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        var result = net.RenameLayer(layer, "taken");
+        Assert.False(result.Success);
+        Assert.True(net.Layers.ContainsKey(layer));
+    }
+
+    [Fact]
+    public void RenameLayer_SameName_SucceedsAsNoOp()
+    {
+        var (net, layer) = MakeNetworkWithUndirectedLayer();
+        var result = net.RenameLayer(layer, layer);
+        Assert.True(result.Success);
+        Assert.True(net.Layers.ContainsKey(layer));
+    }
+
+    [Fact]
+    public void RenameLayer_EmptyNewName_Fails()
+    {
+        var (net, layer) = MakeNetworkWithUndirectedLayer();
+        var result = net.RenameLayer(layer, "   ");
+        Assert.False(result.Success);
+        Assert.True(net.Layers.ContainsKey(layer));
+    }
+
     // ── ClearLayer ───────────────────────────────────────────────────────────────
 
     [Fact]

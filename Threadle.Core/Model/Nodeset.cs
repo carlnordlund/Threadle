@@ -295,6 +295,21 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Renames a defined node attribute. The attribute's index and all currently set values are
+        /// unaffected — only the name it is looked up by changes.
+        /// </summary>
+        /// <param name="from">The current name of the node attribute.</param>
+        /// <param name="to">The new name for the node attribute.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult RenameNodeAttribute(string from, string to)
+        {
+            OperationResult result = NodeAttributeDefinitionManager.RenameNodeAttribute(from, to);
+            if (result.Success)
+                _modified();
+            return result;
+        }
+
+        /// <summary>
         /// Sets the specific attrValue for the node attribute of the selected node id.
         /// </summary>
         /// <param name="nodeId">The unique id of the node</param>
