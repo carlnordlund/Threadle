@@ -331,6 +331,8 @@ namespace Threadle.Core.Utilities
                         return ExportNetworkToGexf(network, layerName, filepath);
                     case ExportFormat.Graphml:
                         return ExportNetworkToGraphml(network, layerName, filepath);
+                    case ExportFormat.Pajek:
+                        return ExportNetworkToPajek(network, filepath);
                 }
                 return OperationResult.Fail("ExportFormatNotFound", $"Export format '{format}' not implemented.");
             }
@@ -349,9 +351,10 @@ namespace Threadle.Core.Utilities
         /// <param name="layerAttr">Name of the edge attribute whose values specify the layer of each edge (null or empty: all edges in one layer).</param>
         /// <param name="weightAttr">Name of the edge attribute holding edge values (null or empty: binary edges).</param>
         /// <param name="idAttr">Name of the string node attribute to store the original node ids in, if these are not unsigned integers.</param>
+        /// <param name="labelAttr">Pajek only: name of the string node attribute to store each vertex's label in (null or empty: labels are discarded).</param>
         /// <param name="packLayers">Whether layers should be packed after import.</param>
         /// <returns>An OperationResult with a StructureResult holding the imported structures.</returns>
-        public static OperationResult<StructureResult> ImportNetwork(string filepath, ImportFormat format, string? layerAttr = "layer", string? weightAttr = "weight", string idAttr = "id", bool packLayers = false)
+        public static OperationResult<StructureResult> ImportNetwork(string filepath, ImportFormat format, string? layerAttr = "layer", string? weightAttr = "weight", string idAttr = "id", string? labelAttr = "label", bool packLayers = false)
         {
             try
             {
@@ -361,6 +364,7 @@ namespace Threadle.Core.Utilities
                 StructureResult structureResult = format switch
                 {
                     ImportFormat.Graphml => FileSerializerGraphml.Import(filepath, layerAttr, weightAttr, idAttr),
+                    ImportFormat.Pajek => FileSerializerPajek.Import(filepath, labelAttr),
                     _ => throw new NotSupportedException($"Import format '{format}' not implemented.")
                 };
                 if (packLayers && structureResult.MainStructure is Network network)
@@ -405,6 +409,22 @@ namespace Threadle.Core.Utilities
                 return OperationResult.Fail("LayerNotOneMode", $"Layer '{layerName}' is not 1-mode.");
             FileSerializerGexf.Export(network, layerOneMode, filepath);
             return OperationResult.Ok($"Layer '{layerName}' in network '{network.Name}' exported to 'gexf' format to file: {filepath}");
+        }
+
+        /// <summary>
+        /// Public-facing method to export a network to Pajek .net format. Always exports the whole network — the
+        /// format has no concept of a single-layer subset. 2-mode layers are skipped, since Pajek .net has no
+        /// hyperedge concept; this is reported in the result message when it happens.
+        /// </summary>
+        /// <param name="network">The network to export to Pajek .net.</param>
+        /// <param name="filepath">The filepath to export to.</param>
+        /// <returns>An OperationResult informing how well it went.</returns>
+        private static OperationResult ExportNetworkToPajek(Network network, string filepath)
+        {
+            int skippedTwoMode = network.Layers.Values.OfType<ILayerTwoMode>().Count();
+            FileSerializerPajek.Export(network, filepath);
+            string note = skippedTwoMode > 0 ? $" ({skippedTwoMode} two-mode layer(s) skipped: Pajek .net has no hyperedge support)" : "";
+            return OperationResult.Ok($"Network '{network.Name}' exported to 'pajek' format to file: {filepath}{note}");
         }
 
 

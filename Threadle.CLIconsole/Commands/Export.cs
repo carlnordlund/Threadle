@@ -15,12 +15,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "export(network = [var:network], format = ['gexf','graphml'], file = [str], +layername = [str])";
+        public string Syntax => "export(network = [var:network], format = ['gexf','graphml','pajek'], file = [str], +layername = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Exports a network to an external file format: 'gexf' (Gephi format) or 'graphml'. As gexf is a single-layer format, the layer to export must be specified with the 'layername' argument. For graphml, all nodes, node attributes and layers are exported, unless 'layername' is given, in which case only that layer is exported. When exporting several layers to graphml, each edge gets a 'layer' attribute, and 1-mode layers are exported as edges and 2-mode layers as hyperedges. Such a file can be imported back with 'importnetwork()'.";
+        public string Description => "Exports a network to an external file format: 'gexf' (Gephi format), 'graphml' or 'pajek' (Pajek .net). As gexf is a single-layer format, the layer to export must be specified with the 'layername' argument. For graphml, all nodes, node attributes and layers are exported, unless 'layername' is given, in which case only that layer is exported. When exporting several layers to graphml, each edge gets a 'layer' attribute, and 1-mode layers are exported as edges and 2-mode layers as hyperedges. For pajek, the whole network is always exported ('layername' is ignored): every 1-mode layer becomes its own '*Arcs' (directed) or '*Edges' (undirected) section, named via a ':k \"name\"' suffix when there is more than one; 2-mode layers are skipped, since Pajek .net has no hyperedge concept. Pajek .net also has no general node-attribute mechanism, so only each node's own id is written, as its vertex label; nodes are renumbered to Pajek's required dense 1..N range for the file, with the original id kept visible in that label. Such a file can be imported back with 'importnetwork()'.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

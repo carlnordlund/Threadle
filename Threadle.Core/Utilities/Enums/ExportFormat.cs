@@ -6,6 +6,7 @@
     public enum ExportFormat
     {
         Gexf,
-        Graphml
+        Graphml,
+        Pajek
     }
 }

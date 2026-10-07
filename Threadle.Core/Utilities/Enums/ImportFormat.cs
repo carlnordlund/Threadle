@@ -5,6 +5,7 @@
     /// </summary>
     public enum ImportFormat
     {
-        Graphml
+        Graphml,
+        Pajek
     }
 }
