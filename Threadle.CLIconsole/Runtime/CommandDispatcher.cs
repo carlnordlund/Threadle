@@ -48,6 +48,7 @@ namespace Threadle.CLIconsole.Runtime
             ["delete"] = new Delete(),
             ["deleteall"] = new DeleteAll(),
             ["density"] = new Density(),
+            ["diameter"] = new Diameter(),
             ["dichotomize"] = new Dichotomize(),
             ["dir"] = new Dir(),
             ["dyadcensus"] = new DyadCensus(),

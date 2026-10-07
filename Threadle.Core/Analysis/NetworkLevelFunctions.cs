@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
@@ -381,9 +382,192 @@ namespace Threadle.Core.Analysis
                 ["DyadicReciprocity"] = M_d + A_d > 0 ? (double)M_d / (M_d + A_d) : 0.0
             };
         }
+
+        /// <summary>
+        /// Exact network diameter and average path length for a single 1-mode layer, restricted
+        /// to the largest weakly connected component (ignoring edge direction when finding that
+        /// component — the convention used by igraph/NetworkX, since both statistics are only
+        /// meaningful within a connected set of nodes). A full BFS is run from every node of the
+        /// giant component — not an arbitrary subset — in parallel across up to 'maxthreads'
+        /// threads (see 'setting()'); each source's reachable distances fold into shared
+        /// max/sum/count accumulators under a lock. Diameter is the longest shortest path seen
+        /// among reachable ordered pairs; AvgDistance is the mean over those same pairs. For
+        /// directed layers, 'traversal' controls which direction BFS follows — unreachable pairs
+        /// (possible even within the giant component when following direction) are simply
+        /// excluded from both statistics, with PairsConsidered reporting how many were used.
+        /// </summary>
+        internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal)
+        {
+            uint[] component = LargestComponent(nodeIds, layer);
+            int compSize = component.Length;
+
+            long maxDist = 0;
+            long sumDist = 0;
+            long pairs = 0;
+
+            if (compSize > 1)
+            {
+                var mergeLock = new object();
+                System.Threading.Tasks.Parallel.For(0, component.Length, UserSettings.GetParallelOptions(),
+                    () => (Max: 0L, Sum: 0L, Pairs: 0L),
+                    (i, loopState, local) =>
+                    {
+                        uint src = component[i];
+                        var dist = GraphAlgorithms.BFS(src, [layer], [], [], traversal);
+                        foreach (var (node, d) in dist)
+                        {
+                            if (node == src) continue;
+                            if (d > local.Max) local.Max = d;
+                            local.Sum += d;
+                            local.Pairs++;
+                        }
+                        return local;
+                    },
+                    local =>
+                    {
+                        lock (mergeLock)
+                        {
+                            if (local.Max > maxDist) maxDist = local.Max;
+                            sumDist += local.Sum;
+                            pairs += local.Pairs;
+                        }
+                    });
+            }
+
+            return new Dictionary<string, object>
+            {
+                ["Method"] = "Exact",
+                ["Diameter"] = (int)maxDist,
+                ["AvgDistance"] = pairs > 0 ? (double)sumDist / pairs : 0.0,
+                ["PairsConsidered"] = pairs,
+                ["ComponentSize"] = compSize,
+                ["TotalNodes"] = nodeIds.Length
+            };
+        }
+
+        /// <summary>
+        /// Sampled estimate of network diameter and average path length, for networks too large
+        /// for the exact full-BFS pass. Restricted to the largest weakly connected component, same
+        /// as <see cref="Diameter"/>. AvgDistance is estimated from 'sampleSize' random sources
+        /// drawn from that component: each source's own mean distance to its reachable nodes is
+        /// one independent observation (its own BFS, not correlated raw pairwise distances), so the
+        /// reported StandardError and 95% ConfidenceInterval use the normal approximation of a mean
+        /// over those per-source means — not the Wilson score interval TriadicCensusSampled uses,
+        /// which is specific to binomial proportions and would not apply to this continuous
+        /// estimand. Diameter itself cannot be estimated this way: sampling a mean estimator never
+        /// reliably sees the long tail that defines a maximum. Instead, 'numSweeps' parallel
+        /// double-sweep trials (pick a random node, BFS to its farthest node u, BFS again from u)
+        /// each yield a lower bound on the true diameter — often exact in practice, though not
+        /// guaranteed, especially for directed layers — and the largest bound seen across trials is
+        /// reported as DiameterLowerBound, deliberately not as a confidence interval, since it is an
+        /// extreme-value statistic rather than a mean.
+        /// </summary>
+        internal static Dictionary<string, object> DiameterSampled(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal, int sampleSize, int numSweeps)
+        {
+            uint[] component = LargestComponent(nodeIds, layer);
+            int compSize = component.Length;
+
+            long diameterLowerBound = 0;
+            if (compSize > 1 && numSweeps > 0)
+            {
+                var sweepLock = new object();
+                System.Threading.Tasks.Parallel.For(0, numSweeps, UserSettings.GetParallelOptions(),
+                    () => 0L,
+                    (i, loopState, localBest) =>
+                    {
+                        uint r = component[Misc.Random.Next(compSize)];
+                        var dist1 = GraphAlgorithms.BFS(r, [layer], [], [], traversal);
+                        uint u = r;
+                        int best1 = 0;
+                        foreach (var (node, d) in dist1)
+                            if (d > best1) { best1 = d; u = node; }
+                        var dist2 = GraphAlgorithms.BFS(u, [layer], [], [], traversal);
+                        int best2 = 0;
+                        foreach (int d in dist2.Values)
+                            if (d > best2) best2 = d;
+                        return Math.Max(localBest, (long)best2);
+                    },
+                    localBest =>
+                    {
+                        lock (sweepLock)
+                        {
+                            if (localBest > diameterLowerBound) diameterLowerBound = localBest;
+                        }
+                    });
+            }
+
+            uint[] sources = compSize > 0 ? CentralityFunctions.SampleNodes(component, sampleSize) : [];
+            var perSourceMeans = new double[sources.Length];
+            System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(), i =>
+            {
+                uint src = sources[i];
+                var dist = GraphAlgorithms.BFS(src, [layer], [], [], traversal);
+                long sum = 0;
+                long count = 0;
+                foreach (var (node, d) in dist)
+                {
+                    if (node == src) continue;
+                    sum += d;
+                    count++;
+                }
+                perSourceMeans[i] = count > 0 ? (double)sum / count : 0.0;
+            });
+
+            int k = perSourceMeans.Length;
+            double mean = k > 0 ? perSourceMeans.Average() : 0.0;
+            double variance = k > 1 ? perSourceMeans.Sum(m => (m - mean) * (m - mean)) / (k - 1) : 0.0;
+            double se = k > 1 ? Math.Sqrt(variance / k) : 0.0;
+            const double z = 1.959963984540054;
+
+            return new Dictionary<string, object>
+            {
+                ["Method"] = "Sampled",
+                ["DiameterLowerBound"] = (int)diameterLowerBound,
+                ["NumSweeps"] = numSweeps,
+                ["AvgDistance"] = mean,
+                ["StandardError"] = se,
+                ["ConfidenceIntervalLower"] = Math.Max(0.0, mean - z * se),
+                ["ConfidenceIntervalUpper"] = mean + z * se,
+                ["SampleSize"] = k,
+                ["ComponentSize"] = compSize,
+                ["TotalNodes"] = nodeIds.Length
+            };
+        }
         #endregion
 
         #region Methods (private)
+
+        /// <summary>
+        /// Finds the largest weakly connected component (edges treated as undirected, same as
+        /// Functions.ConnectedComponents) via plain BFS/union. Used to restrict Diameter and
+        /// DiameterSampled to the giant component, since diameter and average distance are only
+        /// meaningful within a connected set of nodes.
+        /// </summary>
+        private static uint[] LargestComponent(uint[] nodeIds, ILayerOneMode layer)
+        {
+            var visited = new HashSet<uint>();
+            uint[] bestComponent = [];
+            foreach (uint start in nodeIds)
+            {
+                if (!visited.Add(start)) continue;
+                var component = new List<uint> { start };
+                var queue = new Queue<uint>();
+                queue.Enqueue(start);
+                while (queue.Count > 0)
+                {
+                    uint u = queue.Dequeue();
+                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Both))
+                        if (visited.Add(v))
+                        {
+                            component.Add(v);
+                            queue.Enqueue(v);
+                        }
+                }
+                if (component.Count > bestComponent.Length)
+                    bestComponent = component.ToArray();
+            }
+            return bestComponent;
+        }
 
         /// <summary>Number of elements common to both sets, iterating the smaller one.</summary>
         private static int CountIntersection(HashSet<uint> a, HashSet<uint> b)

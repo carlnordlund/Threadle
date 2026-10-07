@@ -160,6 +160,41 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Network diameter and average path length for a single 1-mode layer, restricted to the
+        /// largest weakly connected component (ComponentSize vs TotalNodes are both reported for
+        /// transparency) — the convention used by igraph/NetworkX, since both statistics are only
+        /// meaningful within a connected set of nodes. When sampleSize is 0 (default), computes
+        /// both exactly via a full BFS from every node in the giant component, run in parallel
+        /// across up to 'maxthreads' threads (see 'setting()'); the result carries Diameter,
+        /// AvgDistance, PairsConsidered and Method = "Exact". When sampleSize &gt; 0, AvgDistance is
+        /// instead estimated from that many random sources in the giant component, each source's
+        /// own mean distance to its reachable nodes treated as one independent observation — the
+        /// result carries a StandardError and 95% confidence interval (normal approximation of a
+        /// mean) for AvgDistance. Diameter cannot be estimated the same way — sampling a mean
+        /// estimator never reliably sees the long tail that defines a maximum — so the sampled
+        /// result instead reports a DiameterLowerBound from 'numSweeps' parallel double-sweep
+        /// trials (pick a random node, BFS to its farthest node u, BFS again from u — the largest
+        /// distance seen across trials is a lower bound on the true diameter, often exact in
+        /// practice but not guaranteed, especially for directed layers): a lower bound, not a
+        /// confidence interval, since it is an extreme-value statistic rather than a mean. For
+        /// directed layers, 'traversal' controls which direction BFS follows; unreachable pairs
+        /// (possible even within the giant component when following direction) are simply
+        /// excluded from both statistics.
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> Diameter(Network network, string layerName, int sampleSize = 0, int numSweeps = 4, EdgeTraversal traversal = EdgeTraversal.Out)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+            var lr = network.GetOneModeLayerForRead(layerName);
+            if (!lr.Success)
+                return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+            var diameterResult = sampleSize > 0
+                ? NetworkLevelFunctions.DiameterSampled(network.Nodeset.NodeIdArray, lr.Value!, traversal, sampleSize, numSweeps)
+                : NetworkLevelFunctions.Diameter(network.Nodeset.NodeIdArray, lr.Value!, traversal);
+            return OperationResult<Dictionary<string, object>>.Ok(diameterResult);
+        }
+
+        /// <summary>
         /// Computes Burt's constraint for each node in the specified 1-mode layer(s) and stores
         /// the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)²
         /// where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many

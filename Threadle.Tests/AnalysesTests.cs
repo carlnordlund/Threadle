@@ -2268,6 +2268,177 @@ public class AnalysesTests
         }
     }
 
+    // ── Diameter ─────────────────────────────────────────────────────────────────
+    // Restricted to the largest weakly connected component; exact mode runs a full BFS
+    // from every node in that component (NetworkLevelFunctions.Diameter), sampled mode
+    // estimates AvgDistance via per-source means (normal-approximation CI) and reports a
+    // DiameterLowerBound via double-sweep trials rather than a confidence interval.
+
+    [Fact]
+    public void Diameter_PathGraph_ExactDiameterAndAvgDistance()
+    {
+        // 1-2-3-4-5 undirected path: diameter is the 1↔5 distance (4); AvgDistance over
+        // all 20 ordered reachable pairs works out to exactly 2.0.
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 4);
+        net.AddEdge("layer", 4, 5);
+
+        var result = Analyses.Diameter(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal("Exact", result.Value!["Method"]);
+        Assert.Equal(4, (int)result.Value!["Diameter"]);
+        Assert.Equal(2.0, (double)result.Value!["AvgDistance"], precision: 10);
+        Assert.Equal(20L, (long)result.Value!["PairsConsidered"]);
+        Assert.Equal(5, (int)result.Value!["ComponentSize"]);
+        Assert.Equal(5, (int)result.Value!["TotalNodes"]);
+    }
+
+    [Fact]
+    public void Diameter_DisconnectedNetwork_RestrictsToLargestComponent()
+    {
+        // A 3-node triangle {1,2,3} plus a separate 4-node path {4-5-6-7}: the path is the
+        // larger (weakly connected) component, so diameter/avgdistance should reflect it
+        // (diameter 3), not the triangle (diameter 1).
+        var net = MakeNetwork(7);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 1, 3);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 4, 5);
+        net.AddEdge("layer", 5, 6);
+        net.AddEdge("layer", 6, 7);
+
+        var result = Analyses.Diameter(net, "layer");
+
+        Assert.True(result.Success);
+        Assert.Equal(3, (int)result.Value!["Diameter"]);
+        Assert.Equal(4, (int)result.Value!["ComponentSize"]);
+        Assert.Equal(7, (int)result.Value!["TotalNodes"]);
+    }
+
+    [Fact]
+    public void Diameter_DirectedLayer_TraversalChangesReachablePairs()
+    {
+        // 1->2->3: following 'out' only, node 3 reaches nobody, so just 3 ordered pairs are
+        // reachable; following 'both' ignores direction, so all 6 ordered pairs are reachable.
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var outResult = Analyses.Diameter(net, "layer", traversal: EdgeTraversal.Out);
+        var bothResult = Analyses.Diameter(net, "layer", traversal: EdgeTraversal.Both);
+
+        Assert.True(outResult.Success);
+        Assert.True(bothResult.Success);
+        Assert.Equal(3L, (long)outResult.Value!["PairsConsidered"]);
+        Assert.Equal(6L, (long)bothResult.Value!["PairsConsidered"]);
+        Assert.Equal(2, (int)outResult.Value!["Diameter"]);
+        Assert.Equal(2, (int)bothResult.Value!["Diameter"]);
+    }
+
+    [Fact]
+    public void Diameter_SampledMode_LowerBoundAndConfidenceIntervalAreConsistent()
+    {
+        var net = MakeRingWithChordsNetwork(15);
+        var exact = Analyses.Diameter(net, "layer");
+        var sampled = Analyses.Diameter(net, "layer", sampleSize: 8, numSweeps: 5);
+
+        Assert.True(exact.Success);
+        Assert.True(sampled.Success);
+        Assert.Equal("Sampled", sampled.Value!["Method"]);
+        int diameterLowerBound = (int)sampled.Value!["DiameterLowerBound"];
+        Assert.True(diameterLowerBound <= (int)exact.Value!["Diameter"],
+            $"DiameterLowerBound ({diameterLowerBound}) must not exceed the true diameter ({exact.Value!["Diameter"]})");
+        Assert.True(diameterLowerBound > 0);
+        double avg = (double)sampled.Value!["AvgDistance"];
+        double ciLower = (double)sampled.Value!["ConfidenceIntervalLower"];
+        double ciUpper = (double)sampled.Value!["ConfidenceIntervalUpper"];
+        Assert.True(ciLower <= avg && avg <= ciUpper);
+        Assert.Equal(8, (int)sampled.Value!["SampleSize"]);
+    }
+
+    [Fact]
+    public void Diameter_EmptyNetwork_Fails()
+    {
+        var net = MakeNetwork(0);
+        AddUndirectedLayer(net, "layer");
+
+        var result = Analyses.Diameter(net, "layer");
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void Diameter_NonExistentLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        var result = Analyses.Diameter(net, "ghost");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void Diameter_TwoModeLayer_Fails()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+
+        var result = Analyses.Diameter(net, "clubs");
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void Diameter_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            var seqResult = Analyses.Diameter(netSeq, "layer");
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            var parResult = Analyses.Diameter(netPar, "layer");
+
+            Assert.True(seqResult.Success);
+            Assert.True(parResult.Success);
+            Assert.Equal((int)seqResult.Value!["Diameter"], (int)parResult.Value!["Diameter"]);
+            Assert.Equal((double)seqResult.Value!["AvgDistance"], (double)parResult.Value!["AvgDistance"], precision: 10);
+            Assert.Equal((long)seqResult.Value!["PairsConsidered"], (long)parResult.Value!["PairsConsidered"]);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
+    [Fact]
+    public void Diameter_MaxThreadsGreaterThanOne_Succeeds()
+    {
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            UserSettings.Set("maxthreads", 2);
+            var net = MakeRingWithChordsNetwork(15);
+            var result = Analyses.Diameter(net, "layer");
+            Assert.True(result.Success);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
     // ── ClusteringCoefficient ────────────────────────────────────────────────────
     // Each node's coefficient is computed independently (LocalStructureFunctions.
     // ComputePerNodeParallel); tests below cover the Watts-Strogatz formula's math plus
