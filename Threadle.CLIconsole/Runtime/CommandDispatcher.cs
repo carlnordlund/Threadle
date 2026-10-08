@@ -99,6 +99,7 @@ namespace Threadle.CLIconsole.Runtime
             ["removehyper"] = new RemoveHyper(),
             ["removelayer"] = new RemoveLayer(),
             ["removenode"] = new RemoveNode(),
+            ["rewire"] = new Rewire(),
             ["rwfpt"] = new RandomWalkerFirstPassageTime(),
             ["savefile"] = new SaveFile(),
             ["setattr"] = new SetAttr(),

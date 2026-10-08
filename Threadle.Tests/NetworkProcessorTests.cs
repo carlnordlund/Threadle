@@ -184,6 +184,211 @@ public class NetworkProcessorTests
         Assert.False(net.Layers["binary"].IsStatic);
     }
 
+    // ── Rewire ───────────────────────────────────────────────────────────────────
+    // Degree-preserving edge swaps (Maslov & Sneppen 2002): rather than pinning exact
+    // output (inherently random), these tests check the invariants the algorithm must
+    // always uphold regardless of the random sequence of swaps actually taken.
+
+    private static Network MakeRingWithChordsRewireNetwork(int n, EdgeDirectionality directionality, EdgeType edgeType, bool selfties = false)
+    {
+        var nodeset = new Nodeset("ns");
+        for (uint i = 1; i <= n; i++) nodeset.AddNode(i);
+        var net = new Network("net", nodeset);
+        net.AddLayerOneMode("layer", directionality, edgeType, selfties);
+        int weight = 1;
+        for (int i = 1; i <= n; i++)
+        {
+            int next = i == n ? 1 : i + 1;
+            net.AddEdge("layer", (uint)i, (uint)next, weight++);
+        }
+        for (int i = 1; i + 3 <= n; i += 3)
+            net.AddEdge("layer", (uint)i, (uint)(i + 3), weight++);
+        return net;
+    }
+
+    private static ILayerOneMode GetLayer(Network net, string layerName) => (ILayerOneMode)net.Layers[layerName];
+
+    private static List<(uint NodeId, uint Out, uint In)> DegreeSequence(ILayerOneMode layer, uint[] nodeIds)
+    {
+        return nodeIds
+            .OrderBy(id => id)
+            .Select(id => (id, layer.GetOutDegree(id), layer.GetInDegree(id)))
+            .ToList();
+    }
+
+    private static List<float> AllWeights(ILayerOneMode layer, uint[] nodeIds)
+    {
+        var weights = new List<float>();
+        foreach (var (egoId, alters, values) in layer.GetAllEgoData())
+            for (int i = 0; i < alters.Length; i++)
+                weights.Add(values.Span[i]);
+        if (layer.IsSymmetric && layer.Selfties)
+            foreach (uint nodeId in nodeIds)
+                if (layer.CheckEdgeExists(nodeId, nodeId))
+                    weights.Add(layer.GetEdgeValue(nodeId, nodeId));
+        return weights;
+    }
+
+    [Fact]
+    public void RewireLayer_UndirectedBinary_PreservesDegreeSequence()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Undirected, EdgeType.Binary);
+        var before = DegreeSequence(GetLayer(net, "layer"), net.Nodeset.NodeIdArray);
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired");
+
+        Assert.True(result.Success, result.Message);
+        var after = DegreeSequence(GetLayer(net, "rewired"), net.Nodeset.NodeIdArray);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void RewireLayer_DirectedBinary_PreservesInAndOutDegreeSequence()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Directed, EdgeType.Binary);
+        var before = DegreeSequence(GetLayer(net, "layer"), net.Nodeset.NodeIdArray);
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired");
+
+        Assert.True(result.Success, result.Message);
+        var after = DegreeSequence(GetLayer(net, "rewired"), net.Nodeset.NodeIdArray);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void RewireLayer_ThreeEdgeSwap_PreservesInAndOutDegreeSequence()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Directed, EdgeType.Binary);
+        var before = DegreeSequence(GetLayer(net, "layer"), net.Nodeset.NodeIdArray);
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired", threeEdgeSwap: true);
+
+        Assert.True(result.Success, result.Message);
+        var after = DegreeSequence(GetLayer(net, "rewired"), net.Nodeset.NodeIdArray);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void RewireLayer_ThreeEdgeSwapRequested_SymmetricLayer_IgnoredAndStillSucceeds()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Undirected, EdgeType.Binary);
+        var before = DegreeSequence(GetLayer(net, "layer"), net.Nodeset.NodeIdArray);
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired", threeEdgeSwap: true);
+
+        Assert.True(result.Success, result.Message);
+        var after = DegreeSequence(GetLayer(net, "rewired"), net.Nodeset.NodeIdArray);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void RewireLayer_SelftiesDisallowed_NeverCreatesSelfLoop()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Undirected, EdgeType.Binary, selfties: false);
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired");
+
+        Assert.True(result.Success, result.Message);
+        var rewired = GetLayer(net, "rewired");
+        foreach (uint nodeId in net.Nodeset.NodeIdArray)
+            Assert.False(rewired.CheckEdgeExists(nodeId, nodeId));
+    }
+
+    [Fact]
+    public void RewireLayer_ValuedDirected_WeightMultisetPreserved()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Directed, EdgeType.Valued);
+        var beforeWeights = AllWeights(GetLayer(net, "layer"), net.Nodeset.NodeIdArray).OrderBy(w => w).ToList();
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired");
+
+        Assert.True(result.Success, result.Message);
+        var afterWeights = AllWeights(GetLayer(net, "rewired"), net.Nodeset.NodeIdArray).OrderBy(w => w).ToList();
+        Assert.Equal(beforeWeights, afterWeights);
+    }
+
+    [Fact]
+    public void RewireLayer_ValuedSymmetric_WeightMultisetPreservedWithSelfties()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Undirected, EdgeType.Valued, selfties: true);
+        net.AddEdge("layer", 5, 5, 999f);
+        var beforeWeights = AllWeights(GetLayer(net, "layer"), net.Nodeset.NodeIdArray).OrderBy(w => w).ToList();
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired");
+
+        Assert.True(result.Success, result.Message);
+        var afterWeights = AllWeights(GetLayer(net, "rewired"), net.Nodeset.NodeIdArray).OrderBy(w => w).ToList();
+        Assert.Equal(beforeWeights, afterWeights);
+    }
+
+    [Fact]
+    public void RewireLayer_OriginalLayerUnmodified()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Undirected, EdgeType.Binary);
+        ulong originalEdgeCount = GetLayer(net, "layer").NbrEdges;
+
+        NetworkProcessor.RewireLayer(net, "layer", "rewired");
+
+        Assert.Equal(originalEdgeCount, GetLayer(net, "layer").NbrEdges);
+        Assert.True(net.CheckEdgeExists("layer", 1, 2).Value);
+    }
+
+    [Fact]
+    public void RewireLayer_DefaultNewLayerName_UsesRewiredSuffix()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Undirected, EdgeType.Binary);
+        string newLayerName = net.GetNextAvailableLayerName("layer-rewired");
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", newLayerName);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(net.Layers.ContainsKey("layer-rewired"));
+    }
+
+    [Fact]
+    public void RewireLayer_FewEdges_SucceedsAsNoOp()
+    {
+        var nodeset = new Nodeset("ns");
+        nodeset.AddNode(1);
+        nodeset.AddNode(2);
+        var net = new Network("net", nodeset);
+        net.AddLayerOneMode("layer", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("layer", 1, 2);
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "rewired");
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(net.CheckEdgeExists("rewired", 1, 2).Value);
+    }
+
+    [Fact]
+    public void RewireLayer_NonExistentLayer_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        var result = NetworkProcessor.RewireLayer(net, "ghost", "rewired");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void RewireLayer_TwoModeLayer_Fails()
+    {
+        var net = new Network("net", MakeNodeset());
+        net.AddLayerTwoMode("clubs");
+        var result = NetworkProcessor.RewireLayer(net, "clubs", "rewired");
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void RewireLayer_NewLayerNameAlreadyExists_Fails()
+    {
+        var net = MakeRingWithChordsRewireNetwork(20, EdgeDirectionality.Undirected, EdgeType.Binary);
+        net.AddLayerOneMode("taken", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+
+        var result = NetworkProcessor.RewireLayer(net, "layer", "taken");
+
+        Assert.False(result.Success);
+    }
+
     // ── MergeLayers ────────────────────────────────────────────────────────────
 
     [Fact]

@@ -247,7 +247,7 @@ namespace Threadle.Core.Processing
                             if (val > 0)
                                 newLayer._addEdge(nodeId, partnerNodeId, val);
                         }
-                    }                
+                    }
             }
             else
             {
@@ -322,6 +322,94 @@ namespace Threadle.Core.Processing
             return OperationResult.Ok($"Dichotomized layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
 
+        /// <summary>
+        /// Randomizes a 1-mode layer via repeated degree-preserving edge swaps (Markov chain
+        /// switching; Maslov &amp; Sneppen 2002), storing the result in a new layer with the same
+        /// directionality, edge type and selfties setting as the original layer, which is left
+        /// unmodified. Every node's degree — in- and out-degree separately, for directed layers —
+        /// is preserved exactly throughout, since a swap is only accepted if it would not create a
+        /// self-loop the layer disallows or duplicate an already-existing edge.
+        /// <para>
+        /// Edge values travel with the edge object being repositioned, not with either endpoint as
+        /// such. For the '2edge' swap on a directed layer this means each edge's original tail
+        /// stays fixed and its value stays attached to that tail as its head is reassigned
+        /// (igraph's convention: pick two arcs (a,b) and (c,d), reconnect as (a,d) and (c,b)). For
+        /// '2edge' on a symmetric layer — which has no real tail/head to anchor a value to — which
+        /// endpoint of each edge is treated as the fixed side for that swap is chosen
+        /// independently at random every time, rather than by any fixed rule.
+        /// </para>
+        /// <para>
+        /// 'threeEdgeSwap' selects networkx's directed_edge_swap convention instead (ignored for
+        /// symmetric layers, which always use '2edge'): swaps along a 3-arc path a→b→c→d to
+        /// a→c→b→d. This exists because the simpler 2-edge swap is not guaranteed to be able to
+        /// reach every digraph with the same in/out-degree sequence, while this path-based form
+        /// is. Its middle arc is effectively reversed by the move (b→c becomes c→b), so that arc's
+        /// value ends up following a reversed connection rather than a simple tail-anchored one —
+        /// an inherent property of this swap's mechanics. Since it only ever operates on a path of
+        /// 4 distinct nodes, it never disturbs any self-loops already present in the layer.
+        /// </para>
+        /// 'numSwaps' is the target number of successful swaps (0: ten times the layer's edge
+        /// count, a common mixing heuristic); 'maxTries' caps the total number of attempts,
+        /// successful or not, so a layer too dense or structured to find enough valid swaps does
+        /// not loop unboundedly (0: ten times 'numSwaps').
+        /// </summary>
+        /// <param name="network">The Network object.</param>
+        /// <param name="layerName">The name of the 1-mode layer to rewire.</param>
+        /// <param name="newLayerName">The name of the new 1-mode layer to store the rewired result in.</param>
+        /// <param name="numSwaps">Target number of successful swaps (0: ten times the edge count).</param>
+        /// <param name="threeEdgeSwap">Use the 3-edge path swap instead of the 2-edge swap (directed layers only).</param>
+        /// <param name="maxTries">Maximum total swap attempts, successful or not (0: ten times numSwaps).</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public static OperationResult RewireLayer(Network network, string layerName, string newLayerName, int numSwaps = 0, bool threeEdgeSwap = false, int maxTries = 0)
+        {
+            var layerResult = network.GetOneModeLayerForRead(layerName);
+            if (!layerResult.Success)
+                return OperationResult.Fail(layerResult.Code, layerResult.Message);
+            ILayerOneMode layer = layerResult.Value!;
+            if (network.Layers.ContainsKey(newLayerName))
+                return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
+
+            bool directed = layer.IsDirectional;
+            bool selfties = layer.Selfties;
+
+            // Gather all edges (each undirected edge once; self-loops added explicitly, since
+            // GetAllEgoData() never yields them for symmetric layers).
+            var edges = new List<(uint From, uint To, float Weight)>();
+            foreach (var (egoId, alters, values) in layer.GetAllEgoData())
+            {
+                ReadOnlySpan<uint> alterSpan = alters.Span;
+                ReadOnlySpan<float> valueSpan = values.Span;
+                for (int i = 0; i < alterSpan.Length; i++)
+                    edges.Add((egoId, alterSpan[i], layer.IsValued ? valueSpan[i] : 1f));
+            }
+            if (!directed && selfties)
+                foreach (uint nodeId in network.Nodeset.NodeIdArray)
+                    if (layer.CheckEdgeExists(nodeId, nodeId))
+                        edges.Add((nodeId, nodeId, layer.IsValued ? layer.GetEdgeValue(nodeId, nodeId) : 1f));
+
+            int edgeCount = edges.Count;
+            int targetSwaps = numSwaps > 0 ? numSwaps : 10 * edgeCount;
+            int attemptCap = maxTries > 0 ? maxTries : 10 * targetSwaps;
+
+            int achievedSwaps = 0;
+            if (edgeCount >= 2 && targetSwaps > 0)
+                achievedSwaps = (directed && threeEdgeSwap)
+                    ? RunThreeEdgeSwaps(edges, targetSwaps, attemptCap)
+                    : RunTwoEdgeSwaps(edges, directed, selfties, targetSwaps, attemptCap);
+
+            LayerOneMode newLayer = new LayerOneMode(newLayerName, layer.Directionality, layer.IsValued ? EdgeType.Valued : EdgeType.Binary, selfties);
+            foreach (var (from, to, weight) in edges)
+                newLayer._addEdge(from, to, weight);
+            newLayer._sortEdgesets();
+            newLayer._deduplicateEdgesets();
+            network.AddLayer(newLayerName, newLayer);
+
+            string swapNote = achievedSwaps < targetSwaps
+                ? $" ({achievedSwaps} of {targetSwaps} target swaps achieved before reaching the attempt limit)"
+                : $" ({achievedSwaps} swaps)";
+            return OperationResult.Ok($"Rewired layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'{swapNote}.");
+        }
+
         public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName)
         {
             if (!network.Layers.ContainsKey(layerName))
@@ -388,6 +476,153 @@ namespace Threadle.Core.Processing
         private static bool IsZeroOrOne(float value)
         {
             return Math.Abs(value - 0f) < epsilon || Math.Abs(value - 1f) < epsilon;
+        }
+
+        /// <summary>Canonicalizes an undirected pair so (x,y) and (y,x) hash to the same key.</summary>
+        private static (uint, uint) Canon(uint x, uint y) => x <= y ? (x, y) : (y, x);
+
+        /// <summary>
+        /// Runs the '2edge' swap chain in place on 'edges': repeatedly picks two distinct edges
+        /// (a,b) and (c,d) and reconnects them as (a,d) and (c,b), accepting the swap only if
+        /// neither new pair already exists and (unless the layer allows selfties) neither is a
+        /// self-loop. For symmetric layers, each edge's anchor side is re-randomized on every
+        /// swap it participates in, since an undirected edge has no real tail/head to anchor a
+        /// value to. Returns the number of successful swaps.
+        /// </summary>
+        private static int RunTwoEdgeSwaps(List<(uint From, uint To, float Weight)> edges, bool directed, bool selfties, int targetSwaps, int maxTries)
+        {
+            int n = edges.Count;
+            var edgeSet = new HashSet<(uint, uint)>(n);
+            foreach (var e in edges)
+                edgeSet.Add(directed ? (e.From, e.To) : Canon(e.From, e.To));
+
+            int successes = 0;
+            for (int tries = 0; successes < targetSwaps && tries < maxTries; tries++)
+            {
+                int i = Misc.Random.Next(n);
+                int j = Misc.Random.Next(n);
+                if (i == j)
+                    continue;
+
+                var (a, b, w1) = edges[i];
+                var (c, d, w2) = edges[j];
+
+                if (!directed)
+                {
+                    // Random per-swap orientation: which endpoint anchors the value is re-chosen every time.
+                    if (Misc.Random.Next(2) == 0) (a, b) = (b, a);
+                    if (Misc.Random.Next(2) == 0) (c, d) = (d, c);
+                }
+
+                if (!selfties && (a == d || c == b))
+                    continue;
+
+                (uint, uint) newPair1 = directed ? (a, d) : Canon(a, d);
+                (uint, uint) newPair2 = directed ? (c, b) : Canon(c, b);
+                if (edgeSet.Contains(newPair1) || edgeSet.Contains(newPair2))
+                    continue;
+
+                edgeSet.Remove(directed ? (a, b) : Canon(a, b));
+                edgeSet.Remove(directed ? (c, d) : Canon(c, d));
+                edgeSet.Add(newPair1);
+                edgeSet.Add(newPair2);
+                edges[i] = (a, d, w1);
+                edges[j] = (c, b, w2);
+                successes++;
+            }
+            return successes;
+        }
+
+        /// <summary>
+        /// Runs the '3edge' (networkx directed_edge_swap) chain in place on 'edges': repeatedly
+        /// finds a random directed path a→b→c→d of 3 arcs over 4 distinct nodes among the
+        /// currently rewired arcs, and reconnects it as a→c→b→d, accepting the swap only if none
+        /// of the three new arcs already exist. Directed layers only; since it only ever operates
+        /// on a path of 4 distinct nodes, it can never create or disturb a self-loop. Maintains a
+        /// per-tail out-arc index (swap-with-last removal) so finding a path is not a rejection
+        /// search over all arcs. Returns the number of successful swaps.
+        /// </summary>
+        private static int RunThreeEdgeSwaps(List<(uint From, uint To, float Weight)> edges, int targetSwaps, int maxTries)
+        {
+            int n = edges.Count;
+            var edgeSet = new HashSet<(uint, uint)>(n);
+            var outIndicesByTail = new Dictionary<uint, List<int>>();
+            var positionInTailList = new int[n];
+            for (int idx = 0; idx < n; idx++)
+            {
+                edgeSet.Add((edges[idx].From, edges[idx].To));
+                if (!outIndicesByTail.TryGetValue(edges[idx].From, out var list))
+                    outIndicesByTail[edges[idx].From] = list = [];
+                positionInTailList[idx] = list.Count;
+                list.Add(idx);
+            }
+
+            void RemoveFromTailIndex(uint tail, int idx)
+            {
+                var list = outIndicesByTail[tail];
+                int pos = positionInTailList[idx];
+                int lastIdx = list[^1];
+                list[pos] = lastIdx;
+                positionInTailList[lastIdx] = pos;
+                list.RemoveAt(list.Count - 1);
+            }
+            void AddToTailIndex(uint tail, int idx)
+            {
+                if (!outIndicesByTail.TryGetValue(tail, out var list))
+                    outIndicesByTail[tail] = list = [];
+                positionInTailList[idx] = list.Count;
+                list.Add(idx);
+            }
+
+            int successes = 0;
+            for (int tries = 0; successes < targetSwaps && tries < maxTries; tries++)
+            {
+                int i = Misc.Random.Next(n);
+                var (a, b, w1) = edges[i];
+
+                if (!outIndicesByTail.TryGetValue(b, out var bOut) || bOut.Count == 0)
+                    continue;
+                int j = bOut[Misc.Random.Next(bOut.Count)];
+                if (j == i)
+                    continue;
+                uint c = edges[j].To;
+                float w2 = edges[j].Weight;
+
+                if (!outIndicesByTail.TryGetValue(c, out var cOut) || cOut.Count == 0)
+                    continue;
+                int k = cOut[Misc.Random.Next(cOut.Count)];
+                if (k == i || k == j)
+                    continue;
+                uint d = edges[k].To;
+                float w3 = edges[k].Weight;
+
+                // All 4 path nodes must be distinct: this also guarantees none of the 3 new arcs
+                // below can ever be a self-loop, regardless of whether the layer allows selfties.
+                if (a == b || a == c || a == d || b == c || b == d || c == d)
+                    continue;
+
+                if (edgeSet.Contains((a, c)) || edgeSet.Contains((c, b)) || edgeSet.Contains((b, d)))
+                    continue;
+
+                edgeSet.Remove((a, b));
+                edgeSet.Remove((b, c));
+                edgeSet.Remove((c, d));
+                edgeSet.Add((a, c));
+                edgeSet.Add((c, b));
+                edgeSet.Add((b, d));
+
+                // Tails: edges[i] keeps tail a; edges[j]'s tail moves b->c; edges[k]'s tail moves c->b.
+                RemoveFromTailIndex(b, j);
+                AddToTailIndex(c, j);
+                RemoveFromTailIndex(c, k);
+                AddToTailIndex(b, k);
+
+                edges[i] = (a, c, w1);
+                edges[j] = (c, b, w2);
+                edges[k] = (b, d, w3);
+                successes++;
+            }
+            return successes;
         }
         #endregion
     }
