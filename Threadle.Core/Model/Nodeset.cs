@@ -330,6 +330,57 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Sets the attribute for multiple nodes, either to one common value (<paramref name="attrValueStr"/>) or
+        /// to one value per node (<paramref name="attrValueStrs"/>, same length and order as <paramref name="nodeIds"/>).
+        /// If <paramref name="nodeIds"/> is null, the common value is set for all nodes in the nodeset; per-node
+        /// values always require <paramref name="nodeIds"/>. A node id may appear more than once: the last value wins.
+        /// All or nothing: all nodes and values are checked before anything is written, so any error leaves the
+        /// nodeset unchanged.
+        /// </summary>
+        /// <param name="nodeIds">The node ids, or null for all nodes in the nodeset.</param>
+        /// <param name="attrName">The name of the node attribute.</param>
+        /// <param name="attrValueStr">The common value, expressed as a string (or null if per-node values are given).</param>
+        /// <param name="attrValueStrs">The per-node values, expressed as strings (or null if a common value is given).</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, including the number of nodes updated.</returns>
+        public OperationResult SetNodeAttributes(uint[]? nodeIds, string attrName, string? attrValueStr, string[]? attrValueStrs)
+        {
+            if ((attrValueStr == null) == (attrValueStrs == null))
+                return OperationResult.Fail("InvalidArguments", "Exactly one of a common value (attrvalue) or per-node values (attrvalues) must be provided.");
+            if (attrValueStrs != null && nodeIds == null)
+                return OperationResult.Fail("MissingNodes", "Per-node values (attrvalues) require the nodes they apply to (nodes).");
+            if (attrValueStrs != null && attrValueStrs.Length != nodeIds!.Length)
+                return OperationResult.Fail("LengthMismatch", $"The number of values ({attrValueStrs.Length}) differs from the number of nodes ({nodeIds.Length}).");
+            if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
+                return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+            if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
+                return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}': possibly corrupted.");
+            nodeIds ??= NodeIdArray;
+            foreach (uint nodeId in nodeIds)
+                if (!Contains(nodeId))
+                    return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+
+            // Parse all values before writing anything. String values are only added to the string pool
+            // after all checks have passed, so that a failed call leaves the pool unchanged as well.
+            string[] valueStrs = attrValueStrs ?? [attrValueStr!];
+            NodeAttributeValue[] values = new NodeAttributeValue[valueStrs.Length];
+            if (attrType != NodeAttributeType.String)
+                for (int i = 0; i < valueStrs.Length; i++)
+                {
+                    if (Misc.CreateNodeAttributeValueFromTypeAndString(attrType, valueStrs[i]) is not NodeAttributeValue parsed)
+                        return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{valueStrs[i]}' to type '{attrType}'.");
+                    values[i] = parsed;
+                }
+            else
+                for (int i = 0; i < valueStrs.Length; i++)
+                    values[i] = new NodeAttributeValue(GetOrAddStringToPool(valueStrs[i]));
+
+            for (int i = 0; i < nodeIds.Length; i++)
+                SetNodeAttribute(nodeIds[i], attrIndex, values[attrValueStrs == null ? 0 : i]);
+            int nbrNodes = nodeIds.Distinct().Count();
+            return OperationResult.Ok($"Attribute '{attrName}' set for {nbrNodes} node(s) in nodeset '{Name}'.");
+        }
+
+        /// <summary>
         /// Gets the specific attrValue for the node attribute of the selected node id.
         /// </summary>
         /// <param name="nodeId">The unique id of the node.</param>

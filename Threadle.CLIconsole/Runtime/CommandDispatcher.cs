@@ -104,6 +104,7 @@ namespace Threadle.CLIconsole.Runtime
             ["rwfpt"] = new RandomWalkerFirstPassageTime(),
             ["savefile"] = new SaveFile(),
             ["setattr"] = new SetAttr(),
+            ["setattrs"] = new SetAttrs(),
             ["setting"] = new Setting(),
             ["setwd"] = new SetWorkingDirectory(),
             ["shortestpath"] = new ShortestPath(),
