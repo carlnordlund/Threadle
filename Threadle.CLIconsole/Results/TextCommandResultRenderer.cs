@@ -93,6 +93,10 @@ namespace Threadle.CLIconsole.Results
                     RenderLines(lines, indent);
                     break;
 
+                case ColumnTable table:
+                    RenderColumnTable(table, indent);
+                    break;
+
                 case IDictionary<string, string> helpText:
                     RenderHelpText(helpText, indent);
                     break;
@@ -206,6 +210,24 @@ namespace Threadle.CLIconsole.Results
             foreach (var dict in items)
             {
                 var pairs = dict.Select(kvp => $"{kvp.Key}={kvp.Value}");
+                Console.Out.WriteLine($"{pad}[{string.Join(", ", pairs)}]");
+            }
+        }
+
+        /// <summary>
+        /// Helper method to display a column-oriented table row by row, in the same style as a list of
+        /// string-object dictionaries: each row is displayed as a single line with comma-separated key-value pairs.
+        /// </summary>
+        /// <param name="table">The column-oriented table.</param>
+        /// <param name="indent">Current indentation.</param>
+        private static void RenderColumnTable(ColumnTable table, int indent = 0)
+        {
+            string pad = new string(' ', indent * 2);
+            var columns = table.Select(kvp => (kvp.Key, Values: (Array)kvp.Value)).ToList();
+            int nbrRows = columns.Count > 0 ? columns.Min(c => c.Values.Length) : 0;
+            for (int i = 0; i < nbrRows; i++)
+            {
+                var pairs = columns.Select(c => $"{c.Key}={c.Values.GetValue(i) ?? "null"}");
                 Console.Out.WriteLine($"{pad}[{string.Join(", ", pairs)}]");
             }
         }

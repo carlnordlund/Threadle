@@ -380,6 +380,14 @@ namespace Threadle.Core.Model
                 yield return (name, [.. hyperedge.NodeIds]);
         }
 
+        public IEnumerable<(string hypername, IReadOnlyList<uint> nodeIds)> GetNodeHyperedgesWithMembers(uint nodeId)
+        {
+            if (GetNonEmptyHyperedgeCollection(nodeId) is not HyperedgeCollection hyperEdgeCollection)
+                yield break;
+            foreach (Hyperedge hyperEdge in hyperEdgeCollection.HyperEdges)
+                yield return (hyperEdge.Name, hyperEdge.NodeIds);
+        }
+
         public string[] GetNodeHyperedgeNames(uint nodeId)
         {
             if (!HyperEdgeCollections.TryGetValue(nodeId, out var hyperedgeCollection))

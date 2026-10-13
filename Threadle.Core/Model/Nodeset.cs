@@ -1,4 +1,5 @@
 ﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -387,6 +388,97 @@ namespace Threadle.Core.Model
                     result[nodeId] = null;
             }
             return OperationResult<Dictionary<uint, object?>>.Ok(result);
+        }
+
+        /// <summary>
+        /// Sets the node attribute for multiple nodes at once. Either one value is provided (which is then
+        /// set for all nodes), or one value per node (in the same order as <paramref name="nodeIds"/>).
+        /// If <paramref name="nodeIds"/> is null, the attribute is set for all nodes in the Nodeset, in which
+        /// case only one value can be provided.
+        /// All node ids and values are validated before any attribute is set: if anything fails, nothing is changed.
+        /// </summary>
+        /// <param name="nodeIds">Array of node ids, or null for all nodes.</param>
+        /// <param name="attrName">The name of the node attribute.</param>
+        /// <param name="attrValueStrs">Array with either one value, or one value per node id, expressed as strings.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
+        public OperationResult SetMultipleNodeAttributes(uint[]? nodeIds, string attrName, string[] attrValueStrs)
+        {
+            if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
+                return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
+            if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
+                return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}': possibly corrupted.");
+            nodeIds ??= NodeIdArray;
+            if (attrValueStrs.Length != 1 && attrValueStrs.Length != nodeIds.Length)
+                return OperationResult.Fail("ValueCountMismatch", $"Number of attribute values ({attrValueStrs.Length}) must be either 1 or equal to the number of nodes ({nodeIds.Length}).");
+
+            foreach (uint nodeId in nodeIds)
+                if (!Contains(nodeId))
+                    return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
+
+            // Parse all values before setting anything. String values are only checked here and added to the pool below.
+            NodeAttributeValue[] values = new NodeAttributeValue[attrValueStrs.Length];
+            if (attrType != NodeAttributeType.String)
+                for (int i = 0; i < attrValueStrs.Length; i++)
+                {
+                    if (!(Misc.CreateNodeAttributeValueFromTypeAndString(attrType, attrValueStrs[i]) is NodeAttributeValue parsed))
+                        return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{attrValueStrs[i]}' to type '{attrType}'.");
+                    values[i] = parsed;
+                }
+            else
+                for (int i = 0; i < attrValueStrs.Length; i++)
+                    values[i] = new NodeAttributeValue(GetOrAddStringToPool(attrValueStrs[i]));
+
+            bool singleValue = values.Length == 1;
+            for (int i = 0; i < nodeIds.Length; i++)
+                SetNodeAttribute(nodeIds[i], attrIndex, singleValue ? values[0] : values[i]);
+            IsModified = true;
+            return OperationResult.Ok($"Attribute '{attrName}' set for {nodeIds.Length} node(s).");
+        }
+
+        /// <summary>
+        /// Creates a predicate that checks whether a node fulfills the specified condition for the specified
+        /// attribute, using the same semantics as the 'filter' command: a node lacking the attribute counts as
+        /// 'ne' and 'isnull', but fails all other conditions. The attribute index, type and comparison value are
+        /// resolved once, so that the returned predicate is cheap to evaluate for many nodes.
+        /// </summary>
+        /// <param name="attrName">The name of the node attribute.</param>
+        /// <param name="condition">The <see cref="ConditionType"/> to evaluate.</param>
+        /// <param name="attrValueStr">The value to compare against (ignored for 'isnull' and 'notnull').</param>
+        /// <returns>An <see cref="OperationResult{T}"/> with the predicate, or an error.</returns>
+        public OperationResult<Func<uint, bool>> CreateNodeAttributeCondition(string attrName, ConditionType condition, string attrValueStr = "")
+        {
+            if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
+                return OperationResult<Func<uint, bool>>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{Name}'.");
+            if (!NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType))
+                return OperationResult<Func<uint, bool>>.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{Name}': possibly corrupted.");
+
+            switch (condition)
+            {
+                case ConditionType.isnull:
+                    return OperationResult<Func<uint, bool>>.Ok(nodeId => GetNodeAttribute(nodeId, attrIndex) == null);
+                case ConditionType.notnull:
+                    return OperationResult<Func<uint, bool>>.Ok(nodeId => GetNodeAttribute(nodeId, attrIndex) != null);
+            }
+
+            if (string.IsNullOrEmpty(attrValueStr))
+                return OperationResult<Func<uint, bool>>.Fail("MissingAttributeValue", $"Attribute value must be set for '{condition}' condition.");
+
+            // Missing attribute counts as 'not equal', and fails all other conditions
+            bool missingResult = condition == ConditionType.ne;
+
+            if (attrType == NodeAttributeType.String)
+                return OperationResult<Func<uint, bool>>.Ok(nodeId =>
+                    GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue value
+                        ? Misc.EvaluateConditionString(GetStringFromPool((int)value.GetValue(attrType)!), attrValueStr, condition)
+                        : missingResult);
+
+            if (Misc.CreateNodeAttributeValueFromTypeAndString(attrType, attrValueStr) is not NodeAttributeValue)
+                return OperationResult<Func<uint, bool>>.Fail("ParseAttributeValueError", $"Could not convert string '{attrValueStr}' to type '{attrType}'.");
+
+            return OperationResult<Func<uint, bool>>.Ok(nodeId =>
+                GetNodeAttribute(nodeId, attrIndex) is NodeAttributeValue value
+                    ? Misc.EvaluateCondition(value, attrType, attrValueStr, condition)
+                    : missingResult);
         }
 
         /// <summary>

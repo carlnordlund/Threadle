@@ -364,6 +364,83 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Returns detailed information about the alters of multiple ego nodes, as a column-oriented table: a
+        /// string-object dictionary where each key ('ego', 'alter', 'layer', 'hyperedge', 'hypersize') holds an
+        /// array with one value per row. There is one row per ego, alter, layer and (for 2-mode layers) shared
+        /// hyperedge, i.e. alters are not deduplicated. For 1-mode layers, 'hyperedge' is null and 'hypersize' is 0.
+        /// Optionally, only alters that fulfill <paramref name="alterCondition"/> are included.
+        /// </summary>
+        /// <param name="nodeIds">The ids of the ego nodes.</param>
+        /// <param name="layerNames">A string array with the names of the layers to include. If null, all layers will be included.</param>
+        /// <param name="edgeTraversal">Whether outbound, inbound, or both outbound and inbound edges are included (1-mode layers only).</param>
+        /// <param name="alterCondition">Optional predicate that alters must fulfill to be included.</param>
+        /// <returns>Returns an OperationResult object with the column-oriented table.</returns>
+        public OperationResult<Dictionary<string, object>> GetAlterDetails(uint[] nodeIds, string[]? layerNames, EdgeTraversal edgeTraversal, Func<uint, bool>? alterCondition = null)
+        {
+            foreach (uint nodeId in nodeIds)
+                if (!Nodeset.Contains(nodeId))
+                    return OperationResult<Dictionary<string, object>>.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Nodeset.Name}'.");
+
+            List<(string name, ILayer layer)> layerList = [];
+            if (layerNames != null && layerNames.Length > 0)
+                foreach (var layerName in layerNames)
+                {
+                    if (_getLayer(layerName) is not ILayer layer)
+                        return OperationResult<Dictionary<string, object>>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+                    layerList.Add((layerName, layer));
+                }
+            else
+                layerList = Layers.Select(kvp => (kvp.Key, kvp.Value)).ToList();
+
+            List<uint> egos = [], alters = [];
+            List<string> layers = [];
+            List<string?> hyperedges = [];
+            List<int> hypersizes = [];
+
+            foreach (uint egoId in nodeIds)
+                foreach (var (layerName, layer) in layerList)
+                {
+                    if (layer is ILayerTwoMode layerTwoMode)
+                    {
+                        foreach (var (hyperName, members) in layerTwoMode.GetNodeHyperedgesWithMembers(egoId))
+                            foreach (uint alterId in members)
+                            {
+                                if (alterId == egoId || (alterCondition != null && !alterCondition(alterId)))
+                                    continue;
+                                egos.Add(egoId);
+                                alters.Add(alterId);
+                                layers.Add(layerName);
+                                hyperedges.Add(hyperName);
+                                hypersizes.Add(members.Count);
+                            }
+                    }
+                    else
+                    {
+                        foreach (uint alterId in layer.GetNodeAlters(egoId, edgeTraversal))
+                        {
+                            if (alterCondition != null && !alterCondition(alterId))
+                                continue;
+                            egos.Add(egoId);
+                            alters.Add(alterId);
+                            layers.Add(layerName);
+                            hyperedges.Add(null);
+                            hypersizes.Add(0);
+                        }
+                    }
+                }
+
+            Dictionary<string, object> table = new()
+            {
+                ["ego"] = egos.ToArray(),
+                ["alter"] = alters.ToArray(),
+                ["layer"] = layers.ToArray(),
+                ["hyperedge"] = hyperedges.ToArray(),
+                ["hypersize"] = hypersizes.ToArray()
+            };
+            return OperationResult<Dictionary<string, object>>.Ok(table, $"Found {alters.Count} alter row(s) for {nodeIds.Length} ego node(s).");
+        }
+
+        /// <summary>
         /// Returns an array of node ids affiliated to the specified hyperedge in the specified 2-mode layer.
         /// </summary>
         /// <param name="layerName">The name of the 2-mode layer.</param>

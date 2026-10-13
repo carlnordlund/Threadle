@@ -580,6 +580,19 @@ namespace Threadle.Core.Model
             return result;
         }
 
+        public IEnumerable<(string hypername, IReadOnlyList<uint> nodeIds)> GetNodeHyperedgesWithMembers(uint nodeId)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex))
+                yield break;
+            int start = _offsetsNodeIds[nodeIndex], end = _offsetsNodeIds[nodeIndex + 1];
+            for (int k = start; k < end; k++)
+            {
+                int h = _nodeIdHyperedgesFlat[k];
+                int hStart = _offsetsHyperedges[h], hEnd = _offsetsHyperedges[h + 1];
+                yield return (_hyperedgeNames[h], new ArraySegment<uint>(_hyperedgeNodeIdsFlat, hStart, hEnd - hStart));
+            }
+        }
+
         public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
         {
             for (int h = 0; h < _hyperedgeNames.Length; h++)
