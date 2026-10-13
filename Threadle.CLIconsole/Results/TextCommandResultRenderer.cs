@@ -93,6 +93,10 @@ namespace Threadle.CLIconsole.Results
                     RenderLines(lines, indent);
                     break;
 
+                case TablePayload table:
+                    RenderTable(table, indent);
+                    break;
+
                 case IDictionary<string, string> helpText:
                     RenderHelpText(helpText, indent);
                     break;
@@ -164,6 +168,21 @@ namespace Threadle.CLIconsole.Results
         /// </summary>
         /// <param name="values">A collection of uints.</param>
         /// <param name="indent">Current indentation.</param>
+        /// <summary>
+        /// Displays a column-oriented table as rows of tab-separated values under a header row.
+        /// Null values are shown as 'null'.
+        /// </summary>
+        /// <param name="table">The table to display.</param>
+        /// <param name="indent">The indentation level.</param>
+        private static void RenderTable(TablePayload table, int indent = 0)
+        {
+            string pad = new string(' ', indent * 2);
+            var columns = table.Values.Cast<System.Collections.IList>().ToArray();
+            Console.Out.WriteLine($"{pad}{string.Join('\t', table.Keys)}");
+            for (int row = 0; row < table.NbrRows; row++)
+                Console.Out.WriteLine($"{pad}{string.Join('\t', columns.Select(column => column[row]?.ToString() ?? "null"))}");
+        }
+
         private static void RenderUintList(IEnumerable<uint> values, int indent = 0)
         {
             string pad = new string(' ', indent * 2);

@@ -63,6 +63,7 @@ namespace Threadle.CLIconsole.Runtime
             ["getalledges"] = new GetAllEdges(),
             ["getallhyperedges"] = new GetAllHyperedges(),
             ["getallnodes"] = new GetAllNodes(),
+            ["getalterdetails"] = new GetAlterDetails(),
             ["getattr"] = new GetAttr(),
             ["getattrs"] = new GetAttrs(),
             ["getattrsummary"] = new GetAttrSummary(),

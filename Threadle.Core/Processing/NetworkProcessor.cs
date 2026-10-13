@@ -511,6 +511,77 @@ namespace Threadle.Core.Processing
             }
             return OperationResult<Network>.Ok(subnet);
         }
+        /// <summary>
+        /// Returns a column-oriented table with one row per ego, alter, layer and shared affiliation, for all
+        /// egos in <paramref name="egoIds"/>. Nothing is deduplicated: an alter appears once per ego, layer and
+        /// shared affiliation. For 1-mode layers, alters are obtained as in <see cref="Network.GetNodeAlters(string[], uint, EdgeTraversal, bool)"/>
+        /// (so packed layers only provide outbound edges), and the hyperedge and hypersize columns are null and 0.
+        /// For 2-mode layers, the direction is irrelevant: each shared affiliation gives one row per other member,
+        /// ego excluded, with the name of the hyperedge and its total number of members.
+        /// The optional condition applies to alters only, with the same semantics as <see cref="NodesetProcessor.Filter"/>.
+        /// </summary>
+        /// <param name="network">The Network object.</param>
+        /// <param name="egoIds">The ego node ids.</param>
+        /// <param name="layerNames">The names of the layers to include; all layers if null or empty.</param>
+        /// <param name="edgeTraversal">The edge direction to follow in directed 1-mode layers.</param>
+        /// <param name="attrName">Optional name of the alter attribute to apply the condition to; no condition if null.</param>
+        /// <param name="condition">The condition (required if <paramref name="attrName"/> is set).</param>
+        /// <param name="attrValueStr">The reference value of the condition, if applicable.</param>
+        /// <returns>An <see cref="OperationResult{T}"/> with the <see cref="AlterDetails"/> table.</returns>
+        public static OperationResult<AlterDetails> GetAlterDetails(Network network, uint[] egoIds, string[]? layerNames, EdgeTraversal edgeTraversal, string? attrName = null, ConditionType? condition = null, string attrValueStr = "")
+        {
+            foreach (uint egoId in egoIds)
+                if (!network.Nodeset.Contains(egoId))
+                    return OperationResult<AlterDetails>.Fail("NodeNotFound", $"Node ID '{egoId}' not found in nodeset '{network.Nodeset.Name}'.");
+
+            List<(string name, ILayer layer)> layers = [];
+            if (layerNames != null && layerNames.Length > 0)
+                foreach (string layerName in layerNames)
+                {
+                    if (network._getLayer(layerName) is not ILayer layer)
+                        return OperationResult<AlterDetails>.Fail("LayerNotFound", $"No layer with name '{layerName}' found.");
+                    layers.Add((layerName, layer));
+                }
+            else
+                foreach (var (name, layer) in network.Layers)
+                    layers.Add((name, layer));
+
+            if (attrName != null)
+            {
+                if (condition == null)
+                    return OperationResult<AlterDetails>.Fail("MissingCondition", $"A condition must be set when filtering alters on attribute '{attrName}'.");
+                if (NodesetProcessor.ValidateCondition(network.Nodeset, attrName, condition.Value, attrValueStr) is OperationResult { Success: false } validation)
+                    return OperationResult<AlterDetails>.Fail(validation);
+            }
+            // Alters often recur (across egos, layers and affiliations), so each one's condition is only evaluated once
+            Dictionary<uint, bool> alterMatches = [];
+            bool IsIncluded(uint alterId)
+            {
+                if (attrName == null)
+                    return true;
+                if (!alterMatches.TryGetValue(alterId, out bool matches))
+                    alterMatches[alterId] = matches = NodesetProcessor.MatchesCondition(network.Nodeset, alterId, attrName, condition!.Value, attrValueStr);
+                return matches;
+            }
+
+            AlterDetails table = new();
+            foreach (uint egoId in egoIds)
+                foreach (var (layerName, layer) in layers)
+                {
+                    if (layer is ILayerTwoMode layerTwoMode)
+                    {
+                        foreach (var (hyperName, members) in layerTwoMode.GetNodeHyperedgesWithMembers(egoId))
+                            foreach (uint alterId in members.Span)
+                                if (alterId != egoId && IsIncluded(alterId))
+                                    table.AddRow(egoId, alterId, layerName, hyperName, members.Length);
+                    }
+                    else
+                        foreach (uint alterId in layer.GetNodeAlters(egoId, edgeTraversal))
+                            if (IsIncluded(alterId))
+                                table.AddRow(egoId, alterId, layerName, null, 0);
+                }
+            return OperationResult<AlterDetails>.Ok(table, $"Found {table.NbrRows} ego-alter rows for {egoIds.Length} ego node(s) in network '{network.Name}'.");
+        }
         #endregion
 
 

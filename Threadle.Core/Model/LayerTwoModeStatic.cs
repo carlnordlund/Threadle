@@ -580,6 +580,18 @@ namespace Threadle.Core.Model
             return result;
         }
 
+        public IEnumerable<(string hypername, ReadOnlyMemory<uint> nodeIds)> GetNodeHyperedgesWithMembers(uint nodeId)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int nodeIndex))
+                yield break;
+            for (int i = _offsetsNodeIds[nodeIndex]; i < _offsetsNodeIds[nodeIndex + 1]; i++)
+            {
+                int h = _nodeIdHyperedgesFlat[i];
+                // No copying: a slice of the flat array of hyperedge members
+                yield return (_hyperedgeNames[h], new ReadOnlyMemory<uint>(_hyperedgeNodeIdsFlat, _offsetsHyperedges[h], _offsetsHyperedges[h + 1] - _offsetsHyperedges[h]));
+            }
+        }
+
         public IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData()
         {
             for (int h = 0; h < _hyperedgeNames.Length; h++)

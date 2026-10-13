@@ -54,6 +54,13 @@ namespace Threadle.Core.Model
         IEnumerable<(string hypername, uint[] nodeIds)> GetAllHyperedgeData();
 
         /// <summary>
+        /// Iterates the hyperedges that the specified node is affiliated to, yielding the name and all
+        /// affiliated node ids (including the node itself) for each. Yields nothing if the node has no
+        /// affiliations in this layer.
+        /// </summary>
+        IEnumerable<(string hypername, ReadOnlyMemory<uint> nodeIds)> GetNodeHyperedgesWithMembers(uint nodeId);
+
+        /// <summary>
         /// Picks a random projected alter for nodeId without materialising the full alter set.
         /// Single-hyperedge nodes: O(1) rejection sampling, zero allocation.
         /// Multi-hyperedge nodes: two-step proportional pick weighted by hyperedge size, O(k).

@@ -31,40 +31,72 @@ namespace Threadle.Core.Processing
         /// otherwise, an error result indicating the failure reason.</returns>
         public static OperationResult<Nodeset> Filter(Nodeset sourceNodeset, string attrName, ConditionType condition, string attrValueStr = "")
         {
-            if (!sourceNodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out var attrIndex))
-                return OperationResult<Nodeset>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{sourceNodeset.Name}'.");
-            if ((attrValueStr == null || attrValueStr.Length == 0) && condition != ConditionType.notnull && condition != ConditionType.isnull)
-                return OperationResult<Nodeset>.Fail("MissingAttributeValue", $"Attribute value must be set for '{condition}' condition.");
-            if (!sourceNodeset.NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out var attrType))
-                return OperationResult<Nodeset>.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{sourceNodeset.Name}': possibly corrupted.");
+            if (ValidateCondition(sourceNodeset, attrName, condition, attrValueStr) is OperationResult { Success: false } validation)
+                return OperationResult<Nodeset>.Fail(validation);
             Nodeset filtered = new Nodeset(sourceNodeset.Name + "_clone") { NodeAttributeDefinitionManager = sourceNodeset.NodeAttributeDefinitionManager.Clone() };
             foreach (string s in sourceNodeset.StringPool)
                 filtered.GetOrAddStringToPool(s);
 
             foreach (uint nodeId in sourceNodeset.NodeIdArray)
             {
-                var result = sourceNodeset.GetNodeAttribute(nodeId, attrName);
-                bool matches = result.Success switch
-                {
-                    true => condition switch
-                    {
-                        ConditionType.notnull => true,  // Existing attribute counts as 'notnull'
-                        _ => result.Value.Type == NodeAttributeType.String
-                        ? Misc.EvaluateConditionString(sourceNodeset.GetStringFromPool((int)result.Value.Value.GetValue(NodeAttributeType.String)!), attrValueStr!, condition)
-                        : Misc.EvaluateCondition(result.Value.Value, result.Value.Type, attrValueStr!, condition),
-                    },
-                    false => condition switch
-                    {
-                        ConditionType.ne => true,       // Missing attribute counts as "not equal"
-                        ConditionType.isnull => true,   // Missing attribute counts as null
-                        ConditionType.notnull => false, // Missing attribute is not not null
-                        _ => false                      // For any other condition type, this is not a match
-                    }
-                };
-                if (matches)
+                if (MatchesCondition(sourceNodeset, nodeId, attrName, condition, attrValueStr))
                     filtered._addNodeWithAttributes(nodeId, sourceNodeset.CloneNodeAttributeTuple(nodeId));
             }
             return OperationResult<Nodeset>.Ok(filtered);
+        }
+
+        /// <summary>
+        /// Checks that a condition on a node attribute (as used by <see cref="Filter"/>) can be evaluated: the
+        /// attribute must exist and have a type, and a reference value must be given unless the condition is
+        /// <see cref="ConditionType.isnull"/> or <see cref="ConditionType.notnull"/>.
+        /// </summary>
+        /// <param name="nodeset">The <see cref="Nodeset"/> holding the attribute.</param>
+        /// <param name="attrName">The name of the attribute.</param>
+        /// <param name="condition">The condition to apply.</param>
+        /// <param name="attrValueStr">The reference value, if applicable.</param>
+        /// <returns>An <see cref="OperationResult"/> that fails with the same codes as <see cref="Filter"/>.</returns>
+        public static OperationResult ValidateCondition(Nodeset nodeset, string attrName, ConditionType condition, string? attrValueStr)
+        {
+            if (!nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out var attrIndex))
+                return OperationResult.Fail("AttributeUnknown", $"Attribute '{attrName}' not found in nodeset '{nodeset.Name}'.");
+            if ((attrValueStr == null || attrValueStr.Length == 0) && condition != ConditionType.notnull && condition != ConditionType.isnull)
+                return OperationResult.Fail("MissingAttributeValue", $"Attribute value must be set for '{condition}' condition.");
+            if (!nodeset.NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out _))
+                return OperationResult.Fail("AttributeTypeNotFound", $"No type found for attribute '{attrName}' in nodeset '{nodeset.Name}': possibly corrupted.");
+            return OperationResult.Ok();
+        }
+
+        /// <summary>
+        /// Evaluates whether a node fulfills a condition on one of its attributes, with the semantics of
+        /// <see cref="Filter"/>: a missing attribute counts as null, thus fulfilling 'ne' and 'isnull' only.
+        /// Assumes that the condition has been checked with <see cref="ValidateCondition"/>.
+        /// </summary>
+        /// <param name="nodeset">The <see cref="Nodeset"/> holding the node and its attributes.</param>
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="attrName">The name of the attribute.</param>
+        /// <param name="condition">The condition to apply.</param>
+        /// <param name="attrValueStr">The reference value, if applicable.</param>
+        /// <returns>True if the node fulfills the condition, otherwise false.</returns>
+        public static bool MatchesCondition(Nodeset nodeset, uint nodeId, string attrName, ConditionType condition, string attrValueStr)
+        {
+            var result = nodeset.GetNodeAttribute(nodeId, attrName);
+            return result.Success switch
+            {
+                true => condition switch
+                {
+                    ConditionType.notnull => true,  // Existing attribute counts as 'notnull'
+                    _ => result.Value.Type == NodeAttributeType.String
+                    ? Misc.EvaluateConditionString(nodeset.GetStringFromPool((int)result.Value.Value.GetValue(NodeAttributeType.String)!), attrValueStr, condition)
+                    : Misc.EvaluateCondition(result.Value.Value, result.Value.Type, attrValueStr, condition),
+                },
+                false => condition switch
+                {
+                    ConditionType.ne => true,       // Missing attribute counts as "not equal"
+                    ConditionType.isnull => true,   // Missing attribute counts as null
+                    ConditionType.notnull => false, // Missing attribute is not not null
+                    _ => false                      // For any other condition type, this is not a match
+                }
+            };
         }
 
         /// <summary>
