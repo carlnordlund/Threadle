@@ -473,6 +473,35 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// MAN dyad census for a 2-mode layer, pseudo-projected: an affiliation has no direction,
+        /// so this reduces to the same all-mutual shape as an undirected 1-mode layer (Asymmetric
+        /// always 0, reciprocity measures trivially 1 whenever any Mutual dyad exists). Mutual is
+        /// the exact count of distinct pairs sharing at least one hyperedge: the sum of each
+        /// node's binary projected degree (<see cref="ILayer.GetNodeAlters"/>'s distinct-alter
+        /// count, matching degree()'s own 2-mode convention) is, by the handshake lemma, exactly
+        /// twice the number of distinct pairs - O(sum of hyperedge sizes), no sampling needed.
+        /// </summary>
+        internal static Dictionary<string, object> DyadCensusTwoMode(uint[] nodeIds, ILayer layer)
+        {
+            int n = nodeIds.Length;
+            long totalDyads = (long)n * (n - 1) / 2;
+            long sumDegree = 0;
+            foreach (uint id in nodeIds)
+                sumDegree += layer.GetNodeAlters(id, EdgeTraversal.Both).Length;
+            long M = sumDegree / 2;
+            long N = totalDyads - M;
+            return new Dictionary<string, object>
+            {
+                ["Mutual"] = M,
+                ["Asymmetric"] = 0L,
+                ["Null"] = N,
+                ["Total"] = totalDyads,
+                ["ArcReciprocity"] = 1.0,
+                ["DyadicReciprocity"] = M > 0 ? 1.0 : 0.0
+            };
+        }
+
+        /// <summary>
         /// Per-node eccentricity: for each node, the length of the longest shortest path to any
         /// node reachable from it (0 for a node with no reachable others). Unlike <see cref="Diameter"/>,
         /// this is computed for every node individually rather than restricted to the largest

@@ -527,18 +527,26 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Computes the MAN dyad census and reciprocity measures for a single 1-mode layer.
-        /// Returns counts of Mutual, Asymmetric and Null dyads plus ArcReciprocity and
-        /// DyadicReciprocity. Undirected layers are accepted: all non-null dyads are Mutual.
+        /// Computes the MAN dyad census and reciprocity measures for a single layer. Returns
+        /// counts of Mutual, Asymmetric and Null dyads plus ArcReciprocity and DyadicReciprocity.
+        /// Undirected (1-mode) layers are accepted: all non-null dyads are Mutual. A 2-mode layer
+        /// (pseudo-projected: traversed node-hyperedge-node directly, without materializing a
+        /// 1-mode projection) is likewise accepted and, since an affiliation has no direction, is
+        /// trivially all-mutual (Asymmetric is always 0, ArcReciprocity and DyadicReciprocity are
+        /// 1.0 whenever any Mutual dyad exists) - Mutual is the exact count of distinct pairs
+        /// sharing at least one hyperedge (binary projected degree, summed over all nodes and
+        /// divided by two).
         /// </summary>
         public static OperationResult<Dictionary<string, object>> DyadCensus(Network network, string layerName)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
-            var result = NetworkLevelFunctions.DyadCensus(network.Nodeset.NodeIdArray, lr.Value!);
+            var result = lr.Value is ILayerOneMode oneMode
+                ? NetworkLevelFunctions.DyadCensus(network.Nodeset.NodeIdArray, oneMode)
+                : NetworkLevelFunctions.DyadCensusTwoMode(network.Nodeset.NodeIdArray, lr.Value!);
             return OperationResult<Dictionary<string, object>>.Ok(result);
         }
 

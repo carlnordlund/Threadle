@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Computes the MAN dyad census and reciprocity measures for a single 1-mode layer. Returns counts of Mutual (both arcs present), Asymmetric (one arc only) and Null (no arc) dyad pairs, plus ArcReciprocity (proportion of arcs that are reciprocated) and DyadicReciprocity (proportion of non-null dyads that are mutual). For undirected layers all non-null dyads are trivially Mutual. Reference: Holland & Leinhardt (1970) doi:10.1086/224727.";
+        public string Description => "Computes the MAN dyad census and reciprocity measures for a single layer. Returns counts of Mutual (both arcs present), Asymmetric (one arc only) and Null (no arc) dyad pairs, plus ArcReciprocity (proportion of arcs that are reciprocated) and DyadicReciprocity (proportion of non-null dyads that are mutual). For undirected layers all non-null dyads are trivially Mutual. Layername may also be a 2-mode layer (pseudo-projected: traversed node-hyperedge-node directly, without materializing a 1-mode projection): since an affiliation has no direction, this is likewise trivially all-mutual (Asymmetric always 0, both reciprocity measures 1.0 whenever any Mutual dyad exists); Mutual is the exact count of distinct pairs sharing at least one hyperedge. Reference: Holland & Leinhardt (1970) doi:10.1086/224727.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

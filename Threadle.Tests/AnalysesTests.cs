@@ -1515,6 +1515,34 @@ public class AnalysesTests
         Assert.Equal(3L, (long)result.Value!["Total"]);
     }
 
+    [Fact]
+    public void DyadCensus_TwoModeLayer_MatchesOneModeProjection()
+    {
+        // Pseudo-projected (2-mode) dyad census must equal the dyad census computed on the
+        // materialized binary projection of the same hyperedges: trivially all-mutual either way,
+        // since an affiliation (like an undirected 1-mode tie) has no direction.
+        var net = MakeNetwork(5);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4 });
+        // node 5 stays isolated
+
+        var twoModeResult = Analyses.DyadCensus(net, "clubs");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.DyadCensus(net, "clubs_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((long)oneModeResult.Value!["Mutual"], (long)twoModeResult.Value!["Mutual"]);
+        Assert.Equal((long)oneModeResult.Value!["Null"], (long)twoModeResult.Value!["Null"]);
+        Assert.Equal((long)oneModeResult.Value!["Total"], (long)twoModeResult.Value!["Total"]);
+        Assert.Equal(0L, (long)twoModeResult.Value!["Asymmetric"]);
+        Assert.Equal(1.0, (double)twoModeResult.Value!["ArcReciprocity"], precision: 10);
+        Assert.Equal(1.0, (double)twoModeResult.Value!["DyadicReciprocity"], precision: 10);
+    }
+
     // ── CommunityDetectionLouvain ────────────────────────────────────────────────────
 
     [Fact]
