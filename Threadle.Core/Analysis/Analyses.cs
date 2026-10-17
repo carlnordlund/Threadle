@@ -442,19 +442,30 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Degree assortativity (Newman 2002): Pearson correlation between the degrees
-        /// of connected node pairs. For directed layers uses out-degree of source and
-        /// in-degree of target; for undirected uses degree of both endpoints.
+        /// of connected node pairs. For directed (1-mode) layers uses out-degree of source and
+        /// in-degree of target; for undirected (1-mode) layers uses degree of both endpoints.
+        /// For a 2-mode layer (pseudo-projected: traversed node-hyperedge-node directly, without
+        /// materializing a 1-mode projection), degree is always the existing binary projected
+        /// degree (number of distinct co-affiliates, matching degree()'s own 2-mode convention),
+        /// and 'projection' controls only how a pair of co-affiliates is counted: 'binary'
+        /// (default) counts a pair once regardless of how many hyperedges it shares; 'count'
+        /// counts it once per shared hyperedge, matching getedge()'s count-weighted projection.
         /// Returns a value in [-1, 1]: positive = hubs connect to hubs,
         /// negative = hubs connect to low-degree nodes.
         /// </summary>
-        public static OperationResult<double> DegreeAssortativity(Network network, string layerName)
+        public static OperationResult<double> DegreeAssortativity(Network network, string layerName, ProjectionMethod projection = ProjectionMethod.Binary)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<double>.Fail(lr.Code, lr.Message);
-            double r = NetworkLevelFunctions.DegreeAssortativity(network.Nodeset.NodeIdArray, lr.Value!);
+            if (projection == ProjectionMethod.Newman)
+                return OperationResult<double>.Fail("InvalidProjection", "DegreeAssortativity only supports the 'binary' or 'count' projection method.");
+
+            double r = lr.Value is ILayerOneMode oneMode
+                ? NetworkLevelFunctions.DegreeAssortativity(network.Nodeset.NodeIdArray, oneMode)
+                : NetworkLevelFunctions.DegreeAssortativityTwoMode(network.Nodeset.NodeIdArray, lr.Value!, projection);
             return OperationResult<double>.Ok(r);
         }
 
@@ -462,15 +473,22 @@ namespace Threadle.Core.Analysis
         /// Attribute assortativity (Newman 2003): tendency of connected nodes to share
         /// the same value of a node attribute. For Float/Int attributes uses Pearson
         /// correlation; for Char/String/Bool uses the nominal mixing formula.
+        /// For a 2-mode layer (pseudo-projected: traversed node-hyperedge-node directly, without
+        /// materializing a 1-mode projection), 'projection' controls how a pair of co-affiliates
+        /// is counted: 'binary' (default) counts a pair once regardless of how many hyperedges it
+        /// shares; 'count' counts it once per shared hyperedge, matching getedge()'s
+        /// count-weighted projection.
         /// Returns a value in [-1, 1]. Nodes with missing attribute values are skipped.
         /// </summary>
-        public static OperationResult<double> Assortativity(Network network, string layerName, string attrName)
+        public static OperationResult<double> Assortativity(Network network, string layerName, string attrName, ProjectionMethod projection = ProjectionMethod.Binary)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<double>.Fail(lr.Code, lr.Message);
+            if (projection == ProjectionMethod.Newman)
+                return OperationResult<double>.Fail("InvalidProjection", "Assortativity only supports the 'binary' or 'count' projection method.");
 
             if (!network.Nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult<double>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found.");
@@ -483,6 +501,7 @@ namespace Threadle.Core.Analysis
                 return OperationResult<double>.Fail(rawResult.Code, rawResult.Message);
             var raw = rawResult.Value!;
 
+            bool isOneMode = lr.Value is ILayerOneMode;
             double r;
             if (attrType == NodeAttributeType.Float || attrType == NodeAttributeType.Int)
             {
@@ -490,14 +509,18 @@ namespace Threadle.Core.Analysis
                 foreach (var (id, obj) in raw)
                     if (obj != null)
                         vals[id] = attrType == NodeAttributeType.Int ? (double)(int)obj : (double)(float)obj;
-                r = NetworkLevelFunctions.ContinuousAssortativity(lr.Value!, vals);
+                r = isOneMode
+                    ? NetworkLevelFunctions.ContinuousAssortativity((ILayerOneMode)lr.Value!, vals)
+                    : NetworkLevelFunctions.ContinuousAssortativityTwoMode(lr.Value!, vals, vals, nodeIds, projection);
             }
             else
             {
                 var cats = new Dictionary<uint, string>(raw.Count);
                 foreach (var (id, obj) in raw)
                     if (obj != null) cats[id] = obj.ToString()!;
-                r = NetworkLevelFunctions.CategoricalAssortativity(lr.Value!, cats);
+                r = isOneMode
+                    ? NetworkLevelFunctions.CategoricalAssortativity((ILayerOneMode)lr.Value!, cats)
+                    : NetworkLevelFunctions.CategoricalAssortativityTwoMode(lr.Value!, cats, nodeIds, projection);
             }
 
             return OperationResult<double>.Ok(r);

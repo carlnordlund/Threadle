@@ -300,6 +300,120 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Degree assortativity for a 2-mode layer, pseudo-projected (traversed node-hyperedge-node
+        /// directly, never materializing a 1-mode projection). Degree is always the existing binary
+        /// projected degree (<see cref="ILayer.GetNodeAlters"/>'s distinct-alter count, matching
+        /// degree()'s own 2-mode convention) regardless of <paramref name="projection"/>; only the
+        /// pair-counting convention for the correlation itself (see
+        /// <see cref="ContinuousAssortativityTwoMode"/>) depends on it.
+        /// </summary>
+        internal static double DegreeAssortativityTwoMode(uint[] nodeIds, ILayer layer, ProjectionMethod projection)
+        {
+            var degVals = new Dictionary<uint, double>(nodeIds.Length);
+            foreach (uint u in nodeIds)
+                degVals[u] = layer.GetNodeAlters(u, EdgeTraversal.Both).Length;
+            return ContinuousAssortativityTwoMode(layer, degVals, degVals, nodeIds, projection);
+        }
+
+        /// <summary>
+        /// Continuous attribute/degree assortativity for a 2-mode layer, pseudo-projected: every
+        /// pair of co-affiliates (members sharing at least one hyperedge) contributes a (j,k) and a
+        /// (k,j) sample, mirroring the explicit both-directions symmetrization
+        /// <see cref="PearsonEdgeCorrelation"/> uses for undirected 1-mode layers (an affiliation
+        /// has no direction either). Each node's co-affiliates and their per-pair weight are
+        /// obtained from <see cref="ILayer.GetNodeAltersWithWeights"/>, which already deduplicates
+        /// a pair across hyperedges (binary) and already tallies the shared-hyperedge count
+        /// (count) - so no separate pair-deduplication structure is needed here. When
+        /// <paramref name="projection"/> is Binary, every pair counts with weight 1 regardless of
+        /// how many hyperedges it shares; when Count, a pair's weight is its shared-hyperedge
+        /// count (matching getedge()'s count-weighted projection). Each unordered pair is visited
+        /// once, from its lower-id member (O(sum of hyperedge sizes squared) total, no persistent
+        /// materialized structure).
+        /// </summary>
+        internal static double ContinuousAssortativityTwoMode(ILayer layer, Dictionary<uint, double> jVals, Dictionary<uint, double> kVals, uint[] nodeIds, ProjectionMethod projection)
+        {
+            double sumJK = 0, sumJ = 0, sumK = 0, sumJ2 = 0, sumK2 = 0, M = 0;
+
+            void AddSample(double j, double k, double weight)
+            {
+                sumJK += weight * j * k;
+                sumJ += weight * j;
+                sumK += weight * k;
+                sumJ2 += weight * j * j;
+                sumK2 += weight * k * k;
+                M += weight;
+            }
+
+            foreach (uint u in nodeIds)
+            {
+                bool haveUJ = jVals.TryGetValue(u, out double uJ);
+                bool haveUK = kVals.TryGetValue(u, out double uK);
+                if (!haveUJ && !haveUK) continue;
+                var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                for (int i = 0; i < alters.Length; i++)
+                {
+                    uint v = alters.Span[i];
+                    if (v <= u) continue; // each unordered pair processed once, from the lower-id member
+                    double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
+                    if (haveUJ && kVals.TryGetValue(v, out double vK))
+                        AddSample(uJ, vK, w);
+                    if (haveUK && jVals.TryGetValue(v, out double vJ))
+                        AddSample(vJ, uK, w);
+                }
+            }
+
+            if (M == 0) return 0.0;
+            double denom = Math.Sqrt((M * sumJ2 - sumJ * sumJ) * (M * sumK2 - sumK * sumK));
+            return denom == 0 ? 0.0 : (M * sumJK - sumJ * sumK) / denom;
+        }
+
+        /// <summary>
+        /// Categorical attribute assortativity (Newman 2003) for a 2-mode layer, pseudo-projected:
+        /// every pair of co-affiliates contributes once (<paramref name="projection"/> Binary) or
+        /// once per shared hyperedge (Count), the same weighting convention used by
+        /// <see cref="ContinuousAssortativityTwoMode"/>. Unlike the continuous case, a pair is
+        /// counted once (not mirrored into two directional samples): an affiliation has no
+        /// direction, and the nominal mixing formula's own a_c/b_c normalization (over 2M, the
+        /// total category-weighted degree) already accounts for both endpoints, exactly as it does
+        /// for an undirected 1-mode layer (see <see cref="CategoricalAssortativity"/>).
+        /// </summary>
+        internal static double CategoricalAssortativityTwoMode(ILayer layer, Dictionary<uint, string> cats, uint[] nodeIds, ProjectionMethod projection)
+        {
+            var sourceCounts = new Dictionary<string, double>();
+            var targetCounts = new Dictionary<string, double>();
+            var matchCounts = new Dictionary<string, double>();
+            double M = 0;
+
+            foreach (uint u in nodeIds)
+            {
+                if (!cats.TryGetValue(u, out string? cU)) continue;
+                var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                for (int i = 0; i < alters.Length; i++)
+                {
+                    uint v = alters.Span[i];
+                    if (v <= u) continue; // each unordered pair processed once, from the lower-id member
+                    if (!cats.TryGetValue(v, out string? cV)) continue;
+                    double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
+                    M += w;
+                    sourceCounts[cU] = sourceCounts.GetValueOrDefault(cU) + w;
+                    targetCounts[cV] = targetCounts.GetValueOrDefault(cV) + w;
+                    if (cU == cV)
+                        matchCounts[cU] = matchCounts.GetValueOrDefault(cU) + w;
+                }
+            }
+
+            if (M == 0) return 0.0;
+            double sumEcc = matchCounts.Values.Sum() / M;
+            var combined = new Dictionary<string, double>(sourceCounts);
+            foreach (var (c, cnt) in targetCounts)
+                combined[c] = combined.GetValueOrDefault(c) + cnt;
+            double denom2 = 2.0 * M;
+            double sumA2 = combined.Values.Sum(v => Math.Pow(v / denom2, 2));
+            double denominator = 1 - sumA2;
+            return denominator == 0 ? 0.0 : (sumEcc - sumA2) / denominator;
+        }
+
+        /// <summary>
         /// MAN dyad census plus arc and dyadic reciprocity for a single 1-mode layer.
         /// For directed layers iterates all arcs in O(E); for undirected all non-null
         /// dyads are mutual by definition. A dyad is by definition a pair of two distinct

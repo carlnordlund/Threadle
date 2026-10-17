@@ -3166,6 +3166,106 @@ public class AnalysesTests
         Assert.Equal(-1.0, result.Value, precision: 5);
     }
 
+    /// <summary>
+    /// Builds a small 2-mode network (nodes 1-6) where node pair (2,3) shares two hyperedges
+    /// (c1 and c2), so the 'binary' and 'count' projection methods disagree on how that one pair
+    /// is weighted - the case this is designed to exercise.
+    /// </summary>
+    private static Network MakeAssortativityTwoModeNetwork(string layerName = "aff")
+    {
+        var net = MakeNetwork(6);
+        net.AddLayerTwoMode(layerName);
+        net.AddHyperedge(layerName, "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge(layerName, "c2", new uint[] { 2, 3, 4 });
+        net.AddHyperedge(layerName, "c3", new uint[] { 4, 5, 6 });
+        return net;
+    }
+
+    [Fact]
+    public void DegreeAssortativity_TwoModeLayer_Binary_MatchesOneModeProjection()
+    {
+        // 'binary' pair-counting on the pseudo-projected 2-mode layer must match running
+        // DegreeAssortativity on the materialized binary projection of the same hyperedges,
+        // since both use the same (distinct-alter) degree and the same one-pair-per-dedup-edge
+        // weighting.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.DegreeAssortativity(net, "aff", ProjectionMethod.Binary);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.DegreeAssortativity(net, "aff_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void DegreeAssortativity_TwoModeLayer_Count_WeightsRepeatedCoaffiliationMoreHeavily()
+    {
+        // Hand-computed expectation: degrees are always the binary projected degree
+        // (node: 1->2, 2->3, 3->3, 4->4, 5->2, 6->2), but each co-affiliate pair is weighted by
+        // its shared-hyperedge count (so pair (2,3), sharing c1 and c2, counts twice). Working
+        // through Newman's Pearson-over-edges formula with that weighting gives r = -40/176 =
+        // -5/22, which differs from the 'binary' result (every pair weighted 1, regardless of
+        // how many hyperedges it shares) - confirming 'projection' actually changes the outcome.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var countResult = Analyses.DegreeAssortativity(net, "aff", ProjectionMethod.Count);
+        var binaryResult = Analyses.DegreeAssortativity(net, "aff", ProjectionMethod.Binary);
+
+        Assert.True(countResult.Success, countResult.Message);
+        Assert.True(binaryResult.Success, binaryResult.Message);
+        Assert.Equal(-40.0 / 176.0, countResult.Value, precision: 10);
+        Assert.True(Math.Abs(binaryResult.Value!.Value - countResult.Value!.Value) > 0.01,
+            $"Expected 'binary' ({binaryResult.Value}) and 'count' ({countResult.Value}) to differ.");
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_ContinuousBinary_MatchesOneModeProjection()
+    {
+        // Same equivalence check as DegreeAssortativity, but routed through the generic
+        // (Float attribute) continuous-assortativity path rather than the degree-specific one.
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("val", "float");
+        for (uint id = 1; id <= 6; id++)
+            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString());
+
+        var twoModeResult = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Binary);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Assortativity(net, "aff_proj", "val");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_CategoricalBinary_MatchesOneModeProjection()
+    {
+        // Same equivalence check, routed through the categorical (nominal mixing) path: nodes
+        // 1-3 and 5-6 get category 'a', node 4 gets 'b', so category match/mismatch across the
+        // projected edges is non-trivial on both sides.
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("grp", "char");
+        foreach (uint id in new uint[] { 1, 2, 3, 5, 6 })
+            net.Nodeset.SetNodeAttribute(id, "grp", "a");
+        net.Nodeset.SetNodeAttribute(4, "grp", "b");
+
+        var twoModeResult = Analyses.Assortativity(net, "aff", "grp", ProjectionMethod.Binary);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Assortativity(net, "aff_proj", "grp");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
     // ── Constraint / EffectiveSize (Burt's structural holes) ───────────────────────
     // StructuralHoles' per-node O(k²) computation is independent across nodes once the
     // symmetrized weight/strength tables are built; tests below cover both the math and
