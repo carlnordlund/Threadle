@@ -1,4 +1,5 @@
 ﻿using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Analysis
@@ -73,15 +74,36 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution, double randomness)
         {
             int n0 = nodeIds.Length;
+            int[] identity = new int[n0];
+            for (int i = 0; i < n0; i++) identity[i] = i;
 
-            int[] mapping = new int[n0];
-            for (int i = 0; i < n0; i++) mapping[i] = i;
+            int[] mapping = RunLeidenLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution, randomness, seedCommunity: null);
 
-            int curN = n0;
-            int[][] curNeighbors = neighbors0;
-            double[][] curWeights = weights0;
-            double[] curDegree = degree0;
-            int[]? seedCommunity = null; // null => start level 0 from singletons
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
+
+            double modularity = ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping);
+            return (communities, modularity);
+        }
+
+        /// <summary>
+        /// Leiden's multi-level local-moving + refinement + aggregation loop, extracted so it can
+        /// be entered either from the true level-0 singleton start (<see cref="LeidenSingleRun"/>,
+        /// 1-mode, behavior-preserving extraction — identical to the loop this replaced) or from an
+        /// already-aggregated starting graph (<see cref="LeidenSingleRunTwoMode"/>, whose level-0
+        /// is instead a hyperedge-direct local-moving pass over a 2-mode layer with no refinement
+        /// step — see that method's remarks for why). <paramref name="initialMapping"/> maps each
+        /// of the <paramref name="n0"/> original nodes to its starting-level node index (identity
+        /// for the singleton case); the loop composes further aggregation into it exactly as
+        /// before. <paramref name="seedCommunity"/> is null for a fresh start (both callers use
+        /// this - the 2-mode caller does not carry its hyperedge-direct level's partition forward
+        /// as a P-seed, unlike the loop's own cross-level seeding once inside it).
+        /// </summary>
+        private static int[] RunLeidenLevelsFrom(int n0, int[] initialMapping, int curN,
+            int[][] curNeighbors, double[][] curWeights, double[] curDegree, double twoM, double resolution,
+            double randomness, int[]? seedCommunity)
+        {
+            int[] mapping = (int[])initialMapping.Clone();
 
             while (true)
             {
@@ -144,11 +166,7 @@ namespace Threadle.Core.Analysis
                 seedCommunity = nextSeed;
             }
 
-            var communities = new Dictionary<uint, int>(n0);
-            for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
-
-            double modularity = ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping);
-            return (communities, modularity);
+            return mapping;
         }
 
         /// <summary>
@@ -201,15 +219,32 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution)
         {
             int n0 = nodeIds.Length;
+            int[] identity = new int[n0];
+            for (int i = 0; i < n0; i++) identity[i] = i;
 
-            // mapping[i] = the current-level node index that original node i currently belongs to.
-            int[] mapping = new int[n0];
-            for (int i = 0; i < n0; i++) mapping[i] = i;
+            int[] mapping = RunLouvainLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution);
 
-            int curN = n0;
-            int[][] curNeighbors = neighbors0;
-            double[][] curWeights = weights0;
-            double[] curDegree = degree0;
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
+
+            double modularity = ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping);
+            return (communities, modularity);
+        }
+
+        /// <summary>
+        /// Louvain's multi-level local-moving + aggregation loop, extracted so it can be entered
+        /// either from the true level-0 singleton start (<see cref="LouvainSingleRun"/>, 1-mode,
+        /// behavior-preserving extraction — identical to the loop this replaced) or from an
+        /// already-aggregated starting graph (<see cref="LouvainSingleRunTwoMode"/>, which builds
+        /// that starting graph directly from a 2-mode layer's hyperedges, bypassing
+        /// <see cref="BuildAdjacency"/> entirely). <paramref name="initialMapping"/> maps each of
+        /// the <paramref name="n0"/> original nodes to its starting-level node index (identity for
+        /// the singleton case); the loop composes further aggregation into it exactly as before.
+        /// </summary>
+        private static int[] RunLouvainLevelsFrom(int n0, int[] initialMapping, int curN,
+            int[][] curNeighbors, double[][] curWeights, double[] curDegree, double twoM, double resolution)
+        {
+            int[] mapping = (int[])initialMapping.Clone();
 
             while (true)
             {
@@ -249,11 +284,7 @@ namespace Threadle.Core.Analysis
                 curN = newN;
             }
 
-            var communities = new Dictionary<uint, int>(n0);
-            for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
-
-            double modularity = ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping);
-            return (communities, modularity);
+            return mapping;
         }
 
         /// <summary>
@@ -974,6 +1005,504 @@ namespace Threadle.Core.Analysis
             for (int i = 0; i < n; i++) degree[i] = SumArray(weights[i]);
             double twoM = SumArray(degree);
             return (neighbors, weights, degree, twoM);
+        }
+
+        /// <summary>
+        /// Count-weighted per-node degree for a single 2-mode layer, pseudo-projected (traversed
+        /// node-hyperedge-node directly, without materializing a 1-mode projection): the sum of
+        /// shared-hyperedge counts over each node's distinct co-affiliates, via
+        /// <see cref="ILayer.GetNodeAltersWithWeights"/> (the same weight the engine already
+        /// computes for eigenvectorcentrality()/getedge()'s default projection). Unlike
+        /// <see cref="BuildAdjacency"/>, this never builds a pairwise adjacency structure — cost is
+        /// O(Σ of each node's own hyperedge sizes), the same bound every other 2-mode-capable
+        /// traversal in this codebase relies on.
+        /// </summary>
+        private static (double[] degree, double twoM) ComputeDegreeTwoMode(uint[] nodeIds, ILayer layer)
+        {
+            int n = nodeIds.Length;
+            double[] degree = new double[n];
+            for (int i = 0; i < n; i++)
+            {
+                var (alters, weights) = layer.GetNodeAltersWithWeights(nodeIds[i], EdgeTraversal.Both);
+                double d = 0.0;
+                var wSpan = weights.Span;
+                for (int k = 0; k < alters.Length; k++)
+                    d += wSpan.Length > 0 ? wSpan[k] : 1.0;
+                degree[i] = d;
+            }
+            return (degree, SumArray(degree));
+        }
+
+        /// <summary>
+        /// A single hyperedge-direct local-moving pass over a 2-mode layer: the same
+        /// sweep-until-no-moves loop and modularity-gain formula as <see cref="LocalMovingPhase"/>,
+        /// but each node's weight toward a candidate community is accumulated directly from
+        /// <see cref="ILayer.GetNodeAltersWithWeights"/> (grouped by each co-affiliate's *current*
+        /// community) instead of being read from a precomputed neighbor/weight array - so no
+        /// pairwise adjacency is ever built. Cost per node per sweep is O(that node's own degree),
+        /// not O(hyperedge size squared). This is the only "count"-weighted tie-strength
+        /// convention offered for 2-mode community detection (see the type's remarks on why
+        /// "binary" isn't offered here).
+        /// </summary>
+        private static int[] RunLocalMovingTwoMode(uint[] nodeIds, ILayer layer, double[] degree, double twoM, double resolution)
+        {
+            int n = nodeIds.Length;
+            var idx = new Dictionary<uint, int>(n);
+            for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+
+            int[] community = new int[n];
+            for (int i = 0; i < n; i++) community[i] = i;
+
+            var sigmaTot = new double[n];
+            for (int i = 0; i < n; i++) sigmaTot[i] = degree[i];
+
+            int[] order = new int[n];
+            for (int i = 0; i < n; i++) order[i] = i;
+            Shuffle(order);
+
+            var neighborCommWeight = new Dictionary<int, double>();
+
+            bool improvedThisPass = true;
+            while (improvedThisPass)
+            {
+                improvedThisPass = false;
+                foreach (int ui in order)
+                {
+                    uint u = nodeIds[ui];
+                    int currentComm = community[ui];
+                    sigmaTot[currentComm] -= degree[ui];
+
+                    neighborCommWeight.Clear();
+                    var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                    var aSpan = alters.Span;
+                    var wSpan = weights.Span;
+                    for (int k = 0; k < aSpan.Length; k++)
+                    {
+                        if (!idx.TryGetValue(aSpan[k], out int vi) || vi == ui) continue;
+                        double w = wSpan.Length > 0 ? wSpan[k] : 1.0;
+                        int c = community[vi];
+                        neighborCommWeight[c] = neighborCommWeight.GetValueOrDefault(c) + w;
+                    }
+
+                    int bestComm = currentComm;
+                    double bestGain = neighborCommWeight.GetValueOrDefault(currentComm)
+                        - resolution * sigmaTot[currentComm] * degree[ui] / twoM;
+
+                    foreach (var (c, kIn) in neighborCommWeight)
+                    {
+                        if (c == currentComm) continue;
+                        double gain = kIn - resolution * sigmaTot[c] * degree[ui] / twoM;
+                        if (gain > bestGain + Epsilon)
+                        {
+                            bestGain = gain;
+                            bestComm = c;
+                        }
+                    }
+
+                    sigmaTot[bestComm] += degree[ui];
+                    if (bestComm != currentComm)
+                    {
+                        community[ui] = bestComm;
+                        improvedThisPass = true;
+                    }
+                }
+            }
+            return community;
+        }
+
+        /// <summary>
+        /// Builds the first coarse (community-level) graph directly from a 2-mode layer's
+        /// hyperedges and a level-0 community assignment (from <see cref="RunLocalMovingTwoMode"/>),
+        /// in a single pass over <see cref="ILayerTwoMode.GetAllHyperedgeData"/>: for each
+        /// hyperedge, build its community histogram (how many of its members are currently in each
+        /// community - O(hyperedge size)), then add each pair of distinct represented communities'
+        /// mi*mj product as their mutual coarse edge weight, and mc*(mc-1) as a community's own
+        /// self-weight (the same ordered-pair-doubling convention <see cref="BuildAdjacency"/> uses
+        /// for an explicit self-tie). Cost is O(Σh (distinct communities in h)²) - at most the
+        /// O(Σk_h²) a full projection would cost, and in practice far less once level-0
+        /// local-moving has already clustered most of a hyperedge's members together - paid once,
+        /// not per sweep or per level. From here on, the returned graph is an ordinary 1-mode
+        /// community-to-community graph: every subsequent aggregation level
+        /// (<see cref="RunLouvainLevelsFrom"/>/<see cref="RunLeidenLevelsFrom"/>) needs no further
+        /// hyperedge-awareness.
+        /// </summary>
+        private static (int[][] neighbors, double[][] weights, double[] degree, int[] mapping) BuildFirstAggregationTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, int[] level0Community)
+        {
+            int n0 = nodeIds.Length;
+            var idx = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) idx[nodeIds[i]] = i;
+
+            // Compact level0Community's (arbitrary) ids into contiguous 0..C-1.
+            var commMap = new Dictionary<int, int>(n0);
+            int[] mapping = new int[n0];
+            for (int i = 0; i < n0; i++)
+            {
+                if (!commMap.TryGetValue(level0Community[i], out int c))
+                {
+                    c = commMap.Count;
+                    commMap[level0Community[i]] = c;
+                }
+                mapping[i] = c;
+            }
+            int newN = commMap.Count;
+
+            var adjDict = new Dictionary<int, double>[newN];
+            for (int i = 0; i < newN; i++) adjDict[i] = new Dictionary<int, double>();
+
+            var histogram = new Dictionary<int, int>();
+            foreach (var (_, memberIds) in layer.GetAllHyperedgeData())
+            {
+                if (memberIds.Length < 2) continue;
+                histogram.Clear();
+                foreach (uint m in memberIds)
+                {
+                    if (!idx.TryGetValue(m, out int mi)) continue;
+                    int c = mapping[mi];
+                    histogram[c] = histogram.GetValueOrDefault(c) + 1;
+                }
+
+                var comms = new List<int>(histogram.Keys);
+                for (int a = 0; a < comms.Count; a++)
+                {
+                    int ca = comms[a];
+                    int ma = histogram[ca];
+                    if (ma > 1)
+                        adjDict[ca][ca] = adjDict[ca].GetValueOrDefault(ca) + (double)ma * (ma - 1);
+
+                    for (int b = a + 1; b < comms.Count; b++)
+                    {
+                        int cb = comms[b];
+                        double w = (double)ma * histogram[cb];
+                        adjDict[ca][cb] = adjDict[ca].GetValueOrDefault(cb) + w;
+                        adjDict[cb][ca] = adjDict[cb].GetValueOrDefault(ca) + w;
+                    }
+                }
+            }
+
+            var (neighbors, weights) = ToArrays(adjDict, newN);
+            double[] degree = new double[newN];
+            for (int i = 0; i < newN; i++) degree[i] = SumArray(weights[i]);
+            return (neighbors, weights, degree, mapping);
+        }
+
+        /// <summary>
+        /// Final Q score computed directly from a 2-mode layer's hyperedges and a final community
+        /// mapping, via the same per-hyperedge community-histogram trick as
+        /// <see cref="BuildFirstAggregationTwoMode"/> (Σ_in(c) accumulated as mc*(mc-1) per
+        /// hyperedge) - so scoring the result never needs a materialized level-0 adjacency either.
+        /// </summary>
+        private static double ComputeModularityTwoMode(uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM, int[] mapping, double resolution)
+        {
+            int n0 = nodeIds.Length;
+            var idx = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) idx[nodeIds[i]] = i;
+
+            var sigmaTot = new Dictionary<int, double>();
+            for (int i = 0; i < n0; i++)
+            {
+                int c = mapping[i];
+                sigmaTot[c] = sigmaTot.GetValueOrDefault(c) + degree0[i];
+            }
+
+            var sigmaIn = new Dictionary<int, double>();
+            var histogram = new Dictionary<int, int>();
+            foreach (var (_, memberIds) in layer.GetAllHyperedgeData())
+            {
+                if (memberIds.Length < 2) continue;
+                histogram.Clear();
+                foreach (uint m in memberIds)
+                {
+                    if (!idx.TryGetValue(m, out int mi)) continue;
+                    int c = mapping[mi];
+                    histogram[c] = histogram.GetValueOrDefault(c) + 1;
+                }
+                foreach (var (c, mCount) in histogram)
+                    if (mCount > 1)
+                        sigmaIn[c] = sigmaIn.GetValueOrDefault(c) + (double)mCount * (mCount - 1);
+            }
+
+            double q = 0.0;
+            foreach (var (c, stot) in sigmaTot)
+            {
+                double sin = sigmaIn.GetValueOrDefault(c);
+                double frac = stot / twoM;
+                q += sin / twoM - resolution * frac * frac;
+            }
+            return q;
+        }
+
+        // ── 2-mode community detection (pseudo-projected, count-weighted tie strength only) ──
+        //
+        // Louvain/Leiden/LabelPropagation/LPAm's 2-mode entry points below never call
+        // BuildAdjacency and never build any pairwise node-to-node structure: level 0 is computed
+        // directly from hyperedges (RunLocalMovingTwoMode), and the first aggregation
+        // (BuildFirstAggregationTwoMode) turns that into an ordinary, usually much smaller,
+        // community-level graph that the existing 1-mode machinery (RunLouvainLevelsFrom/
+        // RunLeidenLevelsFrom/LocalMovingPhase/RefinePartition) continues from unchanged. Only
+        // "count" (shared-hyperedge-count) tie strength is offered here, unlike assortativity's
+        // projection= parameter: a "binary" pair-dedup would need to know individual pair
+        // identities globally, which is exactly the O(Σk_h²) pairwise materialization this whole
+        // path exists to avoid (count's per-community histograms never need that - see
+        // BuildFirstAggregationTwoMode's remarks). CommunityDetectionGirvanNewman has no 2-mode
+        // counterpart (edge betweenness has no hyperedge analogue).
+
+        /// <summary>
+        /// Louvain (Blondel et al. 2008) for a single 2-mode layer, pseudo-projected: see the
+        /// "2-mode community detection" remarks above. Degree and tie strength are both
+        /// count-weighted (shared-hyperedge count, matching eigenvectorcentrality()'s existing
+        /// convention) - no binary option. Otherwise behaves like <see cref="LouvainCommunities"/>
+        /// (same resolution semantics, same numRestarts/best-of-restarts behavior).
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) LouvainCommunitiesTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, int numRestarts = 1)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            if (numRestarts <= 1)
+                return LouvainSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LouvainSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution));
+        }
+
+        private static (Dictionary<uint, int> communities, double modularity) LouvainSingleRunTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM, double resolution)
+        {
+            int n0 = nodeIds.Length;
+            int[] level0Community = RunLocalMovingTwoMode(nodeIds, layer, degree0, twoM, resolution);
+            var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
+
+            int[] mapping = RunLouvainLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution);
+
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
+
+            double modularity = ComputeModularityTwoMode(nodeIds, layer, degree0, twoM, mapping, resolution);
+            return (communities, modularity);
+        }
+
+        /// <summary>
+        /// Leiden (Traag, Waltman &amp; van Eck 2019) for a single 2-mode layer, pseudo-projected:
+        /// see the "2-mode community detection" remarks above. Level 0 (the hyperedge-direct local
+        /// moving pass) has no refinement step - Leiden's connectivity-guaranteeing refinement
+        /// only runs from the first aggregation onward, once the graph is an ordinary 1-mode
+        /// community-level graph; this is the one deliberate behavioral difference from standard
+        /// Leiden, needed to avoid requiring a second hyperedge-direct primitive just for
+        /// refinement. Degree and tie strength are both count-weighted - no binary option.
+        /// Otherwise behaves like <see cref="LeidenCommunities"/> (same resolution/randomness
+        /// semantics, same numRestarts/best-of-restarts behavior).
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) LeidenCommunitiesTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            randomness = Math.Max(randomness, 1e-6);
+
+            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            if (numRestarts <= 1)
+                return LeidenSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution, randomness);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LeidenSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution, randomness));
+        }
+
+        private static (Dictionary<uint, int> communities, double modularity) LeidenSingleRunTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM, double resolution, double randomness)
+        {
+            int n0 = nodeIds.Length;
+            int[] level0Community = RunLocalMovingTwoMode(nodeIds, layer, degree0, twoM, resolution);
+            var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
+
+            int[] mapping = RunLeidenLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, randomness, seedCommunity: null);
+
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
+
+            double modularity = ComputeModularityTwoMode(nodeIds, layer, degree0, twoM, mapping, resolution);
+            return (communities, modularity);
+        }
+
+        /// <summary>
+        /// Asynchronous label propagation (Raghavan, Albert &amp; Kumara 2007) for a single 2-mode
+        /// layer, pseudo-projected: a structural twin of <see cref="LabelPropagationSingleRun"/>,
+        /// but each node's per-label weight is accumulated directly from
+        /// <see cref="ILayer.GetNodeAltersWithWeights"/> (count-weighted - no binary option) rather
+        /// than a precomputed adjacency. Single-level, like the 1-mode version - no aggregation,
+        /// so no coarse-graph construction is needed at all. Otherwise behaves like
+        /// <see cref="LabelPropagationCommunities"/> (modularity reported for comparability only,
+        /// same numRestarts/best-of-restarts behavior).
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) LabelPropagationCommunitiesTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, int maxIterations = 100, int numRestarts = 1)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            if (numRestarts <= 1)
+                return LabelPropagationSingleRunTwoMode(nodeIds, layer, degree0, twoM, maxIterations);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LabelPropagationSingleRunTwoMode(nodeIds, layer, degree0, twoM, maxIterations));
+        }
+
+        private static (Dictionary<uint, int> communities, double modularity) LabelPropagationSingleRunTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM, int maxIterations)
+        {
+            int n0 = nodeIds.Length;
+            var idx = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++) idx[nodeIds[i]] = i;
+
+            int[] label = new int[n0];
+            for (int i = 0; i < n0; i++) label[i] = i;
+
+            int[] order = new int[n0];
+            for (int i = 0; i < n0; i++) order[i] = i;
+
+            var weightByLabel = new Dictionary<int, double>();
+            var bestLabels = new List<int>();
+
+            for (int pass = 0; pass < maxIterations; pass++)
+            {
+                Shuffle(order);
+                bool changed = false;
+
+                foreach (int ui in order)
+                {
+                    uint u = nodeIds[ui];
+                    var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                    if (alters.Length == 0) continue;
+                    var aSpan = alters.Span;
+                    var wSpan = weights.Span;
+
+                    weightByLabel.Clear();
+                    for (int k = 0; k < aSpan.Length; k++)
+                    {
+                        if (!idx.TryGetValue(aSpan[k], out int vi)) continue;
+                        double w = wSpan.Length > 0 ? wSpan[k] : 1.0;
+                        int l = label[vi];
+                        weightByLabel[l] = weightByLabel.GetValueOrDefault(l) + w;
+                    }
+                    if (weightByLabel.Count == 0) continue;
+
+                    double maxWeight = double.NegativeInfinity;
+                    foreach (double w in weightByLabel.Values)
+                        if (w > maxWeight) maxWeight = w;
+
+                    bestLabels.Clear();
+                    foreach (var (l, w) in weightByLabel)
+                        if (w >= maxWeight - Epsilon) bestLabels.Add(l);
+
+                    int newLabel = bestLabels[Misc.Random.Next(bestLabels.Count)];
+                    if (newLabel != label[ui])
+                    {
+                        label[ui] = newLabel;
+                        changed = true;
+                    }
+                }
+
+                if (!changed) break;
+            }
+
+            var labelMap = new Dictionary<int, int>();
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++)
+            {
+                if (!labelMap.TryGetValue(label[i], out int c))
+                {
+                    c = labelMap.Count;
+                    labelMap[label[i]] = c;
+                }
+                communities[nodeIds[i]] = c;
+            }
+
+            int[] mapping = new int[n0];
+            for (int i = 0; i < n0; i++) mapping[i] = labelMap[label[i]];
+            double modularity = ComputeModularityTwoMode(nodeIds, layer, degree0, twoM, mapping, 1.0);
+            return (communities, modularity);
+        }
+
+        /// <summary>
+        /// LPAm (Barber &amp; Clark 2009) for a single 2-mode layer, pseudo-projected: a single
+        /// hyperedge-direct local-moving pass (<see cref="RunLocalMovingTwoMode"/>, resolution
+        /// fixed at 1.0, matching <see cref="LPAmSingleRun"/>'s convention) with no aggregation
+        /// afterwards - count-weighted only, no binary option, same as the other 2-mode community
+        /// detection methods. Otherwise behaves like <see cref="LPAmCommunities"/> (same
+        /// numRestarts/best-of-restarts behavior).
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) LPAmCommunitiesTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, int numRestarts = 1)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            if (numRestarts <= 1)
+                return LPAmSingleRunTwoMode(nodeIds, layer, degree0, twoM);
+
+            return RunBestOfRestarts(numRestarts,
+                () => LPAmSingleRunTwoMode(nodeIds, layer, degree0, twoM));
+        }
+
+        private static (Dictionary<uint, int> communities, double modularity) LPAmSingleRunTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM)
+        {
+            int n0 = nodeIds.Length;
+            int[] community = RunLocalMovingTwoMode(nodeIds, layer, degree0, twoM, 1.0);
+
+            var commMap = new Dictionary<int, int>(n0);
+            var communities = new Dictionary<uint, int>(n0);
+            for (int i = 0; i < n0; i++)
+            {
+                if (!commMap.TryGetValue(community[i], out int c))
+                {
+                    c = commMap.Count;
+                    commMap[community[i]] = c;
+                }
+                communities[nodeIds[i]] = c;
+            }
+
+            int[] mapping = new int[n0];
+            for (int i = 0; i < n0; i++) mapping[i] = commMap[community[i]];
+            double modularity = ComputeModularityTwoMode(nodeIds, layer, degree0, twoM, mapping, 1.0);
+            return (communities, modularity);
         }
 
         #endregion

@@ -1679,14 +1679,37 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetectionLouvain_TwoModeLayer_Fails()
+    public void CommunityDetectionLouvain_TwoModeLayer_MatchesCountProjection()
     {
-        var net = MakeNetwork(3);
-        net.AddLayerTwoMode("clubs");
+        // Pseudo-projected (2-mode) Louvain's tie strength is always count-weighted, so its
+        // achieved modularity should match running Louvain on the materialized count projection
+        // of the same hyperedges. Compare modularity Q (not the raw partition), since RNG-driven
+        // tie-breaking can land on differently-labeled but equally-optimal partitions; numRestarts
+        // on both sides makes both runs converge to the same (for this small network, global)
+        // optimum.
+        var net = MakeAssortativityTwoModeNetwork();
 
-        var result = Analyses.CommunityDetectionLouvain(net, new[] { "clubs" });
+        var twoModeResult = Analyses.CommunityDetectionLouvain(net, new[] { "aff" }, "c_2mode", numRestarts: 10);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLouvain(net, new[] { "aff_proj" }, "c_proj", numRestarts: 10);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLouvain_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "aff", "other" });
         Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
     }
 
     [Fact]
@@ -1812,6 +1835,38 @@ public class AnalysesTests
     }
 
     [Fact]
+    public void CommunityDetectionLeiden_TwoModeLayer_MatchesCountProjection()
+    {
+        // Same equivalence check as Louvain: pseudo-projected (2-mode) Leiden's achieved
+        // modularity should match running Leiden on the materialized count projection of the
+        // same hyperedges (Leiden's refinement runs normally from the first aggregation onward,
+        // so there is no further 2-mode-specific divergence to account for once past level 0).
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.CommunityDetectionLeiden(net, new[] { "aff" }, "c_2mode", numRestarts: 10);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLeiden(net, new[] { "aff_proj" }, "c_proj", numRestarts: 10);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "aff", "other" });
+        Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
+    }
+
+    [Fact]
     public void CommunityDetectionLeiden_NumRestartsGreaterThanOne_StillFindsCorrectCommunities()
     {
         var net = MakeNetwork(6);
@@ -1906,14 +1961,35 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetectionLabelPropagation_TwoModeLayer_Fails()
+    public void CommunityDetectionLabelPropagation_TwoModeLayer_MatchesCountProjection()
     {
-        var net = MakeNetwork(3);
-        net.AddLayerTwoMode("clubs");
+        // Same equivalence check as Louvain/Leiden. LP doesn't target modularity itself (it's
+        // reported for comparability only), so a higher numRestarts is used on both sides to
+        // reduce flakiness in which locally-stable labeling each run's majority-vote dynamic
+        // lands on before comparing the best-of-restarts modularity.
+        var net = MakeAssortativityTwoModeNetwork();
 
-        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "clubs" });
+        var twoModeResult = Analyses.CommunityDetectionLabelPropagation(net, new[] { "aff" }, "c_2mode", numRestarts: 20);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLabelPropagation(net, new[] { "aff_proj" }, "c_proj", numRestarts: 20);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "aff", "other" });
         Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
     }
 
     [Fact]
@@ -2062,14 +2138,33 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetectionLPAm_TwoModeLayer_Fails()
+    public void CommunityDetectionLPAm_TwoModeLayer_MatchesCountProjection()
     {
-        var net = MakeNetwork(3);
-        net.AddLayerTwoMode("clubs");
+        // Same equivalence check as Louvain/Leiden: LPAm's modularity-gated moves make it, like
+        // them, directly comparable across restarts.
+        var net = MakeAssortativityTwoModeNetwork();
 
-        var result = Analyses.CommunityDetectionLPAm(net, new[] { "clubs" });
+        var twoModeResult = Analyses.CommunityDetectionLPAm(net, new[] { "aff" }, "c_2mode", numRestarts: 10);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLPAm(net, new[] { "aff_proj" }, "c_proj", numRestarts: 10);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLPAm_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "aff", "other" });
         Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
     }
 
     [Fact]

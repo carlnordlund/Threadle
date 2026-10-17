@@ -29,23 +29,31 @@ namespace Threadle.Core.Analysis
         /// runs. resolution behaves as in CommunityDetectionLouvain (this uses the same
         /// resolution-scaled modularity objective, not the CPM objective from the original paper, so
         /// results are directly comparable to Louvain's). Directed layers are symmetrized and
-        /// multiple layers combine via summed edge weight, matching CommunityDetectionLouvain; only
-        /// 1-mode layers are accepted — project 2-mode layers first. Returns a summary with
-        /// NbrCommunities, CommunitySizes (descending), the achieved Modularity score Q, and
-        /// NumRestarts. When numRestarts &gt; 1, runs that many independent restarts in parallel
-        /// across up to 'maxthreads' threads (see 'setting()') and keeps the highest-modularity
-        /// result — a way to escape local optima that a single run can get stuck in. Exact
-        /// reproducibility via randomseed() across restarts is only guaranteed when maxthreads is
-        /// set to 1.
+        /// multiple layers combine via summed edge weight, matching CommunityDetectionLouvain.
+        /// layerNames may instead be a single 2-mode layer on its own, not combined with other
+        /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
+        /// a 1-mode projection; tie strength is always count-weighted, matching
+        /// eigenvectorcentrality()'s convention — no binary option, since deduplicating a pair
+        /// across hyperedges would need the global pairwise structure this is meant to avoid). On
+        /// a 2-mode layer, only the first (hyperedge-direct) level skips the usual refinement step
+        /// — refinement (and its connectivity guarantee) applies normally from the first
+        /// aggregation onward. Returns a summary with NbrCommunities, CommunitySizes (descending),
+        /// the achieved Modularity score Q, and NumRestarts. When numRestarts &gt; 1, runs that
+        /// many independent restarts in parallel across up to 'maxthreads' threads (see
+        /// 'setting()') and keeps the highest-modularity result — a way to escape local optima
+        /// that a single run can get stuck in. Exact reproducibility via randomseed() across
+        /// restarts is only guaranteed when maxthreads is set to 1.
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLeiden(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LeidenCommunitiesTwoMode(nodeIds, twoMode, resolution, randomness, numRestarts)
+                : CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -54,8 +62,12 @@ namespace Threadle.Core.Analysis
         /// specified 1-mode layer(s), storing the community index as an integer node attribute.
         /// Directed layers are symmetrized (arcs in both directions accumulate into an undirected
         /// weight) since modularity optimization is inherently undirected — the same convention
-        /// used by Constraint/EffectiveSize. Multiple layers combine via summed edge weight; only
-        /// 1-mode layers are accepted — project 2-mode layers first.
+        /// used by Constraint/EffectiveSize. Multiple layers combine via summed edge weight.
+        /// layerNames may instead be a single 2-mode layer on its own, not combined with other
+        /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
+        /// a 1-mode projection; tie strength is always count-weighted, matching
+        /// eigenvectorcentrality()'s convention — no binary option, since deduplicating a pair
+        /// across hyperedges would need the global pairwise structure this is meant to avoid).
         /// resolution (default 1.0 = standard modularity) scales the null-model term: values above
         /// 1 favor more, smaller communities; values below 1 favor fewer, larger ones (Reichardt &amp;
         /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending), the
@@ -67,12 +79,14 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLouvain(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LouvainCommunitiesTwoMode(nodeIds, twoMode, resolution, numRestarts)
+                : CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -84,7 +98,10 @@ namespace Threadle.Core.Analysis
         /// maxIterations passes are reached (a cap is required since, unlike Louvain's local-moving
         /// phase, label propagation has no guarantee of convergence). Directed layers are
         /// symmetrized and multiple layers combine via summed edge weight, matching
-        /// CommunityDetectionLouvain; only 1-mode layers are accepted — project 2-mode layers first.
+        /// CommunityDetectionLouvain. layerNames may instead be a single 2-mode layer on its own,
+        /// not combined with other layers (pseudo-projected: traversed node-hyperedge-node
+        /// directly, without materializing a 1-mode projection; tie strength is always
+        /// count-weighted — no binary option, for the same reason as CommunityDetectionLouvain).
         /// Returns a summary with NbrCommunities, CommunitySizes (descending), the achieved
         /// Modularity score Q of the resulting partition (reported for comparability with other
         /// methods, not something this method optimizes for), and NumRestarts. When numRestarts &gt; 1,
@@ -95,12 +112,14 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLabelPropagation(Network network, string[]? layerNames, string? attrName = null, int maxIterations = 100, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LabelPropagationCommunities(nodeIds, oneModes, maxIterations, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LabelPropagationCommunitiesTwoMode(nodeIds, twoMode, maxIterations, numRestarts)
+                : CommunityFunctions.LabelPropagationCommunities(nodeIds, oneModes, maxIterations, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -116,8 +135,11 @@ namespace Threadle.Core.Analysis
         /// CommunityDetectionLouvain, LPAm runs a single level with no aggregation step afterwards,
         /// so it typically finds more, smaller communities than Louvain since it cannot escape local
         /// optima the same way. Directed layers are symmetrized and multiple layers combine via
-        /// summed edge weight, matching CommunityDetectionLouvain; only 1-mode layers are accepted —
-        /// project 2-mode layers first. Returns a summary with NbrCommunities, CommunitySizes
+        /// summed edge weight, matching CommunityDetectionLouvain. layerNames may instead be a
+        /// single 2-mode layer on its own, not combined with other layers (pseudo-projected:
+        /// traversed node-hyperedge-node directly, without materializing a 1-mode projection; tie
+        /// strength is always count-weighted — no binary option, for the same reason as
+        /// CommunityDetectionLouvain). Returns a summary with NbrCommunities, CommunitySizes
         /// (descending), the achieved Modularity score Q, and NumRestarts. When numRestarts &gt; 1,
         /// runs that many independent restarts in parallel across up to 'maxthreads' threads (see
         /// 'setting()') and keeps the highest-modularity result. Exact reproducibility via
@@ -125,12 +147,14 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LPAmCommunities(nodeIds, oneModes, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LPAmCommunitiesTwoMode(nodeIds, twoMode, numRestarts)
+                : CommunityFunctions.LPAmCommunities(nodeIds, oneModes, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -1607,6 +1631,82 @@ namespace Threadle.Core.Analysis
             if (oneModes.Count == 0)
             {
                 error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No 1-mode layers found.");
+                return false;
+            }
+            error = null;
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves layerNames for CommunityDetectionLouvain/Leiden/LabelPropagation/LPAm: any
+        /// number of 1-mode layers (as <see cref="TryResolveOneModeLayersForCommunityDetection"/>
+        /// accepts), or a single 2-mode layer on its own, pseudo-projected (traversed
+        /// node-hyperedge-node directly, without materializing a 1-mode projection; tie strength
+        /// is always count-weighted — see <see cref="CommunityFunctions"/>'s "2-mode community
+        /// detection" remarks for why no projection= parameter is offered). A 2-mode layer cannot
+        /// be combined with other layers. CommunityDetectionGirvanNewman keeps using the stricter
+        /// <see cref="TryResolveOneModeLayersForCommunityDetection"/>, since it has no 2-mode
+        /// counterpart (edge betweenness has no hyperedge analogue).
+        /// </summary>
+        private static bool TryResolveLayersForCommunityDetection(Network network, string[]? layerNames,
+            out List<ILayerOneMode> oneModes, out ILayerTwoMode? twoMode, out OperationResult<Dictionary<string, object>>? error)
+        {
+            oneModes = [];
+            twoMode = null;
+            if (network.Nodeset.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+                return false;
+            }
+
+            string? twoModeLayerName = null;
+            IEnumerable<KeyValuePair<string, ILayer>> candidates;
+            if (layerNames == null)
+                candidates = network.Layers;
+            else
+            {
+                var list = new List<KeyValuePair<string, ILayer>>(layerNames.Length);
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+                        return false;
+                    }
+                    list.Add(new(name, lr.Value!));
+                }
+                candidates = list;
+            }
+
+            foreach (var (name, layer) in candidates)
+            {
+                if (layer is ILayerTwoMode ltm)
+                {
+                    if (twoMode != null || oneModes.Count > 0)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Community detection supports a single 2-mode layer on its own, not combined with other layers.");
+                        return false;
+                    }
+                    twoMode = ltm;
+                    twoModeLayerName = name;
+                }
+                else if (layer is ILayerOneMode lom)
+                {
+                    if (twoMode != null)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 1-mode layer, but 2-mode layer '{twoModeLayerName}' was already specified. Community detection supports a single 2-mode layer on its own, not combined with other layers.");
+                        return false;
+                    }
+                    oneModes.Add(lom);
+                }
+            }
+
+            if (twoMode == null && oneModes.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No layers found.");
                 return false;
             }
             error = null;
