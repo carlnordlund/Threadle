@@ -3396,6 +3396,88 @@ public class AnalysesTests
     }
 
     [Fact]
+    public void Constraint_TwoModeLayer_WithoutSampleSize_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        var result = Analyses.Constraint(net, new[] { "aff" }, "con");
+        Assert.False(result.Success);
+        Assert.Equal("SampleSizeRequired", result.Code);
+    }
+
+    [Fact]
+    public void EffectiveSize_TwoModeLayer_WithoutSampleSize_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        var result = Analyses.EffectiveSize(net, new[] { "aff" }, "es");
+        Assert.False(result.Success);
+        Assert.Equal("SampleSizeRequired", result.Code);
+    }
+
+    [Fact]
+    public void Constraint_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.Constraint(net, new[] { "aff", "other" }, "con", sampleSize: 6);
+        Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
+    }
+
+    [Fact]
+    public void Constraint_TwoModeLayer_FullSample_MatchesCountProjection()
+    {
+        // With samplesize covering every node, the pseudo-projected (2-mode) result for each
+        // node must equal Constraint on the materialized count projection of the same
+        // hyperedges, since 2-mode tie strength is defined as the count-weighted
+        // shared-hyperedge count.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.Constraint(net, new[] { "aff" }, "con_2mode", sampleSize: 6);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Constraint(net, new[] { "aff_proj" }, "con_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint id = 1; id <= 6; id++)
+            Assert.Equal(GetFloatAttr(net, id, "con_proj"), GetFloatAttr(net, id, "con_2mode"), precision: 5);
+    }
+
+    [Fact]
+    public void EffectiveSize_TwoModeLayer_FullSample_MatchesCountProjection()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.EffectiveSize(net, new[] { "aff" }, "es_2mode", sampleSize: 6);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.EffectiveSize(net, new[] { "aff_proj" }, "es_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint id = 1; id <= 6; id++)
+            Assert.Equal(GetFloatAttr(net, id, "es_proj"), GetFloatAttr(net, id, "es_2mode"), precision: 5);
+    }
+
+    [Fact]
+    public void Constraint_TwoModeLayer_PartialSample_OnlySetsThatManySampledNodes()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        var result = Analyses.Constraint(net, new[] { "aff" }, "con_partial", sampleSize: 2);
+        Assert.True(result.Success, result.Message);
+
+        int nbrSet = 0;
+        for (uint id = 1; id <= 6; id++)
+            if (net.Nodeset.GetNodeAttribute(id, "con_partial").Success)
+                nbrSet++;
+        Assert.Equal(2, nbrSet);
+    }
+
+    [Fact]
     public void ConstraintEffectiveSize_MaxThreadsOneVsMany_ProduceSameValues()
     {
         if (Environment.ProcessorCount < 2)

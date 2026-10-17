@@ -146,6 +146,98 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Burt's (1992/2004) constraint and effective size for a sample of egos on a single
+        /// 2-mode layer, pseudo-projected (traversed node-hyperedge-node directly, without
+        /// materializing a 1-mode projection). Tie strength is the count-weighted projection
+        /// (shared-hyperedge count, matching getedge()'s default and eigenvectorcentrality()'s
+        /// convention) - <see cref="ILayer.GetNodeAltersWithWeights"/> for an ego's own
+        /// neighborhood, <see cref="ILayer.GetEdgeValue"/> for the pairwise weight between two of
+        /// that ego's neighbors. Every sampled ego's value is exact, not approximated: sampling
+        /// only controls how many nodes this (still O(k²) per ego) computation is run for, since
+        /// the ego network on a 2-mode layer is every co-member and k can be large when a
+        /// hyperedge is large. Each neighbor's own total strength is cached per call (not
+        /// across calls), since different sampled egos share few neighbors in a sparse network.
+        /// </summary>
+        internal static (Dictionary<uint, double> constraint, Dictionary<uint, double> effectiveSize)
+            StructuralHolesSampledTwoMode(uint[] sampledNodeIds, ILayer layer)
+        {
+            var constraint = new Dictionary<uint, double>(sampledNodeIds.Length);
+            var effectiveSize = new Dictionary<uint, double>(sampledNodeIds.Length);
+            var mergeLock = new object();
+
+            System.Threading.Tasks.Parallel.ForEach(sampledNodeIds, UserSettings.GetParallelOptions(), u =>
+            {
+                var (altersMem, weightsMem) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                var altersSpan = altersMem.Span;
+                var weightsSpan = weightsMem.Span;
+                int k = altersSpan.Length;
+
+                double C_u = 0.0, ES_u = 0.0;
+                if (k > 0)
+                {
+                    var rawW = new Dictionary<uint, double>(k);
+                    double s_u = 0.0;
+                    for (int i = 0; i < k; i++)
+                    {
+                        double w = weightsSpan.Length > 0 ? weightsSpan[i] : 1.0;
+                        rawW[altersSpan[i]] = w;
+                        s_u += w;
+                    }
+
+                    if (s_u > 0)
+                    {
+                        var p_u = new Dictionary<uint, double>(k);
+                        foreach (var (j, w_uj) in rawW)
+                            p_u[j] = w_uj / s_u;
+
+                        var sCache = new Dictionary<uint, double>(k);
+                        double GetStrength(uint node)
+                        {
+                            if (sCache.TryGetValue(node, out double cached)) return cached;
+                            var (nAlters, nWeights) = layer.GetNodeAltersWithWeights(node, EdgeTraversal.Both);
+                            var nwSpan = nWeights.Span;
+                            double sum = 0.0;
+                            for (int i = 0; i < nAlters.Length; i++)
+                                sum += nwSpan.Length > 0 ? nwSpan[i] : 1.0;
+                            sCache[node] = sum;
+                            return sum;
+                        }
+
+                        double CSum = 0.0;
+                        double ESval = k;
+                        foreach (var (j, p_uj) in p_u)
+                        {
+                            double s_j = GetStrength(j);
+                            double indirect = 0.0;
+                            foreach (var (q, p_uq) in p_u)
+                            {
+                                if (q == j) continue;
+                                double w_jq = layer.GetEdgeValue(j, q); // symmetric: shared-hyperedge count
+                                double s_q = GetStrength(q);
+                                double p_jq = s_j > 0 ? w_jq / s_j : 0.0;
+                                ESval -= p_uq * p_jq;
+                                double p_qj = s_q > 0 ? w_jq / s_q : 0.0;
+                                indirect += p_uq * p_qj;
+                            }
+                            double c_uj = p_uj + indirect;
+                            CSum += c_uj * c_uj;
+                        }
+                        C_u = CSum;
+                        ES_u = ESval;
+                    }
+                }
+
+                lock (mergeLock)
+                {
+                    constraint[u] = C_u;
+                    effectiveSize[u] = ES_u;
+                }
+            });
+
+            return (constraint, effectiveSize);
+        }
+
+        /// <summary>
         /// K-core decomposition (Batagelj & Zaversnik, 2003). Returns the coreness (k-shell index)
         /// of each node: the highest k such that the node survives in the k-core.
         /// Treats all edges as undirected (union of in/out neighbors) and ignores edge weights.

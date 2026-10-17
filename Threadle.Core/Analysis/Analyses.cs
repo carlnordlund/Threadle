@@ -315,127 +315,147 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Computes Burt's constraint for each node in the specified 1-mode layer(s) and stores
-        /// the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)²
-        /// where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many
-        /// structural holes) to ~1 (fully embedded in dense clique). Only 1-mode layers are
-        /// accepted — project 2-mode layers first. Burt's formula has no defined treatment of a
-        /// tie from a node to itself, so a layer where selfties are allowed is always refused,
-        /// even if it has none. The per-node O(k²) computation (shared with EffectiveSize) runs
-        /// in parallel across up to 'maxthreads' threads (see 'setting()').
-        /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
+        /// Resolves layerNames (or, if null, every layer in the network) for Constraint/
+        /// EffectiveSize: any number of 1-mode layers without selfties, or exactly one 2-mode
+        /// layer on its own (pseudo-projected: traversed node-hyperedge-node directly, without
+        /// materializing a 1-mode projection) — a 2-mode layer cannot be combined with any other
+        /// layer, since the exact multilayer tie-strength combination (<see
+        /// cref="LocalStructureFunctions.StructuralHoles"/>) is only defined across 1-mode layers.
         /// </summary>
-        public static OperationResult Constraint(Network network, string[]? layerNames, string? attrName = null)
+        private static OperationResult ResolveStructuralHolesLayers(Network network, string[]? layerNames, string metricName, out List<ILayerOneMode> oneModes, out ILayer? twoMode)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+            oneModes = [];
+            twoMode = null;
+            string? twoModeLayerName = null;
 
-            List<ILayerOneMode> oneModes = [];
+            IEnumerable<KeyValuePair<string, ILayer>> candidates;
             if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Constraint requires 1-mode layers — use projecttwomodetoonemode() first.");
-                    if (layer is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's constraint has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
+                candidates = network.Layers;
             else
             {
+                var list = new List<KeyValuePair<string, ILayer>>(layerNames.Length);
                 foreach (string name in layerNames)
                 {
                     var lr = network.GetLayer(name);
                     if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
+                    list.Add(new(name, lr.Value!));
+                }
+                candidates = list;
+            }
+
+            foreach (var (name, layer) in candidates)
+            {
+                if (layer is ILayerTwoMode)
+                {
+                    if (twoMode != null || oneModes.Count > 0)
                         return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Constraint requires 1-mode layers.");
-                    if (lr.Value is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's constraint has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
+                            $"Layer '{name}' is a 2-mode layer. {metricName} supports a single 2-mode layer on its own (with samplesize > 0), not combined with other layers.");
+                    twoMode = layer;
+                    twoModeLayerName = name;
+                }
+                else if (layer is ILayerOneMode lom)
+                {
+                    if (twoMode != null)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 1-mode layer, but 2-mode layer '{twoModeLayerName}' was already specified. {metricName} supports a single 2-mode layer on its own, not combined with other layers.");
+                    if (lom.Selfties)
+                        return OperationResult.Fail("LayerAllowsSelfties",
+                            $"Layer '{name}' allows selfties. Burt's {metricName.ToLowerInvariant()} has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
+                    oneModes.Add(lom);
                 }
             }
-            if (oneModes.Count == 0)
-                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+
+            if (twoMode == null && oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No layers found.");
+            return OperationResult.Ok();
+        }
+
+        /// <summary>
+        /// Computes Burt's constraint for each node in the specified layer(s) and stores the
+        /// result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)² where
+        /// p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many structural
+        /// holes) to ~1 (fully embedded in dense clique). Accepts any number of 1-mode layers, or
+        /// a single 2-mode layer on its own (pseudo-projected: traversed node-hyperedge-node
+        /// directly, without materializing a 1-mode projection; tie strength is the
+        /// count-weighted shared-hyperedge count). Because a 2-mode ego network is every
+        /// co-member and the per-ego cost grows with the square of that count, a 2-mode layer
+        /// requires samplesize > 0: only that many randomly sampled nodes get an (exact, not
+        /// approximated) value, and all others are left unset. Burt's formula has no defined
+        /// treatment of a tie from a node to itself, so a 1-mode layer where selfties are allowed
+        /// is always refused, even if it has none. The per-node O(k²) computation (shared with
+        /// EffectiveSize) runs in parallel across up to 'maxthreads' threads (see 'setting()').
+        /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
+        /// </summary>
+        public static OperationResult Constraint(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            var resolved = ResolveStructuralHolesLayers(network, layerNames, "Constraint", out var oneModes, out var twoMode);
+            if (!resolved.Success)
+                return OperationResult.Fail(resolved.Code, resolved.Message);
 
             string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
             attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "constraint";
 
-            uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (c, _) = LocalStructureFunctions.StructuralHoles(nodeIds, oneModes);
+            Dictionary<uint, double> c;
+            if (twoMode != null)
+            {
+                if (sampleSize <= 0)
+                    return OperationResult.Fail("SampleSizeRequired",
+                        "Constraint on a 2-mode layer requires samplesize > 0: a 2-mode ego network's cost grows with the square of its (potentially large) projected degree, so an exact value for every node isn't offered.");
+                uint[] sampledIds = CentralityFunctions.SampleNodes(network.Nodeset.NodeIdArray, sampleSize);
+                (c, _) = LocalStructureFunctions.StructuralHolesSampledTwoMode(sampledIds, twoMode);
+            }
+            else
+            {
+                (c, _) = LocalStructureFunctions.StructuralHoles(network.Nodeset.NodeIdArray, oneModes);
+            }
             var attrDict = c.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
         }
 
         /// <summary>
-        /// Computes Burt's effective size for each node in the specified 1-mode layer(s) and stores
-        /// the result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj,
-        /// measuring the number of non-redundant contacts. Higher values indicate more structural
-        /// holes around the ego. Only 1-mode layers are accepted — project 2-mode layers first.
-        /// Burt's formula has no defined treatment of a tie from a node to itself, so a layer
+        /// Computes Burt's effective size for each node in the specified layer(s) and stores the
+        /// result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj, measuring
+        /// the number of non-redundant contacts. Higher values indicate more structural holes
+        /// around the ego. Accepts any number of 1-mode layers, or a single 2-mode layer on its
+        /// own (pseudo-projected: traversed node-hyperedge-node directly, without materializing a
+        /// 1-mode projection; tie strength is the count-weighted shared-hyperedge count). Because
+        /// a 2-mode ego network is every co-member and the per-ego cost grows with the square of
+        /// that count, a 2-mode layer requires samplesize > 0: only that many randomly sampled
+        /// nodes get an (exact, not approximated) value, and all others are left unset. Burt's
+        /// formula has no defined treatment of a tie from a node to itself, so a 1-mode layer
         /// where selfties are allowed is always refused, even if it has none. The per-node O(k²)
         /// computation (shared with Constraint) runs in parallel across up to 'maxthreads'
         /// threads (see 'setting()').
         /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
         /// </summary>
-        public static OperationResult EffectiveSize(Network network, string[]? layerNames, string? attrName = null)
+        public static OperationResult EffectiveSize(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult.Fail("NodesMissing", "Network has no nodes.");
 
-            List<ILayerOneMode> oneModes = [];
-            if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Effective size requires 1-mode layers — use projecttwomodetoonemode() first.");
-                    if (layer is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's effective size has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
-            else
-            {
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Effective size requires 1-mode layers.");
-                    if (lr.Value is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's effective size has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
-            if (oneModes.Count == 0)
-                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+            var resolved = ResolveStructuralHolesLayers(network, layerNames, "EffectiveSize", out var oneModes, out var twoMode);
+            if (!resolved.Success)
+                return OperationResult.Fail(resolved.Code, resolved.Message);
 
             string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
             attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "effectivesize";
 
-            uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (_, es) = LocalStructureFunctions.StructuralHoles(nodeIds, oneModes);
+            Dictionary<uint, double> es;
+            if (twoMode != null)
+            {
+                if (sampleSize <= 0)
+                    return OperationResult.Fail("SampleSizeRequired",
+                        "EffectiveSize on a 2-mode layer requires samplesize > 0: a 2-mode ego network's cost grows with the square of its (potentially large) projected degree, so an exact value for every node isn't offered.");
+                uint[] sampledIds = CentralityFunctions.SampleNodes(network.Nodeset.NodeIdArray, sampleSize);
+                (_, es) = LocalStructureFunctions.StructuralHolesSampledTwoMode(sampledIds, twoMode);
+            }
+            else
+            {
+                (_, es) = LocalStructureFunctions.StructuralHoles(network.Nodeset.NodeIdArray, oneModes);
+            }
             var attrDict = es.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
         }
