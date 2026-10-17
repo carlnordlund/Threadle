@@ -505,14 +505,55 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void GetLayerStats_TwoModeLayer_Fails()
+    public void GetLayerStats_TwoModeLayer_ComputesHyperedgeSizeStatsAndProjectionEstimate()
     {
-        var net = MakeNetwork(3);
+        // Hyperedges of size 2, 3, 4 (nodes 1-4 reused across them). Hand-computed:
+        // sizes = [2,3,4] -> Mean=3, Median=3, Min=2, Max=4.
+        // Sigma k*(k-1)/2 = 1 + 3 + 6 = 10 -> EstimatedProjectedEdgesUpperBound = 10,
+        // EstimatedProjectionMemoryBytes = 10 * 40 = 400.
+        // NbrAffiliations = 2+3+4 = 9 (sum of hyperedge sizes).
+        var net = MakeNetwork(4);
         net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c3", new uint[] { 1, 2, 3, 4 });
 
         var result = Analyses.GetLayerStats(net, "clubs");
 
-        Assert.False(result.Success);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(3, (int)result.Value!["NbrHyperedges"]);
+        Assert.Equal(9L, (long)result.Value!["NbrAffiliations"]);
+        Assert.Equal(3.0, (double)result.Value!["Mean"], precision: 5);
+        Assert.Equal(3.0, (double)result.Value!["Median"], precision: 5);
+        Assert.Equal(2.0f, (float)result.Value!["Min"]);
+        Assert.Equal(4.0f, (float)result.Value!["Max"]);
+        Assert.Equal(10.0, (double)result.Value!["EstimatedProjectedEdgesUpperBound"], precision: 5);
+        Assert.Equal(400.0, (double)result.Value!["EstimatedProjectionMemoryBytes"], precision: 5);
+    }
+
+    [Fact]
+    public void GetLayerStats_TwoModeLayer_MatchesActualProjectedEdgeCountAsUpperBound()
+    {
+        // The upper bound must never undercount the real materialized projection's edge count:
+        // here, nodes {1,2,3} share both c1 and c2, so the true distinct-pair count (3, from the
+        // 3-member union) is strictly less than the naive per-hyperedge sum (3 + 3 = 6) used by
+        // the bound - confirming the bound is safe (>=) rather than exact.
+        var net = MakeNetwork(4);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 1, 2, 3 });
+
+        var statsResult = Analyses.GetLayerStats(net, "clubs");
+        Assert.True(statsResult.Success, statsResult.Message);
+        double upperBound = (double)statsResult.Value!["EstimatedProjectedEdgesUpperBound"];
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var projLayer = (ILayerOneMode)net.Layers["clubs_proj"];
+
+        Assert.Equal(6.0, upperBound, precision: 5); // 3 + 3, double-counting the shared pair
+        Assert.Equal(3L, (long)projLayer.NbrEdges); // actual distinct pairs: (1,2), (1,3), (2,3)
+        Assert.True(upperBound >= projLayer.NbrEdges);
     }
 
     // ── DegreeCentralities: static (packed) layers ───────────────────────────────

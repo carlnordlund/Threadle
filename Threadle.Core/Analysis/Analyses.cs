@@ -962,20 +962,55 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Computes summary statistics (Mean, Median, StdDev, Min, Max, Q1, Q3) over the edge values
-        /// of a valued 1-mode layer, using the same statistics machinery as GetAttributeSummary.
+        /// For a valued 1-mode layer: computes summary statistics (Mean, Median, StdDev, Min, Max,
+        /// Q1, Q3) over the edge values, using the same statistics machinery as GetAttributeSummary.
         /// Requires a valued layer — a binary layer has no varying values to summarize. For symmetric
-        /// (undirected) layers, each edge is counted once, not once per endpoint.
+        /// (undirected) layers, each edge is counted once, not once per endpoint. Returns Mean,
+        /// Median, StdDev, Min, Max, Q1, Q3, LayerName and EdgeCount.
+        /// For a 2-mode layer (pseudo-projected: no projection is performed here) instead computes
+        /// the same Mean/Median/StdDev/Min/Max/Q1/Q3 statistics over hyperedge *sizes*, plus
+        /// LayerName, NbrHyperedges, NbrAffiliations, and two numbers meant to help decide whether
+        /// projecttwomode() is memory-feasible before calling it: EstimatedProjectedEdgesUpperBound
+        /// (Σ k_h·(k_h−1)/2 over all hyperedges — a safe upper bound on the number of distinct
+        /// projected edges, computed in one O(hyperedge count) pass with no pair enumeration, and
+        /// dominated by the single largest hyperedge since its own contribution grows with the
+        /// square of its size) and EstimatedProjectionMemoryBytes (that bound times a deliberately
+        /// conservative, rounded per-edge byte constant derived from Threadle's actual storage:
+        /// each projected edge ends up as an 8-byte Connection struct stored on both endpoints for
+        /// a valued/count projection, but projecttwomode() first builds a temporary
+        /// Dictionary&lt;(uint,uint),float&gt; of every distinct pair — regardless of method — whose
+        /// per-entry overhead is the real peak-memory driver). Both of these are order-of-magnitude
+        /// estimates, not precise predictions — treat them as a smell test, not a guarantee.
         /// </summary>
         /// <param name="network">The Network structure.</param>
-        /// <param name="layerName">The name of the (valued) 1-mode layer.</param>
-        /// <returns>An <see cref="OperationResult"/> with Mean, Median, StdDev, Min, Max, Q1, Q3, LayerName and EdgeCount.</returns>
+        /// <param name="layerName">The name of the layer (1-mode valued, or 2-mode).</param>
+        /// <returns>An <see cref="OperationResult"/> with the fields described above.</returns>
         public static OperationResult<Dictionary<string, object>> GetLayerStats(Network network, string layerName)
         {
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
-            ILayerOneMode layer = lr.Value!;
+
+            if (lr.Value is ILayerTwoMode twoModeLayer)
+            {
+                List<float> sizes = [];
+                double sumKChooseTwo = 0.0;
+                foreach (var (_, memberIds) in twoModeLayer.GetAllHyperedgeData())
+                {
+                    int k = memberIds.Length;
+                    sizes.Add(k);
+                    sumKChooseTwo += (double)k * (k - 1) / 2.0;
+                }
+                var twoModeStats = Functions.CalculateValueStatistics(sizes);
+                twoModeStats["LayerName"] = layerName;
+                twoModeStats["NbrHyperedges"] = sizes.Count;
+                twoModeStats["NbrAffiliations"] = twoModeLayer.NbrAffiliations;
+                twoModeStats["EstimatedProjectedEdgesUpperBound"] = sumKChooseTwo;
+                twoModeStats["EstimatedProjectionMemoryBytes"] = sumKChooseTwo * 40.0;
+                return OperationResult<Dictionary<string, object>>.Ok(twoModeStats);
+            }
+
+            ILayerOneMode layer = (ILayerOneMode)lr.Value!;
             if (!layer.IsValued)
                 return OperationResult<Dictionary<string, object>>.Fail("LayerNotValued", $"Layer '{layerName}' is binary — getlayerstats() requires a valued layer.");
 

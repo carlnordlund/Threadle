@@ -34,6 +34,13 @@
   always computed exactly for every node.
 - **`dyadcensus()`** now accepts a 2-mode layer: since an affiliation has no direction,
   the result is the same trivially-all-mutual shape as an undirected 1-mode layer.
+- **`getlayerstats()`** now accepts a 2-mode layer: instead of edge-value statistics, it
+  reports Mean/Median/StdDev/Min/Max/Q1/Q3 over hyperedge *sizes*, plus `NbrHyperedges`,
+  `NbrAffiliations`, and two estimates meant to help decide whether `projecttwomode()`
+  is memory-feasible before calling it: `EstimatedProjectedEdgesUpperBound` (a safe
+  upper bound on the number of distinct projected edges, dominated by the single
+  largest hyperedge) and `EstimatedProjectionMemoryBytes` (a rough, order-of-magnitude
+  byte estimate from that bound) — neither is a precise prediction, just a smell test.
 
 ### Deliberately out of scope
 
