@@ -1286,6 +1286,100 @@ public class NetworkProcessorTests
                 );
     }
 
+    // ── lowMemory (two-pass, straight-to-static) projection ─────────────────────
+
+    [Fact]
+    public void ProjectTwoMode_Count_LowMemory_MatchesOrdinaryResult()
+    {
+        var netOrdinary = MakeNetworkWithTwoModeLayer();
+        var netLowMemory = MakeNetworkWithTwoModeLayer();
+        foreach (var net in new[] { netOrdinary, netLowMemory })
+        {
+            net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+            net.AddHyperedge("clubs", "c2", [2u, 3u, 4u]);
+            net.AddHyperedge("clubs", "c3", [1u, 4u, 5u]);
+        }
+
+        NetworkProcessor.ProjectTwoModeToOneMode(netOrdinary, "clubs", ProjectionMethod.Count, "proj");
+        NetworkProcessor.ProjectTwoModeToOneMode(netLowMemory, "clubs", ProjectionMethod.Count, "proj", lowMemory: true);
+
+        for (uint i = 1; i <= 5; i++)
+            for (uint j = i + 1; j <= 5; j++)
+                Assert.Equal(
+                    netOrdinary.Layers["proj"].GetEdgeValue(i, j),
+                    netLowMemory.Layers["proj"].GetEdgeValue(i, j)
+                );
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Newman_LowMemory_MatchesOrdinaryResult()
+    {
+        var netOrdinary = MakeNetworkWithTwoModeLayer();
+        var netLowMemory = MakeNetworkWithTwoModeLayer();
+        foreach (var net in new[] { netOrdinary, netLowMemory })
+        {
+            net.AddHyperedge("clubs", "c1", [1u, 2u, 3u]);
+            net.AddHyperedge("clubs", "c2", [2u, 3u, 4u, 5u]);
+        }
+
+        NetworkProcessor.ProjectTwoModeToOneMode(netOrdinary, "clubs", ProjectionMethod.Newman, "proj");
+        NetworkProcessor.ProjectTwoModeToOneMode(netLowMemory, "clubs", ProjectionMethod.Newman, "proj", lowMemory: true);
+
+        for (uint i = 1; i <= 5; i++)
+            for (uint j = i + 1; j <= 5; j++)
+                Assert.Equal(
+                    netOrdinary.Layers["proj"].GetEdgeValue(i, j),
+                    netLowMemory.Layers["proj"].GetEdgeValue(i, j),
+                    precision: 5
+                );
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Binary_LowMemory_ResultIsStaticAndBinaryWithNoInflation()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        net.AddHyperedge("clubs", "c1", [1u, 2u]);
+        net.AddHyperedge("clubs", "c2", [1u, 2u]); // shared twice - binary must still read 1
+
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "proj", lowMemory: true);
+
+        Assert.True(result.Success, result.Message);
+        var layer = net.Layers["proj"];
+        Assert.True(layer.IsStatic);
+        Assert.Equal(EdgeType.Binary, ((ILayerOneMode)layer).EdgeValueType);
+        Assert.Equal(1f, layer.GetEdgeValue(1, 2));
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_LowMemory_EmptyLayer_ProducesEmptyStaticLayer()
+    {
+        var net = MakeNetworkWithTwoModeLayer();
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj", lowMemory: true);
+
+        Assert.True(result.Success, result.Message);
+        var layer = net.Layers["proj"];
+        Assert.True(layer.IsStatic);
+        Assert.Equal(0u, ((ILayerOneMode)layer).NbrEdges);
+    }
+
+    [Fact]
+    public void ProjectTwoMode_Count_LowMemory_DuplicateNodeIdWithinOneHyperedgeRow_DoesNotInflateEdgeValue()
+    {
+        // Same scenario as ProjectTwoMode_Count_DuplicateNodeIdWithinOneHyperedgeRow_DoesNotInflateEdgeValue,
+        // via the lowMemory path instead.
+        var net = MakeNetworkWithTwoModeLayer();
+        var rows = new List<(string hyperName, uint[] nodeIds)>
+        {
+            ("c1", new uint[] { 1u, 1u, 2u })
+        };
+        net.Layers["clubs"] = LayerTwoModeStatic.FromHyperedgeRows("clubs", rows);
+
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj", lowMemory: true);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(1f, net.Layers["proj"].GetEdgeValue(1, 2));
+    }
+
     // ── NodesetProcessor.Filter with string attributes ────────────────────────
 
     [Fact]

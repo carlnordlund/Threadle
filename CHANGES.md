@@ -52,6 +52,16 @@
   layer's own size plus one node's hyperedges at a time, instead of also holding every
   projected pair in memory at once. No behavior change — every method (`count`,
   `binary`, `newman`) produces identical results to before.
+- **`projecttwomode()`** gains a new `lowmemory` parameter (default `false`). When
+  `true`, it instead takes two passes to build the result directly as a packed
+  (static) layer, with no dynamic layer ever created along the way: the first pass
+  sizes each node's final slot, the second fills it, so peak memory is roughly just
+  the finished layer's own size (no list-growth slack, and nothing built-then-packed-
+  afterward that would briefly double up). Costs roughly twice the time of the default
+  path, since each node's projected edges are computed twice. Same result either way —
+  check `getlayerstats()`'s `EstimatedProjectedEdgesUpperBound`/
+  `EstimatedProjectionMemoryBytes` on the 2-mode layer first to decide whether this is
+  worth turning on.
 
 ### Deliberately out of scope
 

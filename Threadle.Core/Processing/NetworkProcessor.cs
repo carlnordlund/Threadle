@@ -507,7 +507,25 @@ namespace Threadle.Core.Processing
             return newLayer;
         }
 
-        public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName)
+        /// <summary>
+        /// Projects a 2-mode layer to a 1-mode layer. <paramref name="lowMemory"/> (default
+        /// false) picks between two construction strategies with the same result but different
+        /// time/memory profiles:
+        /// - false (default): a single pass, building a dynamic <see cref="LayerOneMode"/>
+        ///   directly. Peak memory is the finished layer (with ordinary List growth slack) plus
+        ///   one node's transient projected weights at a time.
+        /// - true: two passes (<see cref="LayerOneModeStatic.FromPerNodeWeights"/>), building a
+        ///   packed, static <see cref="LayerOneModeStatic"/> directly - no dynamic layer is ever
+        ///   built. Peak memory is just the exactly-sized final flat arrays plus one node's
+        ///   transient weights at a time (no List growth slack at all), at roughly twice the
+        ///   time cost, since computing a node's projected weights is done twice (once to size
+        ///   its slice, once to fill it). Worth it specifically when the projected layer itself
+        ///   is expected to be large (see getlayerstats()'s EstimatedProjectedEdgesUpperBound/
+        ///   EstimatedProjectionMemoryBytes on the source 2-mode layer) and the steady-state
+        ///   memory of the packed result also matters, not just getting through projection
+        ///   itself without the peak that building-then-packing would still hit.
+        /// </summary>
+        public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName, bool lowMemory = false)
         {
             if (!network.Layers.ContainsKey(layerName))
                 return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
@@ -516,20 +534,32 @@ namespace Threadle.Core.Processing
             if (network.Layers.ContainsKey(newLayerName))
                 return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
 
-            // Computed per-node (GetProjectedWeightsForNode) rather than via one global
-            // dictionary of every distinct pair: each unordered pair is still written exactly
-            // once (only when v > u), so total work stays the same, but peak memory is now just
-            // the finished layer plus one node's transient weights at a time, instead of the
-            // finished layer coexisting with a dictionary holding every pair at once.
-            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, (method == ProjectionMethod.Binary) ? EdgeType.Binary : EdgeType.Valued, false);
-            foreach (uint u in network.Nodeset.NodeIdArray)
+            EdgeType edgeType = (method == ProjectionMethod.Binary) ? EdgeType.Binary : EdgeType.Valued;
+
+            if (lowMemory)
             {
-                var weights = GetProjectedWeightsForNode(originalLayer, u, method);
-                foreach (var (v, w) in weights)
-                    if (v > u)
-                        newLayer._addEdge(u, v, w);
+                LayerOneModeStatic newStaticLayer = LayerOneModeStatic.FromPerNodeWeights(
+                    newLayerName, edgeType, network.Nodeset.NodeIdArray,
+                    u => GetProjectedWeightsForNode(originalLayer, u, method));
+                network.AddLayer(newLayerName, newStaticLayer);
             }
-            network.AddLayer(newLayerName, newLayer);
+            else
+            {
+                // Computed per-node (GetProjectedWeightsForNode) rather than via one global
+                // dictionary of every distinct pair: each unordered pair is still written exactly
+                // once (only when v > u), so total work stays the same, but peak memory is now
+                // just the finished layer plus one node's transient weights at a time, instead of
+                // the finished layer coexisting with a dictionary holding every pair at once.
+                LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, edgeType, false);
+                foreach (uint u in network.Nodeset.NodeIdArray)
+                {
+                    var weights = GetProjectedWeightsForNode(originalLayer, u, method);
+                    foreach (var (v, w) in weights)
+                        if (v > u)
+                            newLayer._addEdge(u, v, w);
+                }
+                network.AddLayer(newLayerName, newLayer);
+            }
             return OperationResult.Ok($"Projected layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
 
