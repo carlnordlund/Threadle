@@ -42,6 +42,17 @@
   largest hyperedge) and `EstimatedProjectionMemoryBytes` (a rough, order-of-magnitude
   byte estimate from that bound) — neither is a precise prediction, just a smell test.
 
+### Performance
+
+- **`projecttwomode()`** no longer builds a single global dictionary holding every
+  distinct projected pair before writing the result — that dictionary coexisting with
+  the layer being built from it was the actual peak-memory driver. It now computes each
+  node's projected edges directly, one node at a time, writing them straight into the
+  result; total work stays the same, but peak memory is now roughly the finished
+  layer's own size plus one node's hyperedges at a time, instead of also holding every
+  projected pair in memory at once. No behavior change — every method (`count`,
+  `binary`, `newman`) produces identical results to before.
+
 ### Deliberately out of scope
 
 - **`clusteringcoefficient()`/`transitivity()`** stay 1-mode only: projecting a 2-mode

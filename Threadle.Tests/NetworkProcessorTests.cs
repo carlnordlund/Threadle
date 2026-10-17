@@ -1214,6 +1214,28 @@ public class NetworkProcessorTests
         Assert.Equal(EdgeType.Valued, ((ILayerOneMode)net.Layers["proj"]).EdgeValueType);
     }
 
+    [Fact]
+    public void ProjectTwoMode_Count_DuplicateNodeIdWithinOneHyperedgeRow_DoesNotInflateEdgeValue()
+    {
+        // FromHyperedgeRows is the raw import path (e.g. the .bin deserializer), which trusts
+        // node-id arrays as given - same scenario LayerTwoModeStatic_FromHyperedgeRows_
+        // DuplicateNodeIdInRow_DoesNotInflateSharedCount (LayerTests.cs) already covers for
+        // GetEdgeValue/CheckEdgeExists directly on the 2-mode layer. Here node 1 is listed
+        // twice within one hyperedge's row; the projection must still treat it as a single
+        // co-membership with node 2, not two (which would double the Count weight to 2).
+        var net = MakeNetworkWithTwoModeLayer();
+        var rows = new List<(string hyperName, uint[] nodeIds)>
+        {
+            ("c1", new uint[] { 1u, 1u, 2u })
+        };
+        net.Layers["clubs"] = LayerTwoModeStatic.FromHyperedgeRows("clubs", rows);
+
+        var result = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "proj");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(1f, net.Layers["proj"].GetEdgeValue(1, 2));
+    }
+
     // ── Static (packed) two-mode layer ────────────────────────────────────────
 
     [Fact]

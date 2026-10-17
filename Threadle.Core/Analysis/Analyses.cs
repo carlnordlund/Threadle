@@ -976,11 +976,12 @@ namespace Threadle.Core.Analysis
         /// dominated by the single largest hyperedge since its own contribution grows with the
         /// square of its size) and EstimatedProjectionMemoryBytes (that bound times a deliberately
         /// conservative, rounded per-edge byte constant derived from Threadle's actual storage:
-        /// each projected edge ends up as an 8-byte Connection struct stored on both endpoints for
-        /// a valued/count projection, but projecttwomode() first builds a temporary
-        /// Dictionary&lt;(uint,uint),float&gt; of every distinct pair — regardless of method — whose
-        /// per-entry overhead is the real peak-memory driver). Both of these are order-of-magnitude
-        /// estimates, not precise predictions — treat them as a smell test, not a guarantee.
+        /// projecttwomode() builds the projected layer directly, one node's co-affiliates at a
+        /// time (no global dictionary of every pair held in memory at once), so its peak is just
+        /// the finished layer's own size — an 8-byte Connection struct stored on both endpoints
+        /// for a valued/count projection, plus List growth slack from that incremental build).
+        /// Both of these are order-of-magnitude estimates, not precise predictions — treat them
+        /// as a smell test, not a guarantee.
         /// </summary>
         /// <param name="network">The Network structure.</param>
         /// <param name="layerName">The name of the layer (1-mode valued, or 2-mode).</param>
@@ -1006,7 +1007,7 @@ namespace Threadle.Core.Analysis
                 twoModeStats["NbrHyperedges"] = sizes.Count;
                 twoModeStats["NbrAffiliations"] = twoModeLayer.NbrAffiliations;
                 twoModeStats["EstimatedProjectedEdgesUpperBound"] = sumKChooseTwo;
-                twoModeStats["EstimatedProjectionMemoryBytes"] = sumKChooseTwo * 40.0;
+                twoModeStats["EstimatedProjectionMemoryBytes"] = sumKChooseTwo * 25.0;
                 return OperationResult<Dictionary<string, object>>.Ok(twoModeStats);
             }
 

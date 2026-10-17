@@ -510,7 +510,7 @@ public class AnalysesTests
         // Hyperedges of size 2, 3, 4 (nodes 1-4 reused across them). Hand-computed:
         // sizes = [2,3,4] -> Mean=3, Median=3, Min=2, Max=4.
         // Sigma k*(k-1)/2 = 1 + 3 + 6 = 10 -> EstimatedProjectedEdgesUpperBound = 10,
-        // EstimatedProjectionMemoryBytes = 10 * 40 = 400.
+        // EstimatedProjectionMemoryBytes = 10 * 25 = 250.
         // NbrAffiliations = 2+3+4 = 9 (sum of hyperedge sizes).
         var net = MakeNetwork(4);
         net.AddLayerTwoMode("clubs");
@@ -528,7 +528,7 @@ public class AnalysesTests
         Assert.Equal(2.0f, (float)result.Value!["Min"]);
         Assert.Equal(4.0f, (float)result.Value!["Max"]);
         Assert.Equal(10.0, (double)result.Value!["EstimatedProjectedEdgesUpperBound"], precision: 5);
-        Assert.Equal(400.0, (double)result.Value!["EstimatedProjectionMemoryBytes"], precision: 5);
+        Assert.Equal(250.0, (double)result.Value!["EstimatedProjectionMemoryBytes"], precision: 5);
     }
 
     [Fact]
