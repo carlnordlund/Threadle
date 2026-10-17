@@ -20,7 +20,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates each node's eccentricity (the length of the longest shortest path to any node reachable from it) in the specified 1-mode layer, storing the result as an int node attribute (default name 'eccentricity'). Unlike diameter(), eccentricity is computed for every node individually, not restricted to the largest weakly connected component: a node in a smaller component gets its own component's eccentricity, and an isolated node gets 0. For directed layers, 'traversal' controls which direction BFS follows. The per-node BFS passes run in parallel across up to 'maxthreads' threads (see 'setting()').";
+        public string Description => "Calculates each node's eccentricity (the length of the longest shortest path to any node reachable from it) in the specified layer — 1-mode or 2-mode (pseudo-projected, traversed node-hyperedge-node directly without materializing a 1-mode projection) — storing the result as an int node attribute (default name 'eccentricity'). Unlike diameter(), eccentricity is computed for every node individually, not restricted to the largest weakly connected component: a node in a smaller component gets its own component's eccentricity, and an isolated node gets 0. For directed (1-mode) layers, 'traversal' controls which direction BFS follows. The per-node BFS passes run in parallel across up to 'maxthreads' threads (see 'setting()').";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

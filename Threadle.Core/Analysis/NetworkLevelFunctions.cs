@@ -368,12 +368,13 @@ namespace Threadle.Core.Analysis
         /// 'maxthreads' threads (see 'setting()'); each source writes to its own array slot, so no
         /// locking is needed on the hot path.
         /// </summary>
-        internal static Dictionary<uint, int> Eccentricity(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal)
+        internal static Dictionary<uint, int> Eccentricity(uint[] nodeIds, ILayer layer, EdgeTraversal traversal)
         {
+            GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
             int[] ecc = new int[nodeIds.Length];
             System.Threading.Tasks.Parallel.For(0, nodeIds.Length, UserSettings.GetParallelOptions(), i =>
             {
-                var dist = GraphAlgorithms.BFS(nodeIds[i], [layer], [], [], traversal);
+                var dist = GraphAlgorithms.BFS(nodeIds[i], oneModes, twoModesDynamic, twoModesStatic, traversal);
                 int max = 0;
                 foreach (int d in dist.Values)
                     if (d > max) max = d;
@@ -399,7 +400,7 @@ namespace Threadle.Core.Analysis
         /// (possible even within the giant component when following direction) are simply
         /// excluded from both statistics, with PairsConsidered reporting how many were used.
         /// </summary>
-        internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal)
+        internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayer layer, EdgeTraversal traversal)
         {
             uint[] component = LargestComponent(nodeIds, layer);
             int compSize = component.Length;
@@ -410,13 +411,14 @@ namespace Threadle.Core.Analysis
 
             if (compSize > 1)
             {
+                GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
                 var mergeLock = new object();
                 System.Threading.Tasks.Parallel.For(0, component.Length, UserSettings.GetParallelOptions(),
                     () => (Max: 0L, Sum: 0L, Pairs: 0L),
                     (i, loopState, local) =>
                     {
                         uint src = component[i];
-                        var dist = GraphAlgorithms.BFS(src, [layer], [], [], traversal);
+                        var dist = GraphAlgorithms.BFS(src, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         foreach (var (node, d) in dist)
                         {
                             if (node == src) continue;
@@ -468,10 +470,11 @@ namespace Threadle.Core.Analysis
         /// thread, so exact reproducibility via randomseed() is only guaranteed when maxthreads is
         /// set to 1.
         /// </summary>
-        internal static Dictionary<string, object> DiameterSampled(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal, int sampleSize, int numSweeps)
+        internal static Dictionary<string, object> DiameterSampled(uint[] nodeIds, ILayer layer, EdgeTraversal traversal, int sampleSize, int numSweeps)
         {
             uint[] component = LargestComponent(nodeIds, layer);
             int compSize = component.Length;
+            GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
 
             long diameterLowerBound = 0;
             if (compSize > 1 && numSweeps > 0)
@@ -482,12 +485,12 @@ namespace Threadle.Core.Analysis
                     (i, loopState, localBest) =>
                     {
                         uint r = component[Misc.Random.Next(compSize)];
-                        var dist1 = GraphAlgorithms.BFS(r, [layer], [], [], traversal);
+                        var dist1 = GraphAlgorithms.BFS(r, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         uint u = r;
                         int best1 = 0;
                         foreach (var (node, d) in dist1)
                             if (d > best1) { best1 = d; u = node; }
-                        var dist2 = GraphAlgorithms.BFS(u, [layer], [], [], traversal);
+                        var dist2 = GraphAlgorithms.BFS(u, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         int best2 = 0;
                         foreach (int d in dist2.Values)
                             if (d > best2) best2 = d;
@@ -507,7 +510,7 @@ namespace Threadle.Core.Analysis
             System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(), i =>
             {
                 uint src = sources[i];
-                var dist = GraphAlgorithms.BFS(src, [layer], [], [], traversal);
+                var dist = GraphAlgorithms.BFS(src, oneModes, twoModesDynamic, twoModesStatic, traversal);
                 long sum = 0;
                 long count = 0;
                 foreach (var (node, d) in dist)
@@ -549,25 +552,20 @@ namespace Threadle.Core.Analysis
         /// DiameterSampled to the giant component, since diameter and average distance are only
         /// meaningful within a connected set of nodes.
         /// </summary>
-        private static uint[] LargestComponent(uint[] nodeIds, ILayerOneMode layer)
+        private static uint[] LargestComponent(uint[] nodeIds, ILayer layer)
         {
+            GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
             var visited = new HashSet<uint>();
             uint[] bestComponent = [];
             foreach (uint start in nodeIds)
             {
                 if (!visited.Add(start)) continue;
-                var component = new List<uint> { start };
-                var queue = new Queue<uint>();
-                queue.Enqueue(start);
-                while (queue.Count > 0)
+                var dist = GraphAlgorithms.BFS(start, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+                var component = new List<uint>(dist.Count);
+                foreach (uint v in dist.Keys)
                 {
-                    uint u = queue.Dequeue();
-                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Both))
-                        if (visited.Add(v))
-                        {
-                            component.Add(v);
-                            queue.Enqueue(v);
-                        }
+                    if (v != start) visited.Add(v);
+                    component.Add(v);
                 }
                 if (component.Count > bestComponent.Length)
                     bestComponent = component.ToArray();

@@ -1,6 +1,7 @@
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Tests;
@@ -2651,12 +2652,32 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void Eccentricity_TwoModeLayer_Fails()
+    public void Eccentricity_TwoModeLayer_MatchesOneModeProjection()
     {
-        var net = MakeNetwork(3);
+        // Pseudo-projected (2-mode) eccentricity must equal eccentricity computed on the
+        // materialized binary projection of the same hyperedges.
+        var net = MakeNetwork(5);
         net.AddLayerTwoMode("clubs");
-        var result = Analyses.Eccentricity(net, "clubs");
-        Assert.False(result.Success);
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4 });
+        // node 5 stays isolated (no hyperedge membership)
+
+        var twoModeResult = Analyses.Eccentricity(net, "clubs", "ecc_2mode");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Eccentricity(net, "clubs_proj", "ecc_1mode");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint nodeId = 1; nodeId <= 5; nodeId++)
+        {
+            var twoModeAttr = net.Nodeset.GetNodeAttribute(nodeId, "ecc_2mode");
+            var oneModeAttr = net.Nodeset.GetNodeAttribute(nodeId, "ecc_1mode");
+            Assert.Equal(
+                (int)oneModeAttr.Value.Value.GetValue(oneModeAttr.Value.Type)!,
+                (int)twoModeAttr.Value.Value.GetValue(twoModeAttr.Value.Type)!);
+        }
     }
 
     [Fact]
@@ -2802,14 +2823,28 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void Diameter_TwoModeLayer_Fails()
+    public void Diameter_TwoModeLayer_MatchesOneModeProjection()
     {
-        var net = MakeNetwork(3);
+        // Pseudo-projected (2-mode) diameter/avgdistance must equal the same measures computed
+        // on the materialized binary projection of the same hyperedges (restricted, on both
+        // sides, to the largest weakly connected component).
+        var net = MakeNetwork(7);
         net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4, 5 });
+        net.AddHyperedge("clubs", "c3", new uint[] { 6, 7 });
 
-        var result = Analyses.Diameter(net, "clubs");
+        var twoModeResult = Analyses.Diameter(net, "clubs");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
-        Assert.False(result.Success);
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Diameter(net, "clubs_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((int)oneModeResult.Value!["Diameter"], (int)twoModeResult.Value!["Diameter"]);
+        Assert.Equal((int)oneModeResult.Value!["ComponentSize"], (int)twoModeResult.Value!["ComponentSize"]);
+        Assert.Equal((double)oneModeResult.Value!["AvgDistance"], (double)twoModeResult.Value!["AvgDistance"]);
     }
 
     [Fact]

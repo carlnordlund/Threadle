@@ -206,7 +206,7 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult Eccentricity(Network network, string layerName, string? attrName = null, EdgeTraversal traversal = EdgeTraversal.Out)
         {
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult.Fail(lr.Code, lr.Message);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
@@ -242,7 +242,7 @@ namespace Threadle.Core.Analysis
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
             var diameterResult = sampleSize > 0
