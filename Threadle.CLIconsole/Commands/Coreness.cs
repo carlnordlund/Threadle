@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Computes the coreness (k-shell index) of each node via k-core decomposition, storing the result as an integer node attribute. A node's coreness is the highest k such that it belongs to the k-core — the maximal subgraph where every node has degree at least k. Edge weights and directionality are ignored (all edges treated as undirected binary). Only 1-mode layers are accepted — project 2-mode layers first with projecttwomodetoonemode(). Reference: Batagelj & Zaversnik (2003) arXiv:cs/0310049.";
+        public string Description => "Computes the coreness (k-shell index) of each node via k-core decomposition, storing the result as an integer node attribute. A node's coreness is the highest k such that it belongs to the k-core — the maximal subgraph where every node has degree at least k. Edge weights and directionality are ignored (all edges treated as undirected binary). Only 1-mode layers are accepted — project 2-mode layers first with projecttwomode(). Reference: Batagelj & Zaversnik (2003) arXiv:cs/0310049.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

@@ -22,10 +22,17 @@
   single 2-mode layer on its own (not combined with other layers), genuinely
   pseudo-projected — no pairwise structure, not even an ephemeral in-memory one, is
   ever materialized. Tie strength is always count-weighted (matching
-  `eigenvectorcentrality()`'s convention) — no `projection=` parameter here, since a
-  binary option would need the same global pairwise deduplication this feature exists
-  to avoid. `type = 'gn'` (Girvan-Newman) has no 2-mode support: edge betweenness has
-  no hyperedge analogue.
+  `eigenvectorcentrality()`'s convention) — no `projection=` parameter here: per-node
+  binary deduplication alone is cheap (the same technique `degree()`/`pagerank()`
+  already use), but a correct binary *aggregation* step would need to recover
+  individual cross-hyperedge pair identity, costing the same O(sum of hyperedge sizes
+  squared) a full projection would — a time tradeoff specific to aggregation, not a
+  blocker on the rest of the pipeline. `type = 'gn'` (Girvan-Newman) has no 2-mode
+  support: edge betweenness has no hyperedge analogue. For `type = 'leiden'` on a
+  2-mode layer, only the very first (hyperedge-direct) level skips the usual
+  connectivity-guaranteeing refinement step, so that guarantee is **not** established
+  for a community formed entirely within that first pass — refinement runs normally
+  from the first aggregation onward.
 - **`constraint()`/`effectivesize()`** now accept a single 2-mode layer on its own, with
   a new `samplesize` parameter that becomes **required** (`samplesize > 0`) for a
   2-mode layer: only that many randomly sampled nodes get an exact (not approximated)
@@ -41,6 +48,22 @@
   upper bound on the number of distinct projected edges, dominated by the single
   largest hyperedge) and `EstimatedProjectionMemoryBytes` (a rough, order-of-magnitude
   byte estimate from that bound) — neither is a precise prediction, just a smell test.
+
+### Behavior changes
+
+> This changes the numeric result of an existing command for a no-argument call —
+> not a bug in the old result, just a different default.
+
+- **`density()`** on a 2-mode layer now defaults to an *exact* computation
+  (`samplesize=0`) instead of a 200-node sample, matching every other
+  `samplesize`-bearing command's "0 means exact" convention (`diameter()`,
+  `constraint()`, `effectivesize()`, `betweennesscentrality()`, `triadiccensus()`, ...)
+  — 1-mode `density()` was already always exact. The exact 2-mode computation reuses
+  the same handshake-lemma sum `dyadcensus()`'s exact `Mutual` count already relies on
+  (sum of every node's binary projected degree, divided by the number of potential
+  pairs) — O(sum of hyperedge sizes), the same order as the old sampled path, not
+  slower. Pass a positive `samplesize` below the layer's node count to get the old
+  sampled-estimate behavior back on a very large layer.
 
 ### Performance
 

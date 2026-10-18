@@ -58,13 +58,19 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Calculates the density of a specific 2-mode layer in a specific network.
-        /// Does this by obtaining the number of node alters for each node.
-        /// Can take time for very large networks.
+        /// By default (sampleSize 0, or at/above the node count) computes it exactly: sums every
+        /// node's binary projected degree (<see cref="ILayerTwoMode.GetNodeAlters"/>) and divides
+        /// by the number of potential pairs - the same handshake-lemma technique
+        /// <see cref="NetworkLevelFunctions.DyadCensusTwoMode"/> already uses for its exact
+        /// Mutual count, O(sum of hyperedge sizes), not sampled. A positive sampleSize below the
+        /// node count instead estimates the same quantity from that many randomly sampled nodes,
+        /// to bound cost on a very large layer, matching every other samplesize-bearing command's
+        /// "0 means exact" convention.
         /// </summary>
         /// <param name="network">The Network structure.</param>
         /// <param name="layer">The 2-mode layer object.</param>
         /// <returns>Density (as a double value)</returns>
-        internal static double Density(Network network, ILayerTwoMode layer, int sampleSize = 200)
+        internal static double Density(Network network, ILayerTwoMode layer, int sampleSize = 0)
         {
             int nbrNodes = network.Nodeset.Count;
             if (nbrNodes <= 1)
@@ -72,14 +78,22 @@ namespace Threadle.Core.Analysis
 
             ulong nbrPotentialEdges = (ulong)nbrNodes * (ulong)(nbrNodes - 1);
             uint[] allNodeIds = network.Nodeset.NodeIdArray;
-            int actualSample = Math.Min(nbrNodes, sampleSize);
+
+            if (sampleSize <= 0 || sampleSize >= nbrNodes)
+            {
+                ulong sumAllAlters = 0;
+                foreach (uint id in allNodeIds)
+                    sumAllAlters += (ulong)layer.GetNodeAlters(id, EdgeTraversal.Out).Length;
+                return (double)sumAllAlters / nbrPotentialEdges;
+            }
+
             uint[] ids = (uint[])allNodeIds.Clone();
-            Misc.SampleWithoutReplacementInPlace(ids, actualSample);
+            Misc.SampleWithoutReplacementInPlace(ids, sampleSize);
             ulong sumAlters = 0;
-            for (int i = 0; i < actualSample; i++)
+            for (int i = 0; i < sampleSize; i++)
                 sumAlters += (ulong)layer.GetNodeAlters(ids[i], EdgeTraversal.Out).Length;
 
-            double meanAlters = (double)sumAlters / actualSample;
+            double meanAlters = (double)sumAlters / sampleSize;
             return meanAlters * nbrNodes / (double)nbrPotentialEdges;
         }
 

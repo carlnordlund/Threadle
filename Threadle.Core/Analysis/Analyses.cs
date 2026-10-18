@@ -33,11 +33,15 @@ namespace Threadle.Core.Analysis
         /// layerNames may instead be a single 2-mode layer on its own, not combined with other
         /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
         /// a 1-mode projection; tie strength is always count-weighted, matching
-        /// eigenvectorcentrality()'s convention — no binary option, since deduplicating a pair
-        /// across hyperedges would need the global pairwise structure this is meant to avoid). On
-        /// a 2-mode layer, only the first (hyperedge-direct) level skips the usual refinement step
-        /// — refinement (and its connectivity guarantee) applies normally from the first
-        /// aggregation onward. Returns a summary with NbrCommunities, CommunitySizes (descending),
+        /// eigenvectorcentrality()'s convention — no binary option: per-node deduplication alone
+        /// (the same technique degree()/pagerank() already use) is cheap, but a correct binary
+        /// aggregation step would need to recover cross-hyperedge pair identity, costing the same
+        /// O(Σ hyperedge sizes²) a full projection would — a time tradeoff specific to aggregation,
+        /// not a hard blocker on the rest of the pipeline). On a 2-mode layer, only the first
+        /// (hyperedge-direct) level skips the usual refinement step, so its internal-connectivity
+        /// guarantee is not established for communities formed entirely within that first pass —
+        /// refinement (and its connectivity guarantee) applies normally from the first aggregation
+        /// onward. Returns a summary with NbrCommunities, CommunitySizes (descending),
         /// the achieved Modularity score Q, and NumRestarts. When numRestarts &gt; 1, runs that
         /// many independent restarts in parallel across up to 'maxthreads' threads (see
         /// 'setting()') and keeps the highest-modularity result — a way to escape local optima
@@ -66,8 +70,11 @@ namespace Threadle.Core.Analysis
         /// layerNames may instead be a single 2-mode layer on its own, not combined with other
         /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
         /// a 1-mode projection; tie strength is always count-weighted, matching
-        /// eigenvectorcentrality()'s convention — no binary option, since deduplicating a pair
-        /// across hyperedges would need the global pairwise structure this is meant to avoid).
+        /// eigenvectorcentrality()'s convention — no binary option: per-node deduplication alone
+        /// (the same technique degree()/pagerank() already use) is cheap, but a correct binary
+        /// aggregation step would need to recover cross-hyperedge pair identity, costing the same
+        /// O(Σ hyperedge sizes²) a full projection would — a time tradeoff specific to aggregation,
+        /// not a hard blocker on the rest of the pipeline).
         /// resolution (default 1.0 = standard modularity) scales the null-model term: values above
         /// 1 favor more, smaller communities; values below 1 favor fewer, larger ones (Reichardt &amp;
         /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending), the
@@ -611,7 +618,7 @@ namespace Threadle.Core.Analysis
                 {
                     if (layer is ILayerTwoMode)
                         return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
+                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomode() first, or specify only 1-mode layers.");
                     if (layer is ILayerOneMode lom) oneModes.Add(lom);
                 }
             }
@@ -623,7 +630,7 @@ namespace Threadle.Core.Analysis
                     if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
                     if (lr.Value is ILayerTwoMode)
                         return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomodetoonemode() first.");
+                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomode() first.");
                     if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
                 }
             }
@@ -792,7 +799,7 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Calculates local clustering coefficient for each node in the specified 1-mode layer(s)
         /// and stores the result as a float node attribute. Only 1-mode layers are accepted;
-        /// 2-mode layers must be projected first via ProjectTwoModeToOneMode().
+        /// 2-mode layers must be projected first via projecttwomode().
         /// Auto-selects formula based on layer type (directed/undirected, binary/valued) unless
         /// method is specified explicitly. The Onnela method is refused for any layer where
         /// selfties are allowed, even if it has none, since its normalization by the global
@@ -813,7 +820,7 @@ namespace Threadle.Core.Analysis
                 {
                     if (layer is ILayerTwoMode)
                         return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
+                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomode() first, or specify only 1-mode layers.");
                     if (layer is ILayerOneMode lom)
                     {
                         if (method == ClusteringMethod.Onnela && lom.Selfties)
@@ -831,7 +838,7 @@ namespace Threadle.Core.Analysis
                     if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
                     if (lr.Value is ILayerTwoMode)
                         return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomodetoonemode() first.");
+                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomode() first.");
                     if (lr.Value is ILayerOneMode lom)
                     {
                         if (method == ClusteringMethod.Onnela && lom.Selfties)
@@ -1302,12 +1309,15 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
-        /// Using different methods for 1- resp 2-mode layers.
+        /// 1-mode is always exact (cheap: NbrEdges / potential edges). 2-mode defaults (sampleSize
+        /// 0) to exact too, matching every other samplesize-bearing command's convention; a
+        /// positive sampleSize below the node count instead estimates it from that many randomly
+        /// sampled nodes, to bound cost on a very large layer - see <see cref="Functions.Density(Network, ILayerTwoMode, int)"/>.
         /// </summary>
         /// <param name="network">The network containing the layer.</param>
         /// <param name="layerName">The name of the layer.</param>
         /// <returns>An OperationResult containing the density value if successful; otherwise, an error message.</returns>
-        public static OperationResult<double> Density(Network network, string layerName, int sampleSize = 200)
+        public static OperationResult<double> Density(Network network, string layerName, int sampleSize = 0)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)
@@ -1639,7 +1649,7 @@ namespace Threadle.Core.Analysis
                     if (layer is ILayerTwoMode)
                     {
                         error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first, or specify only 1-mode layers.");
+                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomode() first, or specify only 1-mode layers.");
                         return false;
                     }
                     if (layer is ILayerOneMode lom) oneModes.Add(lom);
@@ -1658,7 +1668,7 @@ namespace Threadle.Core.Analysis
                     if (lr.Value is ILayerTwoMode)
                     {
                         error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomodetoonemode() first.");
+                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomode() first.");
                         return false;
                     }
                     if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);

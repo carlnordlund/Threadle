@@ -1241,11 +1241,14 @@ namespace Threadle.Core.Analysis
         // community-level graph that the existing 1-mode machinery (RunLouvainLevelsFrom/
         // RunLeidenLevelsFrom/LocalMovingPhase/RefinePartition) continues from unchanged. Only
         // "count" (shared-hyperedge-count) tie strength is offered here, unlike assortativity's
-        // projection= parameter: a "binary" pair-dedup would need to know individual pair
-        // identities globally, which is exactly the O(Σk_h²) pairwise materialization this whole
-        // path exists to avoid (count's per-community histograms never need that - see
-        // BuildFirstAggregationTwoMode's remarks). CommunityDetectionGirvanNewman has no 2-mode
-        // counterpart (edge betweenness has no hyperedge analogue).
+        // projection= parameter. Per-node binary dedup alone is cheap (the same local HashSet
+        // technique degree()/pagerank() already use) - the actual blocker is narrower: a correct
+        // binary AGGREGATION step (BuildFirstAggregationTwoMode) would need to recover individual
+        // cross-hyperedge pair identity, which its per-community histogram collapses away, costing
+        // the same O(Σk_h²) a full projection would. That's a time tradeoff specific to
+        // aggregation, not a reason the whole pipeline needs a global pairwise structure.
+        // CommunityDetectionGirvanNewman has no 2-mode counterpart (edge betweenness has no
+        // hyperedge analogue).
 
         /// <summary>
         /// Louvain (Blondel et al. 2008) for a single 2-mode layer, pseudo-projected: see the

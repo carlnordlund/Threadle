@@ -795,6 +795,56 @@ public class AnalysesTests
         Assert.Equal(dynResult.Value, staticResult.Value, 10);
     }
 
+    // ── Density: 2-mode exactness (sampleSize=0 default) ──────────────────────────
+
+    [Fact]
+    public void Density_TwoMode_ExactByDefault_MatchesHandComputedValue()
+    {
+        // Hand-computed expectation: distinct-alter degrees are 1->{2}=1, 2->{1,3}=2, 3->{2}=1,
+        // summing to 4. Exact density = 4 / (3*2) = 2/3.
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var result = Analyses.Density(net, "clubs");
+
+        Assert.True(result.Success);
+        Assert.Equal(4.0 / 6.0, result.Value, 10);
+    }
+
+    [Fact]
+    public void Density_TwoMode_SampleSizeAtOrAboveNodeCount_MatchesExact()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var exactResult = Analyses.Density(net, "clubs");
+        var largeSampleResult = Analyses.Density(net, "clubs", sampleSize: 1000);
+
+        Assert.True(exactResult.Success);
+        Assert.True(largeSampleResult.Success);
+        Assert.Equal(exactResult.Value, largeSampleResult.Value, 10);
+    }
+
+    [Fact]
+    public void Density_TwoMode_SampleSizeBelowNodeCount_StillSucceeds()
+    {
+        // Not asserting a specific value here (sampling is random) - just confirming the
+        // sampled path still runs and produces a plausible density after the default changed.
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var result = Analyses.Density(net, "clubs", sampleSize: 1);
+
+        Assert.True(result.Success);
+        Assert.True(result.Value >= 0.0 && result.Value <= 1.0);
+    }
+
     // ── ShortestPath: static layers ───────────────────────────────────────────────
 
     [Fact]
