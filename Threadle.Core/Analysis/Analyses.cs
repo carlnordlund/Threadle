@@ -33,11 +33,16 @@ namespace Threadle.Core.Analysis
         /// layerNames may instead be a single 2-mode layer on its own, not combined with other
         /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
         /// a 1-mode projection; tie strength is always count-weighted, matching
-        /// eigenvectorcentrality()'s convention — no binary option: per-node deduplication alone
-        /// (the same technique degree()/pagerank() already use) is cheap, but a correct binary
-        /// aggregation step would need to recover cross-hyperedge pair identity, costing the same
-        /// O(Σ hyperedge sizes²) a full projection would — a time tradeoff specific to aggregation,
-        /// not a hard blocker on the rest of the pipeline). On a 2-mode layer, only the first
+        /// eigenvectorcentrality()'s convention — no binary option. Local moving itself (shared by
+        /// count and a hypothetical binary alike) already costs O(Σ hyperedge sizes²) per sweep,
+        /// not O(Σ hyperedge sizes): it calls the non-memoized GetNodeAltersWithWeights once per
+        /// node per sweep, the same aggregate cost degree()/pagerank() carry, repeated every sweep
+        /// until convergence — so level 0's real cost is O(sweeps·Σ hyperedge sizes²), not the
+        /// linear cost a "nothing materialized" framing alone might suggest. Binary would cost
+        /// about the same there; what it would add is at aggregation (BuildFirstAggregationTwoMode's
+        /// per-hyperedge histogram discards individual pair identity), needing one further
+        /// O(Σ hyperedge sizes²) pass to recover it — real, but smaller than local moving's own
+        /// recurring cost, which is paid either way). On a 2-mode layer, only the first
         /// (hyperedge-direct) level skips the usual refinement step, so its internal-connectivity
         /// guarantee is not established for communities formed entirely within that first pass —
         /// refinement (and its connectivity guarantee) applies normally from the first aggregation
@@ -70,11 +75,16 @@ namespace Threadle.Core.Analysis
         /// layerNames may instead be a single 2-mode layer on its own, not combined with other
         /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
         /// a 1-mode projection; tie strength is always count-weighted, matching
-        /// eigenvectorcentrality()'s convention — no binary option: per-node deduplication alone
-        /// (the same technique degree()/pagerank() already use) is cheap, but a correct binary
-        /// aggregation step would need to recover cross-hyperedge pair identity, costing the same
-        /// O(Σ hyperedge sizes²) a full projection would — a time tradeoff specific to aggregation,
-        /// not a hard blocker on the rest of the pipeline).
+        /// eigenvectorcentrality()'s convention — no binary option. Local moving itself (shared by
+        /// count and a hypothetical binary alike) already costs O(Σ hyperedge sizes²) per sweep,
+        /// not O(Σ hyperedge sizes): it calls the non-memoized GetNodeAltersWithWeights once per
+        /// node per sweep, the same aggregate cost degree()/pagerank() carry, repeated every sweep
+        /// until convergence — so level 0's real cost is O(sweeps·Σ hyperedge sizes²), not the
+        /// linear cost a "nothing materialized" framing alone might suggest. Binary would cost
+        /// about the same there; what it would add is at aggregation (BuildFirstAggregationTwoMode's
+        /// per-hyperedge histogram discards individual pair identity), needing one further
+        /// O(Σ hyperedge sizes²) pass to recover it — real, but smaller than local moving's own
+        /// recurring cost, which is paid either way).
         /// resolution (default 1.0 = standard modularity) scales the null-model term: values above
         /// 1 favor more, smaller communities; values below 1 favor fewer, larger ones (Reichardt &amp;
         /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending), the

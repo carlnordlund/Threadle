@@ -1241,14 +1241,27 @@ namespace Threadle.Core.Analysis
         // community-level graph that the existing 1-mode machinery (RunLouvainLevelsFrom/
         // RunLeidenLevelsFrom/LocalMovingPhase/RefinePartition) continues from unchanged. Only
         // "count" (shared-hyperedge-count) tie strength is offered here, unlike assortativity's
-        // projection= parameter. Per-node binary dedup alone is cheap (the same local HashSet
-        // technique degree()/pagerank() already use) - the actual blocker is narrower: a correct
-        // binary AGGREGATION step (BuildFirstAggregationTwoMode) would need to recover individual
-        // cross-hyperedge pair identity, which its per-community histogram collapses away, costing
-        // the same O(Σk_h²) a full projection would. That's a time tradeoff specific to
-        // aggregation, not a reason the whole pipeline needs a global pairwise structure.
-        // CommunityDetectionGirvanNewman has no 2-mode counterpart (edge betweenness has no
-        // hyperedge analogue).
+        // projection= parameter.
+        //
+        // RunLocalMovingTwoMode itself is NOT the O(Σk_h) "nothing materialized" story a
+        // pseudo-projection framing might suggest: it calls GetNodeAltersWithWeights once per
+        // node, per sweep, which (confirmed by reading LayerTwoModeStatic.cs/LayerTwoMode.cs
+        // directly) is not memoized and rescans a node's full hyperedge-incidence structure on
+        // every call - the same O(Σk_h²) aggregate cost degree()/pagerank() carry, repeated every
+        // sweep until local moving converges (RunLocalMovingTwoMode's own while(improvedThisPass)
+        // loop has no formal bound on sweep count). So level 0's real cost is O(sweeps·Σk_h²), not
+        // O(Σk_h); this is why 2-mode community detection does NOT get the same clean asymptotic
+        // *time* advantage diameter()/components()/shortestpathsattributes() do, even though it
+        // genuinely avoids materializing anything (the memory claim still holds).
+        //
+        // A hypothetical binary option would cost about the same at local moving (same per-node
+        // dedup technique, same order). What it would add is at the AGGREGATION step
+        // (BuildFirstAggregationTwoMode) specifically: its per-hyperedge community histogram
+        // collapses away individual pair identity, so a correct binary coarse edge weight would
+        // need one further O(Σk_h²) pass (paid once, not per sweep) to recover cross-hyperedge
+        // pair identity - real, but smaller than local moving's own recurring cost, which is paid
+        // either way. CommunityDetectionGirvanNewman has no 2-mode counterpart (edge betweenness
+        // has no hyperedge analogue).
 
         /// <summary>
         /// Louvain (Blondel et al. 2008) for a single 2-mode layer, pseudo-projected: see the

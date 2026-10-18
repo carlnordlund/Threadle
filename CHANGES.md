@@ -23,12 +23,18 @@
   single 2-mode layer on its own (not combined with other layers), genuinely
   pseudo-projected — no pairwise structure, not even an ephemeral in-memory one, is
   ever materialized. Tie strength is always count-weighted (matching
-  `eigenvectorcentrality()`'s convention) — no `projection=` parameter here: per-node
-  binary deduplication alone is cheap (the same technique `degree()`/`pagerank()`
-  already use), but a correct binary *aggregation* step would need to recover
-  individual cross-hyperedge pair identity, costing the same O(sum of hyperedge sizes
-  squared) a full projection would — a time tradeoff specific to aggregation, not a
-  blocker on the rest of the pipeline. `type = 'gn'` (Girvan-Newman) has no 2-mode
+  `eigenvectorcentrality()`'s convention) — no `projection=` parameter here: local
+  moving itself already costs O(sum of hyperedge sizes squared) *per sweep*, not
+  O(sum of hyperedge sizes) — it calls the same non-memoized per-node lookup
+  `degree()`/`pagerank()` use, repeated every sweep until convergence — so a 2-mode
+  layer's level-0 pass does not get the same clean linear-time advantage
+  `diameter()`/`components()` get, though it still avoids materializing anything, so
+  the memory advantage holds. A binary option would cost about the same at local
+  moving; it would add a further, smaller, one-time O(sum of hyperedge sizes squared)
+  pass at aggregation specifically, to recover cross-hyperedge pair identity the
+  per-hyperedge community histogram otherwise discards — not the reason binary isn't
+  offered on its own, since local moving's own recurring cost is paid either way.
+  `type = 'gn'` (Girvan-Newman) has no 2-mode
   support: edge betweenness has no hyperedge analogue. For `type = 'leiden'` on a
   2-mode layer, only the very first (hyperedge-direct) level skips the usual
   connectivity-guaranteeing refinement step, so that guarantee is **not** established
