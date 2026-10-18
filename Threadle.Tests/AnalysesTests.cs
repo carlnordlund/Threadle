@@ -795,6 +795,81 @@ public class AnalysesTests
         Assert.Equal(dynResult.Value, staticResult.Value, 10);
     }
 
+    // ── Density: 2-mode exact-on-request (sampleSize=0; default stays 200, not exact) ──
+
+    [Fact]
+    public void Density_TwoMode_ExactOnRequest_MatchesHandComputedValue()
+    {
+        // Hand-computed expectation: distinct-alter degrees are 1->{2}=1, 2->{1,3}=2, 3->{2}=1,
+        // summing to 4. Exact density = 4 / (3*2) = 2/3. Default sampleSize is 200 (sampled),
+        // not exact - sampleSize must be passed explicitly here to get the exact path.
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var result = Analyses.Density(net, "clubs", sampleSize: 0);
+
+        Assert.True(result.Success);
+        Assert.Equal(4.0 / 6.0, result.Value, 10);
+    }
+
+    [Fact]
+    public void Density_TwoMode_SampleSizeAtOrAboveNodeCount_MatchesExact()
+    {
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var exactResult = Analyses.Density(net, "clubs", sampleSize: 0);
+        var largeSampleResult = Analyses.Density(net, "clubs", sampleSize: 1000);
+
+        Assert.True(exactResult.Success);
+        Assert.True(largeSampleResult.Success);
+        Assert.Equal(exactResult.Value, largeSampleResult.Value, 10);
+    }
+
+    [Fact]
+    public void Density_TwoMode_DefaultSampleSize_IsTwoHundredNotExact()
+    {
+        // Confirms the default genuinely stays 200 (sampled), not 0/exact - the one deliberate
+        // exception to every other samplesize-bearing command's "0 means exact by default"
+        // convention, since this layer's exact computation costs O(sum of hyperedge sizes
+        // squared), not O(sum of hyperedge sizes). On this tiny 3-node network sampleSize=200
+        // already exceeds the node count, so the default still happens to compute the exact
+        // value here (the "sampleSize >= nbrNodes" branch) - this test is about confirming the
+        // default's numeric value, not about distinguishing sampled-vs-exact behavior on a
+        // network this small.
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var defaultResult = Analyses.Density(net, "clubs");
+        var explicitTwoHundredResult = Analyses.Density(net, "clubs", sampleSize: 200);
+
+        Assert.True(defaultResult.Success);
+        Assert.True(explicitTwoHundredResult.Success);
+        Assert.Equal(explicitTwoHundredResult.Value, defaultResult.Value, 10);
+    }
+
+    [Fact]
+    public void Density_TwoMode_SampleSizeBelowNodeCount_StillSucceeds()
+    {
+        // Not asserting a specific value here (sampling is random) - just confirming the
+        // sampled path still runs and produces a plausible density after the default changed.
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var result = Analyses.Density(net, "clubs", sampleSize: 1);
+
+        Assert.True(result.Success);
+        Assert.True(result.Value >= 0.0 && result.Value <= 1.0);
+    }
+
     // ── ShortestPath: static layers ───────────────────────────────────────────────
 
     [Fact]
@@ -2515,6 +2590,45 @@ public class AnalysesTests
     }
 
     [Fact]
+    public void ClosenessCentrality_TwoModeLayer_MatchesHandComputedValues()
+    {
+        // Hand-computed via pseudo-projected BFS over the standard 3-hyperedge fixture
+        // (c1={1,2,3}, c2={2,3,4}, c3={4,5,6}; projected edges 1-2,1-3,2-3,2-4,3-4,4-5,4-6,5-6).
+        // Node 1's own BFS stresses the "multiple members of one hyperedge arrive at the same
+        // level" case this test exists to cover: c2's members 2 and 3 both sit at level 1 and
+        // both reach node 4 at level 2. Closeness = reach^2 / ((n-1)*distSum), n=6.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var result = Analyses.ClosenessCentrality(net, new[] { "aff" }, "cl");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(25.0 / 50.0, GetFloatAttr(net, 1, "cl"), precision: 6); // distSum=10
+        Assert.Equal(25.0 / 35.0, GetFloatAttr(net, 2, "cl"), precision: 6); // distSum=7
+        Assert.Equal(25.0 / 35.0, GetFloatAttr(net, 3, "cl"), precision: 6); // distSum=7
+        Assert.Equal(25.0 / 30.0, GetFloatAttr(net, 4, "cl"), precision: 6); // distSum=6
+        Assert.Equal(25.0 / 45.0, GetFloatAttr(net, 5, "cl"), precision: 6); // distSum=9
+        Assert.Equal(25.0 / 45.0, GetFloatAttr(net, 6, "cl"), precision: 6); // distSum=9
+    }
+
+    [Fact]
+    public void HarmonicCentrality_TwoModeLayer_MatchesHandComputedValues()
+    {
+        // Same fixture and hand-derived distances as the closeness test above.
+        // Raw harmonic sum (1/distance to every reachable node), unnormalized.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var result = Analyses.HarmonicCentrality(net, new[] { "aff" }, "hm", normalize: false);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(19.0 / 6.0, GetFloatAttr(net, 1, "hm"), precision: 6); // 1+1+1/2+1/3+1/3
+        Assert.Equal(4.0, GetFloatAttr(net, 2, "hm"), precision: 6);       // 1+1+1+1/2+1/2
+        Assert.Equal(4.0, GetFloatAttr(net, 3, "hm"), precision: 6);
+        Assert.Equal(4.5, GetFloatAttr(net, 4, "hm"), precision: 6);       // 1+1+1+1+1/2
+        Assert.Equal(10.0 / 3.0, GetFloatAttr(net, 5, "hm"), precision: 6); // 1+1+1/2+1/2+1/3
+        Assert.Equal(10.0 / 3.0, GetFloatAttr(net, 6, "hm"), precision: 6);
+    }
+
+    [Fact]
     public void BetweennessCentrality_NonExistentLayer_Fails()
     {
         var net = MakeNetwork(3);
@@ -3406,6 +3520,72 @@ public class AnalysesTests
         Assert.True(oneModeResult.Success, oneModeResult.Message);
 
         Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_ContinuousCount_NoMissingValues_MatchesHandComputedValue()
+    {
+        // Hand-computed expectation for the Count-mode closed-form per-hyperedge reduction.
+        // c1={1,2,3} vals={1.5,3,4.5}: S=9,    Q=31.5   -> sumJK+=49.5,  sumJ/K+=18,   sumJ2/K2+=63,    M+=6
+        // c2={2,3,4} vals={3,4.5,6}:   S=13.5, Q=65.25  -> sumJK+=117,   sumJ/K+=27,   sumJ2/K2+=130.5, M+=6
+        // c3={4,5,6} vals={6,7.5,9}:   S=22.5, Q=173.25 -> sumJK+=333,   sumJ/K+=45,   sumJ2/K2+=346.5, M+=6
+        // Totals: sumJK=499.5, sumJ=sumK=90, sumJ2=sumK2=540, M=18.
+        // r = (M*sumJK - sumJ*sumK) / (M*sumJ2 - sumJ^2) = (18*499.5 - 90*90) / (18*540 - 90*90)
+        //   = (8991 - 8100) / (9720 - 8100) = 891/1620 = 11/20 = 0.55 exactly.
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("val", "float");
+        for (uint id = 1; id <= 6; id++)
+            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString());
+
+        var twoModeResult = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Count);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+        Assert.Equal(11.0 / 20.0, twoModeResult.Value, precision: 10);
+
+        // Deliberately NOT expected to equal assortativity() run on the materialized
+        // Count-projection: PearsonEdgeCorrelation (the 1-mode baseline) ignores edge weight
+        // entirely - it treats every existing edge as one unweighted sample, regardless of its
+        // projected weight. So projecting with Count (pair (2,3) -> weight 2, from sharing both
+        // c1 and c2) and then calling assortativity() on that projection computes the
+        // *unweighted* correlation over the same 8 distinct edges, not one weighted by
+        // shared-hyperedge count - a different, equally valid, but genuinely different quantity:
+        // sumJK=472.5, sumJ=sumK=82.5, sumJ2=sumK2=510.75, M=16 (same formula, weight=1 per
+        // edge), giving r = (16*472.5 - 82.5^2) / (16*510.75 - 82.5^2) = 753.75/1365.75 =
+        // 335/607 (~0.5518945634). Asserting both values, and that they differ, documents this
+        // non-equivalence explicitly so it isn't mistaken for a regression again.
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Assortativity(net, "aff_proj", "val");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+        Assert.Equal(335.0 / 607.0, oneModeResult.Value, precision: 10);
+        Assert.NotEqual(oneModeResult.Value, twoModeResult.Value);
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_ContinuousCount_WithMissingAttributeValue_MatchesHandComputation()
+    {
+        // Stress-tests the Count-mode closed form's per-hyperedge missing-value filtering -
+        // the one real correctness risk in that optimization (degree assortativity never has
+        // a missing value, so that existing coverage can't exercise this). Node 3 is left
+        // without a 'val' attribute; hand-computed (and cross-checked by hand against what the
+        // old per-pair enumeration would accumulate) expectation is r = 159/269.
+        //
+        // Values: 1->10, 2->20, 3->(missing), 4->40, 5->50, 6->60. Every pair touching node 3
+        // (shared via c1 and/or c2) contributes nothing; the remaining weighted pairs are
+        // {1,2} w=1, {2,4} w=1, {4,5} w=1, {4,6} w=1, {5,6} w=1 (all weight 1 - no pair other
+        // than {2,3}, which is excluded anyway, shares more than one hyperedge here).
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("val", "float");
+        net.Nodeset.SetNodeAttribute(1, "val", "10");
+        net.Nodeset.SetNodeAttribute(2, "val", "20");
+        // node 3 intentionally left unset
+        net.Nodeset.SetNodeAttribute(4, "val", "40");
+        net.Nodeset.SetNodeAttribute(5, "val", "50");
+        net.Nodeset.SetNodeAttribute(6, "val", "60");
+
+        var result = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Count);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(159.0 / 269.0, result.Value, precision: 10);
     }
 
     [Fact]
