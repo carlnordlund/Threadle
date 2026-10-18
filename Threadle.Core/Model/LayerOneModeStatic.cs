@@ -245,6 +245,65 @@ namespace Threadle.Core.Model
                 mapper, offsets, finalNeighborIds, finalValues, inOffsets, inNeighborIds);
         }
 
+        /// <summary>
+        /// Builds a symmetric (undirected) static layer directly from a per-node weight
+        /// provider, without ever holding every edge in an intermediate per-node List or a
+        /// global dictionary at once - unlike <see cref="FromValuedNodelistRows"/>/
+        /// <see cref="FromBinaryNodelistRows"/>, which both accumulate a full
+        /// Dictionary&lt;uint, List&lt;...&gt;&gt; of every edge before flattening. Calls
+        /// <paramref name="weightsForNode"/> twice per node - once to size that node's slice
+        /// (via the count of its returned dictionary - the full, both-directions co-affiliate
+        /// set, not just one half), once to fill it - so peak memory is just the final flat
+        /// arrays plus whatever <paramref name="weightsForNode"/> itself holds transiently for
+        /// one node at a time, at roughly twice the time cost of a single pass. Used by
+        /// <see cref="Threadle.Core.Processing.NetworkProcessor.ProjectTwoModeToOneMode"/>'s
+        /// low-memory path.
+        /// </summary>
+        /// <param name="name">The new layer's name.</param>
+        /// <param name="edgeType">Binary or Valued; for Binary, no value array is allocated at
+        /// all (the weights <paramref name="weightsForNode"/> returns are read but discarded).</param>
+        /// <param name="nodeIds">Every node id to include (even those with no edges).</param>
+        /// <param name="weightsForNode">For a given node, its full (both-directions) weight
+        /// toward each co-affiliate - e.g. <see cref="Threadle.Core.Processing.NetworkProcessor"/>'s
+        /// per-node projection helper.</param>
+        internal static LayerOneModeStatic FromPerNodeWeights(string name, EdgeType edgeType, uint[] nodeIds, Func<uint, Dictionary<uint, float>> weightsForNode)
+        {
+            uint[] orderedNodeIds = [.. nodeIds.Order()];
+            int n = orderedNodeIds.Length;
+            var mapper = new Dictionary<uint, int>(n);
+            for (int i = 0; i < n; i++) mapper[orderedNodeIds[i]] = i;
+
+            // Pass 1: size each node's slice (its full co-affiliate count).
+            int[] offsets = new int[n + 1];
+            int running = 0;
+            for (int i = 0; i < n; i++)
+            {
+                offsets[i] = running;
+                running += weightsForNode(orderedNodeIds[i]).Count;
+            }
+            offsets[n] = running;
+
+            // Pass 2: fill each node's own, now-exactly-sized slice directly - no node needs
+            // any other node's slice, since weightsForNode already returns the full adjacency
+            // from that one node's perspective (both directions), matching how an undirected
+            // edge is stored on both endpoints elsewhere in this codebase.
+            uint[] neighborNodeIds = new uint[running];
+            float[]? values = edgeType == EdgeType.Binary ? null : new float[running];
+            for (int i = 0; i < n; i++)
+            {
+                var weights = weightsForNode(orderedNodeIds[i]);
+                int pos = offsets[i];
+                foreach (uint alterId in weights.Keys.Order())
+                {
+                    neighborNodeIds[pos] = alterId;
+                    if (values != null) values[pos] = weights[alterId];
+                    pos++;
+                }
+            }
+
+            return new LayerOneModeStatic(name, EdgeDirectionality.Undirected, edgeType, false, mapper, offsets, neighborNodeIds, values);
+        }
+
         public static LayerOneModeStatic FromDynamic(LayerOneMode source)
         {
             source._sortEdgesets();
@@ -283,7 +342,7 @@ namespace Threadle.Core.Model
             int[]? inOffsets = null;
             uint[]? inNeighborNodeIds = null;
             if (source.IsDirectional)
-                (inOffsets,inNeighborNodeIds) = _buildInboundFromOutbound(mapper, offsets, finalNeighborNodeIds);
+                (inOffsets, inNeighborNodeIds) = _buildInboundFromOutbound(mapper, offsets, finalNeighborNodeIds);
 
 
 
@@ -328,7 +387,7 @@ namespace Threadle.Core.Model
                 return uints;
             }
 
-            if (edgeTraversal== EdgeTraversal.In)
+            if (edgeTraversal == EdgeTraversal.In)
             {
                 if (_inOffsets == null || _inNeighborNodeIds == null)
                     return [];
@@ -341,7 +400,7 @@ namespace Threadle.Core.Model
             // Otherwise, edgetraversal.both: union of out- and in-neighbors (deduplicated)
             int outStart = _offsets[index], outEnd = _offsets[index + 1];
             int inStart = _inOffsets != null ? _inOffsets[index] : 0;
-            int inEnd = _inOffsets != null ? _inOffsets[index+1] : 0;
+            int inEnd = _inOffsets != null ? _inOffsets[index + 1] : 0;
             var result = new HashSet<uint>(outEnd - outStart + inEnd - inStart);
             for (int j = outStart; j < outEnd; j++)
                 result.Add(_neighborNodeIds[j]);
@@ -444,7 +503,7 @@ namespace Threadle.Core.Model
                     break;
                 int i = _nodeIdToIndexMapper[egoId];
                 int start = _offsets[i], end = _offsets[i + 1];
-                if (IsDirectional && skipped + end-start <= offset)
+                if (IsDirectional && skipped + end - start <= offset)
                 {
                     skipped += end - start;
                     continue;
@@ -461,7 +520,7 @@ namespace Threadle.Core.Model
                     if (edges.Count >= limit)
                         return edges;
 
-                    if (skipped<offset)
+                    if (skipped < offset)
                     {
                         skipped++;
                         continue;
@@ -562,7 +621,7 @@ namespace Threadle.Core.Model
             {
                 if (edges.Count >= n)
                     break;
-                int i=_nodeIdToIndexMapper[egoId];
+                int i = _nodeIdToIndexMapper[egoId];
                 int start = _offsets[i], end = _offsets[i + 1];
                 for (int j = start; j < end && edges.Count < n; j++)
                 {

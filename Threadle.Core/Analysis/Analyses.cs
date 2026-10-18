@@ -29,23 +29,31 @@ namespace Threadle.Core.Analysis
         /// runs. resolution behaves as in CommunityDetectionLouvain (this uses the same
         /// resolution-scaled modularity objective, not the CPM objective from the original paper, so
         /// results are directly comparable to Louvain's). Directed layers are symmetrized and
-        /// multiple layers combine via summed edge weight, matching CommunityDetectionLouvain; only
-        /// 1-mode layers are accepted — project 2-mode layers first. Returns a summary with
-        /// NbrCommunities, CommunitySizes (descending), the achieved Modularity score Q, and
-        /// NumRestarts. When numRestarts &gt; 1, runs that many independent restarts in parallel
-        /// across up to 'maxthreads' threads (see 'setting()') and keeps the highest-modularity
-        /// result — a way to escape local optima that a single run can get stuck in. Exact
-        /// reproducibility via randomseed() across restarts is only guaranteed when maxthreads is
-        /// set to 1.
+        /// multiple layers combine via summed edge weight, matching CommunityDetectionLouvain.
+        /// layerNames may instead be a single 2-mode layer on its own, not combined with other
+        /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
+        /// a 1-mode projection; tie strength is always count-weighted, matching
+        /// eigenvectorcentrality()'s convention — no binary option, since deduplicating a pair
+        /// across hyperedges would need the global pairwise structure this is meant to avoid). On
+        /// a 2-mode layer, only the first (hyperedge-direct) level skips the usual refinement step
+        /// — refinement (and its connectivity guarantee) applies normally from the first
+        /// aggregation onward. Returns a summary with NbrCommunities, CommunitySizes (descending),
+        /// the achieved Modularity score Q, and NumRestarts. When numRestarts &gt; 1, runs that
+        /// many independent restarts in parallel across up to 'maxthreads' threads (see
+        /// 'setting()') and keeps the highest-modularity result — a way to escape local optima
+        /// that a single run can get stuck in. Exact reproducibility via randomseed() across
+        /// restarts is only guaranteed when maxthreads is set to 1.
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLeiden(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LeidenCommunitiesTwoMode(nodeIds, twoMode, resolution, randomness, numRestarts)
+                : CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -54,8 +62,12 @@ namespace Threadle.Core.Analysis
         /// specified 1-mode layer(s), storing the community index as an integer node attribute.
         /// Directed layers are symmetrized (arcs in both directions accumulate into an undirected
         /// weight) since modularity optimization is inherently undirected — the same convention
-        /// used by Constraint/EffectiveSize. Multiple layers combine via summed edge weight; only
-        /// 1-mode layers are accepted — project 2-mode layers first.
+        /// used by Constraint/EffectiveSize. Multiple layers combine via summed edge weight.
+        /// layerNames may instead be a single 2-mode layer on its own, not combined with other
+        /// layers (pseudo-projected: traversed node-hyperedge-node directly, without materializing
+        /// a 1-mode projection; tie strength is always count-weighted, matching
+        /// eigenvectorcentrality()'s convention — no binary option, since deduplicating a pair
+        /// across hyperedges would need the global pairwise structure this is meant to avoid).
         /// resolution (default 1.0 = standard modularity) scales the null-model term: values above
         /// 1 favor more, smaller communities; values below 1 favor fewer, larger ones (Reichardt &amp;
         /// Bornholdt 2006). Returns a summary with NbrCommunities, CommunitySizes (descending), the
@@ -67,12 +79,14 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLouvain(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LouvainCommunitiesTwoMode(nodeIds, twoMode, resolution, numRestarts)
+                : CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -84,7 +98,10 @@ namespace Threadle.Core.Analysis
         /// maxIterations passes are reached (a cap is required since, unlike Louvain's local-moving
         /// phase, label propagation has no guarantee of convergence). Directed layers are
         /// symmetrized and multiple layers combine via summed edge weight, matching
-        /// CommunityDetectionLouvain; only 1-mode layers are accepted — project 2-mode layers first.
+        /// CommunityDetectionLouvain. layerNames may instead be a single 2-mode layer on its own,
+        /// not combined with other layers (pseudo-projected: traversed node-hyperedge-node
+        /// directly, without materializing a 1-mode projection; tie strength is always
+        /// count-weighted — no binary option, for the same reason as CommunityDetectionLouvain).
         /// Returns a summary with NbrCommunities, CommunitySizes (descending), the achieved
         /// Modularity score Q of the resulting partition (reported for comparability with other
         /// methods, not something this method optimizes for), and NumRestarts. When numRestarts &gt; 1,
@@ -95,12 +112,14 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLabelPropagation(Network network, string[]? layerNames, string? attrName = null, int maxIterations = 100, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LabelPropagationCommunities(nodeIds, oneModes, maxIterations, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LabelPropagationCommunitiesTwoMode(nodeIds, twoMode, maxIterations, numRestarts)
+                : CommunityFunctions.LabelPropagationCommunities(nodeIds, oneModes, maxIterations, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -116,8 +135,11 @@ namespace Threadle.Core.Analysis
         /// CommunityDetectionLouvain, LPAm runs a single level with no aggregation step afterwards,
         /// so it typically finds more, smaller communities than Louvain since it cannot escape local
         /// optima the same way. Directed layers are symmetrized and multiple layers combine via
-        /// summed edge weight, matching CommunityDetectionLouvain; only 1-mode layers are accepted —
-        /// project 2-mode layers first. Returns a summary with NbrCommunities, CommunitySizes
+        /// summed edge weight, matching CommunityDetectionLouvain. layerNames may instead be a
+        /// single 2-mode layer on its own, not combined with other layers (pseudo-projected:
+        /// traversed node-hyperedge-node directly, without materializing a 1-mode projection; tie
+        /// strength is always count-weighted — no binary option, for the same reason as
+        /// CommunityDetectionLouvain). Returns a summary with NbrCommunities, CommunitySizes
         /// (descending), the achieved Modularity score Q, and NumRestarts. When numRestarts &gt; 1,
         /// runs that many independent restarts in parallel across up to 'maxthreads' threads (see
         /// 'setting()') and keeps the highest-modularity result. Exact reproducibility via
@@ -125,12 +147,14 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null, int numRestarts = 1)
         {
-            if (!TryResolveOneModeLayersForCommunityDetection(network, layerNames, out var oneModes, out var err))
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (communities, modularity) = CommunityFunctions.LPAmCommunities(nodeIds, oneModes, numRestarts);
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.LPAmCommunitiesTwoMode(nodeIds, twoMode, numRestarts)
+                : CommunityFunctions.LPAmCommunities(nodeIds, oneModes, numRestarts);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -206,7 +230,7 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult Eccentricity(Network network, string layerName, string? attrName = null, EdgeTraversal traversal = EdgeTraversal.Out)
         {
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult.Fail(lr.Code, lr.Message);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
@@ -242,7 +266,7 @@ namespace Threadle.Core.Analysis
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
             var diameterResult = sampleSize > 0
@@ -315,146 +339,177 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Computes Burt's constraint for each node in the specified 1-mode layer(s) and stores
-        /// the result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)²
-        /// where p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many
-        /// structural holes) to ~1 (fully embedded in dense clique). Only 1-mode layers are
-        /// accepted — project 2-mode layers first. Burt's formula has no defined treatment of a
-        /// tie from a node to itself, so a layer where selfties are allowed is always refused,
-        /// even if it has none. The per-node O(k²) computation (shared with EffectiveSize) runs
-        /// in parallel across up to 'maxthreads' threads (see 'setting()').
-        /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
+        /// Resolves layerNames (or, if null, every layer in the network) for Constraint/
+        /// EffectiveSize: any number of 1-mode layers without selfties, or exactly one 2-mode
+        /// layer on its own (pseudo-projected: traversed node-hyperedge-node directly, without
+        /// materializing a 1-mode projection) — a 2-mode layer cannot be combined with any other
+        /// layer, since the exact multilayer tie-strength combination (<see
+        /// cref="LocalStructureFunctions.StructuralHoles"/>) is only defined across 1-mode layers.
         /// </summary>
-        public static OperationResult Constraint(Network network, string[]? layerNames, string? attrName = null)
+        private static OperationResult ResolveStructuralHolesLayers(Network network, string[]? layerNames, string metricName, out List<ILayerOneMode> oneModes, out ILayer? twoMode)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+            oneModes = [];
+            twoMode = null;
+            string? twoModeLayerName = null;
 
-            List<ILayerOneMode> oneModes = [];
+            IEnumerable<KeyValuePair<string, ILayer>> candidates;
             if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Constraint requires 1-mode layers — use projecttwomodetoonemode() first.");
-                    if (layer is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's constraint has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
+                candidates = network.Layers;
             else
             {
+                var list = new List<KeyValuePair<string, ILayer>>(layerNames.Length);
                 foreach (string name in layerNames)
                 {
                     var lr = network.GetLayer(name);
                     if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
+                    list.Add(new(name, lr.Value!));
+                }
+                candidates = list;
+            }
+
+            foreach (var (name, layer) in candidates)
+            {
+                if (layer is ILayerTwoMode)
+                {
+                    if (twoMode != null || oneModes.Count > 0)
                         return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Constraint requires 1-mode layers.");
-                    if (lr.Value is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's constraint has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
+                            $"Layer '{name}' is a 2-mode layer. {metricName} supports a single 2-mode layer on its own (with samplesize > 0), not combined with other layers.");
+                    twoMode = layer;
+                    twoModeLayerName = name;
+                }
+                else if (layer is ILayerOneMode lom)
+                {
+                    if (twoMode != null)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 1-mode layer, but 2-mode layer '{twoModeLayerName}' was already specified. {metricName} supports a single 2-mode layer on its own, not combined with other layers.");
+                    if (lom.Selfties)
+                        return OperationResult.Fail("LayerAllowsSelfties",
+                            $"Layer '{name}' allows selfties. Burt's {metricName.ToLowerInvariant()} has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
+                    oneModes.Add(lom);
                 }
             }
-            if (oneModes.Count == 0)
-                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+
+            if (twoMode == null && oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No layers found.");
+            return OperationResult.Ok();
+        }
+
+        /// <summary>
+        /// Computes Burt's constraint for each node in the specified layer(s) and stores the
+        /// result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)² where
+        /// p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many structural
+        /// holes) to ~1 (fully embedded in dense clique). Accepts any number of 1-mode layers, or
+        /// a single 2-mode layer on its own (pseudo-projected: traversed node-hyperedge-node
+        /// directly, without materializing a 1-mode projection; tie strength is the
+        /// count-weighted shared-hyperedge count). Because a 2-mode ego network is every
+        /// co-member and the per-ego cost grows with the square of that count, a 2-mode layer
+        /// requires samplesize > 0: only that many randomly sampled nodes get an (exact, not
+        /// approximated) value, and all others are left unset. Burt's formula has no defined
+        /// treatment of a tie from a node to itself, so a 1-mode layer where selfties are allowed
+        /// is always refused, even if it has none. The per-node O(k²) computation (shared with
+        /// EffectiveSize) runs in parallel across up to 'maxthreads' threads (see 'setting()').
+        /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
+        /// </summary>
+        public static OperationResult Constraint(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0)
+        {
+            if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            var resolved = ResolveStructuralHolesLayers(network, layerNames, "Constraint", out var oneModes, out var twoMode);
+            if (!resolved.Success)
+                return OperationResult.Fail(resolved.Code, resolved.Message);
 
             string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
             attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "constraint";
 
-            uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (c, _) = LocalStructureFunctions.StructuralHoles(nodeIds, oneModes);
+            Dictionary<uint, double> c;
+            if (twoMode != null)
+            {
+                if (sampleSize <= 0)
+                    return OperationResult.Fail("SampleSizeRequired",
+                        "Constraint on a 2-mode layer requires samplesize > 0: a 2-mode ego network's cost grows with the square of its (potentially large) projected degree, so an exact value for every node isn't offered.");
+                uint[] sampledIds = CentralityFunctions.SampleNodes(network.Nodeset.NodeIdArray, sampleSize);
+                (c, _) = LocalStructureFunctions.StructuralHolesSampledTwoMode(sampledIds, twoMode);
+            }
+            else
+            {
+                (c, _) = LocalStructureFunctions.StructuralHoles(network.Nodeset.NodeIdArray, oneModes);
+            }
             var attrDict = c.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
         }
 
         /// <summary>
-        /// Computes Burt's effective size for each node in the specified 1-mode layer(s) and stores
-        /// the result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj,
-        /// measuring the number of non-redundant contacts. Higher values indicate more structural
-        /// holes around the ego. Only 1-mode layers are accepted — project 2-mode layers first.
-        /// Burt's formula has no defined treatment of a tie from a node to itself, so a layer
+        /// Computes Burt's effective size for each node in the specified layer(s) and stores the
+        /// result as a float node attribute. Effective size = k - Σ_j Σ_{q≠j} p_ij p_qj, measuring
+        /// the number of non-redundant contacts. Higher values indicate more structural holes
+        /// around the ego. Accepts any number of 1-mode layers, or a single 2-mode layer on its
+        /// own (pseudo-projected: traversed node-hyperedge-node directly, without materializing a
+        /// 1-mode projection; tie strength is the count-weighted shared-hyperedge count). Because
+        /// a 2-mode ego network is every co-member and the per-ego cost grows with the square of
+        /// that count, a 2-mode layer requires samplesize > 0: only that many randomly sampled
+        /// nodes get an (exact, not approximated) value, and all others are left unset. Burt's
+        /// formula has no defined treatment of a tie from a node to itself, so a 1-mode layer
         /// where selfties are allowed is always refused, even if it has none. The per-node O(k²)
         /// computation (shared with Constraint) runs in parallel across up to 'maxthreads'
         /// threads (see 'setting()').
         /// Reference: Burt (1992) Structural Holes; Burt (2004) doi:10.1086/421787.
         /// </summary>
-        public static OperationResult EffectiveSize(Network network, string[]? layerNames, string? attrName = null)
+        public static OperationResult EffectiveSize(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult.Fail("NodesMissing", "Network has no nodes.");
 
-            List<ILayerOneMode> oneModes = [];
-            if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Effective size requires 1-mode layers — use projecttwomodetoonemode() first.");
-                    if (layer is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's effective size has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
-            else
-            {
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Effective size requires 1-mode layers.");
-                    if (lr.Value is ILayerOneMode lom)
-                    {
-                        if (lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Burt's effective size has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
-            if (oneModes.Count == 0)
-                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+            var resolved = ResolveStructuralHolesLayers(network, layerNames, "EffectiveSize", out var oneModes, out var twoMode);
+            if (!resolved.Success)
+                return OperationResult.Fail(resolved.Code, resolved.Message);
 
             string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
             attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "effectivesize";
 
-            uint[] nodeIds = network.Nodeset.NodeIdArray;
-            var (_, es) = LocalStructureFunctions.StructuralHoles(nodeIds, oneModes);
+            Dictionary<uint, double> es;
+            if (twoMode != null)
+            {
+                if (sampleSize <= 0)
+                    return OperationResult.Fail("SampleSizeRequired",
+                        "EffectiveSize on a 2-mode layer requires samplesize > 0: a 2-mode ego network's cost grows with the square of its (potentially large) projected degree, so an exact value for every node isn't offered.");
+                uint[] sampledIds = CentralityFunctions.SampleNodes(network.Nodeset.NodeIdArray, sampleSize);
+                (_, es) = LocalStructureFunctions.StructuralHolesSampledTwoMode(sampledIds, twoMode);
+            }
+            else
+            {
+                (_, es) = LocalStructureFunctions.StructuralHoles(network.Nodeset.NodeIdArray, oneModes);
+            }
             var attrDict = es.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
         }
 
         /// <summary>
         /// Degree assortativity (Newman 2002): Pearson correlation between the degrees
-        /// of connected node pairs. For directed layers uses out-degree of source and
-        /// in-degree of target; for undirected uses degree of both endpoints.
+        /// of connected node pairs. For directed (1-mode) layers uses out-degree of source and
+        /// in-degree of target; for undirected (1-mode) layers uses degree of both endpoints.
+        /// For a 2-mode layer (pseudo-projected: traversed node-hyperedge-node directly, without
+        /// materializing a 1-mode projection), degree is always the existing binary projected
+        /// degree (number of distinct co-affiliates, matching degree()'s own 2-mode convention),
+        /// and 'projection' controls only how a pair of co-affiliates is counted: 'binary'
+        /// (default) counts a pair once regardless of how many hyperedges it shares; 'count'
+        /// counts it once per shared hyperedge, matching getedge()'s count-weighted projection.
         /// Returns a value in [-1, 1]: positive = hubs connect to hubs,
         /// negative = hubs connect to low-degree nodes.
         /// </summary>
-        public static OperationResult<double> DegreeAssortativity(Network network, string layerName)
+        public static OperationResult<double> DegreeAssortativity(Network network, string layerName, ProjectionMethod projection = ProjectionMethod.Binary)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<double>.Fail(lr.Code, lr.Message);
-            double r = NetworkLevelFunctions.DegreeAssortativity(network.Nodeset.NodeIdArray, lr.Value!);
+            if (projection == ProjectionMethod.Newman)
+                return OperationResult<double>.Fail("InvalidProjection", "DegreeAssortativity only supports the 'binary' or 'count' projection method.");
+
+            double r = lr.Value is ILayerOneMode oneMode
+                ? NetworkLevelFunctions.DegreeAssortativity(network.Nodeset.NodeIdArray, oneMode)
+                : NetworkLevelFunctions.DegreeAssortativityTwoMode(network.Nodeset.NodeIdArray, lr.Value!, projection);
             return OperationResult<double>.Ok(r);
         }
 
@@ -462,15 +517,22 @@ namespace Threadle.Core.Analysis
         /// Attribute assortativity (Newman 2003): tendency of connected nodes to share
         /// the same value of a node attribute. For Float/Int attributes uses Pearson
         /// correlation; for Char/String/Bool uses the nominal mixing formula.
+        /// For a 2-mode layer (pseudo-projected: traversed node-hyperedge-node directly, without
+        /// materializing a 1-mode projection), 'projection' controls how a pair of co-affiliates
+        /// is counted: 'binary' (default) counts a pair once regardless of how many hyperedges it
+        /// shares; 'count' counts it once per shared hyperedge, matching getedge()'s
+        /// count-weighted projection.
         /// Returns a value in [-1, 1]. Nodes with missing attribute values are skipped.
         /// </summary>
-        public static OperationResult<double> Assortativity(Network network, string layerName, string attrName)
+        public static OperationResult<double> Assortativity(Network network, string layerName, string attrName, ProjectionMethod projection = ProjectionMethod.Binary)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<double>.Fail(lr.Code, lr.Message);
+            if (projection == ProjectionMethod.Newman)
+                return OperationResult<double>.Fail("InvalidProjection", "Assortativity only supports the 'binary' or 'count' projection method.");
 
             if (!network.Nodeset.NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult<double>.Fail("AttributeUnknown", $"Attribute '{attrName}' not found.");
@@ -483,6 +545,7 @@ namespace Threadle.Core.Analysis
                 return OperationResult<double>.Fail(rawResult.Code, rawResult.Message);
             var raw = rawResult.Value!;
 
+            bool isOneMode = lr.Value is ILayerOneMode;
             double r;
             if (attrType == NodeAttributeType.Float || attrType == NodeAttributeType.Int)
             {
@@ -490,32 +553,44 @@ namespace Threadle.Core.Analysis
                 foreach (var (id, obj) in raw)
                     if (obj != null)
                         vals[id] = attrType == NodeAttributeType.Int ? (double)(int)obj : (double)(float)obj;
-                r = NetworkLevelFunctions.ContinuousAssortativity(lr.Value!, vals);
+                r = isOneMode
+                    ? NetworkLevelFunctions.ContinuousAssortativity((ILayerOneMode)lr.Value!, vals)
+                    : NetworkLevelFunctions.ContinuousAssortativityTwoMode(lr.Value!, vals, vals, nodeIds, projection);
             }
             else
             {
                 var cats = new Dictionary<uint, string>(raw.Count);
                 foreach (var (id, obj) in raw)
                     if (obj != null) cats[id] = obj.ToString()!;
-                r = NetworkLevelFunctions.CategoricalAssortativity(lr.Value!, cats);
+                r = isOneMode
+                    ? NetworkLevelFunctions.CategoricalAssortativity((ILayerOneMode)lr.Value!, cats)
+                    : NetworkLevelFunctions.CategoricalAssortativityTwoMode(lr.Value!, cats, nodeIds, projection);
             }
 
             return OperationResult<double>.Ok(r);
         }
 
         /// <summary>
-        /// Computes the MAN dyad census and reciprocity measures for a single 1-mode layer.
-        /// Returns counts of Mutual, Asymmetric and Null dyads plus ArcReciprocity and
-        /// DyadicReciprocity. Undirected layers are accepted: all non-null dyads are Mutual.
+        /// Computes the MAN dyad census and reciprocity measures for a single layer. Returns
+        /// counts of Mutual, Asymmetric and Null dyads plus ArcReciprocity and DyadicReciprocity.
+        /// Undirected (1-mode) layers are accepted: all non-null dyads are Mutual. A 2-mode layer
+        /// (pseudo-projected: traversed node-hyperedge-node directly, without materializing a
+        /// 1-mode projection) is likewise accepted and, since an affiliation has no direction, is
+        /// trivially all-mutual (Asymmetric is always 0, ArcReciprocity and DyadicReciprocity are
+        /// 1.0 whenever any Mutual dyad exists) - Mutual is the exact count of distinct pairs
+        /// sharing at least one hyperedge (binary projected degree, summed over all nodes and
+        /// divided by two).
         /// </summary>
         public static OperationResult<Dictionary<string, object>> DyadCensus(Network network, string layerName)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
-            var result = NetworkLevelFunctions.DyadCensus(network.Nodeset.NodeIdArray, lr.Value!);
+            var result = lr.Value is ILayerOneMode oneMode
+                ? NetworkLevelFunctions.DyadCensus(network.Nodeset.NodeIdArray, oneMode)
+                : NetworkLevelFunctions.DyadCensusTwoMode(network.Nodeset.NodeIdArray, lr.Value!);
             return OperationResult<Dictionary<string, object>>.Ok(result);
         }
 
@@ -887,20 +962,56 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Computes summary statistics (Mean, Median, StdDev, Min, Max, Q1, Q3) over the edge values
-        /// of a valued 1-mode layer, using the same statistics machinery as GetAttributeSummary.
+        /// For a valued 1-mode layer: computes summary statistics (Mean, Median, StdDev, Min, Max,
+        /// Q1, Q3) over the edge values, using the same statistics machinery as GetAttributeSummary.
         /// Requires a valued layer — a binary layer has no varying values to summarize. For symmetric
-        /// (undirected) layers, each edge is counted once, not once per endpoint.
+        /// (undirected) layers, each edge is counted once, not once per endpoint. Returns Mean,
+        /// Median, StdDev, Min, Max, Q1, Q3, LayerName and EdgeCount.
+        /// For a 2-mode layer (pseudo-projected: no projection is performed here) instead computes
+        /// the same Mean/Median/StdDev/Min/Max/Q1/Q3 statistics over hyperedge *sizes*, plus
+        /// LayerName, NbrHyperedges, NbrAffiliations, and two numbers meant to help decide whether
+        /// projecttwomode() is memory-feasible before calling it: EstimatedProjectedEdgesUpperBound
+        /// (Σ k_h·(k_h−1)/2 over all hyperedges — a safe upper bound on the number of distinct
+        /// projected edges, computed in one O(hyperedge count) pass with no pair enumeration, and
+        /// dominated by the single largest hyperedge since its own contribution grows with the
+        /// square of its size) and EstimatedProjectionMemoryBytes (that bound times a deliberately
+        /// conservative, rounded per-edge byte constant derived from Threadle's actual storage:
+        /// projecttwomode() builds the projected layer directly, one node's co-affiliates at a
+        /// time (no global dictionary of every pair held in memory at once), so its peak is just
+        /// the finished layer's own size — an 8-byte Connection struct stored on both endpoints
+        /// for a valued/count projection, plus List growth slack from that incremental build).
+        /// Both of these are order-of-magnitude estimates, not precise predictions — treat them
+        /// as a smell test, not a guarantee.
         /// </summary>
         /// <param name="network">The Network structure.</param>
-        /// <param name="layerName">The name of the (valued) 1-mode layer.</param>
-        /// <returns>An <see cref="OperationResult"/> with Mean, Median, StdDev, Min, Max, Q1, Q3, LayerName and EdgeCount.</returns>
+        /// <param name="layerName">The name of the layer (1-mode valued, or 2-mode).</param>
+        /// <returns>An <see cref="OperationResult"/> with the fields described above.</returns>
         public static OperationResult<Dictionary<string, object>> GetLayerStats(Network network, string layerName)
         {
-            var lr = network.GetOneModeLayerForRead(layerName);
+            var lr = network.GetLayer(layerName);
             if (!lr.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
-            ILayerOneMode layer = lr.Value!;
+
+            if (lr.Value is ILayerTwoMode twoModeLayer)
+            {
+                List<float> sizes = [];
+                double sumKChooseTwo = 0.0;
+                foreach (var (_, memberIds) in twoModeLayer.GetAllHyperedgeData())
+                {
+                    int k = memberIds.Length;
+                    sizes.Add(k);
+                    sumKChooseTwo += (double)k * (k - 1) / 2.0;
+                }
+                var twoModeStats = Functions.CalculateValueStatistics(sizes);
+                twoModeStats["LayerName"] = layerName;
+                twoModeStats["NbrHyperedges"] = sizes.Count;
+                twoModeStats["NbrAffiliations"] = twoModeLayer.NbrAffiliations;
+                twoModeStats["EstimatedProjectedEdgesUpperBound"] = sumKChooseTwo;
+                twoModeStats["EstimatedProjectionMemoryBytes"] = sumKChooseTwo * 25.0;
+                return OperationResult<Dictionary<string, object>>.Ok(twoModeStats);
+            }
+
+            ILayerOneMode layer = (ILayerOneMode)lr.Value!;
             if (!layer.IsValued)
                 return OperationResult<Dictionary<string, object>>.Fail("LayerNotValued", $"Layer '{layerName}' is binary — getlayerstats() requires a valued layer.");
 
@@ -1556,6 +1667,82 @@ namespace Threadle.Core.Analysis
             if (oneModes.Count == 0)
             {
                 error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No 1-mode layers found.");
+                return false;
+            }
+            error = null;
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves layerNames for CommunityDetectionLouvain/Leiden/LabelPropagation/LPAm: any
+        /// number of 1-mode layers (as <see cref="TryResolveOneModeLayersForCommunityDetection"/>
+        /// accepts), or a single 2-mode layer on its own, pseudo-projected (traversed
+        /// node-hyperedge-node directly, without materializing a 1-mode projection; tie strength
+        /// is always count-weighted — see <see cref="CommunityFunctions"/>'s "2-mode community
+        /// detection" remarks for why no projection= parameter is offered). A 2-mode layer cannot
+        /// be combined with other layers. CommunityDetectionGirvanNewman keeps using the stricter
+        /// <see cref="TryResolveOneModeLayersForCommunityDetection"/>, since it has no 2-mode
+        /// counterpart (edge betweenness has no hyperedge analogue).
+        /// </summary>
+        private static bool TryResolveLayersForCommunityDetection(Network network, string[]? layerNames,
+            out List<ILayerOneMode> oneModes, out ILayerTwoMode? twoMode, out OperationResult<Dictionary<string, object>>? error)
+        {
+            oneModes = [];
+            twoMode = null;
+            if (network.Nodeset.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
+                return false;
+            }
+
+            string? twoModeLayerName = null;
+            IEnumerable<KeyValuePair<string, ILayer>> candidates;
+            if (layerNames == null)
+                candidates = network.Layers;
+            else
+            {
+                var list = new List<KeyValuePair<string, ILayer>>(layerNames.Length);
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
+                        return false;
+                    }
+                    list.Add(new(name, lr.Value!));
+                }
+                candidates = list;
+            }
+
+            foreach (var (name, layer) in candidates)
+            {
+                if (layer is ILayerTwoMode ltm)
+                {
+                    if (twoMode != null || oneModes.Count > 0)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. Community detection supports a single 2-mode layer on its own, not combined with other layers.");
+                        return false;
+                    }
+                    twoMode = ltm;
+                    twoModeLayerName = name;
+                }
+                else if (layer is ILayerOneMode lom)
+                {
+                    if (twoMode != null)
+                    {
+                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 1-mode layer, but 2-mode layer '{twoModeLayerName}' was already specified. Community detection supports a single 2-mode layer on its own, not combined with other layers.");
+                        return false;
+                    }
+                    oneModes.Add(lom);
+                }
+            }
+
+            if (twoMode == null && oneModes.Count == 0)
+            {
+                error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No layers found.");
                 return false;
             }
             error = null;

@@ -507,7 +507,25 @@ namespace Threadle.Core.Processing
             return newLayer;
         }
 
-        public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName)
+        /// <summary>
+        /// Projects a 2-mode layer to a 1-mode layer. <paramref name="lowMemory"/> (default
+        /// false) picks between two construction strategies with the same result but different
+        /// time/memory profiles:
+        /// - false (default): a single pass, building a dynamic <see cref="LayerOneMode"/>
+        ///   directly. Peak memory is the finished layer (with ordinary List growth slack) plus
+        ///   one node's transient projected weights at a time.
+        /// - true: two passes (<see cref="LayerOneModeStatic.FromPerNodeWeights"/>), building a
+        ///   packed, static <see cref="LayerOneModeStatic"/> directly - no dynamic layer is ever
+        ///   built. Peak memory is just the exactly-sized final flat arrays plus one node's
+        ///   transient weights at a time (no List growth slack at all), at roughly twice the
+        ///   time cost, since computing a node's projected weights is done twice (once to size
+        ///   its slice, once to fill it). Worth it specifically when the projected layer itself
+        ///   is expected to be large (see getlayerstats()'s EstimatedProjectedEdgesUpperBound/
+        ///   EstimatedProjectionMemoryBytes on the source 2-mode layer) and the steady-state
+        ///   memory of the packed result also matters, not just getting through projection
+        ///   itself without the peak that building-then-packing would still hit.
+        /// </summary>
+        public static OperationResult ProjectTwoModeToOneMode(Network network, string layerName, ProjectionMethod method, string newLayerName, bool lowMemory = false)
         {
             if (!network.Layers.ContainsKey(layerName))
                 return OperationResult.Fail("LayerNotFound", $"Layer '{layerName}' does not exist in network '{network.Name}'.");
@@ -516,40 +534,63 @@ namespace Threadle.Core.Processing
             if (network.Layers.ContainsKey(newLayerName))
                 return OperationResult.Fail("LayerAlreadyExists", $"Layer '{newLayerName}' already exists in network '{network.Name}'.");
 
-            // A hyperedge's membership is conceptually a set; a duplicate node id within one
-            // (which shouldn't occur, but importers aren't all guaranteed to de-duplicate) would
-            // otherwise create a spurious self-loop and inflate the weight/count of a real edge.
-            Dictionary<(uint, uint), float> projectedEdges = [];
-            if (method == ProjectionMethod.Count || method == ProjectionMethod.Newman)
-                foreach ((string hypername, uint[] rawNodeIds) in originalLayer.GetAllHyperedgeData())
-                {
-                    uint[] nodeIds = rawNodeIds.Distinct().ToArray();
-                    for (int i = 0; i < nodeIds.Length; i++)
-                        for (int j = i + 1; j < nodeIds.Length; j++)
-                        {
-                            var key = (Math.Min(nodeIds[i], nodeIds[j]), Math.Max(nodeIds[i], nodeIds[j]));
-                            projectedEdges[key] = projectedEdges.GetValueOrDefault(key) + 1f / (method == ProjectionMethod.Count ? 1f : (nodeIds.Length - 1));
-                        }
-                }
-            else if (method == ProjectionMethod.Binary)
-                foreach ((string hypername, uint[] rawNodeIds) in originalLayer.GetAllHyperedgeData())
-                {
-                    uint[] nodeIds = rawNodeIds.Distinct().ToArray();
-                    for (int i = 0; i < nodeIds.Length; i++)
-                        for (int j = i + 1; j < nodeIds.Length; j++)
-                        {
-                            var key = (Math.Min(nodeIds[i], nodeIds[j]), Math.Max(nodeIds[i], nodeIds[j]));
-                            projectedEdges.TryAdd(key, 1f);
-                        }
-                }
+            EdgeType edgeType = (method == ProjectionMethod.Binary) ? EdgeType.Binary : EdgeType.Valued;
 
-            LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, (method == ProjectionMethod.Binary) ? EdgeType.Binary : EdgeType.Valued, false);
-            foreach (var ((node1, node2), value) in projectedEdges)
-                newLayer._addEdge(node1, node2, value);
-            network.AddLayer(newLayerName, newLayer);
+            if (lowMemory)
+            {
+                LayerOneModeStatic newStaticLayer = LayerOneModeStatic.FromPerNodeWeights(
+                    newLayerName, edgeType, network.Nodeset.NodeIdArray,
+                    u => GetProjectedWeightsForNode(originalLayer, u, method));
+                network.AddLayer(newLayerName, newStaticLayer);
+            }
+            else
+            {
+                // Computed per-node (GetProjectedWeightsForNode) rather than via one global
+                // dictionary of every distinct pair: each unordered pair is still written exactly
+                // once (only when v > u), so total work stays the same, but peak memory is now
+                // just the finished layer plus one node's transient weights at a time, instead of
+                // the finished layer coexisting with a dictionary holding every pair at once.
+                LayerOneMode newLayer = new LayerOneMode(newLayerName, EdgeDirectionality.Undirected, edgeType, false);
+                foreach (uint u in network.Nodeset.NodeIdArray)
+                {
+                    var weights = GetProjectedWeightsForNode(originalLayer, u, method);
+                    foreach (var (v, w) in weights)
+                        if (v > u)
+                            newLayer._addEdge(u, v, w);
+                }
+                network.AddLayer(newLayerName, newLayer);
+            }
             return OperationResult.Ok($"Projected layer '{layerName}' and stored it as new layer '{newLayerName}', all in network '{network.Name}'.");
         }
 
+        /// <summary>
+        /// Computes, for a single node, its projected-edge weight toward each of its
+        /// co-affiliates under the given projection method — the same per-hyperedge formula
+        /// <see cref="ProjectTwoModeToOneMode"/> applies, just reorganized per-node so the caller
+        /// never needs to hold every projected pair in memory at once. Each hyperedge's member
+        /// list is de-duplicated first: a duplicate node id within one hyperedge's row shouldn't
+        /// occur, but importers aren't all guaranteed to de-duplicate, and this would otherwise
+        /// create a spurious self-loop or inflate a real edge's weight/count.
+        /// </summary>
+        private static Dictionary<uint, float> GetProjectedWeightsForNode(ILayerTwoMode layer, uint nodeId, ProjectionMethod method)
+        {
+            Dictionary<uint, float> weights = [];
+            foreach (var (_, memberIdsMem) in layer.GetNodeHyperedgesWithMembers(nodeId))
+            {
+                HashSet<uint> members = [];
+                foreach (uint m in memberIdsMem.Span)
+                    members.Add(m);
+                float contribution = method == ProjectionMethod.Newman ? 1f / (members.Count - 1) : 1f;
+                foreach (uint v in members)
+                {
+                    if (v == nodeId) continue;
+                    weights[v] = method == ProjectionMethod.Binary
+                        ? 1f
+                        : weights.GetValueOrDefault(v) + contribution;
+                }
+            }
+            return weights;
+        }
 
         /// <summary>
         /// Creates a new Network object based on the provided network that instead uses the provided Nodeset, thus

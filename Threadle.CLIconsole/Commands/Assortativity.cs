@@ -3,6 +3,7 @@ using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
+using Threadle.Core.Model.Enums;
 
 namespace Threadle.CLIconsole.Commands
 {
@@ -14,12 +15,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "assortativity(network=[var:network], layername=[str], attrname=[str])";
+        public string Syntax => "assortativity(network=[var:network], layername=[str], attrname=[str], *projection=['binary'(default),'count'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Computes attribute assortativity (homophily): the tendency of connected nodes to share similar values of a node attribute. For numeric attributes (Int, Float) uses Pearson correlation; for categorical attributes (Char, String, Bool) uses Newman's nominal mixing formula. Returns a value in [-1, 1]: positive = nodes prefer similar others, negative = nodes prefer dissimilar others. Nodes with missing attribute values are skipped. Reference: Newman (2003) doi:10.1103/PhysRevE.67.026126.";
+        public string Description => "Computes attribute assortativity (homophily): the tendency of connected nodes to share similar values of a node attribute. For numeric attributes (Int, Float) uses Pearson correlation; for categorical attributes (Char, String, Bool) uses Newman's nominal mixing formula. Returns a value in [-1, 1]: positive = nodes prefer similar others, negative = nodes prefer dissimilar others. Nodes with missing attribute values are skipped. Layername may be a 1-mode or a 2-mode layer (pseudo-projected: traversed node-hyperedge-node directly, without materializing a 1-mode projection). For a 2-mode layer, 'projection' controls how a pair of co-affiliates is counted: 'binary' (default) counts a pair once regardless of how many hyperedges it shares; 'count' counts it once per shared hyperedge, matching getedge()'s count-weighted projection. 'projection' is ignored for 1-mode layers. Reference: Newman (2003) doi:10.1103/PhysRevE.67.026126.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -37,7 +38,8 @@ namespace Threadle.CLIconsole.Commands
                 return commandResult;
             string layerName = command.GetArgumentThrowExceptionIfMissingOrNull("layername", "arg1");
             string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg2");
-            var result = Analyses.Assortativity(network, layerName, attrName);
+            ProjectionMethod projection = command.GetArgumentParseEnum<ProjectionMethod>("projection", ProjectionMethod.Binary);
+            var result = Analyses.Assortativity(network, layerName, attrName, projection);
             return CommandResult.FromOperationResult(result, result.Value);
         }
     }

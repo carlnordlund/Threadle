@@ -1,6 +1,7 @@
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Tests;
@@ -504,14 +505,55 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void GetLayerStats_TwoModeLayer_Fails()
+    public void GetLayerStats_TwoModeLayer_ComputesHyperedgeSizeStatsAndProjectionEstimate()
     {
-        var net = MakeNetwork(3);
+        // Hyperedges of size 2, 3, 4 (nodes 1-4 reused across them). Hand-computed:
+        // sizes = [2,3,4] -> Mean=3, Median=3, Min=2, Max=4.
+        // Sigma k*(k-1)/2 = 1 + 3 + 6 = 10 -> EstimatedProjectedEdgesUpperBound = 10,
+        // EstimatedProjectionMemoryBytes = 10 * 25 = 250.
+        // NbrAffiliations = 2+3+4 = 9 (sum of hyperedge sizes).
+        var net = MakeNetwork(4);
         net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c3", new uint[] { 1, 2, 3, 4 });
 
         var result = Analyses.GetLayerStats(net, "clubs");
 
-        Assert.False(result.Success);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(3, (int)result.Value!["NbrHyperedges"]);
+        Assert.Equal(9L, (long)result.Value!["NbrAffiliations"]);
+        Assert.Equal(3.0, (double)result.Value!["Mean"], precision: 5);
+        Assert.Equal(3.0, (double)result.Value!["Median"], precision: 5);
+        Assert.Equal(2.0f, (float)result.Value!["Min"]);
+        Assert.Equal(4.0f, (float)result.Value!["Max"]);
+        Assert.Equal(10.0, (double)result.Value!["EstimatedProjectedEdgesUpperBound"], precision: 5);
+        Assert.Equal(250.0, (double)result.Value!["EstimatedProjectionMemoryBytes"], precision: 5);
+    }
+
+    [Fact]
+    public void GetLayerStats_TwoModeLayer_MatchesActualProjectedEdgeCountAsUpperBound()
+    {
+        // The upper bound must never undercount the real materialized projection's edge count:
+        // here, nodes {1,2,3} share both c1 and c2, so the true distinct-pair count (3, from the
+        // 3-member union) is strictly less than the naive per-hyperedge sum (3 + 3 = 6) used by
+        // the bound - confirming the bound is safe (>=) rather than exact.
+        var net = MakeNetwork(4);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 1, 2, 3 });
+
+        var statsResult = Analyses.GetLayerStats(net, "clubs");
+        Assert.True(statsResult.Success, statsResult.Message);
+        double upperBound = (double)statsResult.Value!["EstimatedProjectedEdgesUpperBound"];
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Count, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var projLayer = (ILayerOneMode)net.Layers["clubs_proj"];
+
+        Assert.Equal(6.0, upperBound, precision: 5); // 3 + 3, double-counting the shared pair
+        Assert.Equal(3L, (long)projLayer.NbrEdges); // actual distinct pairs: (1,2), (1,3), (2,3)
+        Assert.True(upperBound >= projLayer.NbrEdges);
     }
 
     // ── DegreeCentralities: static (packed) layers ───────────────────────────────
@@ -1514,6 +1556,34 @@ public class AnalysesTests
         Assert.Equal(3L, (long)result.Value!["Total"]);
     }
 
+    [Fact]
+    public void DyadCensus_TwoModeLayer_MatchesOneModeProjection()
+    {
+        // Pseudo-projected (2-mode) dyad census must equal the dyad census computed on the
+        // materialized binary projection of the same hyperedges: trivially all-mutual either way,
+        // since an affiliation (like an undirected 1-mode tie) has no direction.
+        var net = MakeNetwork(5);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4 });
+        // node 5 stays isolated
+
+        var twoModeResult = Analyses.DyadCensus(net, "clubs");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.DyadCensus(net, "clubs_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((long)oneModeResult.Value!["Mutual"], (long)twoModeResult.Value!["Mutual"]);
+        Assert.Equal((long)oneModeResult.Value!["Null"], (long)twoModeResult.Value!["Null"]);
+        Assert.Equal((long)oneModeResult.Value!["Total"], (long)twoModeResult.Value!["Total"]);
+        Assert.Equal(0L, (long)twoModeResult.Value!["Asymmetric"]);
+        Assert.Equal(1.0, (double)twoModeResult.Value!["ArcReciprocity"], precision: 10);
+        Assert.Equal(1.0, (double)twoModeResult.Value!["DyadicReciprocity"], precision: 10);
+    }
+
     // ── CommunityDetectionLouvain ────────────────────────────────────────────────────
 
     [Fact]
@@ -1650,14 +1720,37 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetectionLouvain_TwoModeLayer_Fails()
+    public void CommunityDetectionLouvain_TwoModeLayer_MatchesCountProjection()
     {
-        var net = MakeNetwork(3);
-        net.AddLayerTwoMode("clubs");
+        // Pseudo-projected (2-mode) Louvain's tie strength is always count-weighted, so its
+        // achieved modularity should match running Louvain on the materialized count projection
+        // of the same hyperedges. Compare modularity Q (not the raw partition), since RNG-driven
+        // tie-breaking can land on differently-labeled but equally-optimal partitions; numRestarts
+        // on both sides makes both runs converge to the same (for this small network, global)
+        // optimum.
+        var net = MakeAssortativityTwoModeNetwork();
 
-        var result = Analyses.CommunityDetectionLouvain(net, new[] { "clubs" });
+        var twoModeResult = Analyses.CommunityDetectionLouvain(net, new[] { "aff" }, "c_2mode", numRestarts: 10);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLouvain(net, new[] { "aff_proj" }, "c_proj", numRestarts: 10);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLouvain_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLouvain(net, new[] { "aff", "other" });
         Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
     }
 
     [Fact]
@@ -1783,6 +1876,38 @@ public class AnalysesTests
     }
 
     [Fact]
+    public void CommunityDetectionLeiden_TwoModeLayer_MatchesCountProjection()
+    {
+        // Same equivalence check as Louvain: pseudo-projected (2-mode) Leiden's achieved
+        // modularity should match running Leiden on the materialized count projection of the
+        // same hyperedges (Leiden's refinement runs normally from the first aggregation onward,
+        // so there is no further 2-mode-specific divergence to account for once past level 0).
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.CommunityDetectionLeiden(net, new[] { "aff" }, "c_2mode", numRestarts: 10);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLeiden(net, new[] { "aff_proj" }, "c_proj", numRestarts: 10);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLeiden_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLeiden(net, new[] { "aff", "other" });
+        Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
+    }
+
+    [Fact]
     public void CommunityDetectionLeiden_NumRestartsGreaterThanOne_StillFindsCorrectCommunities()
     {
         var net = MakeNetwork(6);
@@ -1877,14 +2002,35 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetectionLabelPropagation_TwoModeLayer_Fails()
+    public void CommunityDetectionLabelPropagation_TwoModeLayer_MatchesCountProjection()
     {
-        var net = MakeNetwork(3);
-        net.AddLayerTwoMode("clubs");
+        // Same equivalence check as Louvain/Leiden. LP doesn't target modularity itself (it's
+        // reported for comparability only), so a higher numRestarts is used on both sides to
+        // reduce flakiness in which locally-stable labeling each run's majority-vote dynamic
+        // lands on before comparing the best-of-restarts modularity.
+        var net = MakeAssortativityTwoModeNetwork();
 
-        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "clubs" });
+        var twoModeResult = Analyses.CommunityDetectionLabelPropagation(net, new[] { "aff" }, "c_2mode", numRestarts: 20);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLabelPropagation(net, new[] { "aff_proj" }, "c_proj", numRestarts: 20);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLabelPropagation_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLabelPropagation(net, new[] { "aff", "other" });
         Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
     }
 
     [Fact]
@@ -2033,14 +2179,33 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void CommunityDetectionLPAm_TwoModeLayer_Fails()
+    public void CommunityDetectionLPAm_TwoModeLayer_MatchesCountProjection()
     {
-        var net = MakeNetwork(3);
-        net.AddLayerTwoMode("clubs");
+        // Same equivalence check as Louvain/Leiden: LPAm's modularity-gated moves make it, like
+        // them, directly comparable across restarts.
+        var net = MakeAssortativityTwoModeNetwork();
 
-        var result = Analyses.CommunityDetectionLPAm(net, new[] { "clubs" });
+        var twoModeResult = Analyses.CommunityDetectionLPAm(net, new[] { "aff" }, "c_2mode", numRestarts: 10);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.CommunityDetectionLPAm(net, new[] { "aff_proj" }, "c_proj", numRestarts: 10);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((double)oneModeResult.Value!["Modularity"], (double)twoModeResult.Value!["Modularity"], precision: 6);
+    }
+
+    [Fact]
+    public void CommunityDetectionLPAm_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.CommunityDetectionLPAm(net, new[] { "aff", "other" });
         Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
     }
 
     [Fact]
@@ -2651,12 +2816,32 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void Eccentricity_TwoModeLayer_Fails()
+    public void Eccentricity_TwoModeLayer_MatchesOneModeProjection()
     {
-        var net = MakeNetwork(3);
+        // Pseudo-projected (2-mode) eccentricity must equal eccentricity computed on the
+        // materialized binary projection of the same hyperedges.
+        var net = MakeNetwork(5);
         net.AddLayerTwoMode("clubs");
-        var result = Analyses.Eccentricity(net, "clubs");
-        Assert.False(result.Success);
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4 });
+        // node 5 stays isolated (no hyperedge membership)
+
+        var twoModeResult = Analyses.Eccentricity(net, "clubs", "ecc_2mode");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Eccentricity(net, "clubs_proj", "ecc_1mode");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint nodeId = 1; nodeId <= 5; nodeId++)
+        {
+            var twoModeAttr = net.Nodeset.GetNodeAttribute(nodeId, "ecc_2mode");
+            var oneModeAttr = net.Nodeset.GetNodeAttribute(nodeId, "ecc_1mode");
+            Assert.Equal(
+                (int)oneModeAttr.Value.Value.GetValue(oneModeAttr.Value.Type)!,
+                (int)twoModeAttr.Value.Value.GetValue(twoModeAttr.Value.Type)!);
+        }
     }
 
     [Fact]
@@ -2802,14 +2987,28 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void Diameter_TwoModeLayer_Fails()
+    public void Diameter_TwoModeLayer_MatchesOneModeProjection()
     {
-        var net = MakeNetwork(3);
+        // Pseudo-projected (2-mode) diameter/avgdistance must equal the same measures computed
+        // on the materialized binary projection of the same hyperedges (restricted, on both
+        // sides, to the largest weakly connected component).
+        var net = MakeNetwork(7);
         net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4, 5 });
+        net.AddHyperedge("clubs", "c3", new uint[] { 6, 7 });
 
-        var result = Analyses.Diameter(net, "clubs");
+        var twoModeResult = Analyses.Diameter(net, "clubs");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
 
-        Assert.False(result.Success);
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "clubs", ProjectionMethod.Binary, "clubs_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Diameter(net, "clubs_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal((int)oneModeResult.Value!["Diameter"], (int)twoModeResult.Value!["Diameter"]);
+        Assert.Equal((int)oneModeResult.Value!["ComponentSize"], (int)twoModeResult.Value!["ComponentSize"]);
+        Assert.Equal((double)oneModeResult.Value!["AvgDistance"], (double)twoModeResult.Value!["AvgDistance"]);
     }
 
     [Fact]
@@ -3131,6 +3330,107 @@ public class AnalysesTests
         Assert.Equal(-1.0, result.Value, precision: 5);
     }
 
+    /// <summary>
+    /// Builds a small 2-mode network (nodes 1-6) where node pair (2,3) shares two hyperedges
+    /// (c1 and c2), so the 'binary' and 'count' projection methods disagree on how that one pair
+    /// is weighted - the case this is designed to exercise.
+    /// </summary>
+    private static Network MakeAssortativityTwoModeNetwork(string layerName = "aff")
+    {
+        var net = MakeNetwork(6);
+        net.AddLayerTwoMode(layerName);
+        net.AddHyperedge(layerName, "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge(layerName, "c2", new uint[] { 2, 3, 4 });
+        net.AddHyperedge(layerName, "c3", new uint[] { 4, 5, 6 });
+        return net;
+    }
+
+    [Fact]
+    public void DegreeAssortativity_TwoModeLayer_Binary_MatchesOneModeProjection()
+    {
+        // 'binary' pair-counting on the pseudo-projected 2-mode layer must match running
+        // DegreeAssortativity on the materialized binary projection of the same hyperedges,
+        // since both use the same (distinct-alter) degree and the same one-pair-per-dedup-edge
+        // weighting.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.DegreeAssortativity(net, "aff", ProjectionMethod.Binary);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.DegreeAssortativity(net, "aff_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void DegreeAssortativity_TwoModeLayer_Count_WeightsRepeatedCoaffiliationMoreHeavily()
+    {
+        // Hand-computed expectation: degrees are always the binary projected degree
+        // (node: 1->2, 2->3, 3->3, 4->4, 5->2, 6->2), but each co-affiliate pair is weighted by
+        // its shared-hyperedge count (so pair (2,3), sharing c1 and c2, counts twice). Working
+        // through Newman's Pearson-over-edges formula with that weighting gives r = -40/176 =
+        // -5/22, versus -3/13 for 'binary' (every pair weighted 1, regardless of how many
+        // hyperedges it shares) - two distinct values, confirming 'projection' actually changes
+        // the outcome, even though they happen to be numerically close for this small network.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var countResult = Analyses.DegreeAssortativity(net, "aff", ProjectionMethod.Count);
+        var binaryResult = Analyses.DegreeAssortativity(net, "aff", ProjectionMethod.Binary);
+
+        Assert.True(countResult.Success, countResult.Message);
+        Assert.True(binaryResult.Success, binaryResult.Message);
+        Assert.Equal(-40.0 / 176.0, countResult.Value, precision: 10);
+        Assert.Equal(-3.0 / 13.0, binaryResult.Value, precision: 10);
+        Assert.NotEqual(binaryResult.Value, countResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_ContinuousBinary_MatchesOneModeProjection()
+    {
+        // Same equivalence check as DegreeAssortativity, but routed through the generic
+        // (Float attribute) continuous-assortativity path rather than the degree-specific one.
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("val", "float");
+        for (uint id = 1; id <= 6; id++)
+            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString());
+
+        var twoModeResult = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Binary);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Assortativity(net, "aff_proj", "val");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_CategoricalBinary_MatchesOneModeProjection()
+    {
+        // Same equivalence check, routed through the categorical (nominal mixing) path: nodes
+        // 1-3 and 5-6 get category 'a', node 4 gets 'b', so category match/mismatch across the
+        // projected edges is non-trivial on both sides.
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("grp", "char");
+        foreach (uint id in new uint[] { 1, 2, 3, 5, 6 })
+            net.Nodeset.SetNodeAttribute(id, "grp", "a");
+        net.Nodeset.SetNodeAttribute(4, "grp", "b");
+
+        var twoModeResult = Analyses.Assortativity(net, "aff", "grp", ProjectionMethod.Binary);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Assortativity(net, "aff_proj", "grp");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
     // ── Constraint / EffectiveSize (Burt's structural holes) ───────────────────────
     // StructuralHoles' per-node O(k²) computation is independent across nodes once the
     // symmetrized weight/strength tables are built; tests below cover both the math and
@@ -3230,6 +3530,88 @@ public class AnalysesTests
         var result = Analyses.EffectiveSize(net, null, "es");
         Assert.False(result.Success);
         Assert.Equal("LayerAllowsSelfties", result.Code);
+    }
+
+    [Fact]
+    public void Constraint_TwoModeLayer_WithoutSampleSize_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        var result = Analyses.Constraint(net, new[] { "aff" }, "con");
+        Assert.False(result.Success);
+        Assert.Equal("SampleSizeRequired", result.Code);
+    }
+
+    [Fact]
+    public void EffectiveSize_TwoModeLayer_WithoutSampleSize_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        var result = Analyses.EffectiveSize(net, new[] { "aff" }, "es");
+        Assert.False(result.Success);
+        Assert.Equal("SampleSizeRequired", result.Code);
+    }
+
+    [Fact]
+    public void Constraint_TwoModeLayerCombinedWithOneModeLayer_Fails()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        AddUndirectedLayer(net, "other");
+        net.AddEdge("other", 1, 2);
+
+        var result = Analyses.Constraint(net, new[] { "aff", "other" }, "con", sampleSize: 6);
+        Assert.False(result.Success);
+        Assert.Equal("InvalidLayerType", result.Code);
+    }
+
+    [Fact]
+    public void Constraint_TwoModeLayer_FullSample_MatchesCountProjection()
+    {
+        // With samplesize covering every node, the pseudo-projected (2-mode) result for each
+        // node must equal Constraint on the materialized count projection of the same
+        // hyperedges, since 2-mode tie strength is defined as the count-weighted
+        // shared-hyperedge count.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.Constraint(net, new[] { "aff" }, "con_2mode", sampleSize: 6);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Constraint(net, new[] { "aff_proj" }, "con_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint id = 1; id <= 6; id++)
+            Assert.Equal(GetFloatAttr(net, id, "con_proj"), GetFloatAttr(net, id, "con_2mode"), precision: 5);
+    }
+
+    [Fact]
+    public void EffectiveSize_TwoModeLayer_FullSample_MatchesCountProjection()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.EffectiveSize(net, new[] { "aff" }, "es_2mode", sampleSize: 6);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.EffectiveSize(net, new[] { "aff_proj" }, "es_proj");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint id = 1; id <= 6; id++)
+            Assert.Equal(GetFloatAttr(net, id, "es_proj"), GetFloatAttr(net, id, "es_2mode"), precision: 5);
+    }
+
+    [Fact]
+    public void Constraint_TwoModeLayer_PartialSample_OnlySetsThatManySampledNodes()
+    {
+        var net = MakeAssortativityTwoModeNetwork();
+        var result = Analyses.Constraint(net, new[] { "aff" }, "con_partial", sampleSize: 2);
+        Assert.True(result.Success, result.Message);
+
+        int nbrSet = 0;
+        for (uint id = 1; id <= 6; id++)
+            if (net.Nodeset.GetNodeAttribute(id, "con_partial").Success)
+                nbrSet++;
+        Assert.Equal(2, nbrSet);
     }
 
     [Fact]

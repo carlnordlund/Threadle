@@ -300,6 +300,120 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Degree assortativity for a 2-mode layer, pseudo-projected (traversed node-hyperedge-node
+        /// directly, never materializing a 1-mode projection). Degree is always the existing binary
+        /// projected degree (<see cref="ILayer.GetNodeAlters"/>'s distinct-alter count, matching
+        /// degree()'s own 2-mode convention) regardless of <paramref name="projection"/>; only the
+        /// pair-counting convention for the correlation itself (see
+        /// <see cref="ContinuousAssortativityTwoMode"/>) depends on it.
+        /// </summary>
+        internal static double DegreeAssortativityTwoMode(uint[] nodeIds, ILayer layer, ProjectionMethod projection)
+        {
+            var degVals = new Dictionary<uint, double>(nodeIds.Length);
+            foreach (uint u in nodeIds)
+                degVals[u] = layer.GetNodeAlters(u, EdgeTraversal.Both).Length;
+            return ContinuousAssortativityTwoMode(layer, degVals, degVals, nodeIds, projection);
+        }
+
+        /// <summary>
+        /// Continuous attribute/degree assortativity for a 2-mode layer, pseudo-projected: every
+        /// pair of co-affiliates (members sharing at least one hyperedge) contributes a (j,k) and a
+        /// (k,j) sample, mirroring the explicit both-directions symmetrization
+        /// <see cref="PearsonEdgeCorrelation"/> uses for undirected 1-mode layers (an affiliation
+        /// has no direction either). Each node's co-affiliates and their per-pair weight are
+        /// obtained from <see cref="ILayer.GetNodeAltersWithWeights"/>, which already deduplicates
+        /// a pair across hyperedges (binary) and already tallies the shared-hyperedge count
+        /// (count) - so no separate pair-deduplication structure is needed here. When
+        /// <paramref name="projection"/> is Binary, every pair counts with weight 1 regardless of
+        /// how many hyperedges it shares; when Count, a pair's weight is its shared-hyperedge
+        /// count (matching getedge()'s count-weighted projection). Each unordered pair is visited
+        /// once, from its lower-id member (O(sum of hyperedge sizes squared) total, no persistent
+        /// materialized structure).
+        /// </summary>
+        internal static double ContinuousAssortativityTwoMode(ILayer layer, Dictionary<uint, double> jVals, Dictionary<uint, double> kVals, uint[] nodeIds, ProjectionMethod projection)
+        {
+            double sumJK = 0, sumJ = 0, sumK = 0, sumJ2 = 0, sumK2 = 0, M = 0;
+
+            void AddSample(double j, double k, double weight)
+            {
+                sumJK += weight * j * k;
+                sumJ += weight * j;
+                sumK += weight * k;
+                sumJ2 += weight * j * j;
+                sumK2 += weight * k * k;
+                M += weight;
+            }
+
+            foreach (uint u in nodeIds)
+            {
+                bool haveUJ = jVals.TryGetValue(u, out double uJ);
+                bool haveUK = kVals.TryGetValue(u, out double uK);
+                if (!haveUJ && !haveUK) continue;
+                var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                for (int i = 0; i < alters.Length; i++)
+                {
+                    uint v = alters.Span[i];
+                    if (v <= u) continue; // each unordered pair processed once, from the lower-id member
+                    double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
+                    if (haveUJ && kVals.TryGetValue(v, out double vK))
+                        AddSample(uJ, vK, w);
+                    if (haveUK && jVals.TryGetValue(v, out double vJ))
+                        AddSample(vJ, uK, w);
+                }
+            }
+
+            if (M == 0) return 0.0;
+            double denom = Math.Sqrt((M * sumJ2 - sumJ * sumJ) * (M * sumK2 - sumK * sumK));
+            return denom == 0 ? 0.0 : (M * sumJK - sumJ * sumK) / denom;
+        }
+
+        /// <summary>
+        /// Categorical attribute assortativity (Newman 2003) for a 2-mode layer, pseudo-projected:
+        /// every pair of co-affiliates contributes once (<paramref name="projection"/> Binary) or
+        /// once per shared hyperedge (Count), the same weighting convention used by
+        /// <see cref="ContinuousAssortativityTwoMode"/>. Unlike the continuous case, a pair is
+        /// counted once (not mirrored into two directional samples): an affiliation has no
+        /// direction, and the nominal mixing formula's own a_c/b_c normalization (over 2M, the
+        /// total category-weighted degree) already accounts for both endpoints, exactly as it does
+        /// for an undirected 1-mode layer (see <see cref="CategoricalAssortativity"/>).
+        /// </summary>
+        internal static double CategoricalAssortativityTwoMode(ILayer layer, Dictionary<uint, string> cats, uint[] nodeIds, ProjectionMethod projection)
+        {
+            var sourceCounts = new Dictionary<string, double>();
+            var targetCounts = new Dictionary<string, double>();
+            var matchCounts = new Dictionary<string, double>();
+            double M = 0;
+
+            foreach (uint u in nodeIds)
+            {
+                if (!cats.TryGetValue(u, out string? cU)) continue;
+                var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                for (int i = 0; i < alters.Length; i++)
+                {
+                    uint v = alters.Span[i];
+                    if (v <= u) continue; // each unordered pair processed once, from the lower-id member
+                    if (!cats.TryGetValue(v, out string? cV)) continue;
+                    double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
+                    M += w;
+                    sourceCounts[cU] = sourceCounts.GetValueOrDefault(cU) + w;
+                    targetCounts[cV] = targetCounts.GetValueOrDefault(cV) + w;
+                    if (cU == cV)
+                        matchCounts[cU] = matchCounts.GetValueOrDefault(cU) + w;
+                }
+            }
+
+            if (M == 0) return 0.0;
+            double sumEcc = matchCounts.Values.Sum() / M;
+            var combined = new Dictionary<string, double>(sourceCounts);
+            foreach (var (c, cnt) in targetCounts)
+                combined[c] = combined.GetValueOrDefault(c) + cnt;
+            double denom2 = 2.0 * M;
+            double sumA2 = combined.Values.Sum(v => Math.Pow(v / denom2, 2));
+            double denominator = 1 - sumA2;
+            return denominator == 0 ? 0.0 : (sumEcc - sumA2) / denominator;
+        }
+
+        /// <summary>
         /// MAN dyad census plus arc and dyadic reciprocity for a single 1-mode layer.
         /// For directed layers iterates all arcs in O(E); for undirected all non-null
         /// dyads are mutual by definition. A dyad is by definition a pair of two distinct
@@ -359,6 +473,35 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// MAN dyad census for a 2-mode layer, pseudo-projected: an affiliation has no direction,
+        /// so this reduces to the same all-mutual shape as an undirected 1-mode layer (Asymmetric
+        /// always 0, reciprocity measures trivially 1 whenever any Mutual dyad exists). Mutual is
+        /// the exact count of distinct pairs sharing at least one hyperedge: the sum of each
+        /// node's binary projected degree (<see cref="ILayer.GetNodeAlters"/>'s distinct-alter
+        /// count, matching degree()'s own 2-mode convention) is, by the handshake lemma, exactly
+        /// twice the number of distinct pairs - O(sum of hyperedge sizes), no sampling needed.
+        /// </summary>
+        internal static Dictionary<string, object> DyadCensusTwoMode(uint[] nodeIds, ILayer layer)
+        {
+            int n = nodeIds.Length;
+            long totalDyads = (long)n * (n - 1) / 2;
+            long sumDegree = 0;
+            foreach (uint id in nodeIds)
+                sumDegree += layer.GetNodeAlters(id, EdgeTraversal.Both).Length;
+            long M = sumDegree / 2;
+            long N = totalDyads - M;
+            return new Dictionary<string, object>
+            {
+                ["Mutual"] = M,
+                ["Asymmetric"] = 0L,
+                ["Null"] = N,
+                ["Total"] = totalDyads,
+                ["ArcReciprocity"] = 1.0,
+                ["DyadicReciprocity"] = M > 0 ? 1.0 : 0.0
+            };
+        }
+
+        /// <summary>
         /// Per-node eccentricity: for each node, the length of the longest shortest path to any
         /// node reachable from it (0 for a node with no reachable others). Unlike <see cref="Diameter"/>,
         /// this is computed for every node individually rather than restricted to the largest
@@ -368,12 +511,13 @@ namespace Threadle.Core.Analysis
         /// 'maxthreads' threads (see 'setting()'); each source writes to its own array slot, so no
         /// locking is needed on the hot path.
         /// </summary>
-        internal static Dictionary<uint, int> Eccentricity(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal)
+        internal static Dictionary<uint, int> Eccentricity(uint[] nodeIds, ILayer layer, EdgeTraversal traversal)
         {
+            GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
             int[] ecc = new int[nodeIds.Length];
             System.Threading.Tasks.Parallel.For(0, nodeIds.Length, UserSettings.GetParallelOptions(), i =>
             {
-                var dist = GraphAlgorithms.BFS(nodeIds[i], [layer], [], [], traversal);
+                var dist = GraphAlgorithms.BFS(nodeIds[i], oneModes, twoModesDynamic, twoModesStatic, traversal);
                 int max = 0;
                 foreach (int d in dist.Values)
                     if (d > max) max = d;
@@ -399,7 +543,7 @@ namespace Threadle.Core.Analysis
         /// (possible even within the giant component when following direction) are simply
         /// excluded from both statistics, with PairsConsidered reporting how many were used.
         /// </summary>
-        internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal)
+        internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayer layer, EdgeTraversal traversal)
         {
             uint[] component = LargestComponent(nodeIds, layer);
             int compSize = component.Length;
@@ -410,13 +554,14 @@ namespace Threadle.Core.Analysis
 
             if (compSize > 1)
             {
+                GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
                 var mergeLock = new object();
                 System.Threading.Tasks.Parallel.For(0, component.Length, UserSettings.GetParallelOptions(),
                     () => (Max: 0L, Sum: 0L, Pairs: 0L),
                     (i, loopState, local) =>
                     {
                         uint src = component[i];
-                        var dist = GraphAlgorithms.BFS(src, [layer], [], [], traversal);
+                        var dist = GraphAlgorithms.BFS(src, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         foreach (var (node, d) in dist)
                         {
                             if (node == src) continue;
@@ -468,10 +613,11 @@ namespace Threadle.Core.Analysis
         /// thread, so exact reproducibility via randomseed() is only guaranteed when maxthreads is
         /// set to 1.
         /// </summary>
-        internal static Dictionary<string, object> DiameterSampled(uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal, int sampleSize, int numSweeps)
+        internal static Dictionary<string, object> DiameterSampled(uint[] nodeIds, ILayer layer, EdgeTraversal traversal, int sampleSize, int numSweeps)
         {
             uint[] component = LargestComponent(nodeIds, layer);
             int compSize = component.Length;
+            GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
 
             long diameterLowerBound = 0;
             if (compSize > 1 && numSweeps > 0)
@@ -482,12 +628,12 @@ namespace Threadle.Core.Analysis
                     (i, loopState, localBest) =>
                     {
                         uint r = component[Misc.Random.Next(compSize)];
-                        var dist1 = GraphAlgorithms.BFS(r, [layer], [], [], traversal);
+                        var dist1 = GraphAlgorithms.BFS(r, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         uint u = r;
                         int best1 = 0;
                         foreach (var (node, d) in dist1)
                             if (d > best1) { best1 = d; u = node; }
-                        var dist2 = GraphAlgorithms.BFS(u, [layer], [], [], traversal);
+                        var dist2 = GraphAlgorithms.BFS(u, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         int best2 = 0;
                         foreach (int d in dist2.Values)
                             if (d > best2) best2 = d;
@@ -507,7 +653,7 @@ namespace Threadle.Core.Analysis
             System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(), i =>
             {
                 uint src = sources[i];
-                var dist = GraphAlgorithms.BFS(src, [layer], [], [], traversal);
+                var dist = GraphAlgorithms.BFS(src, oneModes, twoModesDynamic, twoModesStatic, traversal);
                 long sum = 0;
                 long count = 0;
                 foreach (var (node, d) in dist)
@@ -549,25 +695,20 @@ namespace Threadle.Core.Analysis
         /// DiameterSampled to the giant component, since diameter and average distance are only
         /// meaningful within a connected set of nodes.
         /// </summary>
-        private static uint[] LargestComponent(uint[] nodeIds, ILayerOneMode layer)
+        private static uint[] LargestComponent(uint[] nodeIds, ILayer layer)
         {
+            GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
             var visited = new HashSet<uint>();
             uint[] bestComponent = [];
             foreach (uint start in nodeIds)
             {
                 if (!visited.Add(start)) continue;
-                var component = new List<uint> { start };
-                var queue = new Queue<uint>();
-                queue.Enqueue(start);
-                while (queue.Count > 0)
+                var dist = GraphAlgorithms.BFS(start, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+                var component = new List<uint>(dist.Count);
+                foreach (uint v in dist.Keys)
                 {
-                    uint u = queue.Dequeue();
-                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Both))
-                        if (visited.Add(v))
-                        {
-                            component.Add(v);
-                            queue.Enqueue(v);
-                        }
+                    if (v != start) visited.Add(v);
+                    component.Add(v);
                 }
                 if (component.Count > bestComponent.Length)
                     bestComponent = component.ToArray();

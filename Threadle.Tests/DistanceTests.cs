@@ -1,6 +1,7 @@
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Processing;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Tests;
@@ -541,6 +542,41 @@ public class DistanceTests
 
         Assert.Equal(1.0f, avgLayer.GetEdgeValue(0, 1), 5);
         Assert.Equal(4f, countLayer.GetEdgeValue(0, 1), 5);
+    }
+
+    [Fact]
+    public void ShortestPathsNodeAttributeDistances_TwoModeLayer_MatchesOneModeProjection()
+    {
+        // Pseudo-projected (2-mode) attribute-distance aggregation must equal the same
+        // aggregation computed on the materialized binary projection of the same hyperedges.
+        var net = MakeNetwork(6);
+        AssignTwoGroupCharAttr(net, "grp", 3); // nodes 1-3 -> 'a', nodes 4-6 -> 'b'
+        net.AddLayerTwoMode("aff");
+        net.AddHyperedge("aff", "c1", new uint[] { 1, 2, 4 });
+        net.AddHyperedge("aff", "c2", new uint[] { 2, 3, 5 });
+        net.AddHyperedge("aff", "c3", new uint[] { 4, 5, 6 });
+
+        var twoModeResult = Distance.ShortestPathsNodeAttributeDistances(net, "grp", ["aff"]);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Distance.ShortestPathsNodeAttributeDistances(net, "grp", ["aff_proj"]);
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        var twoModeNet = (Network)twoModeResult.Value!.MainStructure;
+        var oneModeNet = (Network)oneModeResult.Value!.MainStructure;
+        var twoModeAvg = (ILayerOneMode)twoModeNet.Layers["grp_sp_avg"];
+        var oneModeAvg = (ILayerOneMode)oneModeNet.Layers["grp_sp_avg"];
+        var twoModeCount = (ILayerOneMode)twoModeNet.Layers["grp_sp_count"];
+        var oneModeCount = (ILayerOneMode)oneModeNet.Layers["grp_sp_count"];
+
+        foreach (uint c1 in new uint[] { 0, 1 })
+            foreach (uint c2 in new uint[] { 0, 1 })
+            {
+                Assert.Equal(oneModeAvg.GetEdgeValue(c1, c2), twoModeAvg.GetEdgeValue(c1, c2), 5);
+                Assert.Equal(oneModeCount.GetEdgeValue(c1, c2), twoModeCount.GetEdgeValue(c1, c2), 5);
+            }
     }
 
     [Fact]
