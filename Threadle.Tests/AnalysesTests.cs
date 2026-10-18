@@ -3372,8 +3372,9 @@ public class AnalysesTests
         // (node: 1->2, 2->3, 3->3, 4->4, 5->2, 6->2), but each co-affiliate pair is weighted by
         // its shared-hyperedge count (so pair (2,3), sharing c1 and c2, counts twice). Working
         // through Newman's Pearson-over-edges formula with that weighting gives r = -40/176 =
-        // -5/22, which differs from the 'binary' result (every pair weighted 1, regardless of
-        // how many hyperedges it shares) - confirming 'projection' actually changes the outcome.
+        // -5/22, versus -3/13 for 'binary' (every pair weighted 1, regardless of how many
+        // hyperedges it shares) - two distinct values, confirming 'projection' actually changes
+        // the outcome, even though they happen to be numerically close for this small network.
         var net = MakeAssortativityTwoModeNetwork();
 
         var countResult = Analyses.DegreeAssortativity(net, "aff", ProjectionMethod.Count);
@@ -3382,8 +3383,8 @@ public class AnalysesTests
         Assert.True(countResult.Success, countResult.Message);
         Assert.True(binaryResult.Success, binaryResult.Message);
         Assert.Equal(-40.0 / 176.0, countResult.Value, precision: 10);
-        Assert.True(Math.Abs(binaryResult.Value - countResult.Value) > 0.01,
-            $"Expected 'binary' ({binaryResult.Value}) and 'count' ({countResult.Value}) to differ.");
+        Assert.Equal(-3.0 / 13.0, binaryResult.Value, precision: 10);
+        Assert.NotEqual(binaryResult.Value, countResult.Value, precision: 10);
     }
 
     [Fact]
