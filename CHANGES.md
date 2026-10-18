@@ -9,8 +9,9 @@
 
 - **`diameter()`/`eccentricity()`** now accept a 2-mode layer directly, pseudo-projected
   (traversed node-hyperedge-node, without materializing a 1-mode projection).
-  `components()` and `shortestpathsattributes()` turn out to already have worked this
-  way with no gate at all.
+  `components()` and `shortestpathsattributes()` turn out to already have had no gate
+  rejecting a 2-mode layer either — though their own traversal needed a Performance fix
+  (below) to actually get the same pseudo-projected cost as these two.
 - **`assortativity()`/`degreeassortativity()`** now accept a 2-mode layer, with a new
   `projection = ['binary'(default),'count']` parameter controlling how a pair of
   co-affiliates (members sharing a hyperedge) is counted: `binary` counts a pair once
@@ -22,10 +23,23 @@
   single 2-mode layer on its own (not combined with other layers), genuinely
   pseudo-projected — no pairwise structure, not even an ephemeral in-memory one, is
   ever materialized. Tie strength is always count-weighted (matching
-  `eigenvectorcentrality()`'s convention) — no `projection=` parameter here, since a
-  binary option would need the same global pairwise deduplication this feature exists
-  to avoid. `type = 'gn'` (Girvan-Newman) has no 2-mode support: edge betweenness has
-  no hyperedge analogue.
+  `eigenvectorcentrality()`'s convention) — no `projection=` parameter here: local
+  moving itself already costs O(sum of hyperedge sizes squared) *per sweep*, not
+  O(sum of hyperedge sizes) — it calls the same non-memoized per-node lookup
+  `degree()`/`pagerank()` use, repeated every sweep until convergence — so a 2-mode
+  layer's level-0 pass does not get the same clean linear-time advantage
+  `diameter()`/`components()` get, though it still avoids materializing anything, so
+  the memory advantage holds. A binary option would cost about the same at local
+  moving; it would add a further, smaller, one-time O(sum of hyperedge sizes squared)
+  pass at aggregation specifically, to recover cross-hyperedge pair identity the
+  per-hyperedge community histogram otherwise discards — not the reason binary isn't
+  offered on its own, since local moving's own recurring cost is paid either way.
+  `type = 'gn'` (Girvan-Newman) has no 2-mode
+  support: edge betweenness has no hyperedge analogue. For `type = 'leiden'` on a
+  2-mode layer, only the very first (hyperedge-direct) level skips the usual
+  connectivity-guaranteeing refinement step, so that guarantee is **not** established
+  for a community formed entirely within that first pass — refinement runs normally
+  from the first aggregation onward.
 - **`constraint()`/`effectivesize()`** now accept a single 2-mode layer on its own, with
   a new `samplesize` parameter that becomes **required** (`samplesize > 0`) for a
   2-mode layer: only that many randomly sampled nodes get an exact (not approximated)
@@ -41,6 +55,13 @@
   upper bound on the number of distinct projected edges, dominated by the single
   largest hyperedge) and `EstimatedProjectionMemoryBytes` (a rough, order-of-magnitude
   byte estimate from that bound) — neither is a precise prediction, just a smell test.
+- **`density()`** on a 2-mode layer can now be computed exactly on request
+  (`samplesize=0`), rather than only ever being a sampled estimate. The default stays a
+  200-node sample, though: unlike most other `samplesize`-bearing commands, exact 2-mode
+  density is deliberately *not* the default here, since it needs every node's true
+  deduplicated degree — O(sum of hyperedge sizes squared), the same order as
+  materializing a full projection, not the O(sum of hyperedge sizes) a "nothing gets
+  materialized" framing might otherwise suggest.
 
 ### Performance
 
@@ -62,6 +83,33 @@
   check `getlayerstats()`'s `EstimatedProjectedEdgesUpperBound`/
   `EstimatedProjectionMemoryBytes` on the 2-mode layer first to decide whether this is
   worth turning on.
+- **`closenesscentrality()`/`harmoniccentrality()`** on a 2-mode layer no longer pay
+  for betweenness-style bookkeeping they never use. Both only ever need shortest-path
+  *distances*, not path *counts*, but previously shared `betweennesscentrality()`'s
+  BFS pass unconditionally — which, on a 2-mode layer, must re-scan a hyperedge's
+  member list once per same-level arriving member to keep Brandes' path count
+  correct (worst case O(sum of hyperedge sizes squared)). Both now use the plain
+  (count-free) BFS traversal instead — the same one `diameter()`/`eccentricity()`
+  already use — genuinely linear in hyperedge sizes. `betweennesscentrality()` is
+  unaffected; no behavior change for either — same distances either way, just a
+  cheaper traversal.
+- **`assortativity()`/`degreeassortativity()`** with `projection='count'` on a
+  2-mode layer no longer enumerate co-affiliate pairs one by one. A hyperedge's
+  Count-weighted contribution to every needed Pearson moment can be folded from two
+  per-hyperedge running sums (Σx and Σx² over its members) in one pass, since
+  Count-weight contributions from different hyperedges are simply additive — unlike
+  `binary`, which genuinely needs to know individual pair identity across
+  hyperedges and keeps the previous per-node enumeration. Lowers `count`'s cost from
+  O(sum of hyperedge sizes squared) to O(sum of hyperedge sizes). No behavior
+  change — identical correlation value either way.
+- **`components()`/`shortestpathsattributes()`** on a 2-mode layer no longer
+  re-derive each node's alters node-by-node (which, via the non-memoized
+  `GetNodeAlters`, costs O(sum of hyperedge sizes squared) in aggregate across a
+  traversal). Both now use the same hyperedge-aware BFS primitive `diameter()`/
+  `eccentricity()` already use, which gates each hyperedge behind a per-traversal
+  visited set so it is expanded at most once — genuinely O(sum of hyperedge sizes).
+  No behavior change — identical component assignments and shortest-path distances
+  either way, just a cheaper traversal.
 
 ### Deliberately out of scope
 
