@@ -112,6 +112,75 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Single-source plain-BFS pass that accumulates contributions to closeness and harmonic
+        /// centrality only - the same loop AccumulateBFSCentralities runs over its BFSBrandes
+        /// 'dist' output, but here fed by GraphAlgorithms.BFS instead. Closeness/harmonic never
+        /// read sigma/predecessors/order (only 'dist'), so this avoids paying for Brandes' sigma
+        /// bookkeeping at all: on a 2-mode layer, BFSBrandes must re-scan a hyperedge's member list
+        /// once per same-level arriving member to keep sigma correct (worst case O(Σ hyperedge
+        /// sizes squared)), where plain BFS expands each hyperedge exactly once (O(Σ hyperedge
+        /// sizes)) - the same traversal NetworkLevelFunctions.Diameter/Eccentricity already use for
+        /// this same "distances only" shape. Same distances either way, since both BFS variants
+        /// compute identical shortest-path levels - only the bookkeeping differs.
+        /// </summary>
+        internal static void AccumulateDistanceCentralities(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
+        {
+            var dist = GraphAlgorithms.BFS(source, oneModes, twoModesDynamic, twoModesStatic, traversal);
+
+            foreach (var (v, d) in dist)
+            {
+                if (v == source) continue;
+                closenessDistSum[source] = closenessDistSum.GetValueOrDefault(source) + d;
+                closenessReachable[source] = closenessReachable.GetValueOrDefault(source) + 1;
+                harmonic[source] = harmonic.GetValueOrDefault(source) + 1.0 / d;
+            }
+        }
+
+        /// <summary>
+        /// Runs AccumulateDistanceCentralities for every source node in parallel (up to
+        /// 'maxthreads', see 'setting()'), then merges the per-source contributions into shared
+        /// accumulators - same thread-local-then-merge-under-lock pattern as
+        /// AccumulateBFSCentralitiesForSources, just built on the cheaper plain-BFS single-source
+        /// function above. Used by ClosenessCentrality and HarmonicCentrality only; betweenness
+        /// still needs AccumulateBFSCentralitiesForSources's real Brandes pass.
+        /// </summary>
+        internal static (Dictionary<uint, double> ClosenessDistSum, Dictionary<uint, int> ClosenessReachable, Dictionary<uint, double> Harmonic)
+            AccumulateDistanceCentralitiesForSources(uint[] sources, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        {
+            var closenessDistSum = new Dictionary<uint, double>();
+            var closenessReachable = new Dictionary<uint, int>();
+            var harmonic = new Dictionary<uint, double>();
+            var mergeLock = new object();
+
+            System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
+                () => (
+                    ClosenessDistSum: new Dictionary<uint, double>(),
+                    ClosenessReachable: new Dictionary<uint, int>(),
+                    Harmonic: new Dictionary<uint, double>()
+                ),
+                (i, loopState, local) =>
+                {
+                    AccumulateDistanceCentralities(sources[i], oneModes, twoModesDynamic, twoModesStatic, traversal,
+                        local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic);
+                    return local;
+                },
+                local =>
+                {
+                    lock (mergeLock)
+                    {
+                        foreach (var (node, value) in local.ClosenessDistSum)
+                            closenessDistSum[node] = closenessDistSum.GetValueOrDefault(node) + value;
+                        foreach (var (node, value) in local.ClosenessReachable)
+                            closenessReachable[node] = closenessReachable.GetValueOrDefault(node) + value;
+                        foreach (var (node, value) in local.Harmonic)
+                            harmonic[node] = harmonic.GetValueOrDefault(node) + value;
+                    }
+                });
+
+            return (closenessDistSum, closenessReachable, harmonic);
+        }
+
+        /// <summary>
         /// Normalizes raw betweenness scores. raw[v] is accumulated by running Brandes' backward
         /// pass from every node as source (AccumulateBFSCentralitiesForSources), which sums over
         /// every ORDERED pair (s,t). For a directed graph that already matches the (n-1)(n-2)

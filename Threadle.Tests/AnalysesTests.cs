@@ -2565,6 +2565,45 @@ public class AnalysesTests
     }
 
     [Fact]
+    public void ClosenessCentrality_TwoModeLayer_MatchesHandComputedValues()
+    {
+        // Hand-computed via pseudo-projected BFS over the standard 3-hyperedge fixture
+        // (c1={1,2,3}, c2={2,3,4}, c3={4,5,6}; projected edges 1-2,1-3,2-3,2-4,3-4,4-5,4-6,5-6).
+        // Node 1's own BFS stresses the "multiple members of one hyperedge arrive at the same
+        // level" case this test exists to cover: c2's members 2 and 3 both sit at level 1 and
+        // both reach node 4 at level 2. Closeness = reach^2 / ((n-1)*distSum), n=6.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var result = Analyses.ClosenessCentrality(net, new[] { "aff" }, "cl");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(25.0 / 50.0, GetFloatAttr(net, 1, "cl"), precision: 6); // distSum=10
+        Assert.Equal(25.0 / 35.0, GetFloatAttr(net, 2, "cl"), precision: 6); // distSum=7
+        Assert.Equal(25.0 / 35.0, GetFloatAttr(net, 3, "cl"), precision: 6); // distSum=7
+        Assert.Equal(25.0 / 30.0, GetFloatAttr(net, 4, "cl"), precision: 6); // distSum=6
+        Assert.Equal(25.0 / 45.0, GetFloatAttr(net, 5, "cl"), precision: 6); // distSum=9
+        Assert.Equal(25.0 / 45.0, GetFloatAttr(net, 6, "cl"), precision: 6); // distSum=9
+    }
+
+    [Fact]
+    public void HarmonicCentrality_TwoModeLayer_MatchesHandComputedValues()
+    {
+        // Same fixture and hand-derived distances as the closeness test above.
+        // Raw harmonic sum (1/distance to every reachable node), unnormalized.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var result = Analyses.HarmonicCentrality(net, new[] { "aff" }, "hm", normalize: false);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(19.0 / 6.0, GetFloatAttr(net, 1, "hm"), precision: 6); // 1+1+1/2+1/3+1/3
+        Assert.Equal(4.0, GetFloatAttr(net, 2, "hm"), precision: 6);       // 1+1+1+1/2+1/2
+        Assert.Equal(4.0, GetFloatAttr(net, 3, "hm"), precision: 6);
+        Assert.Equal(4.5, GetFloatAttr(net, 4, "hm"), precision: 6);       // 1+1+1+1+1/2
+        Assert.Equal(10.0 / 3.0, GetFloatAttr(net, 5, "hm"), precision: 6); // 1+1+1/2+1/2+1/3
+        Assert.Equal(10.0 / 3.0, GetFloatAttr(net, 6, "hm"), precision: 6);
+    }
+
+    [Fact]
     public void BetweennessCentrality_NonExistentLayer_Fails()
     {
         var net = MakeNetwork(3);
@@ -3456,6 +3495,56 @@ public class AnalysesTests
         Assert.True(oneModeResult.Success, oneModeResult.Message);
 
         Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_ContinuousCount_NoMissingValues_MatchesOneModeProjection()
+    {
+        // Equivalence check for the Count-mode closed-form per-hyperedge reduction (new):
+        // every node has a value, so this exercises the fast path end to end against an
+        // independently-computed materialized projection.
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("val", "float");
+        for (uint id = 1; id <= 6; id++)
+            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString());
+
+        var twoModeResult = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Count);
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.Assortativity(net, "aff_proj", "val");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Assortativity_TwoModeLayer_ContinuousCount_WithMissingAttributeValue_MatchesHandComputation()
+    {
+        // Stress-tests the Count-mode closed form's per-hyperedge missing-value filtering -
+        // the one real correctness risk in that optimization (degree assortativity never has
+        // a missing value, so that existing coverage can't exercise this). Node 3 is left
+        // without a 'val' attribute; hand-computed (and cross-checked by hand against what the
+        // old per-pair enumeration would accumulate) expectation is r = 159/269.
+        //
+        // Values: 1->10, 2->20, 3->(missing), 4->40, 5->50, 6->60. Every pair touching node 3
+        // (shared via c1 and/or c2) contributes nothing; the remaining weighted pairs are
+        // {1,2} w=1, {2,4} w=1, {4,5} w=1, {4,6} w=1, {5,6} w=1 (all weight 1 - no pair other
+        // than {2,3}, which is excluded anyway, shares more than one hyperedge here).
+        var net = MakeAssortativityTwoModeNetwork();
+        net.Nodeset.DefineNodeAttribute("val", "float");
+        net.Nodeset.SetNodeAttribute(1, "val", "10");
+        net.Nodeset.SetNodeAttribute(2, "val", "20");
+        // node 3 intentionally left unset
+        net.Nodeset.SetNodeAttribute(4, "val", "40");
+        net.Nodeset.SetNodeAttribute(5, "val", "50");
+        net.Nodeset.SetNodeAttribute(6, "val", "60");
+
+        var result = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Count);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(159.0 / 269.0, result.Value, precision: 10);
     }
 
     [Fact]

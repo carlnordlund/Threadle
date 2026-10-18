@@ -717,8 +717,10 @@ namespace Threadle.Core.Analysis
         /// Calculates closeness centrality using Wasserman-Faust normalization, which handles
         /// disconnected components by incorporating the reachable proportion of nodes.
         /// When sampleSize > 0, uses a random subset of source nodes. The per-source BFS passes
-        /// (shared with BetweennessCentrality and HarmonicCentrality) run in parallel across up to
-        /// 'maxthreads' threads (see 'setting()').
+        /// run in parallel across up to 'maxthreads' threads (see 'setting()'); unlike
+        /// BetweennessCentrality, this only needs shortest-path distances, not path counts, so it
+        /// uses the cheaper plain-BFS traversal (linear in hyperedge sizes on a 2-mode layer,
+        /// rather than Brandes' quadratic worst case).
         /// </summary>
         public static OperationResult ClosenessCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, EdgeTraversal traversal = EdgeTraversal.Out)
         {
@@ -728,7 +730,7 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
 
-            var (_, cdSum, cdReach, _) = CentralityFunctions.AccumulateBFSCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
+            var (cdSum, cdReach, _) = CentralityFunctions.AccumulateDistanceCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeCloseness(cdSum, cdReach, nodeIds);
             attrName = string.IsNullOrEmpty(attrName) ? "closeness" : attrName;
@@ -740,8 +742,10 @@ namespace Threadle.Core.Analysis
         /// Calculates harmonic centrality (sum of inverse distances to all reachable nodes).
         /// When normalize = true, divides by (n-1). Handles disconnected graphs naturally.
         /// When sampleSize > 0, uses a random subset of source nodes. The per-source BFS passes
-        /// (shared with BetweennessCentrality and ClosenessCentrality) run in parallel across up to
-        /// 'maxthreads' threads (see 'setting()').
+        /// run in parallel across up to 'maxthreads' threads (see 'setting()'); unlike
+        /// BetweennessCentrality, this only needs shortest-path distances, not path counts, so it
+        /// uses the cheaper plain-BFS traversal (linear in hyperedge sizes on a 2-mode layer,
+        /// rather than Brandes' quadratic worst case).
         /// </summary>
         public static OperationResult HarmonicCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, bool normalize = true, EdgeTraversal traversal = EdgeTraversal.Out)
         {
@@ -751,7 +755,7 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
 
-            var (_, _, _, hm) = CentralityFunctions.AccumulateBFSCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
+            var (_, _, hm) = CentralityFunctions.AccumulateDistanceCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeHarmonic(hm, nodeIds, normalize);
             attrName = string.IsNullOrEmpty(attrName) ? "harmonic" : attrName;

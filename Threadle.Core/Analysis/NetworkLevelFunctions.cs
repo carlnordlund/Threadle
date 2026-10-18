@@ -328,7 +328,14 @@ namespace Threadle.Core.Analysis
         /// how many hyperedges it shares; when Count, a pair's weight is its shared-hyperedge
         /// count (matching getedge()'s count-weighted projection). Each unordered pair is visited
         /// once, from its lower-id member (O(sum of hyperedge sizes squared) total, no persistent
-        /// materialized structure).
+        /// materialized structure) - EXCEPT for Count with <paramref name="jVals"/> and
+        /// <paramref name="kVals"/> being the same dictionary (true for both current callers,
+        /// <see cref="DegreeAssortativityTwoMode"/> and attribute assortativity), where a cheaper
+        /// O(sum of hyperedge sizes) closed-form path is used instead (see below) - Count-weight
+        /// contributions from different hyperedges are simply additive, so, unlike Binary, no
+        /// cross-hyperedge pair-identity dedup is ever needed, which is exactly what licenses
+        /// folding each hyperedge's full contribution from two per-hyperedge running sums instead
+        /// of visiting every pair.
         /// </summary>
         internal static double ContinuousAssortativityTwoMode(ILayer layer, Dictionary<uint, double> jVals, Dictionary<uint, double> kVals, uint[] nodeIds, ProjectionMethod projection)
         {
@@ -344,21 +351,52 @@ namespace Threadle.Core.Analysis
                 M += weight;
             }
 
-            foreach (uint u in nodeIds)
+            if (projection == ProjectionMethod.Count && ReferenceEquals(jVals, kVals))
             {
-                bool haveUJ = jVals.TryGetValue(u, out double uJ);
-                bool haveUK = kVals.TryGetValue(u, out double uK);
-                if (!haveUJ && !haveUK) continue;
-                var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
-                for (int i = 0; i < alters.Length; i++)
+                // Closed-form per-hyperedge reduction. For a hyperedge's members with values
+                // x_1..x_k (only members present in jVals count; a value-less member is excluded
+                // exactly as the per-pair check below would exclude it), let S = Σx_i, Q = Σx_i².
+                // Summed once per unordered pair, each counted from both AddSample calls the
+                // per-pair path below would have made (one per direction, since jVals==kVals):
+                // sumJK += S² - Q; sumJ/sumK += (k-1)*S; sumJ2/sumK2 += (k-1)*Q; M += k*(k-1).
+                foreach (var (_, memberIds) in ((ILayerTwoMode)layer).GetAllHyperedgeData())
                 {
-                    uint v = alters.Span[i];
-                    if (v <= u) continue; // each unordered pair processed once, from the lower-id member
-                    double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
-                    if (haveUJ && kVals.TryGetValue(v, out double vK))
-                        AddSample(uJ, vK, w);
-                    if (haveUK && jVals.TryGetValue(v, out double vJ))
-                        AddSample(vJ, uK, w);
+                    double s = 0, q = 0;
+                    int k = 0;
+                    foreach (uint m in memberIds)
+                    {
+                        if (!jVals.TryGetValue(m, out double x)) continue;
+                        s += x;
+                        q += x * x;
+                        k++;
+                    }
+                    if (k < 2) continue;
+                    sumJK += s * s - q;
+                    sumJ += (k - 1) * s;
+                    sumK += (k - 1) * s;
+                    sumJ2 += (k - 1) * q;
+                    sumK2 += (k - 1) * q;
+                    M += (double)k * (k - 1);
+                }
+            }
+            else
+            {
+                foreach (uint u in nodeIds)
+                {
+                    bool haveUJ = jVals.TryGetValue(u, out double uJ);
+                    bool haveUK = kVals.TryGetValue(u, out double uK);
+                    if (!haveUJ && !haveUK) continue;
+                    var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                    for (int i = 0; i < alters.Length; i++)
+                    {
+                        uint v = alters.Span[i];
+                        if (v <= u) continue; // each unordered pair processed once, from the lower-id member
+                        double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
+                        if (haveUJ && kVals.TryGetValue(v, out double vK))
+                            AddSample(uJ, vK, w);
+                        if (haveUK && jVals.TryGetValue(v, out double vJ))
+                            AddSample(vJ, uK, w);
+                    }
                 }
             }
 

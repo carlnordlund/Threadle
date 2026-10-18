@@ -85,6 +85,25 @@
   check `getlayerstats()`'s `EstimatedProjectedEdgesUpperBound`/
   `EstimatedProjectionMemoryBytes` on the 2-mode layer first to decide whether this is
   worth turning on.
+- **`closenesscentrality()`/`harmoniccentrality()`** on a 2-mode layer no longer pay
+  for betweenness-style bookkeeping they never use. Both only ever need shortest-path
+  *distances*, not path *counts*, but previously shared `betweennesscentrality()`'s
+  BFS pass unconditionally — which, on a 2-mode layer, must re-scan a hyperedge's
+  member list once per same-level arriving member to keep Brandes' path count
+  correct (worst case O(sum of hyperedge sizes squared)). Both now use the plain
+  (count-free) BFS traversal instead — the same one `diameter()`/`eccentricity()`
+  already use — genuinely linear in hyperedge sizes. `betweennesscentrality()` is
+  unaffected; no behavior change for either — same distances either way, just a
+  cheaper traversal.
+- **`assortativity()`/`degreeassortativity()`** with `projection='count'` on a
+  2-mode layer no longer enumerate co-affiliate pairs one by one. A hyperedge's
+  Count-weighted contribution to every needed Pearson moment can be folded from two
+  per-hyperedge running sums (Σx and Σx² over its members) in one pass, since
+  Count-weight contributions from different hyperedges are simply additive — unlike
+  `binary`, which genuinely needs to know individual pair identity across
+  hyperedges and keeps the previous per-node enumeration. Lowers `count`'s cost from
+  O(sum of hyperedge sizes squared) to O(sum of hyperedge sizes). No behavior
+  change — identical correlation value either way.
 
 ### Deliberately out of scope
 
