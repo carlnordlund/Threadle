@@ -58,19 +58,22 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Calculates the density of a specific 2-mode layer in a specific network.
-        /// By default (sampleSize 0, or at/above the node count) computes it exactly: sums every
-        /// node's binary projected degree (<see cref="ILayerTwoMode.GetNodeAlters"/>) and divides
-        /// by the number of potential pairs - the same handshake-lemma technique
-        /// <see cref="NetworkLevelFunctions.DyadCensusTwoMode"/> already uses for its exact
-        /// Mutual count, O(sum of hyperedge sizes), not sampled. A positive sampleSize below the
-        /// node count instead estimates the same quantity from that many randomly sampled nodes,
-        /// to bound cost on a very large layer, matching every other samplesize-bearing command's
-        /// "0 means exact" convention.
+        /// Defaults to a 200-node sample (unlike most other samplesize-bearing commands, which
+        /// default to an exact computation): summing every node's binary projected degree
+        /// (<see cref="ILayerTwoMode.GetNodeAlters"/>) is NOT the O(sum of hyperedge sizes) a
+        /// "pseudo-projected, nothing materialized" framing might suggest - GetNodeAlters itself
+        /// re-scans a node's hyperedges from scratch on every call, with no cross-call or
+        /// cross-hyperedge memoization, so summing it over every node costs O(sum of hyperedge
+        /// sizes squared): the same order as materializing a full binary projection, just never
+        /// persisted. That cost is inherent to an exact *binary* (deduplicated) degree count -
+        /// the same reason <see cref="NetworkLevelFunctions.DyadCensusTwoMode"/>'s exact Mutual
+        /// count has this cost too - not a missed optimization, so a sampled default is kept here
+        /// specifically (sampleSize=0 still computes the exact value on request, at that real cost).
         /// </summary>
         /// <param name="network">The Network structure.</param>
         /// <param name="layer">The 2-mode layer object.</param>
         /// <returns>Density (as a double value)</returns>
-        internal static double Density(Network network, ILayerTwoMode layer, int sampleSize = 0)
+        internal static double Density(Network network, ILayerTwoMode layer, int sampleSize = 200)
         {
             int nbrNodes = network.Nodeset.Count;
             if (nbrNodes <= 1)
@@ -473,6 +476,14 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Identifies connected components in a network and assigns a unique identifier to each component.
+        /// Uses <see cref="GraphAlgorithms.BFS"/> (the same hyperedge-aware traversal diameter()/
+        /// eccentricity() use) for each unvisited seed node, rather than this method's own loop
+        /// calling <see cref="ILayer.GetNodeAlters"/> directly: GetNodeAlters re-scans a 2-mode
+        /// node's hyperedges from scratch on every call with no cross-call memoization, so calling
+        /// it once per node (as a hand-rolled BFS naturally would) costs O(sum of hyperedge sizes
+        /// squared) in aggregate; GraphAlgorithms.BFS instead gates each hyperedge behind a
+        /// per-traversal visited set, so it is expanded at most once across the whole BFS,
+        /// genuinely O(sum of hyperedge sizes). Same component assignment either way.
         /// </summary>
         /// <param name="network">The network containing the nodes to analyze.</param>
         /// <param name="layer">The layer used to retrieve neighboring nodes for traversal.</param>
@@ -483,28 +494,18 @@ namespace Threadle.Core.Analysis
             int currentComponentId = 0;
             HashSet<uint> visited = [];
 
+            GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
+
             foreach (uint nodeId in network.Nodeset.NodeIdArray)
             {
-                if (!visited.Contains(nodeId))
+                if (visited.Contains(nodeId)) continue;
+                var dist = GraphAlgorithms.BFS(nodeId, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+                foreach (uint reached in dist.Keys)
                 {
-                    Queue<uint> queue = [];
-                    queue.Enqueue(nodeId);
-                    visited.Add(nodeId);
-                    while (queue.Count > 0)
-                    {
-                        uint current = queue.Dequeue();
-                        componentIds[current] = currentComponentId;
-                        foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Both))
-                        {
-                            if (!visited.Contains(neighborId))
-                            {
-                                visited.Add(neighborId);
-                                queue.Enqueue(neighborId);
-                            }
-                        }
-                    }
-                    currentComponentId++;
+                    visited.Add(reached);
+                    componentIds[reached] = currentComponentId;
                 }
+                currentComponentId++;
             }
             return componentIds;
         }

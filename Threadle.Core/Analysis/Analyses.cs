@@ -1313,15 +1313,18 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
-        /// 1-mode is always exact (cheap: NbrEdges / potential edges). 2-mode defaults (sampleSize
-        /// 0) to exact too, matching every other samplesize-bearing command's convention; a
-        /// positive sampleSize below the node count instead estimates it from that many randomly
-        /// sampled nodes, to bound cost on a very large layer - see <see cref="Functions.Density(Network, ILayerTwoMode, int)"/>.
+        /// 1-mode is always exact (cheap: NbrEdges / potential edges). 2-mode defaults to a
+        /// 200-node sample, unlike most other samplesize-bearing commands' "0 means exact by
+        /// default" convention - its exact computation is genuinely O(sum of hyperedge sizes
+        /// squared), the same order as materializing a full projection, not the O(sum of
+        /// hyperedge sizes) a quick stat might suggest, so it is deliberately not the default
+        /// here. Pass sampleSize=0 explicitly for the exact value anyway - see
+        /// <see cref="Functions.Density(Network, ILayerTwoMode, int)"/>.
         /// </summary>
         /// <param name="network">The network containing the layer.</param>
         /// <param name="layerName">The name of the layer.</param>
         /// <returns>An OperationResult containing the density value if successful; otherwise, an error message.</returns>
-        public static OperationResult<double> Density(Network network, string layerName, int sampleSize = 0)
+        public static OperationResult<double> Density(Network network, string layerName, int sampleSize = 200)
         {
             var layerResult = network.GetLayer(layerName);
             if (!layerResult.Success)

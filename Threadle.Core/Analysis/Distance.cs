@@ -14,7 +14,12 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Calculates exact shortest-path distances between all reachable node pairs and aggregates
         /// them by node attribute category, returning mean/quartile/stdev/count layers per category
-        /// pair. Runs a full BFS from every node — O(N×(N+E)) — so it's only feasible for smaller
+        /// pair. Runs a full BFS from every node — O(N×(V+E)) for 1-mode layers, or O(N×sum of
+        /// hyperedge sizes) when a 2-mode layer is among the resolved layers (via
+        /// <see cref="GraphAlgorithms.BFS"/>, which gates each hyperedge behind a per-traversal
+        /// visited set so it's expanded at most once per source, rather than this method re-deriving
+        /// alters node-by-node via the non-memoized <see cref="ILayer.GetNodeAlters"/>, which would
+        /// cost O(N×sum of hyperedge sizes squared) in aggregate) — so it's only feasible for smaller
         /// networks; use shortestpaths() with a sampled set of node pairs for larger ones. Each
         /// source node's BFS and category-pair accumulation is independent of every other source's,
         /// so this runs in parallel across up to 'maxthreads' threads (see 'setting()').
@@ -58,6 +63,8 @@ namespace Threadle.Core.Analysis
             uint[] allNodeIds = nodeset.NodeIdArray;
             var mergeLock = new object();
 
+            GraphAlgorithms.SplitLayers(resolvedLayers, out var oneModes, out var twoModesDynamic, out var twoModesStatic);
+
             // Each source node's BFS and category-pair accumulation is independent of every
             // other source's, so this runs in parallel across up to 'maxthreads' threads (see
             // 'setting()'), with thread-local partial accumulators merged under a lock after
@@ -73,25 +80,12 @@ namespace Threadle.Core.Analysis
                     if (!labelToNodeId.TryGetValue(GetCategoryString(sourceNodeId), out uint sourceCatId))
                         return local;
 
-                    // BFS from sourceNodeId; use distances dict as visited set
-                    Queue<uint> queue = [];
-                    Dictionary<uint, int> distances = [];
-                    queue.Enqueue(sourceNodeId);
-                    distances[sourceNodeId] = 0;
-                    while (queue.Count > 0)
-                    {
-                        uint current = queue.Dequeue();
-                        int nextDist = distances[current] + 1;
-                        foreach (var layer in resolvedLayers)
-                            foreach (uint neighborId in layer.GetNodeAlters(current, EdgeTraversal.Out))
-                            {
-                                if (!distances.ContainsKey(neighborId))
-                                {
-                                    distances[neighborId] = nextDist;
-                                    queue.Enqueue(neighborId);
-                                }
-                            }
-                    }
+                    // Hyperedge-aware BFS from sourceNodeId: each 2-mode hyperedge among resolvedLayers
+                    // is expanded at most once across the whole traversal (see GraphAlgorithms.BFS),
+                    // instead of this loop's former per-node ILayer.GetNodeAlters calls, which re-scan
+                    // a node's hyperedges from scratch every time with no cross-call memoization and so
+                    // cost O(sum of hyperedge sizes squared) in aggregate across all sources.
+                    Dictionary<uint, int> distances = GraphAlgorithms.BFS(sourceNodeId, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Out);
 
                     foreach (uint targetNodeId in allNodeIds)
                     {

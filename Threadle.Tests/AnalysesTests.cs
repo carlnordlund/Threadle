@@ -795,19 +795,20 @@ public class AnalysesTests
         Assert.Equal(dynResult.Value, staticResult.Value, 10);
     }
 
-    // ── Density: 2-mode exactness (sampleSize=0 default) ──────────────────────────
+    // ── Density: 2-mode exact-on-request (sampleSize=0; default stays 200, not exact) ──
 
     [Fact]
-    public void Density_TwoMode_ExactByDefault_MatchesHandComputedValue()
+    public void Density_TwoMode_ExactOnRequest_MatchesHandComputedValue()
     {
         // Hand-computed expectation: distinct-alter degrees are 1->{2}=1, 2->{1,3}=2, 3->{2}=1,
-        // summing to 4. Exact density = 4 / (3*2) = 2/3.
+        // summing to 4. Exact density = 4 / (3*2) = 2/3. Default sampleSize is 200 (sampled),
+        // not exact - sampleSize must be passed explicitly here to get the exact path.
         var net = MakeNetwork(3);
         net.AddLayerTwoMode("clubs");
         net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
         net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
 
-        var result = Analyses.Density(net, "clubs");
+        var result = Analyses.Density(net, "clubs", sampleSize: 0);
 
         Assert.True(result.Success);
         Assert.Equal(4.0 / 6.0, result.Value, 10);
@@ -821,12 +822,36 @@ public class AnalysesTests
         net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
         net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
 
-        var exactResult = Analyses.Density(net, "clubs");
+        var exactResult = Analyses.Density(net, "clubs", sampleSize: 0);
         var largeSampleResult = Analyses.Density(net, "clubs", sampleSize: 1000);
 
         Assert.True(exactResult.Success);
         Assert.True(largeSampleResult.Success);
         Assert.Equal(exactResult.Value, largeSampleResult.Value, 10);
+    }
+
+    [Fact]
+    public void Density_TwoMode_DefaultSampleSize_IsTwoHundredNotExact()
+    {
+        // Confirms the default genuinely stays 200 (sampled), not 0/exact - the one deliberate
+        // exception to every other samplesize-bearing command's "0 means exact by default"
+        // convention, since this layer's exact computation costs O(sum of hyperedge sizes
+        // squared), not O(sum of hyperedge sizes). On this tiny 3-node network sampleSize=200
+        // already exceeds the node count, so the default still happens to compute the exact
+        // value here (the "sampleSize >= nbrNodes" branch) - this test is about confirming the
+        // default's numeric value, not about distinguishing sampled-vs-exact behavior on a
+        // network this small.
+        var net = MakeNetwork(3);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 2, 3 });
+
+        var defaultResult = Analyses.Density(net, "clubs");
+        var explicitTwoHundredResult = Analyses.Density(net, "clubs", sampleSize: 200);
+
+        Assert.True(defaultResult.Success);
+        Assert.True(explicitTwoHundredResult.Success);
+        Assert.Equal(explicitTwoHundredResult.Value, defaultResult.Value, 10);
     }
 
     [Fact]

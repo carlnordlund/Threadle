@@ -9,8 +9,9 @@
 
 - **`diameter()`/`eccentricity()`** now accept a 2-mode layer directly, pseudo-projected
   (traversed node-hyperedge-node, without materializing a 1-mode projection).
-  `components()` and `shortestpathsattributes()` turn out to already have worked this
-  way with no gate at all.
+  `components()` and `shortestpathsattributes()` turn out to already have had no gate
+  rejecting a 2-mode layer either — though their own traversal needed a Performance fix
+  (below) to actually get the same pseudo-projected cost as these two.
 - **`assortativity()`/`degreeassortativity()`** now accept a 2-mode layer, with a new
   `projection = ['binary'(default),'count']` parameter controlling how a pair of
   co-affiliates (members sharing a hyperedge) is counted: `binary` counts a pair once
@@ -48,22 +49,13 @@
   upper bound on the number of distinct projected edges, dominated by the single
   largest hyperedge) and `EstimatedProjectionMemoryBytes` (a rough, order-of-magnitude
   byte estimate from that bound) — neither is a precise prediction, just a smell test.
-
-### Behavior changes
-
-> This changes the numeric result of an existing command for a no-argument call —
-> not a bug in the old result, just a different default.
-
-- **`density()`** on a 2-mode layer now defaults to an *exact* computation
-  (`samplesize=0`) instead of a 200-node sample, matching every other
-  `samplesize`-bearing command's "0 means exact" convention (`diameter()`,
-  `constraint()`, `effectivesize()`, `betweennesscentrality()`, `triadiccensus()`, ...)
-  — 1-mode `density()` was already always exact. The exact 2-mode computation reuses
-  the same handshake-lemma sum `dyadcensus()`'s exact `Mutual` count already relies on
-  (sum of every node's binary projected degree, divided by the number of potential
-  pairs) — O(sum of hyperedge sizes), the same order as the old sampled path, not
-  slower. Pass a positive `samplesize` below the layer's node count to get the old
-  sampled-estimate behavior back on a very large layer.
+- **`density()`** on a 2-mode layer can now be computed exactly on request
+  (`samplesize=0`), rather than only ever being a sampled estimate. The default stays a
+  200-node sample, though: unlike most other `samplesize`-bearing commands, exact 2-mode
+  density is deliberately *not* the default here, since it needs every node's true
+  deduplicated degree — O(sum of hyperedge sizes squared), the same order as
+  materializing a full projection, not the O(sum of hyperedge sizes) a "nothing gets
+  materialized" framing might otherwise suggest.
 
 ### Performance
 
@@ -104,6 +96,14 @@
   hyperedges and keeps the previous per-node enumeration. Lowers `count`'s cost from
   O(sum of hyperedge sizes squared) to O(sum of hyperedge sizes). No behavior
   change — identical correlation value either way.
+- **`components()`/`shortestpathsattributes()`** on a 2-mode layer no longer
+  re-derive each node's alters node-by-node (which, via the non-memoized
+  `GetNodeAlters`, costs O(sum of hyperedge sizes squared) in aggregate across a
+  traversal). Both now use the same hyperedge-aware BFS primitive `diameter()`/
+  `eccentricity()` already use, which gates each hyperedge behind a per-traversal
+  visited set so it is expanded at most once — genuinely O(sum of hyperedge sizes).
+  No behavior change — identical component assignments and shortest-path distances
+  either way, just a cheaper traversal.
 
 ### Deliberately out of scope
 

@@ -517,7 +517,13 @@ namespace Threadle.Core.Analysis
         /// the exact count of distinct pairs sharing at least one hyperedge: the sum of each
         /// node's binary projected degree (<see cref="ILayer.GetNodeAlters"/>'s distinct-alter
         /// count, matching degree()'s own 2-mode convention) is, by the handshake lemma, exactly
-        /// twice the number of distinct pairs - O(sum of hyperedge sizes), no sampling needed.
+        /// twice the number of distinct pairs - exact, no sampling. NOT O(sum of hyperedge sizes),
+        /// though: GetNodeAlters re-scans a node's hyperedges from scratch on every call with no
+        /// cross-call memoization, so summing it over every node costs O(sum of hyperedge sizes
+        /// squared) - the same order as materializing a full binary projection, just never
+        /// persisted. This is inherent to needing every node's true *deduplicated* degree (the
+        /// same reason density()'s exact 2-mode path has this cost too), not a missed
+        /// optimization.
         /// </summary>
         internal static Dictionary<string, object> DyadCensusTwoMode(uint[] nodeIds, ILayer layer)
         {
