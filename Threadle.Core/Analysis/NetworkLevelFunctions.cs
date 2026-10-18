@@ -336,6 +336,16 @@ namespace Threadle.Core.Analysis
         /// cross-hyperedge pair-identity dedup is ever needed, which is exactly what licenses
         /// folding each hyperedge's full contribution from two per-hyperedge running sums instead
         /// of visiting every pair.
+        ///
+        /// Count mode's weighting has no materialized-projection equivalent to test against:
+        /// <see cref="PearsonEdgeCorrelation"/> (the 1-mode baseline this delegates to for a
+        /// materialized layer) ignores an edge's own weight/value entirely - it treats every
+        /// existing edge as one unweighted sample. So Binary mode's result does coincide with
+        /// running assortativity() on a materialized Binary projection (every pair is unweighted
+        /// either way), but Count mode's deliberately-weighted result does not coincide with
+        /// running assortativity() on a materialized Count projection (that path is unweighted by
+        /// construction) - two different, individually correct quantities, not a discrepancy to
+        /// chase if they disagree in a test.
         /// </summary>
         internal static double ContinuousAssortativityTwoMode(ILayer layer, Dictionary<uint, double> jVals, Dictionary<uint, double> kVals, uint[] nodeIds, ProjectionMethod projection)
         {

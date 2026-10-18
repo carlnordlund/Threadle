@@ -3523,11 +3523,15 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void Assortativity_TwoModeLayer_ContinuousCount_NoMissingValues_MatchesOneModeProjection()
+    public void Assortativity_TwoModeLayer_ContinuousCount_NoMissingValues_MatchesHandComputedValue()
     {
-        // Equivalence check for the Count-mode closed-form per-hyperedge reduction (new):
-        // every node has a value, so this exercises the fast path end to end against an
-        // independently-computed materialized projection.
+        // Hand-computed expectation for the Count-mode closed-form per-hyperedge reduction.
+        // c1={1,2,3} vals={1.5,3,4.5}: S=9,    Q=31.5   -> sumJK+=49.5,  sumJ/K+=18,   sumJ2/K2+=63,    M+=6
+        // c2={2,3,4} vals={3,4.5,6}:   S=13.5, Q=65.25  -> sumJK+=117,   sumJ/K+=27,   sumJ2/K2+=130.5, M+=6
+        // c3={4,5,6} vals={6,7.5,9}:   S=22.5, Q=173.25 -> sumJK+=333,   sumJ/K+=45,   sumJ2/K2+=346.5, M+=6
+        // Totals: sumJK=499.5, sumJ=sumK=90, sumJ2=sumK2=540, M=18.
+        // r = (M*sumJK - sumJ*sumK) / (M*sumJ2 - sumJ^2) = (18*499.5 - 90*90) / (18*540 - 90*90)
+        //   = (8991 - 8100) / (9720 - 8100) = 891/1620 = 11/20 = 0.55 exactly.
         var net = MakeAssortativityTwoModeNetwork();
         net.Nodeset.DefineNodeAttribute("val", "float");
         for (uint id = 1; id <= 6; id++)
@@ -3535,13 +3539,25 @@ public class AnalysesTests
 
         var twoModeResult = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Count);
         Assert.True(twoModeResult.Success, twoModeResult.Message);
+        Assert.Equal(11.0 / 20.0, twoModeResult.Value, precision: 10);
 
+        // Deliberately NOT expected to equal assortativity() run on the materialized
+        // Count-projection: PearsonEdgeCorrelation (the 1-mode baseline) ignores edge weight
+        // entirely - it treats every existing edge as one unweighted sample, regardless of its
+        // projected weight. So projecting with Count (pair (2,3) -> weight 2, from sharing both
+        // c1 and c2) and then calling assortativity() on that projection computes the
+        // *unweighted* correlation over the same 8 distinct edges, not one weighted by
+        // shared-hyperedge count - a different, equally valid, but genuinely different quantity:
+        // sumJK=472.5, sumJ=sumK=82.5, sumJ2=sumK2=510.75, M=16 (same formula, weight=1 per
+        // edge), giving r = (16*472.5 - 82.5^2) / (16*510.75 - 82.5^2) = 753.75/1365.75 =
+        // 335/607 (~0.5518945634). Asserting both values, and that they differ, documents this
+        // non-equivalence explicitly so it isn't mistaken for a regression again.
         var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Count, "aff_proj");
         Assert.True(projResult.Success, projResult.Message);
         var oneModeResult = Analyses.Assortativity(net, "aff_proj", "val");
         Assert.True(oneModeResult.Success, oneModeResult.Message);
-
-        Assert.Equal(oneModeResult.Value, twoModeResult.Value, precision: 10);
+        Assert.Equal(335.0 / 607.0, oneModeResult.Value, precision: 10);
+        Assert.NotEqual(oneModeResult.Value, twoModeResult.Value);
     }
 
     [Fact]
