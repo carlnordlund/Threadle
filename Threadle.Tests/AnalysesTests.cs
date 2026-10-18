@@ -3382,7 +3382,7 @@ public class AnalysesTests
         Assert.True(countResult.Success, countResult.Message);
         Assert.True(binaryResult.Success, binaryResult.Message);
         Assert.Equal(-40.0 / 176.0, countResult.Value, precision: 10);
-        Assert.True(Math.Abs(binaryResult.Value!.Value - countResult.Value!.Value) > 0.01,
+        Assert.True(Math.Abs(binaryResult.Value - countResult.Value) > 0.01,
             $"Expected 'binary' ({binaryResult.Value}) and 'count' ({countResult.Value}) to differ.");
     }
 
