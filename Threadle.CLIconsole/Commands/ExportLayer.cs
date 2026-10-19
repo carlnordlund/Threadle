@@ -14,7 +14,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "exportlayer(network = [var:network], layername = [str], file = \"[str]\", *format = ['edgelist'(default),'matrix'], *header = ['true'(true),'false'], *sep = [char(default:'\\t')], *labelattr = [str])";
+        public string Syntax => "exportlayer(network = [var:network], layername = [str], file = \"[str]\", *format = ['edgelist'(default),'matrix'], *header = ['true'(default),'false'], *sep = [char(default:'\\t')], *labelattr = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.

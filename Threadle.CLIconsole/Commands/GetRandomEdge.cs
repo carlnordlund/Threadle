@@ -15,7 +15,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[int,int,float] = getrandomedge(network = [var:network], layername = [str], *maxattempts=[int(100)])";
+        public string Syntax => "[int,int,float] = getrandomedge(network = [var:network], layername = [str], *maxattempts=[int(default:100)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.

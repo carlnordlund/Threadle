@@ -13,7 +13,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[array:str] = getallnodes(structure = [var:structure], *offset = [int(default:0)], *limit = [int(default:1000])";
+        public string Syntax => "[array:str] = getallnodes(structure = [var:structure], *offset = [int(default:0)], *limit = [int(default:1000)])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
