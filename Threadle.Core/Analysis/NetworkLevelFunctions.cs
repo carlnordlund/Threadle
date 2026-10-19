@@ -596,11 +596,78 @@ namespace Threadle.Core.Analysis
         /// directed layers, 'traversal' controls which direction BFS follows — unreachable pairs
         /// (possible even within the giant component when following direction) are simply
         /// excluded from both statistics, with PairsConsidered reporting how many were used.
+        ///
+        /// <paramref name="diameterOnly"/> (default false) trades AvgDistance/PairsConsidered
+        /// away for a faster diameter-only computation: AvgDistance inherently needs a full BFS
+        /// from every node regardless (no shortcut exists for a sum/mean the way one exists for a
+        /// max), so this is a genuine opt-in, not a transparent speed-up of the default mode,
+        /// which is completely unchanged. When true and the distances involved are symmetric (a
+        /// 2-mode layer, a symmetric 1-mode layer, or an explicit EdgeTraversal.Both query), uses
+        /// <see cref="DiameterIFUB"/> - exact, but often examining only a small fraction of nodes
+        /// on real-world graphs (no improved worst-case bound, e.g. a path graph still needs most
+        /// nodes examined - the win is empirical/typical-case, not asymptotic). Otherwise (a
+        /// directed layer queried with Out/In traversal, where iFUB's exactness proof doesn't
+        /// apply) falls back to the same exhaustive all-pairs pass as the default mode, just
+        /// without keeping the sum/count needed for AvgDistance - same cost as today in that case,
+        /// only the narrower output. Either way, diameterOnly's result always omits
+        /// AvgDistance/PairsConsidered and adds Algorithm ("iFUB" or "AllPairs"), so the output
+        /// shape is predictable regardless of which internal path actually ran.
         /// </summary>
-        internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayer layer, EdgeTraversal traversal)
+        internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayer layer, EdgeTraversal traversal, bool diameterOnly = false)
         {
             uint[] component = LargestComponent(nodeIds, layer);
             int compSize = component.Length;
+
+            if (diameterOnly)
+            {
+                long diameterOnlyValue = 0;
+                string algorithm = "AllPairs";
+                if (compSize > 1)
+                {
+                    GraphAlgorithms.SplitLayers([layer], out var oneModesFast, out var twoModesDynamicFast, out var twoModesStaticFast);
+                    bool effectivelySymmetric = layer is ILayerTwoMode
+                        || traversal == EdgeTraversal.Both
+                        || (layer is ILayerOneMode lom && lom.IsSymmetric);
+
+                    if (effectivelySymmetric)
+                    {
+                        diameterOnlyValue = DiameterIFUB(component, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
+                        algorithm = "iFUB";
+                    }
+                    else
+                    {
+                        long maxDistFallback = 0;
+                        var mergeLockFallback = new object();
+                        System.Threading.Tasks.Parallel.For(0, component.Length, UserSettings.GetParallelOptions(),
+                            () => 0L,
+                            (i, loopState, localMax) =>
+                            {
+                                var dist = GraphAlgorithms.BFS(component[i], oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
+                                foreach (int d in dist.Values)
+                                    if (d > localMax) localMax = d;
+                                return localMax;
+                            },
+                            localMax =>
+                            {
+                                lock (mergeLockFallback)
+                                {
+                                    if (localMax > maxDistFallback) maxDistFallback = localMax;
+                                }
+                            });
+                        diameterOnlyValue = maxDistFallback;
+                        algorithm = "AllPairs";
+                    }
+                }
+
+                return new Dictionary<string, object>
+                {
+                    ["Method"] = "Exact",
+                    ["Algorithm"] = algorithm,
+                    ["Diameter"] = (int)diameterOnlyValue,
+                    ["ComponentSize"] = compSize,
+                    ["TotalNodes"] = nodeIds.Length
+                };
+            }
 
             long maxDist = 0;
             long sumDist = 0;
@@ -681,17 +748,8 @@ namespace Threadle.Core.Analysis
                     () => 0L,
                     (i, loopState, localBest) =>
                     {
-                        uint r = component[Misc.Random.Next(compSize)];
-                        var dist1 = GraphAlgorithms.BFS(r, oneModes, twoModesDynamic, twoModesStatic, traversal);
-                        uint u = r;
-                        int best1 = 0;
-                        foreach (var (node, d) in dist1)
-                            if (d > best1) { best1 = d; u = node; }
-                        var dist2 = GraphAlgorithms.BFS(u, oneModes, twoModesDynamic, twoModesStatic, traversal);
-                        int best2 = 0;
-                        foreach (int d in dist2.Values)
-                            if (d > best2) best2 = d;
-                        return Math.Max(localBest, (long)best2);
+                        var (_, _, ecc) = DoubleSweepRoot(component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                        return Math.Max(localBest, (long)ecc);
                     },
                     localBest =>
                     {
@@ -768,6 +826,90 @@ namespace Threadle.Core.Analysis
                     bestComponent = component.ToArray();
             }
             return bestComponent;
+        }
+
+        /// <summary>
+        /// Double-sweep heuristic: BFS from a random node in the component to find a likely-
+        /// peripheral node, then BFS from that node. Returns that peripheral node, its full
+        /// distance map, and its eccentricity (the max value in that map) - a cheap, often-exact
+        /// lower bound on the true diameter on its own (used this way by
+        /// <see cref="DiameterSampled"/>), and a good starting root for <see cref="DiameterIFUB"/>'s
+        /// level-by-level refinement when distances are symmetric.
+        /// </summary>
+        private static (uint root, Dictionary<uint, int> distFromRoot, int ecc) DoubleSweepRoot(uint[] component, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        {
+            uint x = component[Misc.Random.Next(component.Length)];
+            var dist1 = GraphAlgorithms.BFS(x, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            uint r = x;
+            int best1 = 0;
+            foreach (var (node, d) in dist1)
+                if (d > best1) { best1 = d; r = node; }
+
+            var distFromRoot = GraphAlgorithms.BFS(r, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            int ecc = 0;
+            foreach (int d in distFromRoot.Values)
+                if (d > ecc) ecc = d;
+            return (r, distFromRoot, ecc);
+        }
+
+        /// <summary>
+        /// Exact diameter via the iFUB algorithm (Crescenzi, Grossi, Lanzi &amp; Marino 2012):
+        /// picks a likely-peripheral root via one double-sweep trial (<see cref="DoubleSweepRoot"/>),
+        /// then processes BFS-tree levels (by distance from that root) from farthest to nearest,
+        /// computing each unprocessed node's exact eccentricity (one more BFS per node,
+        /// parallelized within the level) and tracking a running lower bound, stopping as soon as
+        /// that lower bound meets the upper bound implied by the triangle inequality through the
+        /// root: for root r with eccentricity eccR, any node x satisfies ecc(x) &lt;= dist(r,x) +
+        /// eccR, so once every node at level i has a known exact eccentricity, any still-
+        /// unprocessed node (level &lt; i) has ecc &lt;= (i-1)+eccR - if the running lower bound
+        /// already meets that, it IS the exact diameter and the loop stops. This bound only holds
+        /// when distances are symmetric; callers must check that before calling this, it is not
+        /// re-checked here. Often examines only a small fraction of a component's nodes on
+        /// real-world graphs; no improved worst-case bound (e.g. a path graph needs most nodes
+        /// examined regardless) - exact either way, just not always fast.
+        /// </summary>
+        private static long DiameterIFUB(uint[] component, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        {
+            var (_, distFromRoot, eccR) = DoubleSweepRoot(component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+
+            var levels = new Dictionary<int, List<uint>>();
+            foreach (var (node, d) in distFromRoot)
+            {
+                if (!levels.TryGetValue(d, out var list))
+                    levels[d] = list = [];
+                list.Add(node);
+            }
+
+            long lb = eccR;
+            var mergeLock = new object();
+            for (int i = eccR; i >= 0; i--)
+            {
+                if (levels.TryGetValue(i, out var levelNodes) && levelNodes.Count > 0)
+                {
+                    System.Threading.Tasks.Parallel.For(0, levelNodes.Count, UserSettings.GetParallelOptions(),
+                        () => 0L,
+                        (j, loopState, localBest) =>
+                        {
+                            var dist = GraphAlgorithms.BFS(levelNodes[j], oneModes, twoModesDynamic, twoModesStatic, traversal);
+                            int ecc = 0;
+                            foreach (int d in dist.Values)
+                                if (d > ecc) ecc = d;
+                            return Math.Max(localBest, (long)ecc);
+                        },
+                        localBest =>
+                        {
+                            lock (mergeLock)
+                            {
+                                if (localBest > lb) lb = localBest;
+                            }
+                        });
+                }
+
+                if (i == 0) break;
+                long ub = (i - 1) + eccR;
+                if (lb >= ub) break;
+            }
+            return lb;
         }
 
         /// <summary>Number of elements common to both sets, iterating the smaller one.</summary>

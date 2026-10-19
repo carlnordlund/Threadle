@@ -449,30 +449,48 @@ namespace Threadle.Core.Analysis
         }
         /// <summary>
         /// PageRank with teleportation. Precomputes unique projected out-neighbor lists once
-        /// (co-members deduplicated across hyperedges) then iterates until convergence.
+        /// (co-members deduplicated across hyperedges), then iterates until convergence.
         /// Dangling nodes (no out-edges) distribute their mass uniformly to all nodes.
+        /// Both the precompute and each iteration's update are parallelized (up to 'maxthreads',
+        /// see 'setting()'): the precompute is embarrassingly parallel (each node writes only its
+        /// own disjoint output-index slot, no merge needed); the per-iteration update is a
+        /// scatter-add (each source node's share is added to every one of its targets), so it uses
+        /// the same thread-local-accumulator-merged-under-lock pattern as
+        /// AccumulateBFSCentralitiesForSources - each thread accumulates into its own private
+        /// array, summed into the shared one once per thread's batch, not once per source. The
+        /// outer iteration loop itself stays sequential (each iteration needs the previous one's
+        /// fully-merged result). Floating-point summation is not associative, so a parallel run's
+        /// result can differ from a sequential one by rounding noise at the tolerance level, same
+        /// as any other parallel reduction in this codebase - not a behavior change in the
+        /// converged value.
         /// </summary>
         internal static Dictionary<uint, double> PageRank(uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, double dampingFactor = 0.85, int maxIterations = 100, double tolerance = 1e-8)
         {
             int n = nodeIds.Length;
             if (n == 0) return [];
-            var nodeSet = new HashSet<uint>(nodeIds);
 
-            // Precompute unique out-neighbor lists (projected adjacency, deduplicated)
-            var outNeighbors = new Dictionary<uint, uint[]>(n);
-            foreach (uint u in nodeIds)
+            // Build nodeId -> array-index map once (sequential setup, not the hot path) - mirrors
+            // EigenvectorCentrality's own array-based approach in this same file.
+            var idx = new Dictionary<uint, int>(n);
+            for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+
+            // Precompute unique out-neighbor index lists (projected adjacency, deduplicated).
+            // Each thread writes only its own slot outNeighbors[ui] - no merge/lock needed.
+            var outNeighbors = new int[n][];
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(), ui =>
             {
-                var neighbors = new HashSet<uint>();
+                uint u = nodeIds[ui];
+                var neighbors = new HashSet<int>();
                 foreach (var layer in oneModes)
                     foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Out))
-                        if (nodeSet.Contains(v)) neighbors.Add(v);
+                        if (idx.TryGetValue(v, out int vi)) neighbors.Add(vi);
                 foreach (var layer in twoModesDynamic)
                 {
                     var hec = layer.GetNonEmptyHyperedgeCollection(u);
                     if (hec == null) continue;
                     foreach (var he in hec.HyperEdges)
                         foreach (uint m in he.NodeIds)
-                            if (m != u && nodeSet.Contains(m)) neighbors.Add(m);
+                            if (m != u && idx.TryGetValue(m, out int mi)) neighbors.Add(mi);
                 }
                 foreach (var layer in twoModesStatic)
                 {
@@ -484,40 +502,59 @@ namespace Threadle.Core.Analysis
                         for (int j = hStart; j < hEnd; j++)
                         {
                             uint m = layer.GetHyperedgeNodeAt(j);
-                            if (m != u && nodeSet.Contains(m)) neighbors.Add(m);
+                            if (m != u && idx.TryGetValue(m, out int mi)) neighbors.Add(mi);
                         }
                     }
                 }
-                outNeighbors[u] = [.. neighbors];
-            }
+                outNeighbors[ui] = [.. neighbors];
+            });
 
-            var pr = new Dictionary<uint, double>(n);
-            foreach (uint v in nodeIds) pr[v] = 1.0 / n;
+            double[] pr = new double[n];
+            for (int i = 0; i < n; i++) pr[i] = 1.0 / n;
             double teleport = (1.0 - dampingFactor) / n;
+            var mergeLock = new object();
 
             for (int iter = 0; iter < maxIterations; iter++)
             {
-                var prNew = new Dictionary<uint, double>(n);
-                foreach (uint v in nodeIds) prNew[v] = teleport;
+                double[] prNew = new double[n];
+                for (int i = 0; i < n; i++) prNew[i] = teleport;
                 double danglingSum = 0;
 
-                foreach (uint u in nodeIds)
-                {
-                    uint[] outs = outNeighbors[u];
-                    if (outs.Length == 0) { danglingSum += pr[u]; continue; }
-                    double share = dampingFactor * pr[u] / outs.Length;
-                    foreach (uint v in outs) prNew[v] += share;
-                }
+                System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                    () => (Local: new double[n], DanglingSum: 0.0),
+                    (ui, loopState, local) =>
+                    {
+                        int[] outs = outNeighbors[ui];
+                        if (outs.Length == 0)
+                        {
+                            local.DanglingSum += pr[ui];
+                            return local;
+                        }
+                        double share = dampingFactor * pr[ui] / outs.Length;
+                        foreach (int vi in outs) local.Local[vi] += share;
+                        return local;
+                    },
+                    local =>
+                    {
+                        lock (mergeLock)
+                        {
+                            for (int i = 0; i < n; i++) prNew[i] += local.Local[i];
+                            danglingSum += local.DanglingSum;
+                        }
+                    });
 
                 double danglingContrib = dampingFactor * danglingSum / n;
-                foreach (uint v in nodeIds) prNew[v] += danglingContrib;
+                for (int i = 0; i < n; i++) prNew[i] += danglingContrib;
 
                 double maxDiff = 0;
-                foreach (uint v in nodeIds) maxDiff = Math.Max(maxDiff, Math.Abs(prNew[v] - pr[v]));
+                for (int i = 0; i < n; i++) maxDiff = Math.Max(maxDiff, Math.Abs(prNew[i] - pr[i]));
                 pr = prNew;
                 if (maxDiff < tolerance) break;
             }
-            return pr;
+
+            var result = new Dictionary<uint, double>(n);
+            for (int i = 0; i < n; i++) result[nodeIds[i]] = pr[i];
+            return result;
         }
 
         #endregion

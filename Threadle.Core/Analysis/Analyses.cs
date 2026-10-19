@@ -278,8 +278,21 @@ namespace Threadle.Core.Analysis
         /// directed layers, 'traversal' controls which direction BFS follows; unreachable pairs
         /// (possible even within the giant component when following direction) are simply
         /// excluded from both statistics.
+        ///
+        /// diameterOnly (default false, only consulted when sampleSize is 0) trades AvgDistance/
+        /// PairsConsidered away for a faster diameter-only computation, since AvgDistance
+        /// inherently needs a full BFS from every node regardless of whether only the diameter is
+        /// wanted - a genuine opt-in, not a transparent speed-up of the default (unchanged) mode.
+        /// When the layer/traversal combination is effectively symmetric (a 2-mode layer, a
+        /// symmetric 1-mode layer, or traversal=Both), uses the iFUB algorithm (Crescenzi, Grossi,
+        /// Lanzi &amp; Marino 2012) - exact, but often examining only a small fraction of a
+        /// component's nodes on real-world graphs (no improved worst-case bound - e.g. a path
+        /// graph still needs most nodes examined, so this is an empirical/typical-case win, not an
+        /// asymptotic one). Otherwise falls back to the same exhaustive pass as the default mode,
+        /// same cost, just without AvgDistance/PairsConsidered in the result. Either way, the
+        /// result also carries Algorithm ("iFUB" or "AllPairs") so a caller can see which path ran.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> Diameter(Network network, string layerName, int sampleSize = 0, int numSweeps = 4, EdgeTraversal traversal = EdgeTraversal.Out)
+        public static OperationResult<Dictionary<string, object>> Diameter(Network network, string layerName, int sampleSize = 0, int numSweeps = 4, EdgeTraversal traversal = EdgeTraversal.Out, bool diameterOnly = false)
         {
             if (network.Nodeset.Count == 0)
                 return OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
@@ -288,7 +301,7 @@ namespace Threadle.Core.Analysis
                 return OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
             var diameterResult = sampleSize > 0
                 ? NetworkLevelFunctions.DiameterSampled(network.Nodeset.NodeIdArray, lr.Value!, traversal, sampleSize, numSweeps)
-                : NetworkLevelFunctions.Diameter(network.Nodeset.NodeIdArray, lr.Value!, traversal);
+                : NetworkLevelFunctions.Diameter(network.Nodeset.NodeIdArray, lr.Value!, traversal, diameterOnly);
             return OperationResult<Dictionary<string, object>>.Ok(diameterResult);
         }
 

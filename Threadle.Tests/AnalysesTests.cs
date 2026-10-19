@@ -2669,6 +2669,95 @@ public class AnalysesTests
         }
     }
 
+    // ── PageRank ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void PageRank_RegularUndirectedCycle_ConvergesToUniform()
+    {
+        // 1-2-3-4-1 undirected cycle: every node has the same (out-)degree, so the
+        // stationary distribution of the underlying random walk is exactly uniform,
+        // 1/n for every node, regardless of damping factor - a clean, exact sanity
+        // check independent of any iteration-count/tolerance assumption.
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 4);
+        net.AddEdge("layer", 4, 1);
+
+        var result = Analyses.PageRank(net, new[] { "layer" }, "pr");
+
+        Assert.True(result.Success);
+        for (uint id = 1; id <= 4; id++)
+            Assert.Equal(0.25, GetFloatAttr(net, id, "pr"), precision: 6);
+    }
+
+    [Fact]
+    public void PageRank_DirectedWithDanglingNode_MatchesHandComputedFixedPoint()
+    {
+        // Directed edge 1->2 only; node 2 is dangling (no out-edges). Hand-solving the
+        // fixed point (pr1+pr2=1, default damping=0.85):
+        //   pr1 = (1-d)/2 + d*pr2/2             (teleport + its share of node 2's dangling mass)
+        //   pr2 = (1-d)/2 + d*pr1 + d*pr2/2     (teleport + node 1's full share + dangling mass)
+        // Substituting pr2=1-pr1 into the first equation and solving:
+        //   pr1 = 0.075 + 0.425*(1-pr1) => 1.425*pr1 = 0.5 => pr1 = 20/57, pr2 = 37/57.
+        var net = MakeNetwork(2);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+
+        var result = Analyses.PageRank(net, new[] { "layer" }, "pr");
+
+        Assert.True(result.Success);
+        Assert.Equal(20.0 / 57.0, GetFloatAttr(net, 1, "pr"), precision: 6);
+        Assert.Equal(37.0 / 57.0, GetFloatAttr(net, 2, "pr"), precision: 6);
+    }
+
+    [Fact]
+    public void PageRank_TwoModeLayer_MatchesOneModeBinaryProjection()
+    {
+        // pagerank()'s 2-mode precompute dedupes co-affiliates into a HashSet (no
+        // shared-hyperedge-count weighting), the same binary convention projecttwomode()'s
+        // 'binary' method uses - so the pseudo-projected 2-mode result must match running
+        // pagerank() on the materialized binary projection of the same hyperedges.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.PageRank(net, new[] { "aff" }, "pr_2mode");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.PageRank(net, new[] { "aff_proj" }, "pr_1mode");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint id = 1; id <= 6; id++)
+            Assert.Equal(GetFloatAttr(net, id, "pr_1mode"), GetFloatAttr(net, id, "pr_2mode"), precision: 5);
+    }
+
+    [Fact]
+    public void PageRank_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            Analyses.PageRank(netSeq, new[] { "layer" }, "pr");
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            Analyses.PageRank(netPar, new[] { "layer" }, "pr");
+
+            for (uint id = 1; id <= 20; id++)
+                Assert.Equal(GetFloatAttr(netSeq, id, "pr"), GetFloatAttr(netPar, id, "pr"), precision: 5);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
     [Fact]
     public void BetweennessCentrality_MaxThreadsGreaterThanOne_Succeeds()
     {
@@ -3123,6 +3212,146 @@ public class AnalysesTests
         Assert.Equal((int)oneModeResult.Value!["Diameter"], (int)twoModeResult.Value!["Diameter"]);
         Assert.Equal((int)oneModeResult.Value!["ComponentSize"], (int)twoModeResult.Value!["ComponentSize"]);
         Assert.Equal((double)oneModeResult.Value!["AvgDistance"], (double)twoModeResult.Value!["AvgDistance"]);
+    }
+
+    // ── Diameter: diameterOnly (iFUB) ──────────────────────────────────────────
+
+    [Fact]
+    public void Diameter_DiameterOnly_UndirectedPathGraph_MatchesExactDiameterViaIFUB()
+    {
+        // Same 5-node path as Diameter_PathGraph_ExactDiameterAndAvgDistance (true diameter 4).
+        // Undirected, so iFUB applies; diameterOnly's result must match the exhaustive method's
+        // Diameter exactly and must not carry AvgDistance/PairsConsidered.
+        var net = MakeNetwork(5);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 4);
+        net.AddEdge("layer", 4, 5);
+
+        var result = Analyses.Diameter(net, "layer", diameterOnly: true);
+
+        Assert.True(result.Success);
+        Assert.Equal("iFUB", result.Value!["Algorithm"]);
+        Assert.Equal(4, (int)result.Value!["Diameter"]);
+        Assert.Equal(5, (int)result.Value!["ComponentSize"]);
+        Assert.Equal(5, (int)result.Value!["TotalNodes"]);
+        Assert.False(result.Value!.ContainsKey("AvgDistance"));
+        Assert.False(result.Value!.ContainsKey("PairsConsidered"));
+    }
+
+    [Fact]
+    public void Diameter_DiameterOnly_RingWithChords_MatchesExhaustiveDiameter()
+    {
+        // A richer, less trivially-shaped graph than a path - cross-checks iFUB's early
+        // termination logic against the (unchanged, trusted) exhaustive all-pairs Diameter on
+        // the same network, rather than a single hand-derived example.
+        var net = MakeRingWithChordsNetwork(20);
+
+        var exact = Analyses.Diameter(net, "layer");
+        var fast = Analyses.Diameter(net, "layer", diameterOnly: true);
+
+        Assert.True(exact.Success);
+        Assert.True(fast.Success);
+        Assert.Equal("iFUB", fast.Value!["Algorithm"]);
+        Assert.Equal((int)exact.Value!["Diameter"], (int)fast.Value!["Diameter"]);
+        Assert.Equal((int)exact.Value!["ComponentSize"], (int)fast.Value!["ComponentSize"]);
+    }
+
+    [Fact]
+    public void Diameter_DiameterOnly_DirectedOutTraversal_FallsBackToAllPairs()
+    {
+        // 1->2->3, default 'out' traversal: distances are not symmetric (iFUB's exactness proof
+        // doesn't apply), so diameterOnly falls back to the exhaustive all-pairs pass - same
+        // Diameter value as the non-diameterOnly call, but Algorithm reports which path ran and
+        // AvgDistance/PairsConsidered are still omitted.
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var exact = Analyses.Diameter(net, "layer", traversal: EdgeTraversal.Out);
+        var fast = Analyses.Diameter(net, "layer", traversal: EdgeTraversal.Out, diameterOnly: true);
+
+        Assert.True(exact.Success);
+        Assert.True(fast.Success);
+        Assert.Equal("AllPairs", fast.Value!["Algorithm"]);
+        Assert.Equal((int)exact.Value!["Diameter"], (int)fast.Value!["Diameter"]);
+        Assert.False(fast.Value!.ContainsKey("AvgDistance"));
+    }
+
+    [Fact]
+    public void Diameter_DiameterOnly_DirectedBothTraversal_UsesIFUB()
+    {
+        // Same directed layer as above, but traversal=Both makes the query effectively
+        // symmetric (BFS follows edges in both directions regardless of the layer's own
+        // directionality), so diameterOnly uses iFUB here even though the layer itself is
+        // directed.
+        var net = MakeNetwork(3);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var exact = Analyses.Diameter(net, "layer", traversal: EdgeTraversal.Both);
+        var fast = Analyses.Diameter(net, "layer", traversal: EdgeTraversal.Both, diameterOnly: true);
+
+        Assert.True(exact.Success);
+        Assert.True(fast.Success);
+        Assert.Equal("iFUB", fast.Value!["Algorithm"]);
+        Assert.Equal((int)exact.Value!["Diameter"], (int)fast.Value!["Diameter"]);
+    }
+
+    [Fact]
+    public void Diameter_DiameterOnly_TwoModeLayer_UsesIFUB_MatchesExactDiameter()
+    {
+        // Same hyperedges as Diameter_TwoModeLayer_MatchesOneModeProjection. A 2-mode layer has
+        // no direction concept at all, so it's always effectively symmetric - diameterOnly must
+        // use iFUB here regardless of the (moot) traversal argument.
+        var net = MakeNetwork(7);
+        net.AddLayerTwoMode("clubs");
+        net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
+        net.AddHyperedge("clubs", "c2", new uint[] { 3, 4, 5 });
+        net.AddHyperedge("clubs", "c3", new uint[] { 6, 7 });
+
+        var exact = Analyses.Diameter(net, "clubs");
+        var fast = Analyses.Diameter(net, "clubs", diameterOnly: true);
+
+        Assert.True(exact.Success);
+        Assert.True(fast.Success);
+        Assert.Equal("iFUB", fast.Value!["Algorithm"]);
+        Assert.Equal((int)exact.Value!["Diameter"], (int)fast.Value!["Diameter"]);
+        Assert.Equal((int)exact.Value!["ComponentSize"], (int)fast.Value!["ComponentSize"]);
+    }
+
+    [Fact]
+    public void Diameter_DiameterOnly_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        // iFUB's own per-level parallel BFS pass needs the same sequential-vs-parallel
+        // equivalence check as the exhaustive method already has (Diameter_MaxThreadsOneVsMany_
+        // ProduceSameValues).
+        if (Environment.ProcessorCount < 2)
+            return;
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            var seqResult = Analyses.Diameter(netSeq, "layer", diameterOnly: true);
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            var parResult = Analyses.Diameter(netPar, "layer", diameterOnly: true);
+
+            Assert.True(seqResult.Success);
+            Assert.True(parResult.Success);
+            Assert.Equal("iFUB", seqResult.Value!["Algorithm"]);
+            Assert.Equal("iFUB", parResult.Value!["Algorithm"]);
+            Assert.Equal((int)seqResult.Value!["Diameter"], (int)parResult.Value!["Diameter"]);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
     }
 
     [Fact]
