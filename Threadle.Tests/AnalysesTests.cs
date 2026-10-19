@@ -2669,6 +2669,95 @@ public class AnalysesTests
         }
     }
 
+    // ── PageRank ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void PageRank_RegularUndirectedCycle_ConvergesToUniform()
+    {
+        // 1-2-3-4-1 undirected cycle: every node has the same (out-)degree, so the
+        // stationary distribution of the underlying random walk is exactly uniform,
+        // 1/n for every node, regardless of damping factor - a clean, exact sanity
+        // check independent of any iteration-count/tolerance assumption.
+        var net = MakeNetwork(4);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+        net.AddEdge("layer", 3, 4);
+        net.AddEdge("layer", 4, 1);
+
+        var result = Analyses.PageRank(net, new[] { "layer" }, "pr");
+
+        Assert.True(result.Success);
+        for (uint id = 1; id <= 4; id++)
+            Assert.Equal(0.25, GetFloatAttr(net, id, "pr"), precision: 6);
+    }
+
+    [Fact]
+    public void PageRank_DirectedWithDanglingNode_MatchesHandComputedFixedPoint()
+    {
+        // Directed edge 1->2 only; node 2 is dangling (no out-edges). Hand-solving the
+        // fixed point (pr1+pr2=1, default damping=0.85):
+        //   pr1 = (1-d)/2 + d*pr2/2             (teleport + its share of node 2's dangling mass)
+        //   pr2 = (1-d)/2 + d*pr1 + d*pr2/2     (teleport + node 1's full share + dangling mass)
+        // Substituting pr2=1-pr1 into the first equation and solving:
+        //   pr1 = 0.075 + 0.425*(1-pr1) => 1.425*pr1 = 0.5 => pr1 = 20/57, pr2 = 37/57.
+        var net = MakeNetwork(2);
+        AddDirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+
+        var result = Analyses.PageRank(net, new[] { "layer" }, "pr");
+
+        Assert.True(result.Success);
+        Assert.Equal(20.0 / 57.0, GetFloatAttr(net, 1, "pr"), precision: 6);
+        Assert.Equal(37.0 / 57.0, GetFloatAttr(net, 2, "pr"), precision: 6);
+    }
+
+    [Fact]
+    public void PageRank_TwoModeLayer_MatchesOneModeBinaryProjection()
+    {
+        // pagerank()'s 2-mode precompute dedupes co-affiliates into a HashSet (no
+        // shared-hyperedge-count weighting), the same binary convention projecttwomode()'s
+        // 'binary' method uses - so the pseudo-projected 2-mode result must match running
+        // pagerank() on the materialized binary projection of the same hyperedges.
+        var net = MakeAssortativityTwoModeNetwork();
+
+        var twoModeResult = Analyses.PageRank(net, new[] { "aff" }, "pr_2mode");
+        Assert.True(twoModeResult.Success, twoModeResult.Message);
+
+        var projResult = NetworkProcessor.ProjectTwoModeToOneMode(net, "aff", ProjectionMethod.Binary, "aff_proj");
+        Assert.True(projResult.Success, projResult.Message);
+        var oneModeResult = Analyses.PageRank(net, new[] { "aff_proj" }, "pr_1mode");
+        Assert.True(oneModeResult.Success, oneModeResult.Message);
+
+        for (uint id = 1; id <= 6; id++)
+            Assert.Equal(GetFloatAttr(net, id, "pr_1mode"), GetFloatAttr(net, id, "pr_2mode"), precision: 5);
+    }
+
+    [Fact]
+    public void PageRank_MaxThreadsOneVsMany_ProduceSameValues()
+    {
+        if (Environment.ProcessorCount < 2)
+            return; // nothing extra to exercise on a single-core runner
+
+        try
+        {
+            var netSeq = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", 1);
+            Analyses.PageRank(netSeq, new[] { "layer" }, "pr");
+
+            var netPar = MakeRingWithChordsNetwork(20);
+            UserSettings.Set("maxthreads", Math.Min(4, Environment.ProcessorCount));
+            Analyses.PageRank(netPar, new[] { "layer" }, "pr");
+
+            for (uint id = 1; id <= 20; id++)
+                Assert.Equal(GetFloatAttr(netSeq, id, "pr"), GetFloatAttr(netPar, id, "pr"), precision: 5);
+        }
+        finally
+        {
+            UserSettings.MaxDegreeOfParallelism = -1;
+        }
+    }
+
     [Fact]
     public void BetweennessCentrality_MaxThreadsGreaterThanOne_Succeeds()
     {
