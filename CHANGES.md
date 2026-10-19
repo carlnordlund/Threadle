@@ -62,6 +62,23 @@
   deduplicated degree — O(sum of hyperedge sizes squared), the same order as
   materializing a full projection, not the O(sum of hyperedge sizes) a "nothing gets
   materialized" framing might otherwise suggest.
+- **`diameter()`** gains a new `diameteronly` parameter (default `false`). The default
+  mode is completely unchanged — still computes `Diameter` and `AvgDistance`/
+  `PairsConsidered` together, at the same cost as before. `diameteronly=true` trades
+  `AvgDistance`/`PairsConsidered` away for a faster diameter-only computation: an exact
+  mean over every pair inherently needs a full BFS from every node regardless (no
+  shortcut exists for a sum the way one exists for a max), so this is a genuine opt-in,
+  not a transparent speed-up of the default. When the layer/traversal combination is
+  effectively symmetric (a 2-mode layer, a symmetric 1-mode layer, or an explicit
+  `traversal=both`), this uses the iFUB algorithm (Crescenzi, Grossi, Lanzi & Marino
+  2012) — exact, but often examining only a small fraction of a component's nodes on
+  real-world graphs (no improved worst-case bound — e.g. a path graph still needs most
+  nodes examined — so this is an empirical/typical-case win, not an asymptotic one).
+  Otherwise (a directed layer queried with `out`/`in` traversal, where distances aren't
+  symmetric and iFUB's exactness proof doesn't apply) falls back to the same exhaustive
+  all-pairs pass as the default mode, same cost, just without `AvgDistance`/
+  `PairsConsidered` in the result. Either way the result also carries `Algorithm`
+  (`"iFUB"` or `"AllPairs"`) so a caller can see which path actually ran.
 
 ### Behavior changes
 
@@ -125,6 +142,18 @@
   visited set so it is expanded at most once — genuinely O(sum of hyperedge sizes).
   No behavior change — identical component assignments and shortest-path distances
   either way, just a cheaper traversal.
+- **`pagerank()`** is now parallelized (up to `maxthreads`, see `setting()`), same as
+  `betweennesscentrality()`/`closenesscentrality()`/`harmoniccentrality()` already
+  were — it was the one centrality measure (besides `eigenvectorcentrality()`) with no
+  parallel construct anywhere. Both the one-time out-neighbor precompute (each node
+  writes only its own disjoint output slot, no merge needed) and the per-iteration
+  update (a scatter-add, using the same thread-local-accumulator-merged-under-lock
+  pattern the other centralities already use) are parallelized; the outer iteration
+  loop itself stays sequential, since each iteration needs the previous one's fully-
+  merged result. No behavior change in the converged value — floating-point summation
+  order can differ slightly between a sequential and parallel run, same as any other
+  parallel reduction in this codebase, but this doesn't change the result beyond
+  ordinary floating-point rounding.
 
 ### Deliberately out of scope
 
