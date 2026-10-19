@@ -120,6 +120,21 @@
   instead.
 - **`coreness()`** stays 1-mode only for now — k-core peeling's interaction with
   pseudo-projected degree on node removal needs its own careful design.
+- **`degree()`** stays binary-only (distinct-alter count) on a 2-mode layer for now.
+  A `count` (node-strength) variant — summing shared-hyperedge counts instead of
+  deduplicating alters — would be a straightforward O(sum of hyperedge sizes)
+  addition: visit each hyperedge once and add `k−1` to every member's running
+  total, no pair enumeration needed. Identified and verified sound, but deliberately
+  deferred past this freeze, since it would be a new quantity (weighted node
+  strength), not a faster version of the existing distinct-alter-count degree.
+- **`pagerank()`** stays binary-only (deduplicated transition structure) on a
+  2-mode layer for now. A `count` (shared-hyperedge-weighted) variant could use the
+  same per-hyperedge closed form `eigenvectorcentrality()` already uses — within
+  one hyperedge, each member's incoming-mass contribution is one scalar sum over
+  that hyperedge's members, minus its own term, genuinely O(sum of hyperedge sizes)
+  per iteration. Identified and verified sound, but deliberately deferred past this
+  freeze, since it would be a genuinely different weighted-PageRank variant, not
+  the same quantity computed faster.
 - **`smallworldcoefficient()`** stays 1-mode only: it depends on both
   `clusteringcoefficient()` (above) and `rewire()`'s null model, which has no defined
   2-mode (degree-preserving affiliation-swap) analogue.
