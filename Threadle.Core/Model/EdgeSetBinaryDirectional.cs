@@ -156,7 +156,7 @@ namespace Threadle.Core.Model
         /// <param name="nodeId">The node id that should be searched for and eradicated.</param>
         public void RemoveNodeEdgesInEdgeset(uint nodeId)
         {
-            _inbound.RemoveAll( id => id==nodeId);
+            _inbound.RemoveAll(id => id == nodeId);
             _outbound.RemoveAll(id => id == nodeId);
         }
 
@@ -298,8 +298,7 @@ namespace Threadle.Core.Model
         public void _setCapacity(int capacity)
         {
             _outbound = new(capacity);
-            if (!UserSettings.OnlyOutboundEdges)
-                _inbound = new(capacity);
+            _inbound = new(capacity);
         }
         #endregion
     }

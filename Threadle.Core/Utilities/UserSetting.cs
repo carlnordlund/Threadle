@@ -20,15 +20,6 @@
         public static bool BlockMultiedges { get; set; } = true;
 
         /// <summary>
-        /// Setting determining if the storing of directed edges (in directed 1-mode layers) should only
-        /// be stored as outgoing edges, i.e. so that an ego node only has references to nodes that it has
-        /// connections TO, not the nodes that the ego node has connections FROM. This might be useful for some
-        /// operations, e.g. for random walkers in layers with directed edges, where it then lowers the memory
-        /// footprint by half. This only has an effect on directed 1-mode layers.
-        /// </summary>
-        public static bool OnlyOutboundEdges { get; set; } = false;
-
-        /// <summary>
         /// Setting for the maximum number of threads that parallelized methods (e.g. betweenness centrality)
         /// are allowed to use concurrently (the 'maxthreads' setting). -1 (the default) means unconstrained,
         /// i.e. .NET decides based on the number of available cores. Any other value must be a positive
@@ -68,12 +59,6 @@
                     if (!Misc.TryConvertToBool(value, out bool blockMultiedgesValue))
                         return OperationResult.Fail("InvalidValue", $"Setting 'blockmultiedges' requires a boolean value ('true'/'false'), got '{value}'.");
                     BlockMultiedges = blockMultiedgesValue;
-                    break;
-
-                case "onlyoutboundedges":
-                    if (!Misc.TryConvertToBool(value, out bool onlyOutboundEdgesValue))
-                        return OperationResult.Fail("InvalidValue", $"Setting 'onlyoutboundedges' requires a boolean value ('true'/'false'), got '{value}'.");
-                    OnlyOutboundEdges = onlyOutboundEdgesValue;
                     break;
 
                 case "maxthreads":

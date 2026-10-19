@@ -381,7 +381,7 @@ namespace Threadle.Core.Model
         public ILayer CreateFilteredCopy(Nodeset nodeset)
         {
             HashSet<uint> nodeIds = [.. nodeset.NodeIdArray];
-            LayerOneMode layerCopy = new LayerOneMode(this.Name+"_filtered", this.Directionality, this.EdgeValueType, this.Selfties);
+            LayerOneMode layerCopy = new LayerOneMode(this.Name + "_filtered", this.Directionality, this.EdgeValueType, this.Selfties);
 
             foreach ((uint nodeId, IEdgeset edgeset) in Edgesets)
             {
@@ -465,7 +465,6 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Method to add an edge between two nodes. If the layer contains directional edges, the edge goes
         /// from node1Id to node2Id. The edge value is optional for layers with binary edges.
-        /// If Directional and UserSetting is set to only add outbound edges, no inbound edge is stored at the destination node.
         /// Returns an OperationResult informing how it all went.
         /// </summary>
         /// <param name="node1Id">The first (source) node id.</param>
@@ -479,7 +478,7 @@ namespace Threadle.Core.Model
             IEdgeset edgeSetNode1 = GetOrCreateEdgeset(node1Id);
             IEdgeset edgeSetNode2 = GetOrCreateEdgeset(node2Id);
 
-            bool needsInbound = IsSymmetric ? !(node1Id == node2Id) : !UserSettings.OnlyOutboundEdges;
+            bool needsInbound = node1Id != node2Id || !IsSymmetric;
 
             if (needsInbound)
                 if (!edgeSetNode2.AddInboundEdge(node1Id, value).Success)
@@ -505,36 +504,22 @@ namespace Threadle.Core.Model
         internal void _addBinaryEdges(uint egoNodeId, uint[] nodeIdsAlters)
         {
             IEdgeset edgeSetEgo = GetOrCreateEdgeset(egoNodeId);
-            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+            // Whether symmetric or directional, every edge gets an outbound entry at ego and an
+            // inbound entry at alter - for a symmetric layer, _addOutbound.../_addInbound... both
+            // add the alter to the same undirectional _connection, so which one is called doesn't
+            // matter there.
+            foreach (uint nodeIdAlter in nodeIdsAlters)
             {
-                // So two reasons to be here:
-                // Layer is symmetric: we should then add references to the other node in both nodes. As it is
-                // symmetric, it doesn't matter if we use _addOutbound... or _addInbound...: both will add partnerNodeId
-                // to the undirectional _connection.
-                // If it is NOT symmetric, we are here because it is directional (not symmetric) and the UserSetting to
-                // only store outbound directional edges is turned off (False). So it is now directional, and we should
-                // add an outgoing edge from ego to alter, and an ingoing edge to alter from ego.
-                // Which we do with the same methods as we used for the symmetric case, but this time they do differ!
-                foreach (uint nodeIdAlter in nodeIdsAlters)
-                {
-                    edgeSetEgo._addOutboundEdge(nodeIdAlter, 1);
-                    GetOrCreateEdgeset(nodeIdAlter)._addInboundEdge(egoNodeId, 1);
-                }
-            }
-            else
-            {
-                // So we are here because the layer is directional and UserSetting to only store outbound is turned on (true)
-                // I.e. neither symmetric or not only-outbound triggered above. This means: directional, and only store outbound
-                // ties. Which we do:
-                foreach (uint idAlter in nodeIdsAlters)
-                    edgeSetEgo._addOutboundEdge(idAlter, 1);
+                edgeSetEgo._addOutboundEdge(nodeIdAlter, 1);
+                GetOrCreateEdgeset(nodeIdAlter)._addInboundEdge(egoNodeId, 1);
             }
         }
 
         /// <summary>
         /// Add an edge between two nodes - by default a binary value but can be specified.
-        /// Always add an outbound from node1 to node2. Add an inbound to node2 from node1
-        /// as long as we don't have OnlyOutboundEdges activated - or if it is symmetric
+        /// Always add an outbound from node1 to node2, and an inbound to node2 from node1,
+        /// except for a symmetric self-tie (stored once, in the single edgeset shared by both
+        /// "sides").
         /// </summary>
         /// <param name="node1Id">The first node id.</param>
         /// <param name="node2Id">The second node id.</param>
@@ -542,7 +527,7 @@ namespace Threadle.Core.Model
         internal void _addEdge(uint node1Id, uint node2Id, float value = 1)
         {
             GetOrCreateEdgeset(node1Id)._addOutboundEdge(node2Id, value);
-            if ((IsSymmetric && node1Id != node2Id) || (!IsSymmetric && !UserSettings.OnlyOutboundEdges))
+            if (node1Id != node2Id || !IsSymmetric)
                 GetOrCreateEdgeset(node2Id)._addInboundEdge(node1Id, value);
         }
 
@@ -556,17 +541,11 @@ namespace Threadle.Core.Model
         internal void _addValuedEdges(uint egoNodeId, List<(uint alterId, float value)> nodeIdsAlters)
         {
             IEdgeset edgeSetEgo = GetOrCreateEdgeset(egoNodeId);
-            if (IsSymmetric || !UserSettings.OnlyOutboundEdges)
+            foreach ((uint alterId, float value) in nodeIdsAlters)
             {
-                foreach ((uint alterId, float value) in nodeIdsAlters)
-                {
-                    edgeSetEgo._addOutboundEdge(alterId, value);
-                    GetOrCreateEdgeset(alterId)._addInboundEdge(egoNodeId, value);
-                }
+                edgeSetEgo._addOutboundEdge(alterId, value);
+                GetOrCreateEdgeset(alterId)._addInboundEdge(egoNodeId, value);
             }
-            else
-                foreach ((uint alterId, float value) in nodeIdsAlters)
-                    edgeSetEgo._addOutboundEdge(alterId, value);
         }
 
         /// <summary>
