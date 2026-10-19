@@ -63,6 +63,21 @@
   materializing a full projection, not the O(sum of hyperedge sizes) a "nothing gets
   materialized" framing might otherwise suggest.
 
+### Behavior changes
+
+- **The `onlyoutboundedges` setting was removed.** It let a directed 1-mode layer
+  skip its per-node inbound edge index while dynamic, to save memory for
+  walker-only workloads — but it was a global, live-toggled flag with no
+  safeguard against leaving a single layer with inconsistent per-edge inbound
+  coverage (edges added before a mid-session toggle kept their inbound entry,
+  edges added after didn't), and packing the same layer to its static (CSR)
+  form turns out to be the more memory-efficient choice for that workload
+  anyway — walker operations (`getrandomalter()`/`rwfpt()`) already work
+  correctly and efficiently on packed layers, which always maintain both
+  directions regardless of this setting. Directed layers now always maintain
+  both directions while dynamic too, matching what packed layers already did
+  unconditionally.
+
 ### Performance
 
 - **`projecttwomode()`** no longer builds a single global dictionary holding every
