@@ -1329,6 +1329,8 @@ namespace Threadle.Core.Analysis
             if (network.Nodeset.Count == 0)
                 return OperationResult.Fail("NodesMissing", "Network has no nodes.");
 
+            var localOneModes = oneModes;
+
             OperationResult CheckLayer(string name, ILayer layer, bool namedExplicitly)
             {
                 if (layer is ILayerTwoMode)
@@ -1342,7 +1344,7 @@ namespace Threadle.Core.Analysis
                         var checkResult = extraPerLayerCheck(lom, name);
                         if (!checkResult.Success) return checkResult;
                     }
-                    oneModes.Add(lom);
+                    localOneModes.Add(lom);
                 }
                 return OperationResult.Ok();
             }
@@ -1413,6 +1415,7 @@ namespace Threadle.Core.Analysis
             if (network.Nodeset.Count == 0)
                 return OperationResult.Fail("NodesMissing", "Network has no nodes.");
 
+            var localOneModes = oneModes;
             string hint = twoModeUsageHint ?? "";
             ILayerTwoMode? localTwoMode = null;
             string? twoModeLayerName = null;
@@ -1421,7 +1424,7 @@ namespace Threadle.Core.Analysis
             {
                 if (layer is ILayerTwoMode ltm)
                 {
-                    if (localTwoMode != null || oneModes.Count > 0)
+                    if (localTwoMode != null || localOneModes.Count > 0)
                         return OperationResult.Fail("InvalidLayerType",
                             $"Layer '{name}' is a 2-mode layer. {metricName} supports a single 2-mode layer on its own{hint}, not combined with other layers.");
                     localTwoMode = ltm;
@@ -1437,7 +1440,7 @@ namespace Threadle.Core.Analysis
                         var checkResult = extraPerLayerCheck(lom, name);
                         if (!checkResult.Success) return checkResult;
                     }
-                    oneModes.Add(lom);
+                    localOneModes.Add(lom);
                 }
                 return OperationResult.Ok();
             }
