@@ -155,6 +155,49 @@
   parallel reduction in this codebase, but this doesn't change the result beyond
   ordinary floating-point rounding.
 
+### Internal cleanup
+
+- **`coreness()`, `clusteringcoefficient()`, `transitivity()`, and community
+  detection's Girvan-Newman path** now share one helper
+  (`ResolveOneModeOnlyLayers`) for "resolve these layer names (or all layers),
+  rejecting any 2-mode layer" instead of four separately hand-written copies of
+  the same loop. No behavior change to any of these commands' results; the one
+  user-visible effect is that `transitivity()`'s and Girvan-Newman's 2-mode
+  rejection error messages are now as specific as `coreness()`'s/
+  `clusteringcoefficient()`'s already were (both previously gave a terser
+  message that didn't mention `projecttwomode()`) — confirmed no test asserted
+  on the old wording. Also removed ~220 lines of dead, commented-out code in
+  `Analyses.cs` (an old `ShortestPath` implementation superseded by
+  `PathFunctions.BidirectionalBFS`, never deleted after that refactor).
+- **`constraint()`/`effectivesize()` and community detection's Louvain/Leiden/
+  LabelPropagation/LPAm** similarly now share one helper
+  (`ResolveSingleTwoModeOrManyOneModeLayers`) for their "a single 2-mode layer
+  on its own, or any number of 1-mode layers, never mixed" layer-resolution
+  policy, instead of two separately hand-written near-duplicates. No behavior
+  change; the one user-visible effect is that `constraint()`'s/
+  `effectivesize()`'s "a 1-mode layer was specified after a 2-mode layer"
+  error now mentions the `samplesize > 0` requirement, matching the wording
+  their other 2-mode-conflict error already used (confirmed no test asserted
+  on the old wording).
+- **`shortestpathsattributes()`/`rwfpt()`** now dispatch through
+  `Analyses.cs` (new thin wrappers `ShortestPathsAttributes`/
+  `RandomWalkerFirstPassageTime`), like every other CLI command, instead of
+  calling into `Distance.cs` directly — restores the one-facade rule for
+  the CLI layer. `Distance.cs` itself is unchanged and remains the real
+  implementation file for both.
+
+### Fixes
+
+- **`constraint()`'s CLI command name was wrong.** The dispatcher had
+  registered it under the key `"constraints"` (plural) — to dodge a
+  same-name collision between the `Commands.Constraint` class and
+  `System.Data.Constraint` — but the command's own `Syntax`/help text
+  always advertised the singular `constraint(...)`, which didn't actually
+  work. The collision was only ever about the C# *type* name, not the
+  dispatch *string*, so the key is now simply `"constraint"`, matching the
+  class, the `Syntax` string, and every other command's convention. (No
+  real users depend on `constraints(...)` yet, since this hasn't shipped.)
+
 ### Deliberately out of scope
 
 - **`clusteringcoefficient()`/`transitivity()`** stay 1-mode only: projecting a 2-mode
