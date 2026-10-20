@@ -5,7 +5,12 @@ using Threadle.Core.Utilities;
 namespace Threadle.Core.Analysis
 {
     /// <summary>
-    /// A collection of internal functions useful for the methods in Analyses.cs
+    /// Internal helpers for Analyses.cs, grouping several unrelated small
+    /// concerns rather than one theme: degree centrality and density (1-mode
+    /// and 2-mode), node-attribute summary statistics (per type, plus a
+    /// shared float-list statistics helper) and percentile calculation,
+    /// weighted random-alter selection for random walks, connected
+    /// components, and random edge sampling for the network generators.
     /// </summary>
     internal static class Functions
     {

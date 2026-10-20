@@ -5,7 +5,9 @@ using Threadle.Core.Utilities;
 namespace Threadle.Core.Analysis
 {
     /// <summary>
-    /// Internal functions for local structural metrics: clustering coefficients and global transitivity.
+    /// Internal functions for local structural metrics: Burt's constraint and
+    /// effective size (structural holes), k-core decomposition (coreness),
+    /// clustering coefficients, and global transitivity.
     /// </summary>
     internal static class LocalStructureFunctions
     {
