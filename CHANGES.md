@@ -155,6 +155,21 @@
   parallel reduction in this codebase, but this doesn't change the result beyond
   ordinary floating-point rounding.
 
+### Internal cleanup
+
+- **`coreness()`, `clusteringcoefficient()`, `transitivity()`, and community
+  detection's Girvan-Newman path** now share one helper
+  (`ResolveOneModeOnlyLayers`) for "resolve these layer names (or all layers),
+  rejecting any 2-mode layer" instead of four separately hand-written copies of
+  the same loop. No behavior change to any of these commands' results; the one
+  user-visible effect is that `transitivity()`'s and Girvan-Newman's 2-mode
+  rejection error messages are now as specific as `coreness()`'s/
+  `clusteringcoefficient()`'s already were (both previously gave a terser
+  message that didn't mention `projecttwomode()`) — confirmed no test asserted
+  on the old wording. Also removed ~220 lines of dead, commented-out code in
+  `Analyses.cs` (an old `ShortestPath` implementation superseded by
+  `PathFunctions.BidirectionalBFS`, never deleted after that refactor).
+
 ### Deliberately out of scope
 
 - **`clusteringcoefficient()`/`transitivity()`** stay 1-mode only: projecting a 2-mode
