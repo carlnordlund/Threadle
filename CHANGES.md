@@ -169,6 +169,16 @@
   on the old wording. Also removed ~220 lines of dead, commented-out code in
   `Analyses.cs` (an old `ShortestPath` implementation superseded by
   `PathFunctions.BidirectionalBFS`, never deleted after that refactor).
+- **`constraint()`/`effectivesize()` and community detection's Louvain/Leiden/
+  LabelPropagation/LPAm** similarly now share one helper
+  (`ResolveSingleTwoModeOrManyOneModeLayers`) for their "a single 2-mode layer
+  on its own, or any number of 1-mode layers, never mixed" layer-resolution
+  policy, instead of two separately hand-written near-duplicates. No behavior
+  change; the one user-visible effect is that `constraint()`'s/
+  `effectivesize()`'s "a 1-mode layer was specified after a 2-mode layer"
+  error now mentions the `samplesize > 0` requirement, matching the wording
+  their other 2-mode-conflict error already used (confirmed no test asserted
+  on the old wording).
 
 ### Deliberately out of scope
 
