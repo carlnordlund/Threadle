@@ -180,6 +180,18 @@
   their other 2-mode-conflict error already used (confirmed no test asserted
   on the old wording).
 
+### Fixes
+
+- **`constraint()`'s CLI command name was wrong.** The dispatcher had
+  registered it under the key `"constraints"` (plural) — to dodge a
+  same-name collision between the `Commands.Constraint` class and
+  `System.Data.Constraint` — but the command's own `Syntax`/help text
+  always advertised the singular `constraint(...)`, which didn't actually
+  work. The collision was only ever about the C# *type* name, not the
+  dispatch *string*, so the key is now simply `"constraint"`, matching the
+  class, the `Syntax` string, and every other command's convention. (No
+  real users depend on `constraints(...)` yet, since this hasn't shipped.)
+
 ### Deliberately out of scope
 
 - **`clusteringcoefficient()`/`transitivity()`** stay 1-mode only: projecting a 2-mode
