@@ -967,6 +967,29 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Calculates exact shortest-path distances between all reachable node pairs and
+        /// aggregates them by node attribute category. Thin wrapper, kept in Analyses.cs so
+        /// every CLI command dispatches through one facade; see
+        /// <see cref="Distance.ShortestPathsNodeAttributeDistances"/> for the full
+        /// complexity/parallelization notes.
+        /// </summary>
+        public static OperationResult<StructureResult> ShortestPathsAttributes(Network network, string attrName, string[]? layerNames)
+        {
+            return Distance.ShortestPathsNodeAttributeDistances(network, attrName, layerNames);
+        }
+
+        /// <summary>
+        /// Initializes and executes a first-passage-time-based distance-measuring random
+        /// walker. Thin wrapper, kept in Analyses.cs so every CLI command dispatches through
+        /// one facade; see <see cref="Distance.RandomWalkNodeAttributeFirstPassageTimeDistances"/>
+        /// for the full parameter/parallelization notes.
+        /// </summary>
+        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, long Count)>? Histograms) RandomWalkerFirstPassageTime(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false, float[]? layerWeights = null)
+        {
+            return Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(network, attrName, maxSteps, layers, walkfactor, minPairObs, balanced, weighted, returnHistograms, layerWeights);
+        }
+
+        /// <summary>
         /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
         /// 1-mode is always exact (cheap: NbrEdges / potential edges). 2-mode defaults to a
         /// 200-node sample, unlike most other samplesize-bearing commands' "0 means exact by

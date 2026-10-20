@@ -41,7 +41,7 @@ namespace Threadle.CLIconsole.Commands
             string layerNames = command.GetArgumentParseString("layernames", "");
             string[]? layers = (layerNames.Length > 0) ? layerNames.Split(';') : null;
 
-            var result = Core.Analysis.Distance.ShortestPathsNodeAttributeDistances(network, attrName, layers);
+            var result = Core.Analysis.Analyses.ShortestPathsAttributes(network, attrName, layers);
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);
             StructureResult structures = result.Value!;

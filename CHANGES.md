@@ -179,6 +179,12 @@
   error now mentions the `samplesize > 0` requirement, matching the wording
   their other 2-mode-conflict error already used (confirmed no test asserted
   on the old wording).
+- **`shortestpathsattributes()`/`rwfpt()`** now dispatch through
+  `Analyses.cs` (new thin wrappers `ShortestPathsAttributes`/
+  `RandomWalkerFirstPassageTime`), like every other CLI command, instead of
+  calling into `Distance.cs` directly — restores the one-facade rule for
+  the CLI layer. `Distance.cs` itself is unchanged and remains the real
+  implementation file for both.
 
 ### Fixes
 
