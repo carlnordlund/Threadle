@@ -369,62 +369,6 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Resolves layerNames (or, if null, every layer in the network) for Constraint/
-        /// EffectiveSize: any number of 1-mode layers without selfties, or exactly one 2-mode
-        /// layer on its own (pseudo-projected: traversed node-hyperedge-node directly, without
-        /// materializing a 1-mode projection) — a 2-mode layer cannot be combined with any other
-        /// layer, since the exact multilayer tie-strength combination (<see
-        /// cref="LocalStructureFunctions.StructuralHoles"/>) is only defined across 1-mode layers.
-        /// </summary>
-        private static OperationResult ResolveStructuralHolesLayers(Network network, string[]? layerNames, string metricName, out List<ILayerOneMode> oneModes, out ILayer? twoMode)
-        {
-            oneModes = [];
-            twoMode = null;
-            string? twoModeLayerName = null;
-
-            IEnumerable<KeyValuePair<string, ILayer>> candidates;
-            if (layerNames == null)
-                candidates = network.Layers;
-            else
-            {
-                var list = new List<KeyValuePair<string, ILayer>>(layerNames.Length);
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
-                    list.Add(new(name, lr.Value!));
-                }
-                candidates = list;
-            }
-
-            foreach (var (name, layer) in candidates)
-            {
-                if (layer is ILayerTwoMode)
-                {
-                    if (twoMode != null || oneModes.Count > 0)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. {metricName} supports a single 2-mode layer on its own (with samplesize > 0), not combined with other layers.");
-                    twoMode = layer;
-                    twoModeLayerName = name;
-                }
-                else if (layer is ILayerOneMode lom)
-                {
-                    if (twoMode != null)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 1-mode layer, but 2-mode layer '{twoModeLayerName}' was already specified. {metricName} supports a single 2-mode layer on its own, not combined with other layers.");
-                    if (lom.Selfties)
-                        return OperationResult.Fail("LayerAllowsSelfties",
-                            $"Layer '{name}' allows selfties. Burt's {metricName.ToLowerInvariant()} has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.");
-                    oneModes.Add(lom);
-                }
-            }
-
-            if (twoMode == null && oneModes.Count == 0)
-                return OperationResult.Fail("NoLayers", "No layers found.");
-            return OperationResult.Ok();
-        }
-
-        /// <summary>
         /// Computes Burt's constraint for each node in the specified layer(s) and stores the
         /// result as a float node attribute. Constraint C(i) = Σ_j (p_ij + Σ_q p_iq p_qj)² where
         /// p_ij is i's proportion of interaction with j. Ranges from ~0 (broker, many structural
@@ -442,9 +386,6 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult Constraint(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
-
             var resolved = ResolveStructuralHolesLayers(network, layerNames, "Constraint", out var oneModes, out var twoMode);
             if (!resolved.Success)
                 return OperationResult.Fail(resolved.Code, resolved.Message);
@@ -487,9 +428,6 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult EffectiveSize(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
-
             var resolved = ResolveStructuralHolesLayers(network, layerNames, "EffectiveSize", out var oneModes, out var twoMode);
             if (!resolved.Success)
                 return OperationResult.Fail(resolved.Code, resolved.Message);
@@ -631,34 +569,9 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult Coreness(Network network, string[]? layerNames, string? attrName = null)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
-
-            List<ILayerOneMode> oneModes = [];
-            if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomode() first, or specify only 1-mode layers.");
-                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
-                }
-            }
-            else
-            {
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Coreness is not defined for 2-mode layers — use projecttwomode() first.");
-                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
-                }
-            }
-            if (oneModes.Count == 0)
-                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+            var resolveResult = ResolveOneModeOnlyLayers(network, layerNames, "Coreness", out var oneModes);
+            if (!resolveResult.Success)
+                return OperationResult.Fail(resolveResult.Code, resolveResult.Message);
 
             string layerTag = layerNames?.Length == 1 ? layerNames[0] + "_" : (layerNames == null ? "" : "multilayer_");
             attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "coreness";
@@ -837,46 +750,13 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult ClusteringCoefficient(Network network, string[]? layerNames, string? attrName = null, ClusteringMethod method = ClusteringMethod.Auto, int sampleSize = 0)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
-
-            List<ILayerOneMode> oneModes = [];
-            if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomode() first, or specify only 1-mode layers.");
-                    if (layer is ILayerOneMode lom)
-                    {
-                        if (method == ClusteringMethod.Onnela && lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Onnela's normalization (dividing by the global maximum edge weight) does not currently scan self-tie values when finding that maximum, so it is refused for any layer where selfties are allowed — even if none are actually present. Use a different method (e.g. 'barrat') for layers that permit selfties.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
-            else
-            {
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
-                        return OperationResult.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Clustering coefficient is not defined for 2-mode layers — use projecttwomode() first.");
-                    if (lr.Value is ILayerOneMode lom)
-                    {
-                        if (method == ClusteringMethod.Onnela && lom.Selfties)
-                            return OperationResult.Fail("LayerAllowsSelfties",
-                                $"Layer '{name}' allows selfties. Onnela's normalization (dividing by the global maximum edge weight) does not currently scan self-tie values when finding that maximum, so it is refused for any layer where selfties are allowed — even if none are actually present. Use a different method (e.g. 'barrat') for layers that permit selfties.");
-                        oneModes.Add(lom);
-                    }
-                }
-            }
-            if (oneModes.Count == 0)
-                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+            var resolveResult = ResolveOneModeOnlyLayers(network, layerNames, "Clustering coefficient", out var oneModes,
+                (lom, name) => method == ClusteringMethod.Onnela && lom.Selfties
+                    ? OperationResult.Fail("LayerAllowsSelfties",
+                        $"Layer '{name}' allows selfties. Onnela's normalization (dividing by the global maximum edge weight) does not currently scan self-tie values when finding that maximum, so it is refused for any layer where selfties are allowed — even if none are actually present. Use a different method (e.g. 'barrat') for layers that permit selfties.")
+                    : OperationResult.Ok());
+            if (!resolveResult.Success)
+                return OperationResult.Fail(resolveResult.Code, resolveResult.Message);
 
             uint[] allNodeIds = network.Nodeset.NodeIdArray;
             uint[] sourceIds = (sampleSize > 0 && sampleSize < allNodeIds.Length)
@@ -912,34 +792,9 @@ namespace Threadle.Core.Analysis
         /// </summary>
         public static OperationResult<double> Transitivity(Network network, string[]? layerNames)
         {
-            if (network.Nodeset.Count == 0)
-                return OperationResult<double>.Fail("NodesMissing", "Network has no nodes.");
-
-            List<ILayerOneMode> oneModes = [];
-            if (layerNames == null)
-            {
-                foreach (var (name, layer) in network.Layers)
-                {
-                    if (layer is ILayerTwoMode)
-                        return OperationResult<double>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Transitivity is not defined for 2-mode layers.");
-                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
-                }
-            }
-            else
-            {
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success) return OperationResult<double>.Fail(lr.Code, lr.Message);
-                    if (lr.Value is ILayerTwoMode)
-                        return OperationResult<double>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer.");
-                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
-                }
-            }
-            if (oneModes.Count == 0)
-                return OperationResult<double>.Fail("NoLayers", "No 1-mode layers found.");
+            var resolveResult = ResolveOneModeOnlyLayers(network, layerNames, "Transitivity", out var oneModes);
+            if (!resolveResult.Success)
+                return OperationResult<double>.Fail(resolveResult.Code, resolveResult.Message);
 
             double t = LocalStructureFunctions.Transitivity(network.Nodeset.NodeIdArray, oneModes);
             return OperationResult<double>.Ok(t);
@@ -1111,228 +966,28 @@ namespace Threadle.Core.Analysis
             return OperationResult<List<(uint, uint, ShortestPathResult)>>.Ok([.. results]);
         }
 
+        /// <summary>
+        /// Calculates exact shortest-path distances between all reachable node pairs and
+        /// aggregates them by node attribute category. Thin wrapper, kept in Analyses.cs so
+        /// every CLI command dispatches through one facade; see
+        /// <see cref="Distance.ShortestPathsNodeAttributeDistances"/> for the full
+        /// complexity/parallelization notes.
+        /// </summary>
+        public static OperationResult<StructureResult> ShortestPathsAttributes(Network network, string attrName, string[]? layerNames)
+        {
+            return Distance.ShortestPathsNodeAttributeDistances(network, attrName, layerNames);
+        }
 
-        ///// <summary>
-        ///// Calculates the shortest path between two nodes, either for a particular layer or for all layers.
-        ///// To work with all layers, set layerName to an empty string. Note that the shortest path takes edge
-        ///// directionality into account: if a layer has directional edges, this matters. For layers that are symmetric,
-        ///// the directionality is moot.
-        ///// If there is no path between the nodes, a distance of -1 is returned: note that this is also
-        ///// wrapped in a OperationResult.Success.
-        ///// Uses bidirectional BFS with hyperedge-aware expansion for 2-mode layers: each hyperedge's members
-        ///// are iterated at most once per direction, preventing frontier explosion from large affiliations
-        ///// (e.g. workplaces with 10k members).
-        ///// </summary>
-        ///// <param name="network">The network.</param>
-        ///// <param name="layerNames">The names of the layers to use (or null to use all layers).</param>
-        ///// <param name="nodeIdFrom">The source node id.</param>
-        ///// <param name="nodeIdTo">The destination node id.</param>
-        ///// <param name="returnPath">If true, the result also contains the sequence of node ids along the shortest path.</param>
-        ///// <returns>An OperationResult containing a ShortestPathResult with distance and optional path.</returns>
-        //public static OperationResult<ShortestPathResult> ShortestPath(Network network, string[]? layerNames, uint nodeIdFrom, uint nodeIdTo, bool returnPath = false)
-        //{
-        //    OperationResult nodeCheckResult = network.Nodeset.CheckThatNodesExist(nodeIdFrom, nodeIdTo);
-        //    if (!nodeCheckResult.Success)
-        //        return OperationResult<ShortestPathResult>.Fail(nodeCheckResult.Code, nodeCheckResult.Message);
-        //    if (nodeIdFrom == nodeIdTo)
-        //        return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(0, returnPath ? [nodeIdFrom] : null));
-
-        //    List<ILayer> resolvedLayers = [];
-        //    if (layerNames == null)
-        //        resolvedLayers.AddRange(network.Layers.Values);
-        //    else
-        //    {
-        //        foreach (string layerName in layerNames)
-        //        {
-        //            var layerResult = network.GetLayer(layerName);
-        //            if (!layerResult.Success)
-        //                return OperationResult<ShortestPathResult>.Fail(layerResult);
-        //            resolvedLayers.Add(layerResult.Value!);
-        //        }
-        //    }
-
-        //    GraphAlgorithms.SplitLayers(resolvedLayers, out var oneModes, out var twoModesDynamic, out var twoModesStatic);
-
-        //    var fwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
-        //    var bwdDynVisited = Array.ConvertAll(twoModesDynamic.ToArray(), _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
-        //    var fwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
-        //    var bwdStatVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
-
-        //    var distFwd = new Dictionary<uint, int> { [nodeIdFrom] = 0 };
-        //    var distBwd = new Dictionary<uint, int> { [nodeIdTo] = 0 };
-        //    Dictionary<uint, uint>? predFwd = returnPath ? [] : null;
-        //    Dictionary<uint, uint>? predBwd = returnPath ? [] : null;
-        //    List<uint> frontierFwd = [nodeIdFrom];
-        //    List<uint> frontierBwd = [nodeIdTo];
-        //    int best = int.MaxValue;
-        //    uint meetingNode = 0;
-        //    int dFwd = 0, dBwd = 0;
-
-        //    while (frontierFwd.Count > 0 || frontierBwd.Count > 0)
-        //    {
-        //        if (best != int.MaxValue && best <= dFwd + dBwd + 1)
-        //            break;
-
-        //        if (frontierFwd.Count > 0 && (frontierBwd.Count == 0 || frontierFwd.Count <= frontierBwd.Count))
-        //        {
-        //            dFwd++;
-        //            List<uint> next = [];
-        //            foreach (uint u in frontierFwd)
-        //            {
-        //                foreach (var layer in oneModes)
-        //                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Out))
-        //                        if (distFwd.TryAdd(v, dFwd))
-        //                        {
-        //                            next.Add(v);
-        //                            if (returnPath) predFwd![v] = u;
-        //                            if (distBwd.TryGetValue(v, out int bd))
-        //                            {
-        //                                int c = dFwd + bd;
-        //                                if (c < best) { best = c; meetingNode = v; }
-        //                            }
-        //                        }
-
-        //                for (int li = 0; li < twoModesDynamic.Count; li++)
-        //                {
-        //                    var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
-        //                    if (hec == null) continue;
-        //                    foreach (var he in hec.HyperEdges)
-        //                        if (fwdDynVisited[li].Add(he))
-        //                            foreach (uint m in he.NodeIds)
-        //                                if (distFwd.TryAdd(m, dFwd))
-        //                                {
-        //                                    next.Add(m);
-        //                                    if (returnPath) predFwd![m] = u;
-        //                                    if (distBwd.TryGetValue(m, out int bd))
-        //                                    {
-        //                                        int c = dFwd + bd;
-        //                                        if (c < best) { best = c; meetingNode = m; }
-        //                                    }
-        //                                }
-        //                }
-
-        //                for (int li = 0; li < twoModesStatic.Count; li++)
-        //                {
-        //                    if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
-        //                    for (int k = nStart; k < nEnd; k++)
-        //                    {
-        //                        int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
-        //                        if (!fwdStatVisited[li].Add(hIdx)) continue;
-        //                        twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
-        //                        for (int j = hStart; j < hEnd; j++)
-        //                        {
-        //                            uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-        //                            if (distFwd.TryAdd(m, dFwd))
-        //                            {
-        //                                next.Add(m);
-        //                                if (returnPath) predFwd![m] = u;
-        //                                if (distBwd.TryGetValue(m, out int bd))
-        //                                {
-        //                                    int c = dFwd + bd;
-        //                                    if (c < best) { best = c; meetingNode = m; }
-        //                                }
-        //                            }
-        //                        }
-        //                    }
-        //                }
-        //            }
-        //            frontierFwd = next;
-        //        }
-        //        else
-        //        {
-        //            dBwd++;
-        //            List<uint> next = [];
-        //            foreach (uint u in frontierBwd)
-        //            {
-        //                foreach (var layer in oneModes)
-        //                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.In))
-        //                        if (distBwd.TryAdd(v, dBwd))
-        //                        {
-        //                            next.Add(v);
-        //                            if (returnPath) predBwd![v] = u;
-        //                            if (distFwd.TryGetValue(v, out int fd))
-        //                            {
-        //                                int c = fd + dBwd;
-        //                                if (c < best) { best = c; meetingNode = v; }
-        //                            }
-        //                        }
-
-        //                for (int li = 0; li < twoModesDynamic.Count; li++)
-        //                {
-        //                    var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
-        //                    if (hec == null) continue;
-        //                    foreach (var he in hec.HyperEdges)
-        //                        if (bwdDynVisited[li].Add(he))
-        //                            foreach (uint m in he.NodeIds)
-        //                                if (distBwd.TryAdd(m, dBwd))
-        //                                {
-        //                                    next.Add(m);
-        //                                    if (returnPath) predBwd![m] = u;
-        //                                    if (distFwd.TryGetValue(m, out int fd))
-        //                                    {
-        //                                        int c = fd + dBwd;
-        //                                        if (c < best) { best = c; meetingNode = m; }
-        //                                    }
-        //                                }
-        //                }
-
-        //                for (int li = 0; li < twoModesStatic.Count; li++)
-        //                {
-        //                    if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
-        //                    for (int k = nStart; k < nEnd; k++)
-        //                    {
-        //                        int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
-        //                        if (!bwdStatVisited[li].Add(hIdx)) continue;
-        //                        twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
-        //                        for (int j = hStart; j < hEnd; j++)
-        //                        {
-        //                            uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-        //                            if (distBwd.TryAdd(m, dBwd))
-        //                            {
-        //                                next.Add(m);
-        //                                if (returnPath) predBwd![m] = u;
-        //                                if (distFwd.TryGetValue(m, out int fd))
-        //                                {
-        //                                    int c = fd + dBwd;
-        //                                    if (c < best) { best = c; meetingNode = m; }
-        //                                }
-        //                            }
-        //                        }
-        //                    }
-        //                }
-        //            }
-        //            frontierBwd = next;
-        //        }
-        //    }
-
-        //    int distance = best == int.MaxValue ? -1 : best;
-
-        //    uint[]? path = null;
-        //    if (returnPath && distance >= 0)
-        //    {
-        //        // Trace forward half: meetingNode → nodeIdFrom via predFwd, then reverse
-        //        var pathList = new List<uint>();
-        //        uint cur = meetingNode;
-        //        while (cur != nodeIdFrom)
-        //        {
-        //            pathList.Add(cur);
-        //            cur = predFwd![cur];
-        //        }
-        //        pathList.Add(nodeIdFrom);
-        //        pathList.Reverse(); // now [nodeIdFrom, ..., meetingNode]
-
-        //        // Trace backward half: meetingNode → nodeIdTo via predBwd
-        //        cur = meetingNode;
-        //        while (cur != nodeIdTo)
-        //        {
-        //            cur = predBwd![cur];
-        //            pathList.Add(cur);
-        //        }
-        //        path = [.. pathList];
-        //    }
-
-        //    return OperationResult<ShortestPathResult>.Ok(new ShortestPathResult(distance, path));
-        //}
+        /// <summary>
+        /// Initializes and executes a first-passage-time-based distance-measuring random
+        /// walker. Thin wrapper, kept in Analyses.cs so every CLI command dispatches through
+        /// one facade; see <see cref="Distance.RandomWalkNodeAttributeFirstPassageTimeDistances"/>
+        /// for the full parameter/parallelization notes.
+        /// </summary>
+        public static (OperationResult<StructureResult> Result, List<(string From, string To, int Step, long Count)>? Histograms) RandomWalkerFirstPassageTime(Network network, string attrName, int maxSteps, string[]? layers, float walkfactor, int minPairObs, bool balanced, bool weighted, bool returnHistograms = false, float[]? layerWeights = null)
+        {
+            return Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(network, attrName, maxSteps, layers, walkfactor, minPairObs, balanced, weighted, returnHistograms, layerWeights);
+        }
 
         /// <summary>
         /// Calculates the density of the specified layer in the network. Can be 1-mode or 2-mode.
@@ -1659,30 +1314,47 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Resolves layerNames to a 1-mode-only layer list, shared by every community detection
-        /// method (CommunityDetectionLouvain, CommunityDetectionLabelPropagation, and future ones).
-        /// Rejects 2-mode layers with a "project first" message, matching Coreness/ClusteringCoefficient.
+        /// Resolves layerNames (or all layers, if null) to a List&lt;ILayerOneMode&gt;, failing if any
+        /// resolved layer is 2-mode. Shared by every 1-mode-only measure (Coreness,
+        /// ClusteringCoefficient, Transitivity, and — via TryResolveOneModeLayersForCommunityDetection
+        /// below — community detection's Girvan-Newman path). 'metricName' is woven into the
+        /// InvalidLayerType message so each caller still gets a precise error naming itself.
+        /// 'extraPerLayerCheck', if given, runs once per resolved 1-mode layer (name, layer) before
+        /// it's added to the result — e.g. ClusteringCoefficient's Onnela/Selfties rejection — and
+        /// its failure (if any) is returned immediately, preserving each caller's original check order.
         /// </summary>
-        private static bool TryResolveOneModeLayersForCommunityDetection(Network network, string[]? layerNames, out List<ILayerOneMode> oneModes, out OperationResult<Dictionary<string, object>>? error)
+        private static OperationResult ResolveOneModeOnlyLayers(Network network, string[]? layerNames, string metricName, out List<ILayerOneMode> oneModes, Func<ILayerOneMode, string, OperationResult>? extraPerLayerCheck = null)
         {
             oneModes = [];
             if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            var localOneModes = oneModes;
+
+            OperationResult CheckLayer(string name, ILayer layer, bool namedExplicitly)
             {
-                error = OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
-                return false;
+                if (layer is ILayerTwoMode)
+                    return OperationResult.Fail("InvalidLayerType",
+                        $"Layer '{name}' is a 2-mode layer. {metricName} is not defined for 2-mode layers " +
+                        $"— use projecttwomode() first{(namedExplicitly ? "" : ", or specify only 1-mode layers")}.");
+                if (layer is ILayerOneMode lom)
+                {
+                    if (extraPerLayerCheck != null)
+                    {
+                        var checkResult = extraPerLayerCheck(lom, name);
+                        if (!checkResult.Success) return checkResult;
+                    }
+                    localOneModes.Add(lom);
+                }
+                return OperationResult.Ok();
             }
 
             if (layerNames == null)
             {
                 foreach (var (name, layer) in network.Layers)
                 {
-                    if (layer is ILayerTwoMode)
-                    {
-                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomode() first, or specify only 1-mode layers.");
-                        return false;
-                    }
-                    if (layer is ILayerOneMode lom) oneModes.Add(lom);
+                    var result = CheckLayer(name, layer, namedExplicitly: false);
+                    if (!result.Success) return result;
                 }
             }
             else
@@ -1690,27 +1362,136 @@ namespace Threadle.Core.Analysis
                 foreach (string name in layerNames)
                 {
                     var lr = network.GetLayer(name);
-                    if (!lr.Success)
-                    {
-                        error = OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
-                        return false;
-                    }
-                    if (lr.Value is ILayerTwoMode)
-                    {
-                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Community detection requires 1-mode layers — use projecttwomode() first.");
-                        return false;
-                    }
-                    if (lr.Value is ILayerOneMode lom) oneModes.Add(lom);
+                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
+                    var result = CheckLayer(name, lr.Value!, namedExplicitly: true);
+                    if (!result.Success) return result;
                 }
             }
+
             if (oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No 1-mode layers found.");
+            return OperationResult.Ok();
+        }
+
+        /// <summary>
+        /// Resolves layerNames to a 1-mode-only layer list for community detection's Girvan-Newman
+        /// path, which has no 2-mode counterpart (edge betweenness has no hyperedge analogue).
+        /// Thin wrapper around ResolveOneModeOnlyLayers, keeping this method's OperationResult&lt;
+        /// Dictionary&lt;string,object&gt;&gt;-shaped bool/out-error signature unchanged for its caller.
+        /// </summary>
+        private static bool TryResolveOneModeLayersForCommunityDetection(Network network, string[]? layerNames, out List<ILayerOneMode> oneModes, out OperationResult<Dictionary<string, object>>? error)
+        {
+            var resolveResult = ResolveOneModeOnlyLayers(network, layerNames, "Community detection", out oneModes);
+            if (!resolveResult.Success)
             {
-                error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No 1-mode layers found.");
+                error = OperationResult<Dictionary<string, object>>.Fail(resolveResult.Code, resolveResult.Message);
                 return false;
             }
             error = null;
             return true;
+        }
+
+        /// <summary>
+        /// Resolves layerNames (or, if null, every layer in the network) to either any number of
+        /// 1-mode layers, or exactly one 2-mode layer on its own (pseudo-projected: traversed
+        /// node-hyperedge-node directly, without materializing a 1-mode projection) — a 2-mode
+        /// layer can never be combined with any other layer, 1-mode or 2-mode. Shared by
+        /// Constraint/EffectiveSize (via ResolveStructuralHolesLayers) and community detection's
+        /// Louvain/Leiden/LabelPropagation/LPAm (via TryResolveLayersForCommunityDetection) — the
+        /// two places this "single 2-mode XOR many 1-mode" policy applies, as opposed to the BFS-
+        /// based family (TryResolveLayers), which allows freely mixing 1-mode and 2-mode layers in
+        /// one traversal, or the 1-mode-only family (ResolveOneModeOnlyLayers), which rejects
+        /// 2-mode outright. 'twoModeUsageHint', if given, is appended to the 2-mode-conflict
+        /// messages (Constraint/EffectiveSize use it to mention the samplesize &gt; 0 requirement;
+        /// community detection has no such requirement, so passes none). 'extraPerLayerCheck', if
+        /// given, runs once per resolved 1-mode layer (name, layer) — e.g. Constraint/EffectiveSize's
+        /// Selfties rejection — before it's added to the result.
+        /// </summary>
+        private static OperationResult ResolveSingleTwoModeOrManyOneModeLayers(Network network, string[]? layerNames, string metricName,
+            out List<ILayerOneMode> oneModes, out ILayerTwoMode? twoMode, string? twoModeUsageHint = null, Func<ILayerOneMode, string, OperationResult>? extraPerLayerCheck = null)
+        {
+            oneModes = [];
+            twoMode = null;
+            if (network.Nodeset.Count == 0)
+                return OperationResult.Fail("NodesMissing", "Network has no nodes.");
+
+            var localOneModes = oneModes;
+            string hint = twoModeUsageHint ?? "";
+            ILayerTwoMode? localTwoMode = null;
+            string? twoModeLayerName = null;
+
+            OperationResult CheckLayer(string name, ILayer layer)
+            {
+                if (layer is ILayerTwoMode ltm)
+                {
+                    if (localTwoMode != null || localOneModes.Count > 0)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 2-mode layer. {metricName} supports a single 2-mode layer on its own{hint}, not combined with other layers.");
+                    localTwoMode = ltm;
+                    twoModeLayerName = name;
+                }
+                else if (layer is ILayerOneMode lom)
+                {
+                    if (localTwoMode != null)
+                        return OperationResult.Fail("InvalidLayerType",
+                            $"Layer '{name}' is a 1-mode layer, but 2-mode layer '{twoModeLayerName}' was already specified. {metricName} supports a single 2-mode layer on its own{hint}, not combined with other layers.");
+                    if (extraPerLayerCheck != null)
+                    {
+                        var checkResult = extraPerLayerCheck(lom, name);
+                        if (!checkResult.Success) return checkResult;
+                    }
+                    localOneModes.Add(lom);
+                }
+                return OperationResult.Ok();
+            }
+
+            IEnumerable<(string Name, ILayer Layer)> candidates;
+            if (layerNames == null)
+                candidates = network.Layers.Select(kv => (kv.Key, kv.Value));
+            else
+            {
+                var list = new List<(string, ILayer)>(layerNames.Length);
+                foreach (string name in layerNames)
+                {
+                    var lr = network.GetLayer(name);
+                    if (!lr.Success) return OperationResult.Fail(lr.Code, lr.Message);
+                    list.Add((name, lr.Value!));
+                }
+                candidates = list;
+            }
+
+            foreach (var (name, layer) in candidates)
+            {
+                var result = CheckLayer(name, layer);
+                if (!result.Success)
+                {
+                    twoMode = localTwoMode;
+                    return result;
+                }
+            }
+
+            twoMode = localTwoMode;
+            if (twoMode == null && oneModes.Count == 0)
+                return OperationResult.Fail("NoLayers", "No layers found.");
+            return OperationResult.Ok();
+        }
+
+        /// <summary>
+        /// Resolves layerNames (or, if null, every layer in the network) for Constraint/
+        /// EffectiveSize: any number of 1-mode layers without selfties, or exactly one 2-mode
+        /// layer on its own — a 2-mode layer cannot be combined with any other layer, since the
+        /// exact multilayer tie-strength combination (<see cref="LocalStructureFunctions.StructuralHoles"/>)
+        /// is only defined across 1-mode layers. Thin wrapper around
+        /// ResolveSingleTwoModeOrManyOneModeLayers.
+        /// </summary>
+        private static OperationResult ResolveStructuralHolesLayers(Network network, string[]? layerNames, string metricName, out List<ILayerOneMode> oneModes, out ILayerTwoMode? twoMode)
+        {
+            return ResolveSingleTwoModeOrManyOneModeLayers(network, layerNames, metricName, out oneModes, out twoMode,
+                twoModeUsageHint: " (with samplesize > 0)",
+                extraPerLayerCheck: (lom, name) => lom.Selfties
+                    ? OperationResult.Fail("LayerAllowsSelfties",
+                        $"Layer '{name}' allows selfties. Burt's {metricName.ToLowerInvariant()} has no defined treatment of a tie from a node to itself, so it is refused for any layer where selfties are allowed — even if none are actually present.")
+                    : OperationResult.Ok());
         }
 
         /// <summary>
@@ -1722,67 +1503,17 @@ namespace Threadle.Core.Analysis
         /// detection" remarks for why no projection= parameter is offered). A 2-mode layer cannot
         /// be combined with other layers. CommunityDetectionGirvanNewman keeps using the stricter
         /// <see cref="TryResolveOneModeLayersForCommunityDetection"/>, since it has no 2-mode
-        /// counterpart (edge betweenness has no hyperedge analogue).
+        /// counterpart (edge betweenness has no hyperedge analogue). Thin wrapper around
+        /// ResolveSingleTwoModeOrManyOneModeLayers, keeping this method's OperationResult&lt;
+        /// Dictionary&lt;string,object&gt;&gt;-shaped bool/out-error signature unchanged for its callers.
         /// </summary>
         private static bool TryResolveLayersForCommunityDetection(Network network, string[]? layerNames,
             out List<ILayerOneMode> oneModes, out ILayerTwoMode? twoMode, out OperationResult<Dictionary<string, object>>? error)
         {
-            oneModes = [];
-            twoMode = null;
-            if (network.Nodeset.Count == 0)
+            var resolveResult = ResolveSingleTwoModeOrManyOneModeLayers(network, layerNames, "Community detection", out oneModes, out twoMode);
+            if (!resolveResult.Success)
             {
-                error = OperationResult<Dictionary<string, object>>.Fail("NodesMissing", "Network has no nodes.");
-                return false;
-            }
-
-            string? twoModeLayerName = null;
-            IEnumerable<KeyValuePair<string, ILayer>> candidates;
-            if (layerNames == null)
-                candidates = network.Layers;
-            else
-            {
-                var list = new List<KeyValuePair<string, ILayer>>(layerNames.Length);
-                foreach (string name in layerNames)
-                {
-                    var lr = network.GetLayer(name);
-                    if (!lr.Success)
-                    {
-                        error = OperationResult<Dictionary<string, object>>.Fail(lr.Code, lr.Message);
-                        return false;
-                    }
-                    list.Add(new(name, lr.Value!));
-                }
-                candidates = list;
-            }
-
-            foreach (var (name, layer) in candidates)
-            {
-                if (layer is ILayerTwoMode ltm)
-                {
-                    if (twoMode != null || oneModes.Count > 0)
-                    {
-                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 2-mode layer. Community detection supports a single 2-mode layer on its own, not combined with other layers.");
-                        return false;
-                    }
-                    twoMode = ltm;
-                    twoModeLayerName = name;
-                }
-                else if (layer is ILayerOneMode lom)
-                {
-                    if (twoMode != null)
-                    {
-                        error = OperationResult<Dictionary<string, object>>.Fail("InvalidLayerType",
-                            $"Layer '{name}' is a 1-mode layer, but 2-mode layer '{twoModeLayerName}' was already specified. Community detection supports a single 2-mode layer on its own, not combined with other layers.");
-                        return false;
-                    }
-                    oneModes.Add(lom);
-                }
-            }
-
-            if (twoMode == null && oneModes.Count == 0)
-            {
-                error = OperationResult<Dictionary<string, object>>.Fail("NoLayers", "No layers found.");
+                error = OperationResult<Dictionary<string, object>>.Fail(resolveResult.Code, resolveResult.Message);
                 return false;
             }
             error = null;

@@ -51,7 +51,7 @@ namespace Threadle.CLIconsole.Commands
             if (layerWeightsRaw.Length > 0 && (layerWeights = Misc.SplitStringToFloatArray(layerWeightsRaw)) == null)
                 return CommandResult.Fail("ParseError", "Could not parse semicolon-separated list with layerweights.");
 
-            var (result, histograms) = Core.Analysis.Distance.RandomWalkNodeAttributeFirstPassageTimeDistances(network, attrName, maxSteps, layers, walkfactor, minPairObs, balanced, weighted, returnHistograms, layerWeights);
+            var (result, histograms) = Core.Analysis.Analyses.RandomWalkerFirstPassageTime(network, attrName, maxSteps, layers, walkfactor, minPairObs, balanced, weighted, returnHistograms, layerWeights);
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);
             StructureResult structures = result.Value!;
