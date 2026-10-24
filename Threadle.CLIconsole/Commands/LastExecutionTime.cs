@@ -17,7 +17,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Returns the wall-clock execution time (in milliseconds) of the most recently dispatched command, along with that command's name and arguments, as both a human-readable message and a structured payload (ExecutionTimeMs, Command). Only measured while the 'executiontime' setting is enabled (see 'setting()'); if it's off, or no command has been dispatched yet while it was on, returns a message saying so instead, with no payload.";
+        public string Description => "Returns the wall-clock execution time (in milliseconds) of the most recently dispatched command, along with that command's name, as both a human-readable message and a structured payload (ExecutionTimeMs, Command). Only measured while the 'executiontime' setting is enabled (see 'setting()'); if it's off, or no command has been dispatched yet while it was on, returns a message saying so instead, with no payload.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

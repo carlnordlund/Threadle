@@ -132,10 +132,10 @@ namespace Threadle.CLIconsole.Runtime
 
         /// <summary>
         /// Wall-clock time (ms) of the most recently dispatched command, and that command's name
-        /// and arguments as a best-effort reconstructed string. Only updated when
-        /// CLISettings.ExecutionTime is on; both stay null otherwise. Read by the
-        /// 'lastexecutiontime' command. Deliberately kept here rather than in CommandLoop, since
-        /// Dispatch is the one choke point called by both the interactive REPL and script
+        /// (arguments omitted - which command it was is normally obvious enough on its own).
+        /// Only updated when CLISettings.ExecutionTime is on; both stay null otherwise. Read by
+        /// the 'lastexecutiontime' command. Deliberately kept here rather than in CommandLoop,
+        /// since Dispatch is the one choke point called by both the interactive REPL and script
         /// execution - storing it in CommandLoop would miss commands run from a script.
         /// </summary>
         internal static double? LastExecutionTimeMs { get; private set; }
@@ -169,7 +169,7 @@ namespace Threadle.CLIconsole.Runtime
                     // 'lastexecutiontime()' itself always reports the command measured *before*
                     // it, never its own in-flight timing.
                     LastExecutionTimeMs = stopwatch.Elapsed.TotalMilliseconds;
-                    LastCommand = BuildCommandString(command);
+                    LastCommand = command.CommandName;
                 }
                 return result;
             }
@@ -178,15 +178,6 @@ namespace Threadle.CLIconsole.Runtime
                 message: $"Unknown command: {command.CommandName}"
                 );
         }
-
-        /// <summary>
-        /// Best-effort reconstruction of a command's invocation as a string, for
-        /// LastCommand/'lastexecutiontime()'. Not guaranteed to match the original input
-        /// byte-for-byte (argument order/quoting may differ), since CommandPackage only retains
-        /// the parsed name and named-argument dictionary, not the raw input text.
-        /// </summary>
-        private static string BuildCommandString(CommandPackage command)
-            => $"{command.CommandName}({string.Join(", ", command.NamedArgs.Select(kv => $"{kv.Key}={kv.Value}"))})";
 
         /// <summary>
         /// Returns the command class for a particular CLI command, or null if no such command exists.

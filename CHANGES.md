@@ -8,7 +8,7 @@
   each dispatched command's wall-clock execution time (in milliseconds) and name
   are measured and stored internally. **New `lastexecutiontime()` command**
   retrieves the most recently measured value — both as a human-readable message
-  (`Last execution time: 12.34 ms (betweennesscentrality(...)).`) and as a
+  (`Last execution time: 12.34 ms (betweennesscentrality).`) and as a
   structured payload (`ExecutionTimeMs`, `Command`), machine-readable like any
   other command's metrics. If the setting is off, or nothing has been measured
   yet, it says so instead, with no payload. No threadleR wrapper is needed —
