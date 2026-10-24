@@ -2,6 +2,17 @@
 
 ## 1.3.1
 
+### New features
+
+- **`setting()` gained `executiontime`** (boolean, default `false`): when enabled,
+  every command's response includes `ExecutionTimeMs` — the wall-clock time, in
+  milliseconds, that command's execution took. Measured around the dispatch of
+  every command uniformly (negligible overhead either way), but only attached to
+  the response when this setting is on, and omitted from JSON entirely (not
+  serialized as `null`) when off or unset — so existing callers see no change at
+  all unless they opt in. Shown in text-mode CLI output too, as `Execution time:
+  N.NN ms`, whenever present.
+
 ### New capability on existing commands
 
 > No new commands. Every change below loosens an existing restriction — existing

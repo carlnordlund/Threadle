@@ -15,5 +15,12 @@
         /// can be useful for debugging purposes. Setting this property to <see langword="false"/> reduces the amount of
         /// log output.</remarks>
         public static bool Verbose { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets whether each command's execution time (in milliseconds) is measured and
+        /// included in the response. Off by default, since most callers don't need per-command
+        /// timing and it adds a field to every response once on.
+        /// </summary>
+        public static bool ExecutionTime { get; set; } = false;
     }
 }

@@ -32,6 +32,11 @@ namespace Threadle.CLIconsole.Results
             if (result.Payload != null)
                 RenderPayload(result.Payload, 0);
 
+            // Show execution time whenever present - the 'executiontime' setting is itself
+            // the gate for this, so it's shown unconditionally once measured (not Verbose-gated)
+            if (result.ExecutionTimeMs.HasValue)
+                ConsoleOutput.WriteLine($"Execution time: {result.ExecutionTimeMs.Value:F2} ms");
+
             // Finally display any assigned variables
             if (CLISettings.Verbose && result.Assigned?.Any() == true)
             {

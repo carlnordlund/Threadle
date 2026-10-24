@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Threadle.CLIconsole.Commands;
 using Threadle.CLIconsole.Parsing;
@@ -143,7 +144,12 @@ namespace Threadle.CLIconsole.Runtime
             if (_commands.TryGetValue(command.CommandName.ToLower(), out var handler))
             {
                 command.CheckAssigment(handler.ToAssign);
-                return handler.Execute(command, context);
+                var stopwatch = Stopwatch.StartNew();
+                CommandResult result = handler.Execute(command, context);
+                stopwatch.Stop();
+                if (CLISettings.ExecutionTime)
+                    result.ExecutionTimeMs = stopwatch.Elapsed.TotalMilliseconds;
+                return result;
             }
             return CommandResult.Fail(
                 code: "UnknownCommand",
