@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Threadle.CLIconsole.Commands;
 using Threadle.CLIconsole.Parsing;
@@ -38,7 +39,7 @@ namespace Threadle.CLIconsole.Runtime
             ["clusteringcoefficient"] = new ClusteringCoefficient(),
             ["communitydetection"] = new CommunityDetection(),
             ["components"] = new Components(),
-            ["constraint"] = new Commands.Constraint(), // Not to collide with System.Data.Constraint!
+            ["constraint"] = new Commands.Constraint(),
             ["convertattr"] = new ConvertAttr(),
             ["coreness"] = new Coreness(),
             ["createnetwork"] = new CreateNetwork(),
@@ -90,6 +91,7 @@ namespace Threadle.CLIconsole.Runtime
             ["importnetwork"] = new ImportNetwork(),
             ["importnodeattributes"] = new ImportNodeAttributes(),
             ["info"] = new Info(),
+            ["lastexecutiontime"] = new LastExecutionTime(),
             ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),
             ["mergelayers"] = new MergeLayers(),
@@ -127,6 +129,21 @@ namespace Threadle.CLIconsole.Runtime
             ["undefineattr"] = new UndefineAttr(),
             ["unpack"] = new Unpack()
         };
+
+        /// <summary>
+        /// Wall-clock time (ms) of the most recently dispatched command, and that command's name
+        /// (arguments omitted - which command it was is normally obvious enough on its own).
+        /// Only updated when CLISettings.ExecutionTime is on; both stay null otherwise. Read by
+        /// the 'lastexecutiontime' command. Deliberately kept here rather than in CommandLoop,
+        /// since Dispatch is the one choke point called by both the interactive REPL and script
+        /// execution - storing it in CommandLoop would miss commands run from a script.
+        /// </summary>
+        internal static double? LastExecutionTimeMs { get; private set; }
+
+        /// <summary>
+        /// See <see cref="LastExecutionTimeMs"/>.
+        /// </summary>
+        internal static string? LastCommand { get; private set; }
         #endregion
 
 
@@ -143,7 +160,18 @@ namespace Threadle.CLIconsole.Runtime
             if (_commands.TryGetValue(command.CommandName.ToLower(), out var handler))
             {
                 command.CheckAssigment(handler.ToAssign);
-                return handler.Execute(command, context);
+                var stopwatch = Stopwatch.StartNew();
+                CommandResult result = handler.Execute(command, context);
+                stopwatch.Stop();
+                if (CLISettings.ExecutionTime)
+                {
+                    // Updated after Execute() has already run and returned, so a call to
+                    // 'lastexecutiontime()' itself always reports the command measured *before*
+                    // it, never its own in-flight timing.
+                    LastExecutionTimeMs = stopwatch.Elapsed.TotalMilliseconds;
+                    LastCommand = command.CommandName;
+                }
+                return result;
             }
             return CommandResult.Fail(
                 code: "UnknownCommand",

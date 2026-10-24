@@ -15,5 +15,15 @@
         /// can be useful for debugging purposes. Setting this property to <see langword="false"/> reduces the amount of
         /// log output.</remarks>
         public static bool Verbose { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets whether each command's execution time (in milliseconds) is measured and
+        /// stored (along with that command's name) in CommandDispatcher.LastExecutionTimeMs/
+        /// LastCommand. Off by default, since most callers don't need per-command timing. Not
+        /// returned as part of a command's own response - retrieve it on demand via the
+        /// 'lastexecutiontime()' command, which returns it both as a message and as a structured
+        /// payload (machine-readable, unlike embedding it in every command's own message text).
+        /// </summary>
+        public static bool ExecutionTime { get; set; } = false;
     }
 }
