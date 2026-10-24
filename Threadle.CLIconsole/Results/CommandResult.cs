@@ -1,5 +1,4 @@
-﻿using System.Text.Json.Serialization;
-using Threadle.Core.Utilities;
+﻿using Threadle.Core.Utilities;
 
 namespace Threadle.CLIconsole.Results
 {
@@ -26,9 +25,11 @@ namespace Threadle.CLIconsole.Results
         public string Code { get; init; } = "";
 
         /// <summary>
-        /// Human-readable message describing what happened (success or failure)
+        /// Human-readable message describing what happened (success or failure). Not init-only,
+        /// unlike the other properties here: CommandDispatcher.Dispatch appends an execution-time
+        /// sentence to this after Execute() returns, when the 'executiontime' setting is enabled.
         /// </summary>
-        public string Message { get; init; } = "";
+        public string Message { get; set; } = "";
 
         /// <summary>
         /// Optional structured payload to be rendered (tables, info, statistics etc)
@@ -39,17 +40,6 @@ namespace Threadle.CLIconsole.Results
         /// Details about internal variables that were assigned and their type names
         /// </summary>
         public IReadOnlyDictionary<string, string>? Assigned { get; init; }
-
-        /// <summary>
-        /// Elapsed wall-clock time, in milliseconds, that this command's Execute() call took.
-        /// Only populated when the 'executiontime' setting is enabled (default: off); set by
-        /// CommandDispatcher.Dispatch after Execute() returns, not by the factory methods below,
-        /// since timing the call requires measuring around it from outside. Unlike the other
-        /// properties above, this one is not init-only, since it's assigned post-construction.
-        /// Omitted from JSON entirely when null, rather than serialized as "ExecutionTimeMs": null.
-        /// </summary>
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public double? ExecutionTimeMs { get; set; }
         #endregion
 
         #region Methods (public)

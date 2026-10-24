@@ -148,7 +148,10 @@ namespace Threadle.CLIconsole.Runtime
                 CommandResult result = handler.Execute(command, context);
                 stopwatch.Stop();
                 if (CLISettings.ExecutionTime)
-                    result.ExecutionTimeMs = stopwatch.Elapsed.TotalMilliseconds;
+                {
+                    string timingNote = $"Execution time: {stopwatch.Elapsed.TotalMilliseconds:F2} ms.";
+                    result.Message = string.IsNullOrWhiteSpace(result.Message) ? timingNote : $"{result.Message} {timingNote}";
+                }
                 return result;
             }
             return CommandResult.Fail(

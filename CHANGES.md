@@ -5,13 +5,15 @@
 ### New features
 
 - **`setting()` gained `executiontime`** (boolean, default `false`): when enabled,
-  every command's response includes `ExecutionTimeMs` — the wall-clock time, in
-  milliseconds, that command's execution took. Measured around the dispatch of
-  every command uniformly (negligible overhead either way), but only attached to
-  the response when this setting is on, and omitted from JSON entirely (not
-  serialized as `null`) when off or unset — so existing callers see no change at
-  all unless they opt in. Shown in text-mode CLI output too, as `Execution time:
-  N.NN ms`, whenever present.
+  each command's wall-clock execution time (in milliseconds) is measured and
+  appended as a sentence to that command's response message — e.g. `Execution
+  time: 12.34 ms.` — rather than as a separate structured field. Deliberately
+  simple: riding along the existing `Message` text means it's already surfaced
+  through the usual verbose/message pipeline on both the CLI's text-mode output
+  and any client (e.g. threadleR's `.th_call()`, which already prints
+  `resp$Message` when its own message-printing option is on), with zero further
+  wiring needed on either side. Off by default, so existing callers' messages
+  are unchanged unless they opt in.
 
 ### New capability on existing commands
 

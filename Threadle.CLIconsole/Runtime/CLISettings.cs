@@ -18,8 +18,13 @@
 
         /// <summary>
         /// Gets or sets whether each command's execution time (in milliseconds) is measured and
-        /// included in the response. Off by default, since most callers don't need per-command
-        /// timing and it adds a field to every response once on.
+        /// appended, as a sentence, to the command's response Message (e.g. "Execution time:
+        /// 12.34 ms."). Off by default, since most callers don't need per-command timing. Not a
+        /// separate structured field - deliberately kept simple by riding along the existing
+        /// Message text, which is already surfaced through the usual verbose/message pipeline on
+        /// both the CLI's text-mode output and any client (e.g. threadleR's .th_call(), which
+        /// already prints resp$Message when its own .print_message/verbose option is on) with no
+        /// further wiring needed.
         /// </summary>
         public static bool ExecutionTime { get; set; } = false;
     }
