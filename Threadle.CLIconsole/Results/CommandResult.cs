@@ -25,11 +25,9 @@ namespace Threadle.CLIconsole.Results
         public string Code { get; init; } = "";
 
         /// <summary>
-        /// Human-readable message describing what happened (success or failure). Not init-only,
-        /// unlike the other properties here: CommandDispatcher.Dispatch appends an execution-time
-        /// sentence to this after Execute() returns, when the 'executiontime' setting is enabled.
+        /// Human-readable message describing what happened (success or failure)
         /// </summary>
-        public string Message { get; set; } = "";
+        public string Message { get; init; } = "";
 
         /// <summary>
         /// Optional structured payload to be rendered (tables, info, statistics etc)

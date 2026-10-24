@@ -5,15 +5,14 @@
 ### New features
 
 - **`setting()` gained `executiontime`** (boolean, default `false`): when enabled,
-  each command's wall-clock execution time (in milliseconds) is measured and
-  appended as a sentence to that command's response message — e.g. `Execution
-  time: 12.34 ms.` — rather than as a separate structured field. Deliberately
-  simple: riding along the existing `Message` text means it's already surfaced
-  through the usual verbose/message pipeline on both the CLI's text-mode output
-  and any client (e.g. threadleR's `.th_call()`, which already prints
-  `resp$Message` when its own message-printing option is on), with zero further
-  wiring needed on either side. Off by default, so existing callers' messages
-  are unchanged unless they opt in.
+  each dispatched command's wall-clock execution time (in milliseconds) and name
+  are measured and stored internally. **New `lastexecutiontime()` command**
+  retrieves the most recently measured value — both as a human-readable message
+  (`Last execution time: 12.34 ms (betweennesscentrality(...)).`) and as a
+  structured payload (`ExecutionTimeMs`, `Command`), machine-readable like any
+  other command's metrics. If the setting is off, or nothing has been measured
+  yet, it says so instead, with no payload. No threadleR wrapper is needed —
+  call it via the existing `th_cmd("lastexecutiontime")` escape hatch.
 
 ### New capability on existing commands
 

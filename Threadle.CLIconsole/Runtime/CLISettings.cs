@@ -18,13 +18,11 @@
 
         /// <summary>
         /// Gets or sets whether each command's execution time (in milliseconds) is measured and
-        /// appended, as a sentence, to the command's response Message (e.g. "Execution time:
-        /// 12.34 ms."). Off by default, since most callers don't need per-command timing. Not a
-        /// separate structured field - deliberately kept simple by riding along the existing
-        /// Message text, which is already surfaced through the usual verbose/message pipeline on
-        /// both the CLI's text-mode output and any client (e.g. threadleR's .th_call(), which
-        /// already prints resp$Message when its own .print_message/verbose option is on) with no
-        /// further wiring needed.
+        /// stored (along with that command's name) in CommandDispatcher.LastExecutionTimeMs/
+        /// LastCommand. Off by default, since most callers don't need per-command timing. Not
+        /// returned as part of a command's own response - retrieve it on demand via the
+        /// 'lastexecutiontime()' command, which returns it both as a message and as a structured
+        /// payload (machine-readable, unlike embedding it in every command's own message text).
         /// </summary>
         public static bool ExecutionTime { get; set; } = false;
     }
