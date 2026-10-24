@@ -11,8 +11,11 @@
   (`Last execution time: 12.34 ms (betweennesscentrality).`) and as a
   structured payload (`ExecutionTimeMs`, `Command`), machine-readable like any
   other command's metrics. If the setting is off, or nothing has been measured
-  yet, it says so instead, with no payload. No threadleR wrapper is needed —
-  call it via the existing `th_cmd("lastexecutiontime")` escape hatch.
+  yet, it says so instead, with no payload — turning the setting off clears
+  any previously measured value immediately, so `lastexecutiontime()` never
+  keeps answering from before the setting was disabled. No threadleR wrapper
+  is needed — call it via the existing `th_cmd("lastexecutiontime")` escape
+  hatch.
 
 ### New capability on existing commands
 

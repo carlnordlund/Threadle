@@ -149,6 +149,17 @@ namespace Threadle.CLIconsole.Runtime
 
         #region Methods (internal)
         /// <summary>
+        /// Clears LastExecutionTimeMs/LastCommand. Called from Setting.Execute() whenever
+        /// 'executiontime' is turned off, so 'lastexecutiontime()' reports "not measured"
+        /// immediately rather than continuing to answer from before it was disabled.
+        /// </summary>
+        internal static void ClearLastExecutionTime()
+        {
+            LastExecutionTimeMs = null;
+            LastCommand = null;
+        }
+
+        /// <summary>
         /// Method to dispatch a particular command, providing the current command context (i.e.
         /// the console variable memory).
         /// </summary>
