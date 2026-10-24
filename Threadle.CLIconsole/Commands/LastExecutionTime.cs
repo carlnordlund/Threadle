@@ -33,6 +33,8 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandDispatcher.LastExecutionTimeMs is not double ms || CommandDispatcher.LastCommand is not string lastCommand)
                 return CommandResult.Ok("No execution time has been measured yet - the 'executiontime' setting may be off (see 'setting()').");
+            if (!CLISettings.ExecutionTime)
+                return CommandResult.Ok("Execution time setting is turned off");
 
             return CommandResult.Ok(
                 $"Last execution time: {ms:F2} ms ({lastCommand}).",

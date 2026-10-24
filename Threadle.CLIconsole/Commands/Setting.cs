@@ -46,6 +46,8 @@ namespace Threadle.CLIconsole.Commands
                 if (!bool.TryParse(valueString, out bool executionTimeValue))
                     return CommandResult.Fail("InvalidValue", $"Setting 'executiontime' requires a boolean value ('true'/'false'), got '{valueString}'.");
                 CLISettings.ExecutionTime = executionTimeValue;
+                if (!executionTimeValue)
+                    CommandDispatcher.ClearLastExecutionTime();
                 return CommandResult.Ok($"Setting 'executiontime' set to {executionTimeValue}.");
             }
             // Delegate to shared settings manager
