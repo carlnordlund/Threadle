@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Dynamic;
 using System.IO.Compression;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using Threadle.Core.Model;
@@ -93,7 +94,7 @@ namespace Threadle.Core.Utilities
             using var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
             using var buffered = new BufferedStream(stream, 1 << 20);
             using var reader = new BinaryReader(buffered);
-            return ReadNetworkFromFile(filepath, reader, packLayers);
+            return ReadNetworkFromFile(filepath, reader, format, packLayers);
         }
 
         /// <summary>
@@ -137,38 +138,30 @@ namespace Threadle.Core.Utilities
         /// <summary>
         /// Internal method to read a Network (and its Nodeset) from a binary file. Note that the Nodeset is alays loaded.
         /// Will throw exceptions that must be caught.
+        ///
+        /// Reads each layer's rows twice: a first ("count") pass, via a second, independent reader
+        /// opened fresh from <paramref name="filepath"/>, tallies per-node degrees (and, for 2-mode
+        /// layers, per-node hyperedge-membership counts) without ever retaining a full per-layer row
+        /// list or adjacency structure; a second ("fill") pass, using <paramref name="reader"/> (the
+        /// one the caller already opened), writes every row directly into each layer's final,
+        /// exactly-sized CSR arrays at the offsets the count pass computed. External benchmarking
+        /// found peak memory while loading ran 2.6-3.7x the final packed size, even straight into
+        /// packed layers - confirmed cause: the previous single-pass reader built a complete
+        /// List/Dictionary-based intermediate (the raw rows, then - inside
+        /// LayerOneModeStatic.FromBinaryNodelistRows/FromValuedNodelistRows/
+        /// LayerTwoModeStatic.FromHyperedgeRows - a Dictionary-of-Lists adjacency expansion) before
+        /// the final arrays existed. Re-reading (and, for gzip, re-decompressing) the file trades
+        /// roughly 2x I/O time for that memory - the same tradeoff
+        /// LayerOneModeStatic.FromPerNodeWeights already accepts for projecttwomode(lowmemory=true).
         /// </summary>
-        /// <param name="filepath">The filepath to the binary file (only used to set the <see cref="Network.Filepath"/> property).</param>
-        /// <param name="reader">The binary reader to read from.</param>
+        /// <param name="filepath">The filepath to the binary file (used to set <see cref="Network.Filepath"/> and to re-open a second reader for the count pass).</param>
+        /// <param name="reader">The binary reader to use for the fill pass (already positioned at the start of the file).</param>
+        /// <param name="format">The file's <see cref="FileFormat"/> - needed to open the second, count-pass reader the same way.</param>
         /// <returns>A <see cref="StructureResult"/> containing the Network and Nodeset.</returns>
         /// <exception cref="InvalidDataException">Thrown if the binary file isn't a Threadle Network file or if it is the wrong version.</exception>
-        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader, bool packLayers)
+        private static StructureResult ReadNetworkFromFile(string filepath, BinaryReader reader, FileFormat format, bool packLayers)
         {
-            // Check magic bytes - should be the MagicNetwork characters (TNTW)
-            var magicBytes = reader.ReadBytes(4);
-            string magic = Encoding.ASCII.GetString(magicBytes);
-            if (magic != MagicNetwork)
-                throw new InvalidDataException($"Invalid magic bytes in file '{filepath}': not Threadle Network binary file (TNTW).");
-
-            // Check file version - should be the same as here implemented
-            byte version = reader.ReadByte();
-            // Okay with commented-out check here: this reader should handle all versions, with corresponding if-statements
-            // where necessary
-            //if (version != FormatVersion)
-                //throw new InvalidDataException($"Unsupported version {version} in file '{filepath}'. Expected version: {FormatVersion}.");
-
-            // Get Network name
-            string networkName = ReadString(reader);
-
-            // Get Nodeset filepath (compulsory here): just read as a string
-            string nodesetFilename = ReadString(reader);
-
-            // If this is empty or contains any illegal characters, then throw an exception
-            if (nodesetFilename.Length == 0
-                || nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
-                || nodesetFilename.Contains('/')
-                || nodesetFilename.Contains('\\'))
-                throw new InvalidDataException("Nodeset filename in network file contains invalid characters.");
+            var (networkName, nodesetFilename, _, nbrLayers) = ReadNetworkPreamble(filepath, reader);
 
             // Build up a resolved filepath to the nodeset, which then uses the dame filepath as for the network file
             string networkDir = Path.GetDirectoryName(Path.GetFullPath(filepath))!;
@@ -189,94 +182,171 @@ namespace Threadle.Core.Utilities
             Network network = new Network(networkName, nodeset);
             network.Filepath = filepath;
 
-            // Get nbr Layers: for version 1, just read a byte, for version 2: read a 32-bit int
-            int nbrLayers = version == 1 ? reader.ReadByte() : reader.ReadInt32();
+            // --- Pass 1 ("count"): a second, independent reader walks the identical layer
+            // structure, tallying only what's needed to size each layer's final CSR arrays.
+            var layerPlans = new List<object>(nbrLayers);
+            using (var countReader = OpenFreshReader(filepath, format))
+            {
+                ReadNetworkPreamble(filepath, countReader);
+                for (int i = 0; i < nbrLayers; i++)
+                {
+                    _ = ReadString(countReader); // layer name - not needed again until pass 2
+                    int mode = countReader.ReadByte();
+                    if (mode == 1)
+                    {
+                        var (edgeDirectionality, edgeType, _, nbrEdgesets) = Read1ModeLayerHeader(countReader);
+                        bool isSymmetric = edgeDirectionality == EdgeDirectionality.Undirected;
+                        var degreeCounts = new Dictionary<uint, int>();
+                        void TallyEgo(uint ego, int alterCount) => degreeCounts[ego] = degreeCounts.GetValueOrDefault(ego) + alterCount;
+                        void TallyMirroredAlter(uint ego, uint alter)
+                        {
+                            if (isSymmetric && alter != ego)
+                                degreeCounts[alter] = degreeCounts.GetValueOrDefault(alter) + 1;
+                        }
 
-            // Loop through the layers to load
+                        if (edgeType == EdgeType.Binary)
+                            VisitBinaryRows(countReader, nbrEdgesets, (ego, alters) =>
+                            {
+                                TallyEgo(ego, alters.Length);
+                                foreach (uint alter in alters) TallyMirroredAlter(ego, alter);
+                            });
+                        else
+                            VisitValuedRows(countReader, nbrEdgesets, (ego, alters) =>
+                            {
+                                TallyEgo(ego, alters.Length);
+                                foreach (var (alter, _) in alters) TallyMirroredAlter(ego, alter);
+                            });
+                        layerPlans.Add(new OneModeLayerPlan(degreeCounts));
+                    }
+                    else if (mode == 2)
+                    {
+                        uint nbrHyperedges = Read2ModeLayerHeader(countReader);
+                        var nodeMembershipCounts = new Dictionary<uint, int>();
+                        int totalMemberships = 0;
+                        VisitHyperedgeRows(countReader, nbrHyperedges, (_, rawNodeIds) =>
+                        {
+                            uint[] deduped = SortAndDedup(rawNodeIds);
+                            totalMemberships += deduped.Length;
+                            foreach (uint nodeId in deduped)
+                                nodeMembershipCounts[nodeId] = nodeMembershipCounts.GetValueOrDefault(nodeId) + 1;
+                        });
+                        layerPlans.Add(new TwoModeLayerPlan(nodeMembershipCounts, totalMemberships));
+                    }
+                    else
+                        throw new InvalidDataException($"Layer mode not recognized in file '{filepath}': {mode} - must be 1 or 2.");
+                }
+            }
+
+            // --- Pass 2 ("fill"): the caller's reader, re-reading the same bytes, writes directly
+            // into each layer's final, exactly-sized CSR arrays - no row list, no adjacency dictionary.
             for (int i = 0; i < nbrLayers; i++)
             {
                 string layerName = ReadString(reader);
                 int mode = reader.ReadByte();
                 if (mode == 1)
                 {
-                    // Get properties of the 1-mode layer
-                    EdgeDirectionality edgeDirectionality = reader.ReadByte() switch
+                    var plan = (OneModeLayerPlan)layerPlans[i];
+                    var (edgeDirectionality, edgeType, selfties, nbrEdgesets) = Read1ModeLayerHeader(reader);
+                    bool isSymmetric = edgeDirectionality == EdgeDirectionality.Undirected;
+
+                    uint[] egoNodes = [.. plan.DegreeCounts.Keys.Order()];
+                    int n = egoNodes.Length;
+                    var mapper = new Dictionary<uint, int>(n);
+                    var offsets = new int[n + 1];
+                    int running = 0;
+                    for (int k = 0; k < n; k++)
                     {
-                        0 => EdgeDirectionality.Directed,
-                        1 => EdgeDirectionality.Undirected,
-                        _ => throw new InvalidDataException($"Invalid directionality type for layer '{layerName}'.")
-                    };
-
-                    EdgeType edgeType = reader.ReadByte() switch
-                    {
-                        0 => EdgeType.Binary,
-                        1 => EdgeType.Valued,
-                        _ => throw new InvalidDataException($"Invalid edge type for layer '{layerName}'.")
-                    };
-
-                    bool selfties = reader.ReadBoolean();
-
-                    // Get nbr of nodelist rows
-                    int nbrEdgesets = reader.ReadInt32();
+                        mapper[egoNodes[k]] = k;
+                        offsets[k] = running;
+                        running += plan.DegreeCounts[egoNodes[k]];
+                    }
+                    offsets[n] = running;
+                    int[] fillCursor = (int[])offsets.Clone();
 
                     ILayer layer;
                     if (edgeType == EdgeType.Binary)
                     {
-                        var rows = new List<(uint ego, uint[] alters)>(nbrEdgesets);
-                        for (int j = 0; j < nbrEdgesets; j++)
+                        uint[] finalNeighborIds = new uint[running];
+                        VisitBinaryRows(reader, nbrEdgesets, (ego, alters) =>
                         {
-                            uint nodeIdEgo = reader.ReadUInt32();
-                            int nbrAlters = reader.ReadInt32();
-                            if (nbrAlters < 0 || nbrAlters > 100000000)
-                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
-                            uint[] nodeIdsAlters = new uint[nbrAlters];
-                            reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIdsAlters.AsSpan()));
-                            if (!BitConverter.IsLittleEndian)
-                                for (int k = 0; k < nodeIdsAlters.Length; k++)
-                                    nodeIdsAlters[k] = BinaryPrimitives.ReverseEndianness(nodeIdsAlters[k]);
-                            rows.Add((nodeIdEgo, nodeIdsAlters));
-                        }
-                        layer = LayerOneModeStatic.FromBinaryNodelistRows(layerName, edgeDirectionality, edgeType, selfties, rows);
+                            int egoIdx = mapper[ego];
+                            foreach (uint alter in alters)
+                            {
+                                finalNeighborIds[fillCursor[egoIdx]++] = alter;
+                                if (isSymmetric && alter != ego)
+                                    finalNeighborIds[fillCursor[mapper[alter]]++] = ego;
+                            }
+                        });
+                        for (int k = 0; k < n; k++)
+                            Array.Sort(finalNeighborIds, offsets[k], offsets[k + 1] - offsets[k]);
+                        layer = LayerOneModeStatic.FromPrebuiltOutbound(layerName, edgeDirectionality, edgeType, selfties, mapper, offsets, finalNeighborIds, null);
                     }
                     else
                     {
-                        // Collect valued nodelist rows, then build CSR directly
-                        var rows = new List<(uint ego, List<(uint alter, float value)> alters)>(nbrEdgesets);
-                        for (int j = 0; j < nbrEdgesets; j++)
+                        uint[] finalNeighborIds = new uint[running];
+                        float[] finalValues = new float[running];
+                        VisitValuedRows(reader, nbrEdgesets, (ego, alters) =>
                         {
-                            uint nodeIdEgo = reader.ReadUInt32();
-                            int nbrAlters = reader.ReadInt32();
-                            if (nbrAlters < 0 || nbrAlters > 100000000)
-                                throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
-                            var alters = new List<(uint, float)>(nbrAlters);
-                            for (int k = 0; k < nbrAlters; k++)
-                                alters.Add((reader.ReadUInt32(), reader.ReadSingle()));
-                            rows.Add((nodeIdEgo, alters));
-                        }
-                        layer = LayerOneModeStatic.FromValuedNodelistRows(layerName, edgeDirectionality, edgeType, selfties, rows);
+                            int egoIdx = mapper[ego];
+                            foreach (var (alter, value) in alters)
+                            {
+                                int pos = fillCursor[egoIdx]++;
+                                finalNeighborIds[pos] = alter;
+                                finalValues[pos] = value;
+                                if (isSymmetric && alter != ego)
+                                {
+                                    int posAlter = fillCursor[mapper[alter]]++;
+                                    finalNeighborIds[posAlter] = ego;
+                                    finalValues[posAlter] = value;
+                                }
+                            }
+                        });
+                        for (int k = 0; k < n; k++)
+                            Array.Sort(finalNeighborIds, finalValues, offsets[k], offsets[k + 1] - offsets[k]);
+                        layer = LayerOneModeStatic.FromPrebuiltOutbound(layerName, edgeDirectionality, edgeType, selfties, mapper, offsets, finalNeighborIds, finalValues);
                     }
                     network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
                 }
                 else if (mode == 2)
                 {
-                    // Get nbr of hyperedges in this layer
-                    uint nbrHyperedges = reader.ReadUInt32();
+                    var plan = (TwoModeLayerPlan)layerPlans[i];
+                    uint nbrHyperedges = Read2ModeLayerHeader(reader);
 
-                    var rows = new List<(string hyperName, uint[] nodeIds)>((int)nbrHyperedges);
-                    for (uint j = 0; j < nbrHyperedges; j++)
+                    uint[] sortedNodes = [.. plan.NodeMembershipCounts.Keys.Order()];
+                    int nNodes = sortedNodes.Length;
+                    var mapper = new Dictionary<uint, int>(nNodes);
+                    var offsetNodeIds = new int[nNodes + 1];
+                    int runningNode = 0;
+                    for (int k = 0; k < nNodes; k++)
                     {
-                        string hyperedgeName = ReadString(reader);
-                        uint nbrAffNodes = reader.ReadUInt32();
-                        if (nbrAffNodes > 100000000)
-                            throw new InvalidDataException("A hyperedge can't have more than 100 million affiliated nodes.");
-                        uint[] nodeIds = new uint[nbrAffNodes];
-                        reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(nodeIds.AsSpan()));
-                        if (!BitConverter.IsLittleEndian)
-                            for (int k = 0; k < nodeIds.Length; k++)
-                                nodeIds[k] = BinaryPrimitives.ReverseEndianness(nodeIds[k]);
-                        rows.Add((hyperedgeName, nodeIds));
+                        mapper[sortedNodes[k]] = k;
+                        offsetNodeIds[k] = runningNode;
+                        runningNode += plan.NodeMembershipCounts[sortedNodes[k]];
                     }
-                    ILayer layer = LayerTwoModeStatic.FromHyperedgeRows(layerName, rows);
+                    offsetNodeIds[nNodes] = runningNode;
+                    int[] nodeFillCursor = (int[])offsetNodeIds.Clone();
+
+                    var hyperedgeNames = new string[nbrHyperedges];
+                    var offsetHyperedges = new int[(int)nbrHyperedges + 1];
+                    uint[] hyperedgeNodeIdsFlat = new uint[plan.TotalMemberships];
+                    int[] nodeIdHyperedgesFlat = new int[runningNode];
+                    int hyperedgeCursor = 0;
+                    int hyperedgeIdx = 0;
+                    VisitHyperedgeRows(reader, nbrHyperedges, (hyperedgeName, rawNodeIds) =>
+                    {
+                        uint[] deduped = SortAndDedup(rawNodeIds);
+                        hyperedgeNames[hyperedgeIdx] = hyperedgeName;
+                        offsetHyperedges[hyperedgeIdx] = hyperedgeCursor;
+                        foreach (uint nodeId in deduped)
+                        {
+                            hyperedgeNodeIdsFlat[hyperedgeCursor++] = nodeId;
+                            nodeIdHyperedgesFlat[nodeFillCursor[mapper[nodeId]]++] = hyperedgeIdx;
+                        }
+                        hyperedgeIdx++;
+                    });
+                    offsetHyperedges[(int)nbrHyperedges] = hyperedgeCursor;
+
+                    ILayer layer = LayerTwoModeStatic.FromPrebuiltCsr(layerName, hyperedgeNames, offsetHyperedges, hyperedgeNodeIdsFlat, mapper, offsetNodeIds, nodeIdHyperedgesFlat);
                     network.Layers.Add(layerName, packLayers ? layer : Misc.UnpackLayer(layer));
                 }
                 else
@@ -286,6 +356,170 @@ namespace Threadle.Core.Utilities
             {
                 { "nodeset", nodeset }
             });
+        }
+
+        /// <summary>Per-layer sizing data computed by the count pass and consumed by the fill pass - see <see cref="ReadNetworkFromFile"/>.</summary>
+        private sealed class OneModeLayerPlan(Dictionary<uint, int> degreeCounts)
+        {
+            internal Dictionary<uint, int> DegreeCounts { get; } = degreeCounts;
+        }
+
+        /// <summary>Per-layer sizing data computed by the count pass and consumed by the fill pass - see <see cref="ReadNetworkFromFile"/>.</summary>
+        private sealed class TwoModeLayerPlan(Dictionary<uint, int> nodeMembershipCounts, int totalMemberships)
+        {
+            internal Dictionary<uint, int> NodeMembershipCounts { get; } = nodeMembershipCounts;
+            internal int TotalMemberships { get; } = totalMemberships;
+        }
+
+        /// <summary>Reads the fixed network-file preamble (magic bytes, version, network name,
+        /// nodeset filename, layer count) - identical logic used by both the count pass (via a
+        /// fresh reader) and the fill pass (via the caller's reader), so they can never drift.</summary>
+        private static (string networkName, string nodesetFilename, byte version, int nbrLayers) ReadNetworkPreamble(string filepath, BinaryReader reader)
+        {
+            var magicBytes = reader.ReadBytes(4);
+            string magic = Encoding.ASCII.GetString(magicBytes);
+            if (magic != MagicNetwork)
+                throw new InvalidDataException($"Invalid magic bytes in file '{filepath}': not Threadle Network binary file (TNTW).");
+
+            byte version = reader.ReadByte();
+
+            string networkName = ReadString(reader);
+
+            string nodesetFilename = ReadString(reader);
+            if (nodesetFilename.Length == 0
+                || nodesetFilename.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+                || nodesetFilename.Contains('/')
+                || nodesetFilename.Contains('\\'))
+                throw new InvalidDataException("Nodeset filename in network file contains invalid characters.");
+
+            // Get nbr Layers: for version 1, just read a byte, for version 2+: read a 32-bit int
+            int nbrLayers = version == 1 ? reader.ReadByte() : reader.ReadInt32();
+
+            return (networkName, nodesetFilename, version, nbrLayers);
+        }
+
+        /// <summary>Opens a brand-new reader (own FileStream/decompression/buffering) on the same
+        /// file, for the count pass to walk independently of the caller's own reader.</summary>
+        private static BinaryReader OpenFreshReader(string filepath, FileFormat format)
+        {
+            var fileStream = File.OpenRead(filepath);
+            var stream = WrapIfCompressed(fileStream, filepath, format, CompressionMode.Decompress);
+            var buffered = new BufferedStream(stream, 1 << 20);
+            return new BinaryReader(buffered);
+        }
+
+        /// <summary>Reads a 1-mode layer's header fields (directionality, edge type, selfties, row count).</summary>
+        private static (EdgeDirectionality directionality, EdgeType edgeType, bool selfties, int nbrEdgesets) Read1ModeLayerHeader(BinaryReader reader)
+        {
+            EdgeDirectionality edgeDirectionality = reader.ReadByte() switch
+            {
+                0 => EdgeDirectionality.Directed,
+                1 => EdgeDirectionality.Undirected,
+                _ => throw new InvalidDataException("Invalid directionality type for a 1-mode layer.")
+            };
+            EdgeType edgeType = reader.ReadByte() switch
+            {
+                0 => EdgeType.Binary,
+                1 => EdgeType.Valued,
+                _ => throw new InvalidDataException("Invalid edge type for a 1-mode layer.")
+            };
+            bool selfties = reader.ReadBoolean();
+            int nbrEdgesets = reader.ReadInt32();
+            return (edgeDirectionality, edgeType, selfties, nbrEdgesets);
+        }
+
+        /// <summary>Reads a 2-mode layer's header field (hyperedge count).</summary>
+        private static uint Read2ModeLayerHeader(BinaryReader reader) => reader.ReadUInt32();
+
+        /// <summary>
+        /// Reads exactly <paramref name="nbrEdgesets"/> binary-layer rows from <paramref name="reader"/>,
+        /// invoking <paramref name="visitRow"/> once per row with a span over a single, reused
+        /// scratch buffer (grown only when a larger row is seen) - so a full pass over a layer never
+        /// retains more than its single largest row's worth of alters, regardless of the layer's
+        /// total edge count. Used identically by the count and fill passes in <see cref="ReadNetworkFromFile"/>.
+        /// </summary>
+        private static void VisitBinaryRows(BinaryReader reader, int nbrEdgesets, Action<uint, ReadOnlySpan<uint>> visitRow)
+        {
+            uint[] scratch = [];
+            for (int j = 0; j < nbrEdgesets; j++)
+            {
+                uint nodeIdEgo = reader.ReadUInt32();
+                int nbrAlters = reader.ReadInt32();
+                if (nbrAlters < 0 || nbrAlters > 100000000)
+                    throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
+                if (scratch.Length < nbrAlters)
+                    scratch = new uint[nbrAlters];
+                var span = scratch.AsSpan(0, nbrAlters);
+                reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(span));
+                if (!BitConverter.IsLittleEndian)
+                    for (int k = 0; k < nbrAlters; k++)
+                        scratch[k] = BinaryPrimitives.ReverseEndianness(scratch[k]);
+                visitRow(nodeIdEgo, span);
+            }
+        }
+
+        /// <summary>Same as <see cref="VisitBinaryRows"/>, for valued-layer rows (alter id + float
+        /// value pairs, read field-by-field like the original single-pass reader did - a bulk span
+        /// read here would need to byte-swap the float field on big-endian hosts, which
+        /// BinaryPrimitives has no direct support for, so this keeps the simpler, already-correct
+        /// per-field reads rather than risk that).</summary>
+        private static void VisitValuedRows(BinaryReader reader, int nbrEdgesets, Action<uint, ReadOnlySpan<(uint alter, float value)>> visitRow)
+        {
+            (uint alter, float value)[] scratch = [];
+            for (int j = 0; j < nbrEdgesets; j++)
+            {
+                uint nodeIdEgo = reader.ReadUInt32();
+                int nbrAlters = reader.ReadInt32();
+                if (nbrAlters < 0 || nbrAlters > 100000000)
+                    throw new InvalidDataException($"Invalid number of alters for node '{nodeIdEgo}': must be 0-100 million.");
+                if (scratch.Length < nbrAlters)
+                    scratch = new (uint, float)[nbrAlters];
+                for (int k = 0; k < nbrAlters; k++)
+                    scratch[k] = (reader.ReadUInt32(), reader.ReadSingle());
+                visitRow(nodeIdEgo, scratch.AsSpan(0, nbrAlters));
+            }
+        }
+
+        /// <summary>Same as <see cref="VisitBinaryRows"/>, for 2-mode hyperedge rows (name + raw,
+        /// possibly-duplicated member node ids - deduplication happens in the caller via
+        /// <see cref="SortAndDedup"/>, not here, so both passes dedupe identically).</summary>
+        private static void VisitHyperedgeRows(BinaryReader reader, uint nbrHyperedges, Action<string, ReadOnlySpan<uint>> visitRow)
+        {
+            uint[] scratch = [];
+            for (uint j = 0; j < nbrHyperedges; j++)
+            {
+                string hyperedgeName = ReadString(reader);
+                uint nbrAffNodes = reader.ReadUInt32();
+                if (nbrAffNodes > 100000000)
+                    throw new InvalidDataException("A hyperedge can't have more than 100 million affiliated nodes.");
+                if (scratch.Length < nbrAffNodes)
+                    scratch = new uint[nbrAffNodes];
+                var span = scratch.AsSpan(0, (int)nbrAffNodes);
+                reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(span));
+                if (!BitConverter.IsLittleEndian)
+                    for (int k = 0; k < nbrAffNodes; k++)
+                        scratch[k] = BinaryPrimitives.ReverseEndianness(scratch[k]);
+                visitRow(hyperedgeName, span);
+            }
+        }
+
+        /// <summary>
+        /// Sorts and deduplicates a copy of a hyperedge's raw (possibly repeated) member node ids -
+        /// same semantics as <see cref="Misc.DeduplicateUintList"/> (sort, then drop consecutive
+        /// duplicates), just operating on a span rather than a List, since this must be called
+        /// identically by both the count and the fill pass in <see cref="ReadNetworkFromFile"/>.
+        /// </summary>
+        private static uint[] SortAndDedup(ReadOnlySpan<uint> raw)
+        {
+            uint[] copy = raw.ToArray();
+            if (copy.Length < 2)
+                return copy;
+            Array.Sort(copy);
+            int write = 1;
+            for (int read = 1; read < copy.Length; read++)
+                if (copy[read] != copy[write - 1])
+                    copy[write++] = copy[read];
+            return write == copy.Length ? copy : copy[..write];
         }
 
 

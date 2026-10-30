@@ -303,6 +303,28 @@ namespace Threadle.Core.Model
             return new LayerOneModeStatic(name, EdgeDirectionality.Undirected, edgeType, false, mapper, offsets, neighborNodeIds, values);
         }
 
+        /// <summary>
+        /// Wraps already-built, already-sorted outbound CSR arrays into a LayerOneModeStatic,
+        /// building the inbound reverse-CSR (for directed layers) the same way every other factory
+        /// here does. Used by FileSerializerBin's two-pass binary loader, which builds
+        /// mapper/offsets/neighborNodeIds directly from file bytes across two passes (count, then
+        /// fill) without ever holding a full per-layer row list or adjacency dictionary - unlike
+        /// <see cref="FromBinaryNodelistRows"/>/<see cref="FromValuedNodelistRows"/>, which both
+        /// build one intermediate copy (the rows list the caller already has) plus a second
+        /// (the Dictionary&lt;uint, List&lt;uint&gt;&gt; adjacency expansion) before flattening to
+        /// these same final arrays. The caller must have already sorted each node's
+        /// [offsets[i], offsets[i+1]) slice by neighbor id (ascending) - GetEdgeValue/
+        /// CheckEdgeExists rely on that via binary search, same as every other factory's output.
+        /// </summary>
+        internal static LayerOneModeStatic FromPrebuiltOutbound(string name, EdgeDirectionality directionality, EdgeType edgeType, bool selfties, Dictionary<uint, int> mapper, int[] offsets, uint[] neighborNodeIds, float[]? values)
+        {
+            int[]? inOffsets = null;
+            uint[]? inNeighborIds = null;
+            if (directionality != EdgeDirectionality.Undirected)
+                (inOffsets, inNeighborIds) = _buildInboundFromOutbound(mapper, offsets, neighborNodeIds);
+            return new LayerOneModeStatic(name, directionality, edgeType, selfties, mapper, offsets, neighborNodeIds, values, inOffsets, inNeighborIds);
+        }
+
         public static LayerOneModeStatic FromDynamic(LayerOneMode source)
         {
             source._sortEdgesets();
