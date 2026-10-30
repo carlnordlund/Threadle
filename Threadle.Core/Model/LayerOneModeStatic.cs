@@ -409,6 +409,28 @@ namespace Threadle.Core.Model
             return [.. result];
         }
 
+        /// <inheritdoc/>
+        public void VisitAlters(uint nodeId, EdgeTraversal edgeTraversal, Action<uint> visitAlter)
+        {
+            if (!_nodeIdToIndexMapper.TryGetValue(nodeId, out int index))
+                return;
+
+            if (!IsDirectional || edgeTraversal == EdgeTraversal.Out || edgeTraversal == EdgeTraversal.Both)
+            {
+                int start = _offsets[index], end = _offsets[index + 1];
+                for (int j = start; j < end; j++)
+                    visitAlter(_neighborNodeIds[j]);
+            }
+
+            if (IsDirectional && (edgeTraversal == EdgeTraversal.In || edgeTraversal == EdgeTraversal.Both)
+                && _inOffsets != null && _inNeighborNodeIds != null)
+            {
+                int start = _inOffsets[index], end = _inOffsets[index + 1];
+                for (int j = start; j < end; j++)
+                    visitAlter(_inNeighborNodeIds[j]);
+            }
+        }
+
         /// <summary>
         /// Returns alter node ids together with their associated edge weights for use in weighted random selection.
         /// </summary>

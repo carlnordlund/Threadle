@@ -33,6 +33,10 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Single-source BFS returning distances from <paramref name="source"/> to all reachable nodes.
         /// Hyperedge-aware: each 2-mode hyperedge is expanded at most once across the entire BFS.
+        /// Uses <see cref="ILayerOneMode.VisitAlters"/> rather than <see cref="ILayerOneMode.GetNodeAlters"/>
+        /// for the 1-mode traversal step, so no array/HashSet is allocated per node visited (see that
+        /// method's remarks on why double-visiting a bidirectional neighbor under
+        /// <see cref="EdgeTraversal.Both"/> is harmless here: <c>dist.TryAdd</c> is idempotent).
         /// </summary>
         internal static Dictionary<uint, int> BFS(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
@@ -44,15 +48,22 @@ namespace Threadle.Core.Analysis
                 _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
             var statVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
 
+            int nextDist = 0;
+            void VisitOneModeAlter(uint v)
+            {
+                if (dist.TryAdd(v, nextDist))
+                    queue.Enqueue(v);
+            }
+            Action<uint> visitOneModeAlter = VisitOneModeAlter;
+
             while (queue.Count > 0)
             {
                 uint u = queue.Dequeue();
                 int d = dist[u];
+                nextDist = d + 1;
 
                 foreach (var layer in oneModes)
-                    foreach (uint v in layer.GetNodeAlters(u, traversal))
-                        if (dist.TryAdd(v, d + 1))
-                            queue.Enqueue(v);
+                    layer.VisitAlters(u, traversal, visitOneModeAlter);
 
                 for (int li = 0; li < twoModesDynamic.Count; li++)
                 {
@@ -90,6 +101,12 @@ namespace Threadle.Core.Analysis
         /// distances, shortest-path counts (sigma), predecessor lists, and topological order.
         /// Hyperedge-aware: tracks the BFS level at which each hyperedge was first expanded.
         /// Same-level re-encounters update sigma/pred; deeper-level encounters are skipped.
+        /// Uses <see cref="ILayerOneMode.VisitAlters"/> (no per-node array/HashSet allocation)
+        /// for the 1-mode traversal step, except for <see cref="EdgeTraversal.Both"/> on a directed
+        /// layer: there, visiting a bidirectional neighbor twice would double-count it in
+        /// <paramref name="sigma"/>/<paramref name="pred"/> (unlike plain <see cref="BFS"/>, this
+        /// method has per-visit side effects, not just an idempotent reachability mark), so that one
+        /// combination falls back to <see cref="ILayerOneMode.GetNodeAlters"/>, which still dedupes.
         /// </summary>
         internal static void BFSBrandes(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, out Dictionary<uint, int> dist, out Dictionary<uint, long> sigma, out Dictionary<uint, List<uint>> pred, out Stack<uint> order)
         {
@@ -104,15 +121,30 @@ namespace Threadle.Core.Analysis
                 _ => new Dictionary<Hyperedge, int>(ReferenceEqualityComparer.Instance));
             var statExpanded = Array.ConvertAll(twoModesStatic.ToArray(), _ => new Dictionary<int, int>());
 
+            uint currentU = source;
+            int currentMemberDist = 0;
+            void VisitOneModeAlter(uint v) => ProcessNeighbor(v, currentU, currentMemberDist, dist, sigma, pred, queue);
+            Action<uint> visitOneModeAlter = VisitOneModeAlter;
+
             while (queue.Count > 0)
             {
                 uint u = queue.Dequeue();
                 order.Push(u);
                 int memberDist = dist[u] + 1;
+                currentU = u;
+                currentMemberDist = memberDist;
 
                 foreach (var layer in oneModes)
-                    foreach (uint v in layer.GetNodeAlters(u, traversal))
-                        ProcessNeighbor(v, u, memberDist, dist, sigma, pred, queue);
+                {
+                    // Both-on-directed needs GetNodeAlters' own dedup (see remarks above) - every
+                    // other combination (Out, In, or any traversal on an undirected layer, where
+                    // VisitAlters only ever takes its first branch) is safe without it.
+                    if (traversal == EdgeTraversal.Both && layer.IsDirectional)
+                        foreach (uint v in layer.GetNodeAlters(u, traversal))
+                            ProcessNeighbor(v, u, memberDist, dist, sigma, pred, queue);
+                    else
+                        layer.VisitAlters(u, traversal, visitOneModeAlter);
+                }
 
                 for (int li = 0; li < twoModesDynamic.Count; li++)
                 {

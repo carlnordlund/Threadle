@@ -53,6 +53,22 @@ namespace Threadle.Core.Model
         /// </summary>
         IEnumerable<(uint egoId, ReadOnlyMemory<uint> alters, ReadOnlyMemory<float> values)> GetAllEgoData();
 
+        /// <summary>
+        /// Invokes <paramref name="visitAlter"/> once for each alter of <paramref name="nodeId"/>
+        /// per <paramref name="edgeTraversal"/>, without ever allocating a collection to hold the
+        /// results - unlike <see cref="GetNodeAlters"/>, which always returns a freshly allocated
+        /// array (and, for <see cref="EdgeTraversal.Both"/> on a directed layer, builds and
+        /// discards a deduplicating HashSet on every call). For <see cref="EdgeTraversal.Both"/> on
+        /// a directed layer, an alter present as both an outbound and an inbound neighbor of
+        /// <paramref name="nodeId"/> is visited twice (once per direction) - callers that cannot
+        /// tolerate that (anything accumulating a side effect per visit rather than just marking a
+        /// node reached, e.g. Brandes' sigma/predecessor bookkeeping) must dedupe themselves or use
+        /// <see cref="GetNodeAlters"/> instead for that specific combination. Traversal algorithms
+        /// that only mark reachability (plain BFS) are unaffected, since marking the same node
+        /// reached twice is a no-op.
+        /// </summary>
+        void VisitAlters(uint nodeId, EdgeTraversal edgeTraversal, Action<uint> visitAlter);
+
         #endregion
 
     }
