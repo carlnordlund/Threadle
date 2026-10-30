@@ -53,6 +53,35 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Reusable scratch state for <see cref="BFSReachedNodes"/>, shared across the many
+        /// sequential BFS calls one component-discovery pass makes (<see cref="Functions.ConnectedComponents"/>,
+        /// <see cref="NetworkLevelFunctions.LargestComponent"/> - both loop over unvisited seed
+        /// nodes, not <see cref="System.Threading.Tasks.Parallel.For"/>, so a single shared instance
+        /// is safe here, unlike <see cref="BFSBrandesScratch"/>, which needs one per thread). Each
+        /// call bumps a generation counter instead of clearing an n-sized array, so a graph
+        /// fragmented into many small components doesn't pay an O(n) reset for every single seed
+        /// node regardless of how small that seed's own component turns out to be.
+        /// </summary>
+        internal sealed class BFSReachScratch
+        {
+            private int[] _stamp = [];
+            private int _currentStamp;
+
+            internal int[] Stamp => _stamp;
+            internal int CurrentStamp => _currentStamp;
+
+            /// <summary>Starts a new call: grows the stamp array only the first time (or if the
+            /// node universe size changed), otherwise reuses it - bumping the generation counter
+            /// instead of clearing it.</summary>
+            internal void StartCall(int n)
+            {
+                if (_stamp.Length != n)
+                    _stamp = new int[n];
+                _currentStamp++;
+            }
+        }
+
+        /// <summary>
         /// Reusable per-thread scratch state for <see cref="BFSBrandes"/>, so repeated calls across
         /// many source nodes (one per <see cref="System.Threading.Tasks.Parallel.For"/> iteration -
         /// see CentralityFunctions.AccumulateBFSCentralitiesForSources/
@@ -213,6 +242,98 @@ namespace Threadle.Core.Analysis
                 }
             }
             return new BFSDistances(dist, nodeIndex, nodeIds);
+        }
+
+        /// <summary>
+        /// Single-source BFS returning just the set of reached node ids (including
+        /// <paramref name="source"/>), not their distances - all component-discovery needs, since
+        /// it only partitions nodes into components rather than reading per-node distances. Takes a
+        /// reusable <paramref name="scratch"/> (see <see cref="BFSReachScratch"/>) rather than
+        /// plain <see cref="BFS"/>'s own freshly-allocated, always-cleared <c>int[] dist</c>: that
+        /// clearing costs O(n) every call regardless of how small the reached set turns out to be,
+        /// which is fine when a source typically reaches most of the graph, but means component
+        /// discovery - which runs BFS from every yet-unvisited seed, and on a graph fragmented into
+        /// many small components, most seeds only reach a handful of nodes - would otherwise pay a
+        /// near-quadratic total cost instead of one close to linear in the edges actually examined.
+        /// The reached list here is built incrementally as nodes are discovered during traversal,
+        /// never by scanning the full node universe afterward, so the whole call is bounded by the
+        /// reached set's own size plus the edges examined - never by <paramref name="nodeIds"/>'s
+        /// length.
+        /// </summary>
+        internal static List<uint> BFSReachedNodes(uint source, BFSReachScratch scratch, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        {
+            scratch.StartCall(nodeIds.Length);
+            int[] stamp = scratch.Stamp;
+            int myStamp = scratch.CurrentStamp;
+
+            var reached = new List<uint>();
+            var queue = new Queue<int>();
+
+            int sourceIdx = nodeIndex[source];
+            stamp[sourceIdx] = myStamp;
+            reached.Add(source);
+            queue.Enqueue(sourceIdx);
+
+            var dynVisited = Array.ConvertAll(twoModesDynamic.ToArray(),
+                _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
+            var statVisited = Array.ConvertAll(twoModesStatic.ToArray(), _ => new HashSet<int>());
+
+            void VisitOneModeAlter(uint v)
+            {
+                if (nodeIndex.TryGetValue(v, out int vIdx) && stamp[vIdx] != myStamp)
+                {
+                    stamp[vIdx] = myStamp;
+                    reached.Add(v);
+                    queue.Enqueue(vIdx);
+                }
+            }
+            Action<uint> visitOneModeAlter = VisitOneModeAlter;
+
+            while (queue.Count > 0)
+            {
+                int uIdx = queue.Dequeue();
+                uint u = nodeIds[uIdx];
+
+                foreach (var layer in oneModes)
+                    layer.VisitAlters(u, traversal, visitOneModeAlter);
+
+                for (int li = 0; li < twoModesDynamic.Count; li++)
+                {
+                    var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(u);
+                    if (hec == null) continue;
+                    foreach (var he in hec.HyperEdges)
+                        if (dynVisited[li].Add(he))
+                            foreach (uint m in he.NodeIds)
+                                if (nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] != myStamp)
+                                {
+                                    stamp[mIdx] = myStamp;
+                                    reached.Add(m);
+                                    queue.Enqueue(mIdx);
+                                }
+                }
+
+                for (int li = 0; li < twoModesStatic.Count; li++)
+                {
+                    if (!twoModesStatic[li].TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+                    for (int k = nStart; k < nEnd; k++)
+                    {
+                        int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
+                        if (!statVisited[li].Add(hIdx)) continue;
+                        twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+                        for (int j = hStart; j < hEnd; j++)
+                        {
+                            uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
+                            if (nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] != myStamp)
+                            {
+                                stamp[mIdx] = myStamp;
+                                reached.Add(m);
+                                queue.Enqueue(mIdx);
+                            }
+                        }
+                    }
+                }
+            }
+            return reached;
         }
 
         /// <summary>

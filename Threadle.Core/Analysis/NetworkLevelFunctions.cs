@@ -818,18 +818,15 @@ namespace Threadle.Core.Analysis
             GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
+            var scratch = new GraphAlgorithms.BFSReachScratch();
             var visited = new HashSet<uint>();
             uint[] bestComponent = [];
             foreach (uint start in nodeIds)
             {
                 if (!visited.Add(start)) continue;
-                var dist = GraphAlgorithms.BFS(start, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
-                var component = new List<uint>();
-                foreach (uint v in dist.Keys)
-                {
+                var component = GraphAlgorithms.BFSReachedNodes(start, scratch, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+                foreach (uint v in component)
                     if (v != start) visited.Add(v);
-                    component.Add(v);
-                }
                 if (component.Count > bestComponent.Length)
                     bestComponent = component.ToArray();
             }
