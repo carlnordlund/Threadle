@@ -568,10 +568,12 @@ namespace Threadle.Core.Analysis
         internal static Dictionary<uint, int> Eccentricity(uint[] nodeIds, ILayer layer, EdgeTraversal traversal)
         {
             GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
+            var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
+            for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
             int[] ecc = new int[nodeIds.Length];
             System.Threading.Tasks.Parallel.For(0, nodeIds.Length, UserSettings.GetParallelOptions(), i =>
             {
-                var dist = GraphAlgorithms.BFS(nodeIds[i], oneModes, twoModesDynamic, twoModesStatic, traversal);
+                var dist = GraphAlgorithms.BFS(nodeIds[i], nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal);
                 int max = 0;
                 foreach (int d in dist.Values)
                     if (d > max) max = d;
@@ -617,6 +619,8 @@ namespace Threadle.Core.Analysis
         {
             uint[] component = LargestComponent(nodeIds, layer);
             int compSize = component.Length;
+            var componentIndex = new Dictionary<uint, int>(component.Length);
+            for (int i = 0; i < component.Length; i++) componentIndex[component[i]] = i;
 
             if (diameterOnly)
             {
@@ -631,7 +635,7 @@ namespace Threadle.Core.Analysis
 
                     if (effectivelySymmetric)
                     {
-                        diameterOnlyValue = DiameterIFUB(component, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
+                        diameterOnlyValue = DiameterIFUB(component, componentIndex, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
                         algorithm = "iFUB";
                     }
                     else
@@ -642,7 +646,7 @@ namespace Threadle.Core.Analysis
                             () => 0L,
                             (i, loopState, localMax) =>
                             {
-                                var dist = GraphAlgorithms.BFS(component[i], oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
+                                var dist = GraphAlgorithms.BFS(component[i], componentIndex, component, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
                                 foreach (int d in dist.Values)
                                     if (d > localMax) localMax = d;
                                 return localMax;
@@ -682,7 +686,7 @@ namespace Threadle.Core.Analysis
                     (i, loopState, local) =>
                     {
                         uint src = component[i];
-                        var dist = GraphAlgorithms.BFS(src, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                        var dist = GraphAlgorithms.BFS(src, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         foreach (var (node, d) in dist)
                         {
                             if (node == src) continue;
@@ -738,6 +742,8 @@ namespace Threadle.Core.Analysis
         {
             uint[] component = LargestComponent(nodeIds, layer);
             int compSize = component.Length;
+            var componentIndex = new Dictionary<uint, int>(component.Length);
+            for (int i = 0; i < component.Length; i++) componentIndex[component[i]] = i;
             GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
 
             long diameterLowerBound = 0;
@@ -748,7 +754,7 @@ namespace Threadle.Core.Analysis
                     () => 0L,
                     (i, loopState, localBest) =>
                     {
-                        var (_, _, ecc) = DoubleSweepRoot(component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                        var (_, _, ecc) = DoubleSweepRoot(component, componentIndex, oneModes, twoModesDynamic, twoModesStatic, traversal);
                         return Math.Max(localBest, (long)ecc);
                     },
                     localBest =>
@@ -765,7 +771,7 @@ namespace Threadle.Core.Analysis
             System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(), i =>
             {
                 uint src = sources[i];
-                var dist = GraphAlgorithms.BFS(src, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                var dist = GraphAlgorithms.BFS(src, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
                 long sum = 0;
                 long count = 0;
                 foreach (var (node, d) in dist)
@@ -810,13 +816,15 @@ namespace Threadle.Core.Analysis
         private static uint[] LargestComponent(uint[] nodeIds, ILayer layer)
         {
             GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
+            var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
+            for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
             var visited = new HashSet<uint>();
             uint[] bestComponent = [];
             foreach (uint start in nodeIds)
             {
                 if (!visited.Add(start)) continue;
-                var dist = GraphAlgorithms.BFS(start, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
-                var component = new List<uint>(dist.Count);
+                var dist = GraphAlgorithms.BFS(start, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+                var component = new List<uint>();
                 foreach (uint v in dist.Keys)
                 {
                     if (v != start) visited.Add(v);
@@ -836,16 +844,16 @@ namespace Threadle.Core.Analysis
         /// <see cref="DiameterSampled"/>), and a good starting root for <see cref="DiameterIFUB"/>'s
         /// level-by-level refinement when distances are symmetric.
         /// </summary>
-        private static (uint root, Dictionary<uint, int> distFromRoot, int ecc) DoubleSweepRoot(uint[] component, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        private static (uint root, GraphAlgorithms.BFSDistances distFromRoot, int ecc) DoubleSweepRoot(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
             uint x = component[Misc.Random.Next(component.Length)];
-            var dist1 = GraphAlgorithms.BFS(x, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            var dist1 = GraphAlgorithms.BFS(x, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
             uint r = x;
             int best1 = 0;
             foreach (var (node, d) in dist1)
                 if (d > best1) { best1 = d; r = node; }
 
-            var distFromRoot = GraphAlgorithms.BFS(r, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            var distFromRoot = GraphAlgorithms.BFS(r, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
             int ecc = 0;
             foreach (int d in distFromRoot.Values)
                 if (d > ecc) ecc = d;
@@ -868,9 +876,9 @@ namespace Threadle.Core.Analysis
         /// real-world graphs; no improved worst-case bound (e.g. a path graph needs most nodes
         /// examined regardless) - exact either way, just not always fast.
         /// </summary>
-        private static long DiameterIFUB(uint[] component, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        private static long DiameterIFUB(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
-            var (_, distFromRoot, eccR) = DoubleSweepRoot(component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            var (_, distFromRoot, eccR) = DoubleSweepRoot(component, componentIndex, oneModes, twoModesDynamic, twoModesStatic, traversal);
 
             var levels = new Dictionary<int, List<uint>>();
             foreach (var (node, d) in distFromRoot)
@@ -890,7 +898,7 @@ namespace Threadle.Core.Analysis
                         () => 0L,
                         (j, loopState, localBest) =>
                         {
-                            var dist = GraphAlgorithms.BFS(levelNodes[j], oneModes, twoModesDynamic, twoModesStatic, traversal);
+                            var dist = GraphAlgorithms.BFS(levelNodes[j], componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
                             int ecc = 0;
                             foreach (int d in dist.Values)
                                 if (d > ecc) ecc = d;

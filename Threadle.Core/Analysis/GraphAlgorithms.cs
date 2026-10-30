@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -15,6 +16,42 @@ namespace Threadle.Core.Analysis
     /// </summary>
     internal static class GraphAlgorithms
     {
+        /// <summary>
+        /// Array-backed result of <see cref="BFS"/>: a drop-in replacement for the
+        /// <c>Dictionary&lt;uint,int&gt;</c> it used to return, exposing the same read shapes
+        /// (indexer/<see cref="TryGetValue"/>, <see cref="Keys"/>, <see cref="Values"/>, and
+        /// pair-enumeration via <see cref="GetEnumerator"/>) every caller already used - only the
+        /// backing storage changes, from a hashed dictionary built fresh per call to a plain
+        /// <c>int[]</c> indexed via a <paramref name="nodeIndex"/> built once per top-level
+        /// operation (see <see cref="BFS"/>'s remarks). <c>-1</c> in <paramref name="dist"/> means
+        /// "not reached", matching the old dictionary's "key absent" for an unreached node.
+        /// </summary>
+        internal readonly struct BFSDistances(int[] dist, Dictionary<uint, int> nodeIndex, uint[] nodeIds)
+        {
+            public int this[uint nodeId] => nodeIndex.TryGetValue(nodeId, out int i) && dist[i] >= 0 ? dist[i] : -1;
+
+            public bool TryGetValue(uint nodeId, out int d)
+            {
+                d = this[nodeId];
+                return d >= 0;
+            }
+
+            public IEnumerable<(uint nodeId, int dist)> Reached
+            {
+                get
+                {
+                    for (int i = 0; i < dist.Length; i++)
+                        if (dist[i] >= 0)
+                            yield return (nodeIds[i], dist[i]);
+                }
+            }
+
+            public IEnumerable<uint> Keys => Reached.Select(r => r.nodeId);
+            public IEnumerable<int> Values => Reached.Select(r => r.dist);
+
+            public IEnumerator<(uint nodeId, int dist)> GetEnumerator() => Reached.GetEnumerator();
+        }
+
         /// <summary>
         /// Reusable per-thread scratch state for <see cref="BFSBrandes"/>, so repeated calls across
         /// many source nodes (one per <see cref="System.Threading.Tasks.Parallel.For"/> iteration -
@@ -92,13 +129,29 @@ namespace Threadle.Core.Analysis
         /// Uses <see cref="ILayerOneMode.VisitAlters"/> rather than <see cref="ILayerOneMode.GetNodeAlters"/>
         /// for the 1-mode traversal step, so no array/HashSet is allocated per node visited (see that
         /// method's remarks on why double-visiting a bidirectional neighbor under
-        /// <see cref="EdgeTraversal.Both"/> is harmless here: <c>dist.TryAdd</c> is idempotent).
+        /// <see cref="EdgeTraversal.Both"/> is harmless here: array writes below are idempotent once
+        /// a slot is set).
+        ///
+        /// <paramref name="nodeIndex"/>/<paramref name="nodeIds"/> are the compact 0..n-1 numbering
+        /// for this call's node universe (every caller's whole analysis, e.g. the full network or a
+        /// single largest-component array - NOT rebuilt per source): built once by the caller and
+        /// reused across every BFS call in that operation, so repeated calls (one per node, as
+        /// eccentricity()/diameter()/closeness() all do) don't each pay to grow a fresh dictionary
+        /// from nothing. Visited/distance state during traversal is a plain <c>int[]</c> indexed by
+        /// that numbering instead of a <c>Dictionary&lt;uint,int&gt;</c> - no per-entry overhead, no
+        /// incremental resize as the frontier grows. Translating a newly-discovered neighbor id back
+        /// to its array slot still costs one dictionary lookup (via <paramref name="nodeIndex"/>) -
+        /// unavoidable since <see cref="ILayerOneMode.VisitAlters"/> hands back raw node ids, not
+        /// this numbering - but that dictionary itself is built once, not once per call.
         /// </summary>
-        internal static Dictionary<uint, int> BFS(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        internal static BFSDistances BFS(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
-            var dist = new Dictionary<uint, int> { [source] = 0 };
-            var queue = new Queue<uint>();
-            queue.Enqueue(source);
+            int[] dist = new int[nodeIds.Length];
+            Array.Fill(dist, -1);
+            int sourceIdx = nodeIndex[source];
+            dist[sourceIdx] = 0;
+            var queue = new Queue<int>();
+            queue.Enqueue(sourceIdx);
 
             var dynVisited = Array.ConvertAll(twoModesDynamic.ToArray(),
                 _ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance));
@@ -107,15 +160,19 @@ namespace Threadle.Core.Analysis
             int nextDist = 0;
             void VisitOneModeAlter(uint v)
             {
-                if (dist.TryAdd(v, nextDist))
-                    queue.Enqueue(v);
+                if (nodeIndex.TryGetValue(v, out int vIdx) && dist[vIdx] < 0)
+                {
+                    dist[vIdx] = nextDist;
+                    queue.Enqueue(vIdx);
+                }
             }
             Action<uint> visitOneModeAlter = VisitOneModeAlter;
 
             while (queue.Count > 0)
             {
-                uint u = queue.Dequeue();
-                int d = dist[u];
+                int uIdx = queue.Dequeue();
+                uint u = nodeIds[uIdx];
+                int d = dist[uIdx];
                 nextDist = d + 1;
 
                 foreach (var layer in oneModes)
@@ -128,8 +185,11 @@ namespace Threadle.Core.Analysis
                     foreach (var he in hec.HyperEdges)
                         if (dynVisited[li].Add(he))
                             foreach (uint m in he.NodeIds)
-                                if (dist.TryAdd(m, d + 1))
-                                    queue.Enqueue(m);
+                                if (nodeIndex.TryGetValue(m, out int mIdx) && dist[mIdx] < 0)
+                                {
+                                    dist[mIdx] = d + 1;
+                                    queue.Enqueue(mIdx);
+                                }
                 }
 
                 for (int li = 0; li < twoModesStatic.Count; li++)
@@ -143,13 +203,16 @@ namespace Threadle.Core.Analysis
                         for (int j = hStart; j < hEnd; j++)
                         {
                             uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                            if (dist.TryAdd(m, d + 1))
-                                queue.Enqueue(m);
+                            if (nodeIndex.TryGetValue(m, out int mIdx) && dist[mIdx] < 0)
+                            {
+                                dist[mIdx] = d + 1;
+                                queue.Enqueue(mIdx);
+                            }
                         }
                     }
                 }
             }
-            return dist;
+            return new BFSDistances(dist, nodeIndex, nodeIds);
         }
 
         /// <summary>

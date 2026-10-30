@@ -665,8 +665,10 @@ namespace Threadle.Core.Analysis
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
+            var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
+            for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
 
-            var (cdSum, cdReach, _) = CentralityFunctions.AccumulateDistanceCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
+            var (cdSum, cdReach, _) = CentralityFunctions.AccumulateDistanceCentralitiesForSources(sources, nodeIndex, nodeIds, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeCloseness(cdSum, cdReach, nodeIds);
             attrName = string.IsNullOrEmpty(attrName) ? "closeness" : attrName;
@@ -690,8 +692,10 @@ namespace Threadle.Core.Analysis
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
+            var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
+            for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
 
-            var (_, _, hm) = CentralityFunctions.AccumulateDistanceCentralitiesForSources(sources, one, dynTwo, statTwo, traversal);
+            var (_, _, hm) = CentralityFunctions.AccumulateDistanceCentralitiesForSources(sources, nodeIndex, nodeIds, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeHarmonic(hm, nodeIds, normalize);
             attrName = string.IsNullOrEmpty(attrName) ? "harmonic" : attrName;

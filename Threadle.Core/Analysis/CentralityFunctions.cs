@@ -132,9 +132,9 @@ namespace Threadle.Core.Analysis
         /// this same "distances only" shape. Same distances either way, since both BFS variants
         /// compute identical shortest-path levels - only the bookkeeping differs.
         /// </summary>
-        internal static void AccumulateDistanceCentralities(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
+        internal static void AccumulateDistanceCentralities(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
         {
-            var dist = GraphAlgorithms.BFS(source, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            var dist = GraphAlgorithms.BFS(source, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal);
 
             foreach (var (v, d) in dist)
             {
@@ -154,7 +154,7 @@ namespace Threadle.Core.Analysis
         /// still needs AccumulateBFSCentralitiesForSources's real Brandes pass.
         /// </summary>
         internal static (Dictionary<uint, double> ClosenessDistSum, Dictionary<uint, int> ClosenessReachable, Dictionary<uint, double> Harmonic)
-            AccumulateDistanceCentralitiesForSources(uint[] sources, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+            AccumulateDistanceCentralitiesForSources(uint[] sources, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
             var closenessDistSum = new Dictionary<uint, double>();
             var closenessReachable = new Dictionary<uint, int>();
@@ -169,7 +169,7 @@ namespace Threadle.Core.Analysis
                 ),
                 (i, loopState, local) =>
                 {
-                    AccumulateDistanceCentralities(sources[i], oneModes, twoModesDynamic, twoModesStatic, traversal,
+                    AccumulateDistanceCentralities(sources[i], nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal,
                         local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic);
                     return local;
                 },
