@@ -15,6 +15,62 @@ namespace Threadle.Core.Analysis
     /// </summary>
     internal static class GraphAlgorithms
     {
+        /// <summary>
+        /// Reusable per-thread scratch state for <see cref="BFSBrandes"/>, so repeated calls across
+        /// many source nodes (one per <see cref="System.Threading.Tasks.Parallel.For"/> iteration -
+        /// see CentralityFunctions.AccumulateBFSCentralitiesForSources/
+        /// AccumulateEdgeBetweennessForSources) reset existing collections instead of allocating a
+        /// fresh Dictionary/Stack/Queue on every single call. External benchmarking found
+        /// betweenness scaled poorly across threads; this per-source allocation churn - happening
+        /// inside the parallel loop body, competing threads for the GC - was the confirmed cause.
+        /// One instance is created per thread (via Parallel.For's local-state factory) and reused
+        /// for every source that thread ends up handling.
+        /// </summary>
+        internal sealed class BFSBrandesScratch
+        {
+            internal readonly Dictionary<uint, int> Dist = [];
+            internal readonly Dictionary<uint, long> Sigma = [];
+            internal readonly Dictionary<uint, List<uint>> Pred = [];
+            internal readonly Stack<uint> Order = [];
+            internal readonly Queue<uint> Queue = [];
+
+            private Dictionary<Hyperedge, int>[] _dynExpanded = [];
+            private Dictionary<int, int>[] _statExpanded = [];
+
+            internal Dictionary<Hyperedge, int>[] DynExpanded => _dynExpanded;
+            internal Dictionary<int, int>[] StatExpanded => _statExpanded;
+
+            /// <summary>Resets all state for a new source node, growing the per-2-mode-layer
+            /// expansion-tracking arrays only the first time (or if the layer count changed) -
+            /// otherwise their existing Dictionary instances are cleared, not reallocated.</summary>
+            internal void Reset(uint source, int dynCount, int statCount)
+            {
+                Dist.Clear(); Dist[source] = 0;
+                Sigma.Clear(); Sigma[source] = 1L;
+                Pred.Clear();
+                Order.Clear();
+                Queue.Clear(); Queue.Enqueue(source);
+
+                if (_dynExpanded.Length != dynCount)
+                {
+                    _dynExpanded = new Dictionary<Hyperedge, int>[dynCount];
+                    for (int i = 0; i < dynCount; i++)
+                        _dynExpanded[i] = new Dictionary<Hyperedge, int>(ReferenceEqualityComparer.Instance);
+                }
+                else
+                    foreach (var d in _dynExpanded) d.Clear();
+
+                if (_statExpanded.Length != statCount)
+                {
+                    _statExpanded = new Dictionary<int, int>[statCount];
+                    for (int i = 0; i < statCount; i++)
+                        _statExpanded[i] = new Dictionary<int, int>();
+                }
+                else
+                    foreach (var d in _statExpanded) d.Clear();
+            }
+        }
+
         #region Methods (internal)
 
         internal static void SplitLayers(IReadOnlyList<ILayer> layers, out List<ILayerOneMode> oneModes, out List<LayerTwoMode> twoModesDynamic, out List<LayerTwoModeStatic> twoModesStatic)
@@ -107,19 +163,21 @@ namespace Threadle.Core.Analysis
         /// <paramref name="sigma"/>/<paramref name="pred"/> (unlike plain <see cref="BFS"/>, this
         /// method has per-visit side effects, not just an idempotent reachability mark), so that one
         /// combination falls back to <see cref="ILayerOneMode.GetNodeAlters"/>, which still dedupes.
+        /// Takes a <paramref name="scratch"/> buffer (one per thread, reused across that thread's
+        /// sources - see <see cref="BFSBrandesScratch"/>) rather than allocating and returning its
+        /// own dist/sigma/pred/order each call; the caller reads them off <paramref name="scratch"/>
+        /// after this returns.
         /// </summary>
-        internal static void BFSBrandes(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, out Dictionary<uint, int> dist, out Dictionary<uint, long> sigma, out Dictionary<uint, List<uint>> pred, out Stack<uint> order)
+        internal static void BFSBrandes(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, BFSBrandesScratch scratch)
         {
-            dist = new Dictionary<uint, int> { [source] = 0 };
-            sigma = new Dictionary<uint, long> { [source] = 1L };
-            pred = [];
-            order = new Stack<uint>();
-            var queue = new Queue<uint>();
-            queue.Enqueue(source);
-
-            var dynExpanded = Array.ConvertAll(twoModesDynamic.ToArray(),
-                _ => new Dictionary<Hyperedge, int>(ReferenceEqualityComparer.Instance));
-            var statExpanded = Array.ConvertAll(twoModesStatic.ToArray(), _ => new Dictionary<int, int>());
+            scratch.Reset(source, twoModesDynamic.Count, twoModesStatic.Count);
+            var dist = scratch.Dist;
+            var sigma = scratch.Sigma;
+            var pred = scratch.Pred;
+            var order = scratch.Order;
+            var queue = scratch.Queue;
+            var dynExpanded = scratch.DynExpanded;
+            var statExpanded = scratch.StatExpanded;
 
             uint currentU = source;
             int currentMemberDist = 0;
