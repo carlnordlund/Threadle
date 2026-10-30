@@ -2,6 +2,35 @@
 
 ## 1.3.1
 
+### New features
+
+- **`setting()` gained `executiontime`** (boolean, default `false`): when enabled,
+  each dispatched command's wall-clock execution time (in milliseconds) and name
+  are measured and stored internally. **New `lastexecutiontime()` command**
+  retrieves the most recently measured value — both as a human-readable message
+  (`Last execution time: 12.34 ms (betweennesscentrality).`) and as a
+  structured payload (`ExecutionTimeMs`, `Command`), machine-readable like any
+  other command's metrics. If the setting is off, or nothing has been measured
+  yet, it says so instead, with no payload — turning the setting off clears
+  any previously measured value immediately, so `lastexecutiontime()` never
+  keeps answering from before the setting was disabled. No threadleR wrapper
+  is needed — call it via the existing `th_cmd("lastexecutiontime")` escape
+  hatch.
+- **New `memoryinfo()` command**: reports `ManagedMemoryBytes` (live managed
+  heap, `GC.GetTotalMemory`), `GCHeapSizeBytes` (total committed managed
+  heap, `GC.GetGCMemoryInfo().HeapSizeBytes`), and `WorkingSetBytes` (the
+  process's OS-reported resident memory) — useful when benchmarking memory
+  externally (e.g. inspecting the Threadle process from Python), since
+  resident memory can sit well above what's actually live until the .NET
+  GC returns freed pages to the OS, which it doesn't do reliably on an
+  ordinary collection. Passive by default (same as `systeminfo()`); an
+  optional `forcegc=true` first runs a blocking, compacting Gen2 collection
+  — the specific combination that reliably decommits freed segments — for
+  an accurate snapshot. Not cheap: a full compacting collection can pause
+  the process noticeably on a large heap, so `forcegc=true` is meant to be
+  used deliberately, not in a tight loop. No threadleR wrapper needed —
+  call via `th_cmd("memoryinfo")`.
+
 ### New capability on existing commands
 
 > No new commands. Every change below loosens an existing restriction — existing
