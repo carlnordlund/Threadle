@@ -94,6 +94,7 @@ namespace Threadle.CLIconsole.Runtime
             ["lastexecutiontime"] = new LastExecutionTime(),
             ["loadscript"] = new LoadScript(),
             ["loadfile"] = new LoadFile(),
+            ["memoryinfo"] = new MemoryInfo(),
             ["mergelayers"] = new MergeLayers(),
             ["mergenetworks"] = new MergeNetworks(),
             ["mergenodesets"] = new MergeNodesets(),
