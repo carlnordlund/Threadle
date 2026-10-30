@@ -68,8 +68,7 @@ namespace Threadle.Core.Model
             ["Filepath"] = Filepath,
             ["isModified"] = IsModified,
             ["Nodeset"] = Nodeset.Name,
-            ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata),
-            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
+            ["Layers"] = Layers.Select(kvp => kvp.Value.GetMetadata)
         };
 
         /// <summary>

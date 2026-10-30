@@ -121,8 +121,7 @@ namespace Threadle.Core.Model
             ["Directionality"] = Directionality.ToString(),
             ["ValueType"] = EdgeValueType.ToString(),
             ["SelftiesAllowed"] = Selfties,
-            ["NbrEdges"] = NbrEdges,
-            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
+            ["NbrEdges"] = NbrEdges
         };
 
         /// <summary>

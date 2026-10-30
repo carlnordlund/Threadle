@@ -100,8 +100,7 @@ namespace Threadle.Core.Model
             ["Mode"] = 2,
             ["Static"] = true,
             ["NbrHyperedges"] = _hyperedgeNames.Length,
-            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length,
-            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
+            ["NbrAffiliations"] = _hyperedgeNodeIdsFlat.Length
         };
 
         /// <summary>

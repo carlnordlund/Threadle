@@ -74,8 +74,7 @@ namespace Threadle.Core.Model
             ["Mode"] = 2,
             ["Static"] = false,
             ["NbrHyperedges"] = NbrHyperedges,
-            ["NbrAffiliations"] = NbrAffiliations,
-            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
+            ["NbrAffiliations"] = NbrAffiliations
         };
 
         /// <summary>

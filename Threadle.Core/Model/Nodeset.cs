@@ -144,8 +144,7 @@ namespace Threadle.Core.Model
             ["Filepath"] = Filepath,
             ["isModified"] = IsModified,
             ["NbrNodes"] = Count,
-            ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList(),
-            ["EstimatedMemory"] = Misc.FormatBytes(GetEstimatedBytes())
+            ["NodeAttributes"] = NodeAttributeDefinitionManager.GetMetadataList()
         };
 
         /// <summary>
