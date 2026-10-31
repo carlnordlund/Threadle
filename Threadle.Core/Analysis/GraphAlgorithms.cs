@@ -409,6 +409,8 @@ namespace Threadle.Core.Analysis
             var dynExpanded = scratch.DynExpanded;
             var statExpanded = scratch.StatExpanded;
 
+            Console.WriteLine($"[BFSBrandes] DEBUG Reset: n={nodeIds.Length} oneModes={oneModes.Count} twoModesDynamic={twoModesDynamic.Count} twoModesStatic={twoModesStatic.Count} source={source} orderCount={orderCount} myStamp={myStamp}");
+
             int head = 0; // dequeue pointer into order[] - order[] doubles as the BFS queue here
                           // (append at orderCount, dequeue at head) and, once this forward pass
                           // finishes, as the exact backward-pass processing order read in reverse.
@@ -418,23 +420,33 @@ namespace Threadle.Core.Analysis
 
             void ProcessNeighborArr(int vIdx, int uIdx, int memberDist)
             {
+                Console.WriteLine($"[BFSBrandes] DEBUG ProcessNeighborArr: vIdx={vIdx} uIdx={uIdx} memberDist={memberDist} stamp[vIdx]={stamp[vIdx]} myStamp={myStamp} dist[vIdx]={dist[vIdx]}");
                 if (stamp[vIdx] != myStamp)
                 {
                     stamp[vIdx] = myStamp;
                     dist[vIdx] = memberDist;
                     sigma[vIdx] = sigma[uIdx];
                     order[orderCount++] = vIdx;
+                    Console.WriteLine($"[BFSBrandes] DEBUG  -> NEW, orderCount now {orderCount}");
                 }
                 else if (dist[vIdx] == memberDist)
                 {
                     sigma[vIdx] += sigma[uIdx];
+                    Console.WriteLine($"[BFSBrandes] DEBUG  -> MERGE sigma");
+                }
+                else
+                {
+                    Console.WriteLine($"[BFSBrandes] DEBUG  -> IGNORED");
                 }
             }
 
             void VisitOneModeAlter(uint v)
             {
+                Console.WriteLine($"[BFSBrandes] DEBUG VisitOneModeAlter called with v={v}, currentUIdx={currentUIdx}, currentMemberDist={currentMemberDist}");
                 if (nodeIndex.TryGetValue(v, out int vIdx))
                     ProcessNeighborArr(vIdx, currentUIdx, currentMemberDist);
+                else
+                    Console.WriteLine($"[BFSBrandes] DEBUG  -> v={v} not found in nodeIndex!");
             }
             Action<uint> visitOneModeAlter = VisitOneModeAlter;
 
@@ -443,6 +455,7 @@ namespace Threadle.Core.Analysis
                 int uIdx = order[head++];
                 uint u = nodeIds[uIdx];
                 int memberDist = dist[uIdx] + 1;
+                Console.WriteLine($"[BFSBrandes] DEBUG loop: head={head} orderCount={orderCount} uIdx={uIdx} u={u} memberDist={memberDist} oneModes.Count(inner)={oneModes.Count}");
                 currentUIdx = uIdx;
                 currentMemberDist = memberDist;
 
