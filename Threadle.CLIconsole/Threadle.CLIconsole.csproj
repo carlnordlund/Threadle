@@ -23,7 +23,7 @@
 
   <PropertyGroup>
     <!-- existing settings ... -->
-    <ServerGarbageCollector>true</ServerGarbageCollector>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
     <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
