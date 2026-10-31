@@ -44,6 +44,7 @@ namespace Threadle.CLIconsole.Commands
             var info = new Dictionary<string, object>
             {
                 ["ForcedGc"] = forceGc,
+                ["GCSettings"] = System.Runtime.GCSettings.IsServerGC,
                 ["ManagedMemoryBytes"] = GC.GetTotalMemory(false),
                 ["GCHeapSizeBytes"] = GC.GetGCMemoryInfo().HeapSizeBytes,
                 ["WorkingSetBytes"] = Process.GetCurrentProcess().WorkingSet64
