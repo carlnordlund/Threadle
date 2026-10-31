@@ -65,6 +65,11 @@ namespace Threadle.Core.Analysis
 
             GraphAlgorithms.SplitLayers(resolvedLayers, out var oneModes, out var twoModesDynamic, out var twoModesStatic);
 
+            // Built once, read-only for the rest of this call: every source's BFS below shares it
+            // rather than each one translating node ids to array slots from scratch.
+            var nodeIndex = new Dictionary<uint, int>(allNodeIds.Length);
+            for (int i = 0; i < allNodeIds.Length; i++) nodeIndex[allNodeIds[i]] = i;
+
             // Each source node's BFS and category-pair accumulation is independent of every
             // other source's, so this runs in parallel across up to 'maxthreads' threads (see
             // 'setting()'), with thread-local partial accumulators merged under a lock after
@@ -85,7 +90,7 @@ namespace Threadle.Core.Analysis
                     // instead of this loop's former per-node ILayer.GetNodeAlters calls, which re-scan
                     // a node's hyperedges from scratch every time with no cross-call memoization and so
                     // cost O(sum of hyperedge sizes squared) in aggregate across all sources.
-                    Dictionary<uint, int> distances = GraphAlgorithms.BFS(sourceNodeId, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Out);
+                    var distances = GraphAlgorithms.BFS(sourceNodeId, nodeIndex, allNodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Out);
 
                     foreach (uint targetNodeId in allNodeIds)
                     {

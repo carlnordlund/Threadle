@@ -30,11 +30,17 @@ namespace Threadle.Core.Analysis
         /// Single-source BFSBrandes pass that accumulates contributions to betweenness,
         /// closeness, and harmonic centrality in-place. All three are accumulated together
         /// so callers pay only one BFS per source regardless of which metrics they need.
+        /// <paramref name="scratch"/>/<paramref name="delta"/> are reused across every source a
+        /// thread handles (see <see cref="GraphAlgorithms.BFSBrandesScratch"/>) rather than
+        /// allocated fresh per call.
         /// </summary>
-        internal static void AccumulateBFSCentralities(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> betweenness, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
+        internal static void AccumulateBFSCentralities(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> betweenness, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic, GraphAlgorithms.BFSBrandesScratch scratch, Dictionary<uint, double> delta)
         {
-            GraphAlgorithms.BFSBrandes(source, oneModes, twoModesDynamic, twoModesStatic, traversal,
-                out var dist, out var sigma, out var pred, out var order);
+            GraphAlgorithms.BFSBrandes(source, oneModes, twoModesDynamic, twoModesStatic, traversal, scratch);
+            var dist = scratch.Dist;
+            var sigma = scratch.Sigma;
+            var pred = scratch.Pred;
+            var order = scratch.Order;
 
             // Closeness + harmonic: accumulate from distances produced by this source's BFS
             foreach (var (v, d) in dist)
@@ -46,7 +52,7 @@ namespace Threadle.Core.Analysis
             }
 
             // Brandes back-propagation for betweenness
-            var delta = new Dictionary<uint, double>(order.Count);
+            delta.Clear();
             while (order.Count > 0)
             {
                 uint w = order.Pop();
@@ -85,12 +91,15 @@ namespace Threadle.Core.Analysis
                     Betweenness: new Dictionary<uint, double>(),
                     ClosenessDistSum: new Dictionary<uint, double>(),
                     ClosenessReachable: new Dictionary<uint, int>(),
-                    Harmonic: new Dictionary<uint, double>()
+                    Harmonic: new Dictionary<uint, double>(),
+                    Scratch: new GraphAlgorithms.BFSBrandesScratch(),
+                    Delta: new Dictionary<uint, double>()
                 ),
                 (i, loopState, local) =>
                 {
                     AccumulateBFSCentralities(sources[i], oneModes, twoModesDynamic, twoModesStatic, traversal,
-                        local.Betweenness, local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic);
+                        local.Betweenness, local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic,
+                        local.Scratch, local.Delta);
                     return local;
                 },
                 local =>
@@ -123,9 +132,9 @@ namespace Threadle.Core.Analysis
         /// this same "distances only" shape. Same distances either way, since both BFS variants
         /// compute identical shortest-path levels - only the bookkeeping differs.
         /// </summary>
-        internal static void AccumulateDistanceCentralities(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
+        internal static void AccumulateDistanceCentralities(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
         {
-            var dist = GraphAlgorithms.BFS(source, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            var dist = GraphAlgorithms.BFS(source, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal);
 
             foreach (var (v, d) in dist)
             {
@@ -145,7 +154,7 @@ namespace Threadle.Core.Analysis
         /// still needs AccumulateBFSCentralitiesForSources's real Brandes pass.
         /// </summary>
         internal static (Dictionary<uint, double> ClosenessDistSum, Dictionary<uint, int> ClosenessReachable, Dictionary<uint, double> Harmonic)
-            AccumulateDistanceCentralitiesForSources(uint[] sources, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+            AccumulateDistanceCentralitiesForSources(uint[] sources, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
             var closenessDistSum = new Dictionary<uint, double>();
             var closenessReachable = new Dictionary<uint, int>();
@@ -160,7 +169,7 @@ namespace Threadle.Core.Analysis
                 ),
                 (i, loopState, local) =>
                 {
-                    AccumulateDistanceCentralities(sources[i], oneModes, twoModesDynamic, twoModesStatic, traversal,
+                    AccumulateDistanceCentralities(sources[i], nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal,
                         local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic);
                     return local;
                 },
@@ -214,13 +223,15 @@ namespace Threadle.Core.Analysis
         /// entry, representing one undirected edge; for directed layers, (v,w) is kept as-is, since
         /// arcs v→w and w→v (if both exist) are distinct ties with independent scores.
         /// </summary>
-        internal static void AccumulateEdgeBetweenness(uint source, ILayerOneMode layer, EdgeTraversal traversal, Dictionary<(uint From, uint To), double> edgeBetweenness)
+        internal static void AccumulateEdgeBetweenness(uint source, ILayerOneMode layer, EdgeTraversal traversal, Dictionary<(uint From, uint To), double> edgeBetweenness, GraphAlgorithms.BFSBrandesScratch scratch, Dictionary<uint, double> delta)
         {
-            GraphAlgorithms.BFSBrandes(source, [layer], [], [], traversal,
-                out var dist, out var sigma, out var pred, out var order);
+            GraphAlgorithms.BFSBrandes(source, [layer], [], [], traversal, scratch);
+            var sigma = scratch.Sigma;
+            var pred = scratch.Pred;
+            var order = scratch.Order;
 
             bool directed = layer.IsDirectional;
-            var delta = new Dictionary<uint, double>(order.Count);
+            delta.Clear();
             while (order.Count > 0)
             {
                 uint w = order.Pop();
@@ -250,17 +261,21 @@ namespace Threadle.Core.Analysis
             var mergeLock = new object();
 
             System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
-                () => new Dictionary<(uint From, uint To), double>(),
+                () => (
+                    Local: new Dictionary<(uint From, uint To), double>(),
+                    Scratch: new GraphAlgorithms.BFSBrandesScratch(),
+                    Delta: new Dictionary<uint, double>()
+                ),
                 (i, loopState, local) =>
                 {
-                    AccumulateEdgeBetweenness(sources[i], layer, traversal, local);
+                    AccumulateEdgeBetweenness(sources[i], layer, traversal, local.Local, local.Scratch, local.Delta);
                     return local;
                 },
                 local =>
                 {
                     lock (mergeLock)
                     {
-                        foreach (var (edge, value) in local)
+                        foreach (var (edge, value) in local.Local)
                             edgeBetweenness[edge] = edgeBetweenness.GetValueOrDefault(edge) + value;
                     }
                 });

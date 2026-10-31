@@ -501,14 +501,19 @@ namespace Threadle.Core.Analysis
 
             GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
 
-            foreach (uint nodeId in network.Nodeset.NodeIdArray)
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
+            for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
+            var scratch = new GraphAlgorithms.BFSReachScratch();
+
+            foreach (uint nodeId in nodeIds)
             {
                 if (visited.Contains(nodeId)) continue;
-                var dist = GraphAlgorithms.BFS(nodeId, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
-                foreach (uint reached in dist.Keys)
+                var reached = GraphAlgorithms.BFSReachedNodes(nodeId, scratch, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+                foreach (uint r in reached)
                 {
-                    visited.Add(reached);
-                    componentIds[reached] = currentComponentId;
+                    visited.Add(r);
+                    componentIds[r] = currentComponentId;
                 }
                 currentComponentId++;
             }

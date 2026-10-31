@@ -283,6 +283,33 @@ namespace Threadle.Core.Model
             }
         }
 
+        /// <inheritdoc/>
+        public void VisitAlters(uint nodeId, EdgeTraversal edgeTraversal, Action<uint> visitAlter)
+        {
+            if (!Edgesets.TryGetValue(nodeId, out var edgeset))
+                return;
+
+            if (!IsDirectional || edgeTraversal == EdgeTraversal.Out || edgeTraversal == EdgeTraversal.Both)
+            {
+                if (edgeset is IEdgesetValued valuedOut)
+                    foreach (var c in valuedOut.GetOutboundConnections)
+                        visitAlter(c.partnerNodeId);
+                else
+                    foreach (uint v in edgeset.GetOutboundNodeIds)
+                        visitAlter(v);
+            }
+
+            if (IsDirectional && (edgeTraversal == EdgeTraversal.In || edgeTraversal == EdgeTraversal.Both))
+            {
+                if (edgeset is IEdgesetValued valuedIn)
+                    foreach (var c in valuedIn.GetInboundConnections)
+                        visitAlter(c.partnerNodeId);
+                else
+                    foreach (uint v in edgeset.GetInboundNodeIds)
+                        visitAlter(v);
+            }
+        }
+
 
         /// <summary>
         /// Retrieves a collection of edges with their associated values, starting from a specified offset and limited

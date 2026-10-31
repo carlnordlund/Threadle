@@ -162,6 +162,19 @@ namespace Threadle.Core.Model
 
         }
 
+        /// <summary>
+        /// Wraps already-built CSR arrays into a LayerTwoModeStatic. Used by FileSerializerBin's
+        /// two-pass binary loader, which builds these arrays directly from file bytes across two
+        /// passes (count, then fill) without ever holding a full per-layer row list or the
+        /// Dictionary&lt;uint, List&lt;int&gt;&gt; node-to-hyperedge adjacency structure that
+        /// <see cref="FromHyperedgeRows"/> builds as an intermediate step. The caller must have
+        /// already sorted+deduplicated each hyperedge's own node-id slice (ascending) - the same
+        /// invariant <see cref="FromHyperedgeRows"/> establishes via <see cref="Misc.DeduplicateUintList"/> -
+        /// since GetEdgeValue/CheckEdgeExists rely on it via binary search.
+        /// </summary>
+        internal static LayerTwoModeStatic FromPrebuiltCsr(string name, string[] hyperedgeNames, int[] offsetsHyperedges, uint[] hyperedgeNodeIdsFlat, Dictionary<uint, int> mapper, int[] offsetsNodeIds, int[] nodeIdHyperedgesFlat)
+            => new(name, hyperedgeNames, offsetsHyperedges, hyperedgeNodeIdsFlat, mapper, offsetsNodeIds, nodeIdHyperedgesFlat);
+
         public static LayerTwoModeStatic FromDynamic(LayerTwoMode source)
         {
             var hyperedgeNames = source.AllHyperEdges.Keys.ToArray();
