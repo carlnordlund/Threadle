@@ -2526,9 +2526,26 @@ public class AnalysesTests
         var layer = (ILayerOneMode)net.Layers["layer"];
         GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
 
+        // Probe 1: layer classification sanity - rules out the layer being mis-classified before
+        // it ever reaches BFSBrandes.
+        Assert.Single(oneModes);
+        Assert.Empty(twoModesDynamic);
+        Assert.Empty(twoModesStatic);
+
         uint[] nodeIds = net.Nodeset.NodeIdArray;
         var nodeIndex = new Dictionary<uint, int>();
         for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
+
+        // Probe 2: compact-index sanity - rules out Nodeset.NodeIdArray/index-building surprises
+        // specific to this test's setup.
+        Assert.Equal(3, nodeIds.Length);
+        Assert.Equal(3, nodeIndex.Count);
+
+        // Probe 3: raw traversal sanity, bypassing BFSBrandes entirely - rules out
+        // LayerOneMode.VisitAlters/EdgesetBinarySymmetric itself misbehaving for this network.
+        var visited = new List<uint>();
+        oneModes[0].VisitAlters(1, EdgeTraversal.Out, v => visited.Add(v));
+        Assert.Equal([2u], visited);
 
         var scratch = new GraphAlgorithms.BFSBrandesScratch();
         GraphAlgorithms.BFSBrandes(1, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Out, scratch);
