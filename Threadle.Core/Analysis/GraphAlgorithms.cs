@@ -85,37 +85,66 @@ namespace Threadle.Core.Analysis
         /// Reusable per-thread scratch state for <see cref="BFSBrandes"/>, so repeated calls across
         /// many source nodes (one per <see cref="System.Threading.Tasks.Parallel.For"/> iteration -
         /// see CentralityFunctions.AccumulateBFSCentralitiesForSources/
-        /// AccumulateEdgeBetweennessForSources) reset existing collections instead of allocating a
-        /// fresh Dictionary/Stack/Queue on every single call. External benchmarking found
-        /// betweenness scaled poorly across threads; this per-source allocation churn - happening
-        /// inside the parallel loop body, competing threads for the GC - was the confirmed cause.
-        /// One instance is created per thread (via Parallel.For's local-state factory) and reused
-        /// for every source that thread ends up handling.
+        /// AccumulateEdgeBetweennessForSources) reset existing state instead of allocating fresh
+        /// collections on every single call. External benchmarking found betweenness scaled poorly
+        /// across threads; this per-source allocation churn - happening inside the parallel loop
+        /// body, competing threads for the GC - was the confirmed cause. <see cref="Dist"/>/
+        /// <see cref="Sigma"/>/<see cref="Order"/> are array-backed and generation-stamped (see
+        /// <see cref="Reset"/>), so they cost no per-source allocation or O(capacity) clear at all;
+        /// <see cref="Pred"/> is unchanged for now (still a <c>Dictionary&lt;uint, List&lt;uint&gt;&gt;</c>
+        /// allocating a fresh <c>List&lt;uint&gt;</c> per newly-discovered node) - removing that is a
+        /// separate, later piece of work. One instance is created per thread (via Parallel.For's
+        /// local-state factory) and reused for every source that thread ends up handling.
         /// </summary>
         internal sealed class BFSBrandesScratch
         {
-            internal readonly Dictionary<uint, int> Dist = [];
-            internal readonly Dictionary<uint, long> Sigma = [];
+            private int[] _dist = [];
+            private long[] _sigma = [];
+            private int[] _stamp = [];
+            private int _currentStamp;
+            private int[] _order = [];      // compact indices; doubles as the BFS queue (head
+                                             // pointer while filling, see BFSBrandes) and, once the
+                                             // forward pass finishes, the exact backward-pass order
+                                             // read in reverse - no separate Stack<uint>/Queue<uint>.
+            private int _orderCount;
+
             internal readonly Dictionary<uint, List<uint>> Pred = [];
-            internal readonly Stack<uint> Order = [];
-            internal readonly Queue<uint> Queue = [];
 
             private Dictionary<Hyperedge, int>[] _dynExpanded = [];
             private Dictionary<int, int>[] _statExpanded = [];
 
+            internal int[] Dist => _dist;
+            internal long[] Sigma => _sigma;
+            internal int[] Stamp => _stamp;
+            internal int CurrentStamp => _currentStamp;
+            internal int[] Order => _order;
+            internal int OrderCount { get => _orderCount; set => _orderCount = value; }
             internal Dictionary<Hyperedge, int>[] DynExpanded => _dynExpanded;
             internal Dictionary<int, int>[] StatExpanded => _statExpanded;
 
-            /// <summary>Resets all state for a new source node, growing the per-2-mode-layer
-            /// expansion-tracking arrays only the first time (or if the layer count changed) -
-            /// otherwise their existing Dictionary instances are cleared, not reallocated.</summary>
-            internal void Reset(uint source, int dynCount, int statCount)
+            /// <summary>Resets all state for a new source node. <see cref="Dist"/>/<see cref="Sigma"/>/
+            /// <see cref="Stamp"/>/<see cref="Order"/> are grown only the first time (or if the node
+            /// count changed) - a generation stamp (<see cref="CurrentStamp"/>) marks which entries are
+            /// valid for the current call instead of clearing the arrays each time. <see cref="Pred"/>
+            /// and the per-2-mode-layer expansion-tracking arrays are unchanged from before.</summary>
+            internal void Reset(uint source, Dictionary<uint, int> nodeIndex, int n, int dynCount, int statCount)
             {
-                Dist.Clear(); Dist[source] = 0;
-                Sigma.Clear(); Sigma[source] = 1L;
+                if (_dist.Length != n)
+                {
+                    _dist = new int[n];
+                    _sigma = new long[n];
+                    _stamp = new int[n];
+                    _order = new int[n];
+                }
+                _currentStamp++;
+                _orderCount = 0;
+                int sourceIdx = nodeIndex[source];
+                _stamp[sourceIdx] = _currentStamp;
+                _dist[sourceIdx] = 0;
+                _sigma[sourceIdx] = 1L;
+                _order[_orderCount++] = sourceIdx;
+
                 Pred.Clear();
-                Order.Clear();
-                Queue.Clear(); Queue.Enqueue(source);
 
                 if (_dynExpanded.Length != dynCount)
                 {
@@ -350,30 +379,58 @@ namespace Threadle.Core.Analysis
         /// Takes a <paramref name="scratch"/> buffer (one per thread, reused across that thread's
         /// sources - see <see cref="BFSBrandesScratch"/>) rather than allocating and returning its
         /// own dist/sigma/pred/order each call; the caller reads them off <paramref name="scratch"/>
-        /// after this returns.
+        /// after this returns. <paramref name="nodeIndex"/>/<paramref name="nodeIds"/> are the same
+        /// compact 0..n-1 numbering described on <see cref="BFS"/>, built once by the caller.
         /// </summary>
-        internal static void BFSBrandes(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, BFSBrandesScratch scratch)
+        internal static void BFSBrandes(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, BFSBrandesScratch scratch)
         {
-            scratch.Reset(source, twoModesDynamic.Count, twoModesStatic.Count);
-            var dist = scratch.Dist;
-            var sigma = scratch.Sigma;
+            scratch.Reset(source, nodeIndex, nodeIds.Length, twoModesDynamic.Count, twoModesStatic.Count);
+            int[] dist = scratch.Dist;
+            long[] sigma = scratch.Sigma;
+            int[] stamp = scratch.Stamp;
+            int myStamp = scratch.CurrentStamp;
+            int[] order = scratch.Order;
+            int orderCount = scratch.OrderCount; // starts at 1: Reset() already appended the source
             var pred = scratch.Pred;
-            var order = scratch.Order;
-            var queue = scratch.Queue;
             var dynExpanded = scratch.DynExpanded;
             var statExpanded = scratch.StatExpanded;
 
+            int head = 0; // dequeue pointer into order[] - order[] doubles as the BFS queue here
+                          // (append at orderCount, dequeue at head) and, once this forward pass
+                          // finishes, as the exact backward-pass processing order read in reverse.
+
             uint currentU = source;
+            int currentUIdx = 0;
             int currentMemberDist = 0;
-            void VisitOneModeAlter(uint v) => ProcessNeighbor(v, currentU, currentMemberDist, dist, sigma, pred, queue);
+
+            void ProcessNeighborArr(uint v, uint u, int uIdx, int memberDist)
+            {
+                if (!nodeIndex.TryGetValue(v, out int vIdx)) return;
+                if (stamp[vIdx] != myStamp)
+                {
+                    stamp[vIdx] = myStamp;
+                    dist[vIdx] = memberDist;
+                    sigma[vIdx] = sigma[uIdx];
+                    pred[v] = [u];
+                    order[orderCount++] = vIdx;
+                }
+                else if (dist[vIdx] == memberDist)
+                {
+                    sigma[vIdx] += sigma[uIdx];
+                    pred[v].Add(u);
+                }
+            }
+
+            void VisitOneModeAlter(uint v) => ProcessNeighborArr(v, currentU, currentUIdx, currentMemberDist);
             Action<uint> visitOneModeAlter = VisitOneModeAlter;
 
-            while (queue.Count > 0)
+            while (head < orderCount)
             {
-                uint u = queue.Dequeue();
-                order.Push(u);
-                int memberDist = dist[u] + 1;
+                int uIdx = order[head++];
+                uint u = nodeIds[uIdx];
+                int memberDist = dist[uIdx] + 1;
                 currentU = u;
+                currentUIdx = uIdx;
                 currentMemberDist = memberDist;
 
                 foreach (var layer in oneModes)
@@ -383,7 +440,7 @@ namespace Threadle.Core.Analysis
                     // VisitAlters only ever takes its first branch) is safe without it.
                     if (traversal == EdgeTraversal.Both && layer.IsDirectional)
                         foreach (uint v in layer.GetNodeAlters(u, traversal))
-                            ProcessNeighbor(v, u, memberDist, dist, sigma, pred, queue);
+                            ProcessNeighborArr(v, u, uIdx, memberDist);
                     else
                         layer.VisitAlters(u, traversal, visitOneModeAlter);
                 }
@@ -398,14 +455,14 @@ namespace Threadle.Core.Analysis
                         {
                             dynExpanded[li][he] = memberDist;
                             foreach (uint m in he.NodeIds)
-                                if (m != u) ProcessNeighbor(m, u, memberDist, dist, sigma, pred, queue);
+                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist);
                         }
                         else if (expandedAt == memberDist)
                         {
                             foreach (uint m in he.NodeIds)
-                                if (m != u && dist.TryGetValue(m, out int dm) && dm == memberDist)
+                                if (m != u && nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] == myStamp && dist[mIdx] == memberDist)
                                 {
-                                    sigma[m] += sigma[u];
+                                    sigma[mIdx] += sigma[uIdx];
                                     pred[m].Add(u);
                                 }
                         }
@@ -425,7 +482,7 @@ namespace Threadle.Core.Analysis
                             for (int j = hStart; j < hEnd; j++)
                             {
                                 uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                if (m != u) ProcessNeighbor(m, u, memberDist, dist, sigma, pred, queue);
+                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist);
                             }
                         }
                         else if (expandedAt == memberDist)
@@ -434,9 +491,9 @@ namespace Threadle.Core.Analysis
                             for (int j = hStart; j < hEnd; j++)
                             {
                                 uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                if (m != u && dist.TryGetValue(m, out int dm) && dm == memberDist)
+                                if (m != u && nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] == myStamp && dist[mIdx] == memberDist)
                                 {
-                                    sigma[m] += sigma[u];
+                                    sigma[mIdx] += sigma[uIdx];
                                     pred[m].Add(u);
                                 }
                             }
@@ -444,26 +501,7 @@ namespace Threadle.Core.Analysis
                     }
                 }
             }
-        }
-        #endregion
-
-        #region Methods (private)
-
-        private static void ProcessNeighbor(uint v, uint u, int memberDist, Dictionary<uint, int> dist, Dictionary<uint, long> sigma,
-            Dictionary<uint, List<uint>> pred, Queue<uint> queue)
-        {
-            if (!dist.ContainsKey(v))
-            {
-                dist[v] = memberDist;
-                sigma[v] = sigma[u];
-                pred[v] = [u];
-                queue.Enqueue(v);
-            }
-            else if (dist[v] == memberDist)
-            {
-                sigma[v] += sigma[u];
-                pred[v].Add(u);
-            }
+            scratch.OrderCount = orderCount;
         }
         #endregion
     }
