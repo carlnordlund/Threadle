@@ -465,13 +465,18 @@ namespace Threadle.Core.Analysis
                 {
                     layerIterCount++;
                     Console.WriteLine($"[BFSBrandes] DEBUG entered foreach body: layerIterCount={layerIterCount} layer==null={layer is null}");
+                    Console.WriteLine($"[BFSBrandes] DEBUG branch check: traversal={traversal} (int={(int)traversal}) EdgeTraversal.Both=(int={(int)EdgeTraversal.Both}) layer.IsDirectional={layer.IsDirectional} condition={(traversal == EdgeTraversal.Both && layer.IsDirectional)}");
                     // Both-on-directed needs GetNodeAlters' own dedup (see remarks above) - every
                     // other combination (Out, In, or any traversal on an undirected layer, where
                     // VisitAlters only ever takes its first branch) is safe without it.
                     if (traversal == EdgeTraversal.Both && layer.IsDirectional)
-                        foreach (uint v in layer.GetNodeAlters(u, traversal))
+                    {
+                        var alters = layer.GetNodeAlters(u, traversal);
+                        Console.WriteLine($"[BFSBrandes] DEBUG taking GetNodeAlters branch, count={alters.Length}");
+                        foreach (uint v in alters)
                             if (nodeIndex.TryGetValue(v, out int vIdx))
                                 ProcessNeighborArr(vIdx, uIdx, memberDist);
+                    }
                     else
                     {
                         Console.WriteLine($"[BFSBrandes] DEBUG about to call VisitAlters: layer type={layer.GetType().Name} u={u} traversal={traversal} IsDirectional={layer.IsDirectional}");
