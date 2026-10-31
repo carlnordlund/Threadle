@@ -85,37 +85,76 @@ namespace Threadle.Core.Analysis
         /// Reusable per-thread scratch state for <see cref="BFSBrandes"/>, so repeated calls across
         /// many source nodes (one per <see cref="System.Threading.Tasks.Parallel.For"/> iteration -
         /// see CentralityFunctions.AccumulateBFSCentralitiesForSources/
-        /// AccumulateEdgeBetweennessForSources) reset existing collections instead of allocating a
-        /// fresh Dictionary/Stack/Queue on every single call. External benchmarking found
-        /// betweenness scaled poorly across threads; this per-source allocation churn - happening
-        /// inside the parallel loop body, competing threads for the GC - was the confirmed cause.
+        /// AccumulateEdgeBetweennessForSources) reset existing state instead of allocating fresh on
+        /// every single call. External benchmarking found betweenness scaled poorly across threads;
+        /// this per-source allocation churn - happening inside the parallel loop body, competing
+        /// threads for the GC - was the confirmed cause.
+        ///
+        /// <c>Dist</c>/<c>Sigma</c> are generation-stamped flat arrays (valid for a node iff
+        /// <c>Stamp[i] == CurrentStamp</c>), the same technique <see cref="BFSReachScratch"/> uses -
+        /// no per-entry Dictionary overhead, no incremental resize as the frontier grows, O(1)
+        /// "reset" between sources via bumping the stamp rather than clearing n slots.
+        /// <c>Order</c> is a single flat array that serves as both the BFS queue during the forward
+        /// pass (append-only; a separate <c>head</c> index in <see cref="BFSBrandes"/> tracks the
+        /// dequeue position) and, once the forward pass finishes, the exact backward-pass processing
+        /// order read in reverse - BFS discovery order already *is* Brandes' required
+        /// backward-processing order, so no separate Stack is needed.
+        /// There is no predecessor list at all: the previous <c>Pred</c>
+        /// (<c>Dictionary&lt;uint,List&lt;uint&gt;&gt;</c>) allocated a fresh <c>List&lt;uint&gt;</c>
+        /// for every node discovered, on every source - the single largest remaining allocation
+        /// source in betweenness. The backward pass instead re-derives predecessors by re-scanning
+        /// neighbors/hyperedge memberships and checking <c>Dist[v] == Dist[w] - 1</c> (see
+        /// CentralityFunctions.AccumulateBFSCentralities/AccumulateEdgeBetweenness) - more
+        /// re-scanning work, zero predecessor-list allocation.
+        /// <c>Delta</c> is reset only for reached nodes (via <c>Order</c>), not all n, same
+        /// "reset only what you touched" idea.
         /// One instance is created per thread (via Parallel.For's local-state factory) and reused
         /// for every source that thread ends up handling.
         /// </summary>
         internal sealed class BFSBrandesScratch
         {
-            internal readonly Dictionary<uint, int> Dist = [];
-            internal readonly Dictionary<uint, long> Sigma = [];
-            internal readonly Dictionary<uint, List<uint>> Pred = [];
-            internal readonly Stack<uint> Order = [];
-            internal readonly Queue<uint> Queue = [];
+            private int[] _dist = [];
+            private long[] _sigma = [];
+            private int[] _stamp = [];
+            private int _currentStamp;
+            private int[] _order = [];
+            private int _orderCount;
+            private double[] _delta = [];
 
             private Dictionary<Hyperedge, int>[] _dynExpanded = [];
             private Dictionary<int, int>[] _statExpanded = [];
 
+            internal int[] Dist => _dist;
+            internal long[] Sigma => _sigma;
+            internal int[] Stamp => _stamp;
+            internal int CurrentStamp => _currentStamp;
+            internal int[] Order => _order;
+            internal int OrderCount { get => _orderCount; set => _orderCount = value; }
+            internal double[] Delta => _delta;
             internal Dictionary<Hyperedge, int>[] DynExpanded => _dynExpanded;
             internal Dictionary<int, int>[] StatExpanded => _statExpanded;
 
-            /// <summary>Resets all state for a new source node, growing the per-2-mode-layer
-            /// expansion-tracking arrays only the first time (or if the layer count changed) -
-            /// otherwise their existing Dictionary instances are cleared, not reallocated.</summary>
-            internal void Reset(uint source, int dynCount, int statCount)
+            /// <summary>Resets all state for a new source node, growing the n-sized arrays and the
+            /// per-2-mode-layer expansion-tracking arrays only the first time (or if a size
+            /// changed) - otherwise reused as-is (the stamp bump invalidates stale Dist/Sigma
+            /// entries; the expansion Dictionaries are cleared, not reallocated).</summary>
+            internal void Reset(uint source, Dictionary<uint, int> nodeIndex, int n, int dynCount, int statCount)
             {
-                Dist.Clear(); Dist[source] = 0;
-                Sigma.Clear(); Sigma[source] = 1L;
-                Pred.Clear();
-                Order.Clear();
-                Queue.Clear(); Queue.Enqueue(source);
+                if (_dist.Length != n)
+                {
+                    _dist = new int[n];
+                    _sigma = new long[n];
+                    _stamp = new int[n];
+                    _order = new int[n];
+                    _delta = new double[n];
+                }
+                _currentStamp++;
+                _orderCount = 0;
+                int sourceIdx = nodeIndex[source];
+                _stamp[sourceIdx] = _currentStamp;
+                _dist[sourceIdx] = 0;
+                _sigma[sourceIdx] = 1L;
+                _order[_orderCount++] = sourceIdx;
 
                 if (_dynExpanded.Length != dynCount)
                 {
@@ -337,43 +376,74 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Single-source BFS returning all data needed for Brandes betweenness accumulation:
-        /// distances, shortest-path counts (sigma), predecessor lists, and topological order.
-        /// Hyperedge-aware: tracks the BFS level at which each hyperedge was first expanded.
-        /// Same-level re-encounters update sigma/pred; deeper-level encounters are skipped.
-        /// Uses <see cref="ILayerOneMode.VisitAlters"/> (no per-node array/HashSet allocation)
-        /// for the 1-mode traversal step, except for <see cref="EdgeTraversal.Both"/> on a directed
-        /// layer: there, visiting a bidirectional neighbor twice would double-count it in
-        /// <paramref name="sigma"/>/<paramref name="pred"/> (unlike plain <see cref="BFS"/>, this
-        /// method has per-visit side effects, not just an idempotent reachability mark), so that one
-        /// combination falls back to <see cref="ILayerOneMode.GetNodeAlters"/>, which still dedupes.
-        /// Takes a <paramref name="scratch"/> buffer (one per thread, reused across that thread's
-        /// sources - see <see cref="BFSBrandesScratch"/>) rather than allocating and returning its
-        /// own dist/sigma/pred/order each call; the caller reads them off <paramref name="scratch"/>
-        /// after this returns.
+        /// Single-source BFS computing all data needed for Brandes betweenness accumulation:
+        /// distances and shortest-path counts (sigma) - no predecessor list. Hyperedge-aware:
+        /// tracks the BFS level at which each hyperedge was first expanded; same-level
+        /// re-encounters update sigma; deeper-level encounters are skipped. Uses
+        /// <see cref="ILayerOneMode.VisitAlters"/> (no per-node array/HashSet allocation) for the
+        /// 1-mode traversal step, except for <see cref="EdgeTraversal.Both"/> on a directed layer:
+        /// there, visiting a bidirectional neighbor twice would double-count it in sigma (unlike
+        /// plain <see cref="BFS"/>, this method has per-visit side effects, not just an idempotent
+        /// reachability mark), so that one combination falls back to
+        /// <see cref="ILayerOneMode.GetNodeAlters"/>, which still dedupes.
+        ///
+        /// Takes <paramref name="nodeIndex"/>/<paramref name="nodeIds"/> (built once per operation
+        /// by the caller, same as plain <see cref="BFS"/>) and a <paramref name="scratch"/> buffer
+        /// (one per thread, reused across that thread's sources - see
+        /// <see cref="BFSBrandesScratch"/>) rather than allocating its own state each call; the
+        /// caller reads <c>Dist</c>/<c>Sigma</c>/<c>Order</c>/<c>OrderCount</c> off
+        /// <paramref name="scratch"/> after this returns, and re-derives predecessors itself during
+        /// the backward pass (see CentralityFunctions.AccumulateBFSCentralities/
+        /// AccumulateEdgeBetweenness) rather than reading a stored predecessor list - there isn't
+        /// one, by design: it was the single largest remaining allocation source in betweenness.
         /// </summary>
-        internal static void BFSBrandes(uint source, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, BFSBrandesScratch scratch)
+        internal static void BFSBrandes(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, BFSBrandesScratch scratch)
         {
-            scratch.Reset(source, twoModesDynamic.Count, twoModesStatic.Count);
-            var dist = scratch.Dist;
-            var sigma = scratch.Sigma;
-            var pred = scratch.Pred;
-            var order = scratch.Order;
-            var queue = scratch.Queue;
+            scratch.Reset(source, nodeIndex, nodeIds.Length, twoModesDynamic.Count, twoModesStatic.Count);
+            int[] dist = scratch.Dist;
+            long[] sigma = scratch.Sigma;
+            int[] stamp = scratch.Stamp;
+            int myStamp = scratch.CurrentStamp;
+            int[] order = scratch.Order;
+            int orderCount = scratch.OrderCount; // starts at 1: Reset() already appended the source
             var dynExpanded = scratch.DynExpanded;
             var statExpanded = scratch.StatExpanded;
 
-            uint currentU = source;
+            int head = 0; // dequeue pointer into order[] - order[] doubles as the BFS queue here
+                          // (append at orderCount, dequeue at head) and, once this forward pass
+                          // finishes, as the exact backward-pass processing order read in reverse.
+
+            int currentUIdx = 0;
             int currentMemberDist = 0;
-            void VisitOneModeAlter(uint v) => ProcessNeighbor(v, currentU, currentMemberDist, dist, sigma, pred, queue);
+
+            void ProcessNeighborArr(int vIdx, int uIdx, int memberDist)
+            {
+                if (stamp[vIdx] != myStamp)
+                {
+                    stamp[vIdx] = myStamp;
+                    dist[vIdx] = memberDist;
+                    sigma[vIdx] = sigma[uIdx];
+                    order[orderCount++] = vIdx;
+                }
+                else if (dist[vIdx] == memberDist)
+                {
+                    sigma[vIdx] += sigma[uIdx];
+                }
+            }
+
+            void VisitOneModeAlter(uint v)
+            {
+                if (nodeIndex.TryGetValue(v, out int vIdx))
+                    ProcessNeighborArr(vIdx, currentUIdx, currentMemberDist);
+            }
             Action<uint> visitOneModeAlter = VisitOneModeAlter;
 
-            while (queue.Count > 0)
+            while (head < orderCount)
             {
-                uint u = queue.Dequeue();
-                order.Push(u);
-                int memberDist = dist[u] + 1;
-                currentU = u;
+                int uIdx = order[head++];
+                uint u = nodeIds[uIdx];
+                int memberDist = dist[uIdx] + 1;
+                currentUIdx = uIdx;
                 currentMemberDist = memberDist;
 
                 foreach (var layer in oneModes)
@@ -383,7 +453,8 @@ namespace Threadle.Core.Analysis
                     // VisitAlters only ever takes its first branch) is safe without it.
                     if (traversal == EdgeTraversal.Both && layer.IsDirectional)
                         foreach (uint v in layer.GetNodeAlters(u, traversal))
-                            ProcessNeighbor(v, u, memberDist, dist, sigma, pred, queue);
+                            if (nodeIndex.TryGetValue(v, out int vIdx))
+                                ProcessNeighborArr(vIdx, uIdx, memberDist);
                     else
                         layer.VisitAlters(u, traversal, visitOneModeAlter);
                 }
@@ -398,16 +469,14 @@ namespace Threadle.Core.Analysis
                         {
                             dynExpanded[li][he] = memberDist;
                             foreach (uint m in he.NodeIds)
-                                if (m != u) ProcessNeighbor(m, u, memberDist, dist, sigma, pred, queue);
+                                if (m != u && nodeIndex.TryGetValue(m, out int mIdx))
+                                    ProcessNeighborArr(mIdx, uIdx, memberDist);
                         }
                         else if (expandedAt == memberDist)
                         {
                             foreach (uint m in he.NodeIds)
-                                if (m != u && dist.TryGetValue(m, out int dm) && dm == memberDist)
-                                {
-                                    sigma[m] += sigma[u];
-                                    pred[m].Add(u);
-                                }
+                                if (m != u && nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] == myStamp && dist[mIdx] == memberDist)
+                                    sigma[mIdx] += sigma[uIdx];
                         }
                     }
                 }
@@ -425,7 +494,8 @@ namespace Threadle.Core.Analysis
                             for (int j = hStart; j < hEnd; j++)
                             {
                                 uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                if (m != u) ProcessNeighbor(m, u, memberDist, dist, sigma, pred, queue);
+                                if (m != u && nodeIndex.TryGetValue(m, out int mIdx))
+                                    ProcessNeighborArr(mIdx, uIdx, memberDist);
                             }
                         }
                         else if (expandedAt == memberDist)
@@ -434,36 +504,14 @@ namespace Threadle.Core.Analysis
                             for (int j = hStart; j < hEnd; j++)
                             {
                                 uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                if (m != u && dist.TryGetValue(m, out int dm) && dm == memberDist)
-                                {
-                                    sigma[m] += sigma[u];
-                                    pred[m].Add(u);
-                                }
+                                if (m != u && nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] == myStamp && dist[mIdx] == memberDist)
+                                    sigma[mIdx] += sigma[uIdx];
                             }
                         }
                     }
                 }
             }
-        }
-        #endregion
-
-        #region Methods (private)
-
-        private static void ProcessNeighbor(uint v, uint u, int memberDist, Dictionary<uint, int> dist, Dictionary<uint, long> sigma,
-            Dictionary<uint, List<uint>> pred, Queue<uint> queue)
-        {
-            if (!dist.ContainsKey(v))
-            {
-                dist[v] = memberDist;
-                sigma[v] = sigma[u];
-                pred[v] = [u];
-                queue.Enqueue(v);
-            }
-            else if (dist[v] == memberDist)
-            {
-                sigma[v] += sigma[u];
-                pred[v].Add(u);
-            }
+            scratch.OrderCount = orderCount;
         }
         #endregion
     }
