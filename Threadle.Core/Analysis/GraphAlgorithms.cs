@@ -469,7 +469,18 @@ namespace Threadle.Core.Analysis
                             if (nodeIndex.TryGetValue(v, out int vIdx))
                                 ProcessNeighborArr(vIdx, uIdx, memberDist);
                     else
-                        layer.VisitAlters(u, traversal, visitOneModeAlter);
+                    {
+                        Console.WriteLine($"[BFSBrandes] DEBUG about to call VisitAlters: layer type={layer.GetType().Name} u={u} traversal={traversal} IsDirectional={layer.IsDirectional}");
+                        try
+                        {
+                            layer.VisitAlters(u, traversal, visitOneModeAlter);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[BFSBrandes] DEBUG EXCEPTION from VisitAlters: {ex}");
+                        }
+                        Console.WriteLine("[BFSBrandes] DEBUG VisitAlters call returned normally");
+                    }
                 }
 
                 for (int li = 0; li < twoModesDynamic.Count; li++)
