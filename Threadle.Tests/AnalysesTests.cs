@@ -2513,6 +2513,37 @@ public class AnalysesTests
     }
 
     [Fact]
+    public void BFSBrandes_SimplePath_ForwardPassValuesCorrect()
+    {
+        // Diagnostic test: calls GraphAlgorithms.BFSBrandes directly, bypassing Analyses/
+        // CentralityFunctions/Parallel.For entirely, to check the forward pass (Dist/Sigma/Order)
+        // in isolation on a trivial 3-node undirected path (1-2-3), source=1.
+        var net = MakeNetwork(3);
+        AddUndirectedLayer(net, "layer");
+        net.AddEdge("layer", 1, 2);
+        net.AddEdge("layer", 2, 3);
+
+        var layer = (ILayerOneMode)net.Layers["layer"];
+        GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
+
+        uint[] nodeIds = net.Nodeset.NodeIdArray;
+        var nodeIndex = new Dictionary<uint, int>();
+        for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
+
+        var scratch = new GraphAlgorithms.BFSBrandesScratch();
+        GraphAlgorithms.BFSBrandes(1, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Out, scratch);
+
+        int idx1 = nodeIndex[1], idx2 = nodeIndex[2], idx3 = nodeIndex[3];
+        Assert.Equal(3, scratch.OrderCount);
+        Assert.Equal(0, scratch.Dist[idx1]);
+        Assert.Equal(1, scratch.Dist[idx2]);
+        Assert.Equal(2, scratch.Dist[idx3]);
+        Assert.Equal(1L, scratch.Sigma[idx1]);
+        Assert.Equal(1L, scratch.Sigma[idx2]);
+        Assert.Equal(1L, scratch.Sigma[idx3]);
+    }
+
+    [Fact]
     public void BetweennessCentrality_PathGraph_MiddleNodeHighest()
     {
         // 1-2-3-4-5 undirected path: node 3 sits on every shortest path between {1,2} and {4,5}
