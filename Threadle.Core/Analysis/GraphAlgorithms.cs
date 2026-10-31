@@ -459,8 +459,12 @@ namespace Threadle.Core.Analysis
                 currentUIdx = uIdx;
                 currentMemberDist = memberDist;
 
+                Console.WriteLine($"[BFSBrandes] DEBUG before foreach: oneModes.Count={oneModes.Count} oneModes.GetHashCode()={oneModes.GetHashCode()}");
+                int layerIterCount = 0;
                 foreach (var layer in oneModes)
                 {
+                    layerIterCount++;
+                    Console.WriteLine($"[BFSBrandes] DEBUG entered foreach body: layerIterCount={layerIterCount} layer==null={layer is null}");
                     // Both-on-directed needs GetNodeAlters' own dedup (see remarks above) - every
                     // other combination (Out, In, or any traversal on an undirected layer, where
                     // VisitAlters only ever takes its first branch) is safe without it.
@@ -482,6 +486,7 @@ namespace Threadle.Core.Analysis
                         Console.WriteLine("[BFSBrandes] DEBUG VisitAlters call returned normally");
                     }
                 }
+                Console.WriteLine($"[BFSBrandes] DEBUG after foreach: layerIterCount={layerIterCount}");
 
                 for (int li = 0; li < twoModesDynamic.Count; li++)
                 {
