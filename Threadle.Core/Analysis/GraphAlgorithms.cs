@@ -409,8 +409,6 @@ namespace Threadle.Core.Analysis
             var dynExpanded = scratch.DynExpanded;
             var statExpanded = scratch.StatExpanded;
 
-            Console.WriteLine($"[BFSBrandes] DEBUG Reset: n={nodeIds.Length} oneModes={oneModes.Count} twoModesDynamic={twoModesDynamic.Count} twoModesStatic={twoModesStatic.Count} source={source} orderCount={orderCount} myStamp={myStamp}");
-
             int head = 0; // dequeue pointer into order[] - order[] doubles as the BFS queue here
                           // (append at orderCount, dequeue at head) and, once this forward pass
                           // finishes, as the exact backward-pass processing order read in reverse.
@@ -420,33 +418,23 @@ namespace Threadle.Core.Analysis
 
             void ProcessNeighborArr(int vIdx, int uIdx, int memberDist)
             {
-                Console.WriteLine($"[BFSBrandes] DEBUG ProcessNeighborArr: vIdx={vIdx} uIdx={uIdx} memberDist={memberDist} stamp[vIdx]={stamp[vIdx]} myStamp={myStamp} dist[vIdx]={dist[vIdx]}");
                 if (stamp[vIdx] != myStamp)
                 {
                     stamp[vIdx] = myStamp;
                     dist[vIdx] = memberDist;
                     sigma[vIdx] = sigma[uIdx];
                     order[orderCount++] = vIdx;
-                    Console.WriteLine($"[BFSBrandes] DEBUG  -> NEW, orderCount now {orderCount}");
                 }
                 else if (dist[vIdx] == memberDist)
                 {
                     sigma[vIdx] += sigma[uIdx];
-                    Console.WriteLine($"[BFSBrandes] DEBUG  -> MERGE sigma");
-                }
-                else
-                {
-                    Console.WriteLine($"[BFSBrandes] DEBUG  -> IGNORED");
                 }
             }
 
             void VisitOneModeAlter(uint v)
             {
-                Console.WriteLine($"[BFSBrandes] DEBUG VisitOneModeAlter called with v={v}, currentUIdx={currentUIdx}, currentMemberDist={currentMemberDist}");
                 if (nodeIndex.TryGetValue(v, out int vIdx))
                     ProcessNeighborArr(vIdx, currentUIdx, currentMemberDist);
-                else
-                    Console.WriteLine($"[BFSBrandes] DEBUG  -> v={v} not found in nodeIndex!");
             }
             Action<uint> visitOneModeAlter = VisitOneModeAlter;
 
@@ -455,43 +443,21 @@ namespace Threadle.Core.Analysis
                 int uIdx = order[head++];
                 uint u = nodeIds[uIdx];
                 int memberDist = dist[uIdx] + 1;
-                Console.WriteLine($"[BFSBrandes] DEBUG loop: head={head} orderCount={orderCount} uIdx={uIdx} u={u} memberDist={memberDist} oneModes.Count(inner)={oneModes.Count}");
                 currentUIdx = uIdx;
                 currentMemberDist = memberDist;
 
-                Console.WriteLine($"[BFSBrandes] DEBUG before foreach: oneModes.Count={oneModes.Count} oneModes.GetHashCode()={oneModes.GetHashCode()}");
-                int layerIterCount = 0;
                 foreach (var layer in oneModes)
                 {
-                    layerIterCount++;
-                    Console.WriteLine($"[BFSBrandes] DEBUG entered foreach body: layerIterCount={layerIterCount} layer==null={layer is null}");
-                    Console.WriteLine($"[BFSBrandes] DEBUG branch check: traversal={traversal} (int={(int)traversal}) EdgeTraversal.Both=(int={(int)EdgeTraversal.Both}) layer.IsDirectional={layer.IsDirectional} condition={(traversal == EdgeTraversal.Both && layer.IsDirectional)}");
                     // Both-on-directed needs GetNodeAlters' own dedup (see remarks above) - every
                     // other combination (Out, In, or any traversal on an undirected layer, where
                     // VisitAlters only ever takes its first branch) is safe without it.
                     if (traversal == EdgeTraversal.Both && layer.IsDirectional)
-                    {
-                        var alters = layer.GetNodeAlters(u, traversal);
-                        Console.WriteLine($"[BFSBrandes] DEBUG taking GetNodeAlters branch, count={alters.Length}");
-                        foreach (uint v in alters)
+                        foreach (uint v in layer.GetNodeAlters(u, traversal))
                             if (nodeIndex.TryGetValue(v, out int vIdx))
                                 ProcessNeighborArr(vIdx, uIdx, memberDist);
-                    }
                     else
-                    {
-                        Console.WriteLine($"[BFSBrandes] DEBUG about to call VisitAlters: layer type={layer.GetType().Name} u={u} traversal={traversal} IsDirectional={layer.IsDirectional}");
-                        try
-                        {
-                            layer.VisitAlters(u, traversal, visitOneModeAlter);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[BFSBrandes] DEBUG EXCEPTION from VisitAlters: {ex}");
-                        }
-                        Console.WriteLine("[BFSBrandes] DEBUG VisitAlters call returned normally");
-                    }
+                        layer.VisitAlters(u, traversal, visitOneModeAlter);
                 }
-                Console.WriteLine($"[BFSBrandes] DEBUG after foreach: layerIterCount={layerIterCount}");
 
                 for (int li = 0; li < twoModesDynamic.Count; li++)
                 {
