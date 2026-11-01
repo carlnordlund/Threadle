@@ -403,25 +403,36 @@ namespace Threadle.Core.Analysis
             int currentUIdx = 0;
             int currentMemberDist = 0;
 
-            void ProcessNeighborArr(uint v, uint u, int uIdx, int memberDist)
+            // Local function, but intentionally takes every array/dictionary it touches as an
+            // explicit parameter rather than capturing them from the enclosing method - capturing
+            // them (as an earlier version of this method did) forces the C# compiler to hoist
+            // dist/sigma/stamp/order/orderCount/pred/nodeIndex into a heap-allocated closure class,
+            // so every array access in this hot per-neighbor path pays an extra field load instead
+            // of being a plain parameter access. With everything passed explicitly and nothing
+            // captured, this compiles with no closure allocation at all for this function - the
+            // same "cheap hot path" shape the dictionary-based ProcessNeighbor had before this
+            // scratch's Dist/Sigma/Order became array-backed.
+            static void ProcessNeighborArr(uint v, uint u, int uIdx, int memberDist,
+                Dictionary<uint, int> nodeIdx, int[] distArr, long[] sigmaArr, int[] stampArr, int stampVal,
+                Dictionary<uint, List<uint>> predDict, int[] orderArr, ref int orderCnt)
             {
-                if (!nodeIndex.TryGetValue(v, out int vIdx)) return;
-                if (stamp[vIdx] != myStamp)
+                if (!nodeIdx.TryGetValue(v, out int vIdx)) return;
+                if (stampArr[vIdx] != stampVal)
                 {
-                    stamp[vIdx] = myStamp;
-                    dist[vIdx] = memberDist;
-                    sigma[vIdx] = sigma[uIdx];
-                    pred[v] = [u];
-                    order[orderCount++] = vIdx;
+                    stampArr[vIdx] = stampVal;
+                    distArr[vIdx] = memberDist;
+                    sigmaArr[vIdx] = sigmaArr[uIdx];
+                    predDict[v] = [u];
+                    orderArr[orderCnt++] = vIdx;
                 }
-                else if (dist[vIdx] == memberDist)
+                else if (distArr[vIdx] == memberDist)
                 {
-                    sigma[vIdx] += sigma[uIdx];
-                    pred[v].Add(u);
+                    sigmaArr[vIdx] += sigmaArr[uIdx];
+                    predDict[v].Add(u);
                 }
             }
 
-            void VisitOneModeAlter(uint v) => ProcessNeighborArr(v, currentU, currentUIdx, currentMemberDist);
+            void VisitOneModeAlter(uint v) => ProcessNeighborArr(v, currentU, currentUIdx, currentMemberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
             Action<uint> visitOneModeAlter = VisitOneModeAlter;
 
             while (head < orderCount)
@@ -440,7 +451,7 @@ namespace Threadle.Core.Analysis
                     // VisitAlters only ever takes its first branch) is safe without it.
                     if (traversal == EdgeTraversal.Both && layer.IsDirectional)
                         foreach (uint v in layer.GetNodeAlters(u, traversal))
-                            ProcessNeighborArr(v, u, uIdx, memberDist);
+                            ProcessNeighborArr(v, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
                     else
                         layer.VisitAlters(u, traversal, visitOneModeAlter);
                 }
@@ -455,7 +466,7 @@ namespace Threadle.Core.Analysis
                         {
                             dynExpanded[li][he] = memberDist;
                             foreach (uint m in he.NodeIds)
-                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist);
+                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
                         }
                         else if (expandedAt == memberDist)
                         {
@@ -482,7 +493,7 @@ namespace Threadle.Core.Analysis
                             for (int j = hStart; j < hEnd; j++)
                             {
                                 uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist);
+                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
                             }
                         }
                         else if (expandedAt == memberDist)
