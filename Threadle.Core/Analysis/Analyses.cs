@@ -599,10 +599,18 @@ namespace Threadle.Core.Analysis
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             uint[] sources = CentralityFunctions.SampleNodes(nodeIds, sampleSize);
+
+            var swIndex = System.Diagnostics.Stopwatch.StartNew();
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
+            swIndex.Stop();
 
+            long allocBefore = GC.GetTotalAllocatedBytes(precise: false);
+            var swBfs = System.Diagnostics.Stopwatch.StartNew();
             var (bw, _, _, _) = CentralityFunctions.AccumulateBFSCentralitiesForSources(sources, nodeIndex, nodeIds, one, dynTwo, statTwo, traversal);
+            swBfs.Stop();
+            long allocAfter = GC.GetTotalAllocatedBytes(precise: false);
+            Console.WriteLine($"[BENCH] n={nodeIds.Length} sources={sources.Length} nodeIndexBuild={swIndex.Elapsed} bfsPass={swBfs.Elapsed} allocatedBytes={allocAfter - allocBefore} gen0={GC.CollectionCount(0)} gen1={GC.CollectionCount(1)} gen2={GC.CollectionCount(2)}");
 
             var final = CentralityFunctions.FinalizeBetweenness(bw, nodeIds, sources.Length);
             attrName = string.IsNullOrEmpty(attrName) ? "betweenness" : attrName;
