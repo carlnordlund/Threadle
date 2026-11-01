@@ -1,3 +1,4 @@
+using System.Globalization;
 using Threadle.Core.Analysis;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -3738,7 +3739,7 @@ public class AnalysesTests
         var net = MakeAssortativityTwoModeNetwork();
         net.Nodeset.DefineNodeAttribute("val", "float");
         for (uint id = 1; id <= 6; id++)
-            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString());
+            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString(CultureInfo.InvariantCulture));
 
         var twoModeResult = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Binary);
         Assert.True(twoModeResult.Success, twoModeResult.Message);
@@ -3764,7 +3765,7 @@ public class AnalysesTests
         var net = MakeAssortativityTwoModeNetwork();
         net.Nodeset.DefineNodeAttribute("val", "float");
         for (uint id = 1; id <= 6; id++)
-            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString());
+            net.Nodeset.SetNodeAttribute(id, "val", (id * 1.5).ToString(CultureInfo.InvariantCulture));
 
         var twoModeResult = Analyses.Assortativity(net, "aff", "val", ProjectionMethod.Count);
         Assert.True(twoModeResult.Success, twoModeResult.Message);
