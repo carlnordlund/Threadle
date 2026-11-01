@@ -88,13 +88,18 @@ namespace Threadle.Core.Analysis
         /// AccumulateEdgeBetweennessForSources) reset existing state instead of allocating fresh
         /// collections on every single call. External benchmarking found betweenness scaled poorly
         /// across threads; this per-source allocation churn - happening inside the parallel loop
-        /// body, competing threads for the GC - was the confirmed cause. <see cref="Dist"/>/
-        /// <see cref="Sigma"/>/<see cref="Order"/> are array-backed and generation-stamped (see
-        /// <see cref="Reset"/>), so they cost no per-source allocation or O(capacity) clear at all;
-        /// <see cref="Pred"/> is unchanged for now (still a <c>Dictionary&lt;uint, List&lt;uint&gt;&gt;</c>
-        /// allocating a fresh <c>List&lt;uint&gt;</c> per newly-discovered node) - removing that is a
-        /// separate, later piece of work. One instance is created per thread (via Parallel.For's
-        /// local-state factory) and reused for every source that thread ends up handling.
+        /// body, competing threads for the GC - was the confirmed cause, and directly measuring
+        /// allocated bytes confirmed it: ~2.45GB for just 100 sampled sources on a 138K-node
+        /// network, almost entirely from the predecessor list this scratch used to carry (a fresh
+        /// <c>List&lt;uint&gt;</c> allocated per node discovered, on every single source's BFS).
+        /// There is no predecessor list anymore: <see cref="BFSBrandes"/> only records
+        /// <see cref="Dist"/>/<see cref="Sigma"/>/<see cref="Order"/>, and the backward pass
+        /// (CentralityFunctions.AccumulateBFSCentralities/AccumulateEdgeBetweenness) re-derives
+        /// predecessors itself by re-scanning neighbors/hyperedge memberships and checking
+        /// <c>Dist[v] == Dist[w] - 1</c>, rather than reading a stored list. <see cref="Delta"/> is
+        /// array-backed too, reset only for reached nodes (via <see cref="Order"/>), not all n.
+        /// One instance is created per thread (via Parallel.For's local-state factory) and reused
+        /// for every source that thread ends up handling.
         /// </summary>
         internal sealed class BFSBrandesScratch
         {
@@ -107,8 +112,9 @@ namespace Threadle.Core.Analysis
                                              // forward pass finishes, the exact backward-pass order
                                              // read in reverse - no separate Stack<uint>/Queue<uint>.
             private int _orderCount;
-
-            internal readonly Dictionary<uint, List<uint>> Pred = [];
+            private double[] _delta = [];   // reset only for reached nodes (via _order), not all n -
+                                             // see CentralityFunctions.AccumulateBFSCentralities/
+                                             // AccumulateEdgeBetweenness.
 
             private Dictionary<Hyperedge, int>[] _dynExpanded = [];
             private Dictionary<int, int>[] _statExpanded = [];
@@ -119,14 +125,15 @@ namespace Threadle.Core.Analysis
             internal int CurrentStamp => _currentStamp;
             internal int[] Order => _order;
             internal int OrderCount { get => _orderCount; set => _orderCount = value; }
+            internal double[] Delta => _delta;
             internal Dictionary<Hyperedge, int>[] DynExpanded => _dynExpanded;
             internal Dictionary<int, int>[] StatExpanded => _statExpanded;
 
             /// <summary>Resets all state for a new source node. <see cref="Dist"/>/<see cref="Sigma"/>/
-            /// <see cref="Stamp"/>/<see cref="Order"/> are grown only the first time (or if the node
-            /// count changed) - a generation stamp (<see cref="CurrentStamp"/>) marks which entries are
-            /// valid for the current call instead of clearing the arrays each time. <see cref="Pred"/>
-            /// and the per-2-mode-layer expansion-tracking arrays are unchanged from before.</summary>
+            /// <see cref="Stamp"/>/<see cref="Order"/>/<see cref="Delta"/> are grown only the first time
+            /// (or if the node count changed) - a generation stamp (<see cref="CurrentStamp"/>) marks
+            /// which entries are valid for the current call instead of clearing the arrays each time.
+            /// The per-2-mode-layer expansion-tracking arrays are unchanged from before.</summary>
             internal void Reset(uint source, Dictionary<uint, int> nodeIndex, int n, int dynCount, int statCount)
             {
                 if (_dist.Length != n)
@@ -135,6 +142,7 @@ namespace Threadle.Core.Analysis
                     _sigma = new long[n];
                     _stamp = new int[n];
                     _order = new int[n];
+                    _delta = new double[n];
                 }
                 _currentStamp++;
                 _orderCount = 0;
@@ -143,8 +151,6 @@ namespace Threadle.Core.Analysis
                 _dist[sourceIdx] = 0;
                 _sigma[sourceIdx] = 1L;
                 _order[_orderCount++] = sourceIdx;
-
-                Pred.Clear();
 
                 if (_dynExpanded.Length != dynCount)
                 {
@@ -366,21 +372,27 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Single-source BFS returning all data needed for Brandes betweenness accumulation:
-        /// distances, shortest-path counts (sigma), predecessor lists, and topological order.
-        /// Hyperedge-aware: tracks the BFS level at which each hyperedge was first expanded.
-        /// Same-level re-encounters update sigma/pred; deeper-level encounters are skipped.
-        /// Uses <see cref="ILayerOneMode.VisitAlters"/> (no per-node array/HashSet allocation)
-        /// for the 1-mode traversal step, except for <see cref="EdgeTraversal.Both"/> on a directed
-        /// layer: there, visiting a bidirectional neighbor twice would double-count it in
-        /// <paramref name="sigma"/>/<paramref name="pred"/> (unlike plain <see cref="BFS"/>, this
-        /// method has per-visit side effects, not just an idempotent reachability mark), so that one
-        /// combination falls back to <see cref="ILayerOneMode.GetNodeAlters"/>, which still dedupes.
-        /// Takes a <paramref name="scratch"/> buffer (one per thread, reused across that thread's
-        /// sources - see <see cref="BFSBrandesScratch"/>) rather than allocating and returning its
-        /// own dist/sigma/pred/order each call; the caller reads them off <paramref name="scratch"/>
-        /// after this returns. <paramref name="nodeIndex"/>/<paramref name="nodeIds"/> are the same
-        /// compact 0..n-1 numbering described on <see cref="BFS"/>, built once by the caller.
+        /// Single-source BFS computing all data needed for Brandes betweenness accumulation:
+        /// distances, shortest-path counts (sigma), and topological order. Hyperedge-aware: tracks
+        /// the BFS level at which each hyperedge was first expanded. Same-level re-encounters
+        /// update sigma; deeper-level encounters are skipped. Uses <see cref="ILayerOneMode.VisitAlters"/>
+        /// (no per-node array/HashSet allocation) for the 1-mode traversal step, except for
+        /// <see cref="EdgeTraversal.Both"/> on a directed layer: there, visiting a bidirectional
+        /// neighbor twice would double-count it in <paramref name="sigma"/> (unlike plain
+        /// <see cref="BFS"/>, this method has per-visit side effects, not just an idempotent
+        /// reachability mark), so that one combination falls back to
+        /// <see cref="ILayerOneMode.GetNodeAlters"/>, which still dedupes. There is no predecessor
+        /// list: the backward pass (CentralityFunctions.AccumulateBFSCentralities/
+        /// AccumulateEdgeBetweenness) re-derives predecessors itself by re-scanning neighbors/
+        /// hyperedge memberships and checking <c>Dist[v] == Dist[w] - 1</c>, rather than reading a
+        /// stored list - that list was the single largest remaining allocation source in
+        /// betweenness (confirmed by direct measurement: ~2.45GB for 100 sampled sources on a
+        /// 138K-node network). Takes a <paramref name="scratch"/> buffer (one per thread, reused
+        /// across that thread's sources - see <see cref="BFSBrandesScratch"/>) rather than
+        /// allocating and returning its own dist/sigma/order each call; the caller reads them off
+        /// <paramref name="scratch"/> after this returns. <paramref name="nodeIndex"/>/
+        /// <paramref name="nodeIds"/> are the same compact 0..n-1 numbering described on
+        /// <see cref="BFS"/>, built once by the caller.
         /// </summary>
         internal static void BFSBrandes(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, BFSBrandesScratch scratch)
         {
@@ -391,7 +403,6 @@ namespace Threadle.Core.Analysis
             int myStamp = scratch.CurrentStamp;
             int[] order = scratch.Order;
             int orderCount = scratch.OrderCount; // starts at 1: Reset() already appended the source
-            var pred = scratch.Pred;
             var dynExpanded = scratch.DynExpanded;
             var statExpanded = scratch.StatExpanded;
 
@@ -406,15 +417,13 @@ namespace Threadle.Core.Analysis
             // Local function, but intentionally takes every array/dictionary it touches as an
             // explicit parameter rather than capturing them from the enclosing method - capturing
             // them (as an earlier version of this method did) forces the C# compiler to hoist
-            // dist/sigma/stamp/order/orderCount/pred/nodeIndex into a heap-allocated closure class,
-            // so every array access in this hot per-neighbor path pays an extra field load instead
-            // of being a plain parameter access. With everything passed explicitly and nothing
-            // captured, this compiles with no closure allocation at all for this function - the
-            // same "cheap hot path" shape the dictionary-based ProcessNeighbor had before this
-            // scratch's Dist/Sigma/Order became array-backed.
+            // dist/sigma/stamp/order/orderCount/nodeIndex into a heap-allocated closure class, so
+            // every array access in this hot per-neighbor path pays an extra field load instead of
+            // being a plain parameter access. With everything passed explicitly and nothing
+            // captured, this compiles with no closure allocation at all for this function.
             static void ProcessNeighborArr(uint v, uint u, int uIdx, int memberDist,
                 Dictionary<uint, int> nodeIdx, int[] distArr, long[] sigmaArr, int[] stampArr, int stampVal,
-                Dictionary<uint, List<uint>> predDict, int[] orderArr, ref int orderCnt)
+                int[] orderArr, ref int orderCnt)
             {
                 if (!nodeIdx.TryGetValue(v, out int vIdx)) return;
                 if (stampArr[vIdx] != stampVal)
@@ -422,17 +431,15 @@ namespace Threadle.Core.Analysis
                     stampArr[vIdx] = stampVal;
                     distArr[vIdx] = memberDist;
                     sigmaArr[vIdx] = sigmaArr[uIdx];
-                    predDict[v] = [u];
                     orderArr[orderCnt++] = vIdx;
                 }
                 else if (distArr[vIdx] == memberDist)
                 {
                     sigmaArr[vIdx] += sigmaArr[uIdx];
-                    predDict[v].Add(u);
                 }
             }
 
-            void VisitOneModeAlter(uint v) => ProcessNeighborArr(v, currentU, currentUIdx, currentMemberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
+            void VisitOneModeAlter(uint v) => ProcessNeighborArr(v, currentU, currentUIdx, currentMemberDist, nodeIndex, dist, sigma, stamp, myStamp, order, ref orderCount);
             Action<uint> visitOneModeAlter = VisitOneModeAlter;
 
             while (head < orderCount)
@@ -451,7 +458,7 @@ namespace Threadle.Core.Analysis
                     // VisitAlters only ever takes its first branch) is safe without it.
                     if (traversal == EdgeTraversal.Both && layer.IsDirectional)
                         foreach (uint v in layer.GetNodeAlters(u, traversal))
-                            ProcessNeighborArr(v, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
+                            ProcessNeighborArr(v, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, order, ref orderCount);
                     else
                         layer.VisitAlters(u, traversal, visitOneModeAlter);
                 }
@@ -466,16 +473,13 @@ namespace Threadle.Core.Analysis
                         {
                             dynExpanded[li][he] = memberDist;
                             foreach (uint m in he.NodeIds)
-                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
+                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, order, ref orderCount);
                         }
                         else if (expandedAt == memberDist)
                         {
                             foreach (uint m in he.NodeIds)
                                 if (m != u && nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] == myStamp && dist[mIdx] == memberDist)
-                                {
                                     sigma[mIdx] += sigma[uIdx];
-                                    pred[m].Add(u);
-                                }
                         }
                     }
                 }
@@ -493,7 +497,7 @@ namespace Threadle.Core.Analysis
                             for (int j = hStart; j < hEnd; j++)
                             {
                                 uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
-                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, pred, order, ref orderCount);
+                                if (m != u) ProcessNeighborArr(m, u, uIdx, memberDist, nodeIndex, dist, sigma, stamp, myStamp, order, ref orderCount);
                             }
                         }
                         else if (expandedAt == memberDist)
@@ -503,10 +507,7 @@ namespace Threadle.Core.Analysis
                             {
                                 uint m = twoModesStatic[li].GetHyperedgeNodeAt(j);
                                 if (m != u && nodeIndex.TryGetValue(m, out int mIdx) && stamp[mIdx] == myStamp && dist[mIdx] == memberDist)
-                                {
                                     sigma[mIdx] += sigma[uIdx];
-                                    pred[m].Add(u);
-                                }
                             }
                         }
                     }

@@ -30,18 +30,26 @@ namespace Threadle.Core.Analysis
         /// Single-source BFSBrandes pass that accumulates contributions to betweenness,
         /// closeness, and harmonic centrality in-place. All three are accumulated together
         /// so callers pay only one BFS per source regardless of which metrics they need.
-        /// <paramref name="scratch"/>/<paramref name="delta"/> are reused across every source a
-        /// thread handles (see <see cref="GraphAlgorithms.BFSBrandesScratch"/>) rather than
-        /// allocated fresh per call.
+        /// <paramref name="scratch"/> is reused across every source a thread handles (see
+        /// <see cref="GraphAlgorithms.BFSBrandesScratch"/>) rather than allocated fresh per call.
+        /// There is no stored predecessor list: for each node <c>w</c> processed in reverse BFS
+        /// order, predecessors are re-derived by re-scanning <c>w</c>'s neighbors under the
+        /// reverse traversal direction (1-mode layers) or re-scanning every hyperedge <c>w</c>
+        /// belongs to (2-mode layers), keeping any candidate <c>v</c> with
+        /// <c>Dist[v] == Dist[w] - 1</c>. Re-scanning each shared hyperedge in full (rather than
+        /// deduping across hyperedges) reproduces the exact multiplicity the old predecessor list
+        /// had: two nodes sharing two hyperedges get two separate predecessor credits.
         /// </summary>
-        internal static void AccumulateBFSCentralities(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> betweenness, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic, GraphAlgorithms.BFSBrandesScratch scratch, Dictionary<uint, double> delta)
+        internal static void AccumulateBFSCentralities(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> betweenness, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic, GraphAlgorithms.BFSBrandesScratch scratch)
         {
             GraphAlgorithms.BFSBrandes(source, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal, scratch);
             int[] dist = scratch.Dist;
             long[] sigma = scratch.Sigma;
-            var pred = scratch.Pred;
+            int[] stamp = scratch.Stamp;
+            int myStamp = scratch.CurrentStamp;
             int[] order = scratch.Order;
             int orderCount = scratch.OrderCount;
+            double[] delta = scratch.Delta;
             int sourceIdx = nodeIndex[source];
 
             // Closeness + harmonic: accumulate from distances produced by this source's BFS
@@ -55,24 +63,78 @@ namespace Threadle.Core.Analysis
                 harmonic[source] = harmonic.GetValueOrDefault(source) + 1.0 / d;
             }
 
-            // Brandes back-propagation for betweenness
-            delta.Clear();
+            // Reset delta for reached nodes only (O(reached), not O(n))
+            for (int i = 0; i < orderCount; i++) delta[order[i]] = 0.0;
+
+            // Brandes back-propagation for betweenness, re-deriving predecessors as we go
+            int currentWIdx = 0;
+            int targetDist = 0;
+            double sigmaw = 0;
+            void Consider(uint v)
+            {
+                if (nodeIndex.TryGetValue(v, out int vIdx) && stamp[vIdx] == myStamp && dist[vIdx] == targetDist)
+                    delta[vIdx] += ((double)sigma[vIdx] / sigmaw) * (1.0 + delta[currentWIdx]);
+            }
+            Action<uint> consider = Consider;
+
             for (int i = orderCount - 1; i >= 0; i--)
             {
                 int wIdx = order[i];
                 uint w = nodeIds[wIdx];
-                if (!pred.TryGetValue(w, out var preds)) continue;
-                double sigmaw = sigma[wIdx];
-                foreach (uint v in preds)
+                currentWIdx = wIdx;
+                targetDist = dist[wIdx] - 1;
+                sigmaw = sigma[wIdx];
+
+                foreach (var layer in oneModes)
                 {
-                    double sigmav = sigma[nodeIndex[v]];
-                    double contrib = (sigmav / sigmaw) * (1.0 + delta.GetValueOrDefault(w));
-                    delta[v] = delta.GetValueOrDefault(v) + contrib;
+                    // Both-on-directed needs GetNodeAlters' own dedup, same as the forward pass -
+                    // an undeduped double-direction neighbor would double-count its contribution.
+                    if (traversal == EdgeTraversal.Both && layer.IsDirectional)
+                        foreach (uint v in layer.GetNodeAlters(w, traversal))
+                            consider(v);
+                    else
+                        layer.VisitAlters(w, Reverse(traversal), consider);
                 }
+
+                for (int li = 0; li < twoModesDynamic.Count; li++)
+                {
+                    var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(w);
+                    if (hec == null) continue;
+                    foreach (var he in hec.HyperEdges)
+                        foreach (uint v in he.NodeIds)
+                            if (v != w) consider(v);
+                }
+
+                for (int li = 0; li < twoModesStatic.Count; li++)
+                {
+                    if (!twoModesStatic[li].TryGetNodeHyperedgeRange(w, out int nStart, out int nEnd)) continue;
+                    for (int k = nStart; k < nEnd; k++)
+                    {
+                        int hIdx = twoModesStatic[li].GetNodeHyperedgeIndex(k);
+                        twoModesStatic[li].GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
+                        for (int j = hStart; j < hEnd; j++)
+                        {
+                            uint v = twoModesStatic[li].GetHyperedgeNodeAt(j);
+                            if (v != w) consider(v);
+                        }
+                    }
+                }
+
                 if (w != source)
-                    betweenness[w] = betweenness.GetValueOrDefault(w) + delta.GetValueOrDefault(w);
+                    betweenness[w] = betweenness.GetValueOrDefault(w) + delta[wIdx];
             }
         }
+
+        /// <summary>Reverses a traversal direction for the backward pass: predecessor candidates
+        /// under forward traversal <paramref name="t"/> are found by walking the opposite
+        /// direction from <c>w</c>. <see cref="EdgeTraversal.Both"/> and undirected layers (which
+        /// ignore the traversal argument entirely) are unaffected.</summary>
+        private static EdgeTraversal Reverse(EdgeTraversal t) => t switch
+        {
+            EdgeTraversal.Out => EdgeTraversal.In,
+            EdgeTraversal.In => EdgeTraversal.Out,
+            _ => t
+        };
 
         /// <summary>
         /// Runs AccumulateBFSCentralities for every source node in parallel (up to 'maxthreads',
@@ -97,14 +159,13 @@ namespace Threadle.Core.Analysis
                     ClosenessDistSum: new Dictionary<uint, double>(),
                     ClosenessReachable: new Dictionary<uint, int>(),
                     Harmonic: new Dictionary<uint, double>(),
-                    Scratch: new GraphAlgorithms.BFSBrandesScratch(),
-                    Delta: new Dictionary<uint, double>()
+                    Scratch: new GraphAlgorithms.BFSBrandesScratch()
                 ),
                 (i, loopState, local) =>
                 {
                     AccumulateBFSCentralities(sources[i], nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal,
                         local.Betweenness, local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic,
-                        local.Scratch, local.Delta);
+                        local.Scratch);
                     return local;
                 },
                 local =>
@@ -226,33 +287,54 @@ namespace Threadle.Core.Analysis
         /// it just also credits the edge, not only the node. For undirected layers, the edge key is
         /// canonicalized (lower node id first) so both discovery directions accumulate into the same
         /// entry, representing one undirected edge; for directed layers, (v,w) is kept as-is, since
-        /// arcs v→w and w→v (if both exist) are distinct ties with independent scores.
+        /// arcs v→w and w→v (if both exist) are distinct ties with independent scores. No stored
+        /// predecessor list - predecessors are re-derived per node via the reverse traversal
+        /// direction, same as AccumulateBFSCentralities (only 1-mode layers apply here, so no
+        /// hyperedge re-scan is needed).
         /// </summary>
-        internal static void AccumulateEdgeBetweenness(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal, Dictionary<(uint From, uint To), double> edgeBetweenness, GraphAlgorithms.BFSBrandesScratch scratch, Dictionary<uint, double> delta)
+        internal static void AccumulateEdgeBetweenness(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal, Dictionary<(uint From, uint To), double> edgeBetweenness, GraphAlgorithms.BFSBrandesScratch scratch)
         {
             GraphAlgorithms.BFSBrandes(source, nodeIndex, nodeIds, [layer], [], [], traversal, scratch);
+            int[] dist = scratch.Dist;
             long[] sigma = scratch.Sigma;
-            var pred = scratch.Pred;
+            int[] stamp = scratch.Stamp;
+            int myStamp = scratch.CurrentStamp;
             int[] order = scratch.Order;
             int orderCount = scratch.OrderCount;
+            double[] delta = scratch.Delta;
+
+            for (int i = 0; i < orderCount; i++) delta[order[i]] = 0.0;
 
             bool directed = layer.IsDirectional;
-            delta.Clear();
+            int currentWIdx = 0;
+            uint currentW = 0;
+            int targetDist = 0;
+            double sigmaw = 0;
+            void Consider(uint v)
+            {
+                if (!nodeIndex.TryGetValue(v, out int vIdx) || stamp[vIdx] != myStamp || dist[vIdx] != targetDist)
+                    return;
+                double contrib = ((double)sigma[vIdx] / sigmaw) * (1.0 + delta[currentWIdx]);
+                delta[vIdx] += contrib;
+                var edgeKey = (directed || v < currentW) ? (v, currentW) : (currentW, v);
+                edgeBetweenness[edgeKey] = edgeBetweenness.GetValueOrDefault(edgeKey) + contrib;
+            }
+            Action<uint> consider = Consider;
+
             for (int i = orderCount - 1; i >= 0; i--)
             {
                 int wIdx = order[i];
                 uint w = nodeIds[wIdx];
-                if (!pred.TryGetValue(w, out var preds)) continue;
-                double sigmaw = sigma[wIdx];
-                foreach (uint v in preds)
-                {
-                    double sigmav = sigma[nodeIndex[v]];
-                    double contrib = (sigmav / sigmaw) * (1.0 + delta.GetValueOrDefault(w));
-                    delta[v] = delta.GetValueOrDefault(v) + contrib;
+                currentWIdx = wIdx;
+                currentW = w;
+                targetDist = dist[wIdx] - 1;
+                sigmaw = sigma[wIdx];
 
-                    var edgeKey = (directed || v < w) ? (v, w) : (w, v);
-                    edgeBetweenness[edgeKey] = edgeBetweenness.GetValueOrDefault(edgeKey) + contrib;
-                }
+                if (traversal == EdgeTraversal.Both && layer.IsDirectional)
+                    foreach (uint v in layer.GetNodeAlters(w, traversal))
+                        consider(v);
+                else
+                    layer.VisitAlters(w, Reverse(traversal), consider);
             }
         }
 
@@ -270,12 +352,11 @@ namespace Threadle.Core.Analysis
             System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
                 () => (
                     Local: new Dictionary<(uint From, uint To), double>(),
-                    Scratch: new GraphAlgorithms.BFSBrandesScratch(),
-                    Delta: new Dictionary<uint, double>()
+                    Scratch: new GraphAlgorithms.BFSBrandesScratch()
                 ),
                 (i, loopState, local) =>
                 {
-                    AccumulateEdgeBetweenness(sources[i], nodeIndex, nodeIds, layer, traversal, local.Local, local.Scratch, local.Delta);
+                    AccumulateEdgeBetweenness(sources[i], nodeIndex, nodeIds, layer, traversal, local.Local, local.Scratch);
                     return local;
                 },
                 local =>
