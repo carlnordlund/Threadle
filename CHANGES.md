@@ -53,7 +53,8 @@
   `convertattr()` etc. work exactly as before. The storage mode is shown by
   `info()`. Attributes created by analyses (degree, centralities, components,
   etc.) and by `generateattr()` are now dense; an already existing attribute
-  keeps its storage mode. `duplicate(type=attribute)` and `convertattr()` copy the storage mode
+  keeps its storage mode. Imported attributes (`importnodeattributes()`,
+  GraphML/Pajek import) are sparse; `setattrstorage()` can convert them. `duplicate(type=attribute)` and `convertattr()` copy the storage mode
   of the source attribute, and merging nodesets yields a dense attribute if it
   is dense in either source.
 
@@ -257,6 +258,13 @@
   implementation file for both.
 
 ### Fixes
+
+- **`setattr()`, `setattrs()`, `removeattr()` and `generateattr()` now mark
+  the nodeset as modified.** Previously they changed attribute values
+  without setting the flag, so saving a *network* afterwards — which
+  re-saves its nodeset only if that nodeset is marked modified — silently
+  left those changes out of the nodeset file. Saving the nodeset itself was
+  never affected.
 
 - **`constraint()`'s CLI command name was wrong.** The dispatcher had
   registered it under the key `"constraints"` (plural) — to dodge a
