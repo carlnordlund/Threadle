@@ -13,7 +13,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "defineattr(structure = [var:structure], attrname = [str], attrtype = ['int','char','float','bool','string'], storage = ['sparse','dense'] (default 'sparse'))";
+        public string Syntax => "defineattr(structure = [var:structure], attrname = [str], attrtype = ['int','char','float','bool','string'], *storage = ['sparse'(default),'dense'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
