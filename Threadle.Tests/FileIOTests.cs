@@ -1,3 +1,4 @@
+using System.Globalization;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
@@ -1238,7 +1239,7 @@ public class FileIOTests : IDisposable
         {
             var parts = l.Split(',');
             Assert.Equal(3, parts.Length);
-            Assert.Equal(0.8f, float.Parse(parts[2]));
+            Assert.Equal(0.8f, float.Parse(parts[2], CultureInfo.InvariantCulture));
         });
     }
 

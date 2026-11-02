@@ -115,7 +115,7 @@ namespace Threadle.Core.Utilities
                         return false;
                     return CompareValues(Convert.ToInt32(AttrValue.GetValue(AttrType)), intVal, condition);
                 case NodeAttributeType.Float:
-                    if (!float.TryParse(comparisonValue, out float floatVal))
+                    if (!float.TryParse(comparisonValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float floatVal))
                         return false;
                     return CompareValues(Convert.ToSingle(AttrValue.GetValue(AttrType)), floatVal, condition);
                 case NodeAttributeType.Bool:
@@ -170,7 +170,7 @@ namespace Threadle.Core.Utilities
             return type switch
             {
                 NodeAttributeType.Int => int.TryParse(valueStr, out int i) ? new NodeAttributeValue(i) : null,
-                NodeAttributeType.Float => float.TryParse(valueStr, out float f) ? new NodeAttributeValue(f) : null,
+                NodeAttributeType.Float => float.TryParse(valueStr, NumberStyles.Float, CultureInfo.InvariantCulture, out float f) ? new NodeAttributeValue(f) : null,
                 NodeAttributeType.Bool => bool.TryParse(valueStr, out bool b) ? new NodeAttributeValue(b) : null,
                 NodeAttributeType.Char => valueStr.Length == 1 ? new NodeAttributeValue(valueStr[0]) : null,
                 NodeAttributeType.String => null,
@@ -260,7 +260,7 @@ namespace Threadle.Core.Utilities
             float[,] data = new float[nbrRows - startOffset, nbrCols - startOffset];
             for (int r = 0; r < nbrRows - startOffset; r++)
                 for (int c = 0; c < nbrCols - startOffset; c++)
-                    float.TryParse(cells[r + startOffset, c + startOffset], out data[r, c]);
+                    float.TryParse(cells[r + startOffset, c + startOffset], NumberStyles.Float, CultureInfo.InvariantCulture, out data[r, c]);
             return data;
         }
 

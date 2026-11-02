@@ -1,4 +1,6 @@
-﻿namespace Threadle.CLIconsole.Parsing
+﻿using System.Globalization;
+
+namespace Threadle.CLIconsole.Parsing
 {
     /// <summary>
     /// Class representing a CLI package, i.e. the command and its content (arguments and assigned variable if relevant).
@@ -131,7 +133,7 @@
         /// <returns>The double value of the argument, or the default value if the argument is not found.</returns>
         internal double GetArgumentParseDouble(string key, double defaultValue)
         {
-            if (double.TryParse(GetArgument(key), out double value))
+            if (double.TryParse(GetArgument(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
                 return value;
             return defaultValue;
         }
@@ -176,7 +178,7 @@
         /// <returns>The double value of the argument, or the default value if the argument is not found.</returns>
         internal float GetArgumentParseFloat(string key, float defaultValue)
         {
-            if (float.TryParse(GetArgument(key), out float value))
+            if (float.TryParse(GetArgument(key), NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
                 return value;
             return defaultValue;
         }
@@ -192,7 +194,7 @@
         internal double GetArgumentParseDoubleThrowExceptionIfMissingOrNull(string key, string? altKey)
         {
             string valueString = GetArgumentThrowExceptionIfMissingOrNull(key, altKey);
-            if (!double.TryParse(valueString, out var value))
+            if (!double.TryParse(valueString, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
                 throw new Exception($"!Error: Value '{valueString}' not a floating point");
             return value;
         }

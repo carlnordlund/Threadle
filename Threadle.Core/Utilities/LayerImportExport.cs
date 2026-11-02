@@ -1,4 +1,5 @@
-﻿using Threadle.Core.Model;
+﻿using System.Globalization;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Utilities
@@ -44,7 +45,7 @@ namespace Threadle.Core.Utilities
                 foreach (var (egoId, alters, values) in layerOneMode.GetAllEgoData())
                     for (int i = 0; i < alters.Length; i++)
                         if (layerOneMode.IsDirectional || alters.Span[i] > egoId)
-                            writer.WriteLine($"{idToLabel(egoId)}{sep}{idToLabel(alters.Span[i])}{sep}{values.Span[i]}");
+                            writer.WriteLine($"{idToLabel(egoId)}{sep}{idToLabel(alters.Span[i])}{sep}{values.Span[i].ToString(CultureInfo.InvariantCulture)}");
             }
 
             // GetAllEgoData() never yields self-loops for symmetric layers: add them explicitly.
@@ -55,7 +56,7 @@ namespace Threadle.Core.Utilities
                         if (layerOneMode.IsBinary)
                             writer.WriteLine($"{idToLabel(nodeId)}{sep}{idToLabel(nodeId)}");
                         else
-                            writer.WriteLine($"{idToLabel(nodeId)}{sep}{idToLabel(nodeId)}{sep}{layerOneMode.GetEdgeValue(nodeId, nodeId)}");
+                            writer.WriteLine($"{idToLabel(nodeId)}{sep}{idToLabel(nodeId)}{sep}{layerOneMode.GetEdgeValue(nodeId, nodeId).ToString(CultureInfo.InvariantCulture)}");
                     }
         }
 
@@ -241,7 +242,7 @@ namespace Threadle.Core.Utilities
                 // Skip rows where node identifiers or (for valued layers) the edge value can't be parsed
                 if (!resolver.IsValidToken(columns[node1col]) || !resolver.IsValidToken(columns[node2col]))
                     continue;
-                if (isValued && !float.TryParse(Misc.TrimQuotes(columns[valueCol]), out value))
+                if (isValued && !float.TryParse(Misc.TrimQuotes(columns[valueCol]), NumberStyles.Float, CultureInfo.InvariantCulture, out value))
                     continue;
 
                 // Resolve node ids: skips edges with nodes that are missing (unless missing nodes are added)
