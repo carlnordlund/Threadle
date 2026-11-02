@@ -193,6 +193,18 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Sets the storage mode of an already defined node attribute. Only changes the definition:
+        /// moving the actual values between storage forms is done by the <see cref="Nodeset"/>.
+        /// </summary>
+        /// <param name="index">The node attribute index.</param>
+        /// <param name="storage">The new <see cref="NodeAttributeStorage"/>.</param>
+        internal void SetAttributeStorage(byte index, NodeAttributeStorage storage)
+        {
+            if (_indexToStorage.ContainsKey(index))
+                _indexToStorage[index] = storage;
+        }
+
+        /// <summary>
         /// Returns a dictionary of information about the defined node attributes
         /// </summary>
         /// <returns>A dictionary with details about the defined node attributes.</returns>

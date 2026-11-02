@@ -566,6 +566,139 @@ public class NodeAttributeStorageTests : IDisposable
         AssertSameAttributes(ns, SaveAndLoad(ns, ".bin"));
     }
 
+    // ── setattrstorage: in-place conversion ───────────────────────────────────
+
+    [Fact]
+    public void SetStorage_SparseToDense_PreservesValuesAndGaps()
+    {
+        var ns = MakeMixedNodeset();
+        var before = MakeMixedNodeset();
+        Assert.True(ns.SetNodeAttributeStorage("s_int", "dense").Success);
+        Assert.True(ns.SetNodeAttributeStorage("s_str", "dense").Success);
+        Assert.Equal("Dense", StorageOf(ns, "s_int"));
+        Assert.Equal("Dense", StorageOf(ns, "s_str"));
+        foreach (uint id in before.NodeIdArray)
+            foreach (string attr in before.GetDefinedAttributeNames())
+            {
+                object? e = Value(before, id, attr), a = Value(ns, id, attr);
+                if (e is float ef && a is float af)
+                    Assert.Equal(BitConverter.SingleToInt32Bits(ef), BitConverter.SingleToInt32Bits(af));
+                else
+                    Assert.Equal(e, a);
+            }
+        Assert.True(ns.IsModified);
+    }
+
+    [Fact]
+    public void SetStorage_DenseToSparse_PreservesValuesAndGaps()
+    {
+        var ns = MakeMixedNodeset();
+        Assert.True(ns.SetNodeAttributeStorage("d_float", "sparse").Success);
+        Assert.True(ns.SetNodeAttributeStorage("d_str", "sparse").Success);
+        Assert.Equal("Sparse", StorageOf(ns, "d_float"));
+        Assert.Equal("Sparse", StorageOf(ns, "d_str"));
+        Assert.True(float.IsNaN((float)Value(ns, 1, "d_float")!));
+        Assert.Equal(2.25f, Value(ns, 70, "d_float"));
+        Assert.Null(Value(ns, 5, "d_float"));
+        Assert.Equal("other", Value(ns, 70, "d_str"));
+        Assert.Equal("same", Value(ns, 1, "d_str"));
+        // Other sparse attributes on the same nodes are unaffected
+        Assert.Equal(-5, Value(ns, 1, "s_int"));
+        Assert.Equal("five", Value(ns, 5, "s_str"));
+    }
+
+    [Fact]
+    public void SetStorage_RoundTrip_ThenSetAndRemoveStillWork()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        ns.SetNodeAttribute(2, "a", "20");
+        ns.SetNodeAttributeStorage("a", "dense");
+        ns.SetNodeAttribute(3, "a", "30");
+        ns.SetNodeAttributeStorage("a", "sparse");
+        ns.SetNodeAttribute(4, "a", "40");
+        Assert.True(ns.RemoveNodeAttribute(2, "a").Success);
+        Assert.Null(Value(ns, 2, "a"));
+        Assert.Equal(30, Value(ns, 3, "a"));
+        Assert.Equal(40, Value(ns, 4, "a"));
+    }
+
+    [Fact]
+    public void SetStorage_SameStorage_IsNoOp()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        ns.IsModified = false;
+        var r = ns.SetNodeAttributeStorage("a", "sparse");
+        Assert.True(r.Success);
+        Assert.Contains("already", r.Message);
+        Assert.False(ns.IsModified);
+    }
+
+    [Fact]
+    public void SetStorage_UnknownAttributeOrInvalidStorage_Fails()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        Assert.Equal("AttributeUnknown", ns.SetNodeAttributeStorage("nope", "dense").Code);
+        Assert.Equal("InvalidAttributeStorage", ns.SetNodeAttributeStorage("a", "columnar").Code);
+        Assert.Equal("Sparse", StorageOf(ns, "a"));
+    }
+
+    [Fact]
+    public void SetStorage_Auto_FullyPopulated_ChoosesDense()
+    {
+        var ns = new Nodeset("ns", 1000);
+        ns.DefineNodeAttribute("other", "int");
+        ns.DefineNodeAttribute("a", "float");
+        ns.SetNodeAttributes(null, "other", "1", null);
+        ns.SetNodeAttributes(null, "a", "1.5", null);
+        var r = ns.SetNodeAttributeStorage("a", "auto");
+        Assert.True(r.Success);
+        Assert.Contains("auto: estimated", r.Message);
+        Assert.Equal("Dense", StorageOf(ns, "a"));
+        Assert.Equal(1.5f, Value(ns, 999, "a"));
+    }
+
+    [Fact]
+    public void SetStorage_Auto_RareAttributeAmongOtherSparse_ChoosesSparse()
+    {
+        var ns = new Nodeset("ns", 1000);
+        ns.DefineNodeAttribute("other", "int");
+        ns.DefineNodeAttribute("a", "int", "dense");
+        ns.SetNodeAttributes(null, "other", "1", null);
+        for (uint id = 0; id < 50; id++)   // 5% fill
+            ns.SetNodeAttribute(id, "a", "7");
+        Assert.True(ns.SetNodeAttributeStorage("a", "auto").Success);
+        Assert.Equal("Sparse", StorageOf(ns, "a"));
+        Assert.Equal(7, Value(ns, 10, "a"));
+        Assert.Null(Value(ns, 500, "a"));
+    }
+
+    [Fact]
+    public void SetStorage_Auto_IsStable_SecondCallIsNoOp()
+    {
+        var ns = new Nodeset("ns", 1000);
+        ns.DefineNodeAttribute("other", "int");
+        ns.DefineNodeAttribute("a", "int");
+        ns.SetNodeAttributes(null, "other", "1", null);
+        ns.SetNodeAttributes(null, "a", "1", null);
+        ns.SetNodeAttributeStorage("a", "auto");
+        string first = StorageOf(ns, "a");
+        var r = ns.SetNodeAttributeStorage("a", "auto");
+        Assert.Contains("already", r.Message);
+        Assert.Equal(first, StorageOf(ns, "a"));
+    }
+
+    [Fact]
+    public void SetStorage_ConvertedAttribute_SurvivesBinaryRoundTrip()
+    {
+        var ns = MakeMixedNodeset();
+        ns.SetNodeAttributeStorage("s_int", "dense");
+        ns.SetNodeAttributeStorage("d_char", "sparse");
+        AssertSameAttributes(ns, SaveAndLoad(ns, ".bin"));
+    }
+
     // ── Memory estimate ───────────────────────────────────────────────────────
 
     [Fact]

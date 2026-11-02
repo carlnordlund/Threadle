@@ -115,6 +115,7 @@ namespace Threadle.CLIconsole.Runtime
             ["savefile"] = new SaveFile(),
             ["setattr"] = new SetAttr(),
             ["setattrs"] = new SetAttrs(),
+            ["setattrstorage"] = new SetAttrStorage(),
             ["setting"] = new Setting(),
             ["setwd"] = new SetWorkingDirectory(),
             ["shortestpath"] = new ShortestPath(),

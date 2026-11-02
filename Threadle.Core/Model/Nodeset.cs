@@ -534,6 +534,70 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Changes the storage mode of a node attribute in place: the attribute keeps its name, type and all
+        /// its values; only the way the values are stored changes. With 'auto', the storage mode that is
+        /// estimated to use the least memory for this attribute, given the current values, is chosen
+        /// (see <see cref="EstimateAttributeStorageBytes(byte)"/>); on a tie, the current mode is kept.
+        /// </summary>
+        /// <param name="attrName">The name of the node attribute.</param>
+        /// <param name="storageStr">The storage mode: 'sparse', 'dense', or 'auto'.</param>
+        /// <returns><see cref="OperationResult"/> object informing how well it went, including which storage was set.</returns>
+        public OperationResult SetNodeAttributeStorage(string attrName, string storageStr)
+        {
+            var definition = NodeAttributeDefinitionManager.GetNodeAttributeDefinition(attrName);
+            if (definition is null)
+                return OperationResult.Fail("AttributeUnknown", $"Node attribute '{attrName}' not found.");
+            byte attrIndex = definition.Value.Index;
+            NodeAttributeStorage current = definition.Value.Storage;
+
+            NodeAttributeStorage target;
+            string estimateInfo = "";
+            if (storageStr.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase))
+            {
+                var (sparseBytes, denseBytes) = EstimateAttributeStorageBytes(attrIndex);
+                target = sparseBytes < denseBytes ? NodeAttributeStorage.Sparse
+                    : denseBytes < sparseBytes ? NodeAttributeStorage.Dense
+                    : current;
+                estimateInfo = $" (auto: estimated {Misc.FormatBytes(sparseBytes)} as sparse, {Misc.FormatBytes(denseBytes)} as dense)";
+            }
+            else if (Misc.GetAttributeStorage(storageStr) is NodeAttributeStorage parsed)
+                target = parsed;
+            else
+                return OperationResult.Fail("InvalidAttributeStorage", $"Attribute storage '{storageStr}' not recognized: must be 'sparse', 'dense', or 'auto'.");
+
+            string targetStr = target.ToString().ToLowerInvariant();
+            if (target == current)
+                return OperationResult.Ok($"Node attribute '{attrName}' already has {targetStr} storage{estimateInfo}.");
+
+            if (target == NodeAttributeStorage.Dense)
+            {
+                // Move values from the sparse blobs into a new dense column
+                // (reading the blobs directly: once the column exists, _tryGetBySlot would read from the column)
+                DenseColumn column = _getOrCreateDenseColumn(attrIndex);
+                if (_sparse != null)
+                    foreach (int slot in _slotOf.Values)
+                        if (_tryGetSparse(slot, attrIndex, out NodeAttributeValue value))
+                        {
+                            _removeSparse(slot, attrIndex);
+                            column.Set(slot, value);
+                        }
+            }
+            else
+            {
+                // Move values from the dense column into the sparse blobs
+                DenseColumn? column = _dense[attrIndex];
+                _dense[attrIndex] = null;
+                if (column != null)
+                    foreach (int slot in _slotOf.Values)
+                        if (column.TryGet(slot, out NodeAttributeValue value))
+                            _setSparse(slot, attrIndex, value);
+            }
+            NodeAttributeDefinitionManager.SetAttributeStorage(attrIndex, target);
+            _modified();
+            return OperationResult.Ok($"Node attribute '{attrName}' converted from {current.ToString().ToLowerInvariant()} to {targetStr} storage{estimateInfo}.");
+        }
+
+        /// <summary>
         /// Returns the names of all currently defined node attributes, in definition (index) order.
         /// </summary>
         /// <returns>A list of node attribute names.</returns>
@@ -807,6 +871,44 @@ namespace Threadle.Core.Model
 
 
         #region Method (internal)
+        /// <summary>
+        /// Estimates how many bytes the values of a node attribute would occupy as sparse and as dense,
+        /// given which nodes currently have it set (regardless of its current storage mode).
+        /// Dense: one 4-byte value per slot plus one presence bit per slot, for all slots, set or not.
+        /// Sparse: for each node that has the value, the growth of that node's blob (5 bytes, plus array
+        /// overhead if it is the node's only sparse attribute, plus rounding to 8 bytes); plus the per-slot
+        /// array of blob references (8 bytes per slot) if no other sparse attribute is defined, since that
+        /// array then exists only because of this attribute.
+        /// </summary>
+        /// <param name="attrIndex">The node attribute index.</param>
+        /// <returns>The estimated bytes as sparse and as dense.</returns>
+        internal (long SparseBytes, long DenseBytes) EstimateAttributeStorageBytes(byte attrIndex)
+        {
+            int slots = Math.Max(_slotCapacity, _slotOf.Count);
+            long denseBytes = 72 + 4L * slots + 8L * ((slots + 63) >> 6);
+
+            static long blobBytes(int k) => k == 0 ? 0 : 24 + ((5 * k + 7) & ~7);
+            long sparseBytes = 0;
+            foreach (int slot in _slotOf.Values)
+            {
+                if (!_tryGetBySlot(slot, attrIndex, out _))
+                    continue;
+                // Number of OTHER sparse attributes this node has
+                int kOther = 0;
+                if (_sparse?[slot] is byte[] blob)
+                {
+                    int k = blob.Length / 5;
+                    kOther = Array.IndexOf(blob, attrIndex, 0, k) >= 0 ? k - 1 : k;
+                }
+                sparseBytes += blobBytes(kOther + 1) - blobBytes(kOther);
+            }
+            bool otherSparseDefined = NodeAttributeDefinitionManager.IndexToStorage
+                .Any(kvp => kvp.Key != attrIndex && kvp.Value == NodeAttributeStorage.Sparse);
+            if (!otherSparseDefined)
+                sparseBytes += 24 + 8L * slots;
+            return (sparseBytes, denseBytes);
+        }
+
         /// <summary>
         /// Checks if the Nodeset contains the two nodes with the specified ids.
         /// This one returns a proper OperationResult informing which, or if both, were missing.
@@ -1126,6 +1228,14 @@ namespace Threadle.Core.Model
         {
             if (_dense[attrIndex] is DenseColumn column)
                 return column.TryGet(slot, out value);
+            return _tryGetSparse(slot, attrIndex, out value);
+        }
+
+        /// <summary>
+        /// Tries to get the value of an attribute from the slot's sparse blob (ignoring any dense column).
+        /// </summary>
+        private bool _tryGetSparse(int slot, byte attrIndex, out NodeAttributeValue value)
+        {
             if (_sparse?[slot] is byte[] blob)
             {
                 int k = blob.Length / 5;
