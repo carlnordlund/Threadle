@@ -36,6 +36,11 @@ namespace Threadle.Core.Model
         /// Dictionary to map node attribute indices to their node attribute types.
         /// </summary>
         private readonly Dictionary<byte, NodeAttributeType> _indexToType = new();
+
+        /// <summary>
+        /// Dictionary to map node attribute indices to their storage mode (sparse or dense).
+        /// </summary>
+        private readonly Dictionary<byte, NodeAttributeStorage> _indexToStorage = new();
         #endregion
 
 
@@ -49,6 +54,11 @@ namespace Threadle.Core.Model
         /// Returns the dictionary mapping node attribute indices to node attribute types.
         /// </summary>
         internal IReadOnlyDictionary<byte, NodeAttributeType> IndexToType => _indexToType;
+
+        /// <summary>
+        /// Returns the dictionary mapping node attribute indices to node attribute storage modes.
+        /// </summary>
+        internal IReadOnlyDictionary<byte, NodeAttributeStorage> IndexToStorage => _indexToStorage;
         #endregion
 
 
@@ -58,8 +68,9 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="attrName">The attrName of the node attribute.</param>
         /// <param name="attrType">The <see cref="NodeAttributeType"/> of the node attribute.</param>
+        /// <param name="storage">The <see cref="NodeAttributeStorage"/> mode of the node attribute (defaults to sparse).</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, including the node attribute index if successful.</returns>
-        internal OperationResult<byte> DefineNewNodeAttribute(string attrName, NodeAttributeType attrType)
+        internal OperationResult<byte> DefineNewNodeAttribute(string attrName, NodeAttributeType attrType, NodeAttributeStorage storage = NodeAttributeStorage.Sparse)
         {
             if (attrName.Length < 1)
                 return OperationResult<byte>.Fail("MissingAttributeName", "Name of attribute must be at least one character.");
@@ -71,7 +82,8 @@ namespace Threadle.Core.Model
             _nameToIndex[attrName] = index;
             _indexToType[index] = attrType;
             _indexToName[index] = attrName;
-            return OperationResult<byte>.Ok(index, $"Node attribute '{attrName}' of attrType {attrType} defined.");
+            _indexToStorage[index] = storage;
+            return OperationResult<byte>.Ok(index, $"Node attribute '{attrName}' of attrType {attrType} ({storage.ToString().ToLowerInvariant()}) defined.");
         }
 
         /// <summary>
@@ -91,21 +103,29 @@ namespace Threadle.Core.Model
         internal bool TryGetAttributeType(byte index, out NodeAttributeType attrType) => _indexToType.TryGetValue(index, out attrType);
 
         /// <summary>
-        /// Returns a collection of info about attributes.
+        /// Tries to get the storage mode of the node attribute at the specified node attribute index.
         /// </summary>
-        /// <returns>A collection of byte-string-NodeAttributeType tuples.</returns>
-        internal IEnumerable<(byte Index, string AttrName, NodeAttributeType AttrType)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Value, kvp.Key, _indexToType[kvp.Value]));
+        /// <param name="index">The node attribute index.</param>
+        /// <param name="storage">The (outbound) <see cref="NodeAttributeStorage"/> of the node attribute.</param>
+        /// <returns>Returns true if the node attribute was found, false otherwise.</returns>
+        internal bool TryGetAttributeStorage(byte index, out NodeAttributeStorage storage) => _indexToStorage.TryGetValue(index, out storage);
 
         /// <summary>
-        /// Returns the index, name and NodeAttributeType for the specified node attribute, or null if not found.
+        /// Returns a collection of info about attributes.
+        /// </summary>
+        /// <returns>A collection of byte-string-NodeAttributeType-NodeAttributeStorage tuples.</returns>
+        internal IEnumerable<(byte Index, string AttrName, NodeAttributeType AttrType, NodeAttributeStorage Storage)> GetAllNodeAttributeDefinitions() => _nameToIndex.Select(kvp => (kvp.Value, kvp.Key, _indexToType[kvp.Value], _indexToStorage[kvp.Value]));
+
+        /// <summary>
+        /// Returns the index, NodeAttributeType and NodeAttributeStorage for the specified node attribute, or null if not found.
         /// </summary>
         /// <param name="attrName">The name of the node attribute.</param>
-        /// <returns>A tuple of (index, name, type), or null if no such attribute is defined.</returns>
-        internal (byte Index, NodeAttributeType AttrType)? GetNodeAttributeDefinition(string attrName)
+        /// <returns>A tuple of (index, type, storage), or null if no such attribute is defined.</returns>
+        internal (byte Index, NodeAttributeType AttrType, NodeAttributeStorage Storage)? GetNodeAttributeDefinition(string attrName)
         {
             if (!_nameToIndex.TryGetValue(attrName, out byte index))
                 return null;
-            return (index, _indexToType[index]);
+            return (index, _indexToType[index], _indexToStorage[index]);
         }
 
 
@@ -123,6 +143,8 @@ namespace Threadle.Core.Model
                 clone._indexToName[kvp.Key] = kvp.Value;
             foreach (var kvp in _indexToType)
                 clone._indexToType[kvp.Key] = kvp.Value;
+            foreach (var kvp in _indexToStorage)
+                clone._indexToStorage[kvp.Key] = kvp.Value;
             clone._nextIndex = _nextIndex;
             foreach (var idx in _recycledIndices.Reverse())
                 clone._recycledIndices.Push(idx);
@@ -142,6 +164,7 @@ namespace Threadle.Core.Model
             _nameToIndex.Remove(attrName);
             _indexToName.Remove(attrIndex);
             _indexToType.Remove(attrIndex);
+            _indexToStorage.Remove(attrIndex);
             _recycledIndices.Push(attrIndex);
             return OperationResult<byte>.Ok(attrIndex, $"Node attribute '{attrName}' is no longer defined.");
         }
@@ -178,7 +201,8 @@ namespace Threadle.Core.Model
             return _nameToIndex.Select(kvp => new Dictionary<string, object>
             {
                 ["Name"] = kvp.Key,
-                ["Type"] = _indexToType[kvp.Value].ToString()
+                ["Type"] = _indexToType[kvp.Value].ToString(),
+                ["Storage"] = _indexToStorage[kvp.Value].ToString()
             }).ToList();
         }
 

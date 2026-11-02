@@ -13,12 +13,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "defineattr(structure = [var:structure], attrname = [str], attrtype = ['int','char','float','bool','string'])";
+        public string Syntax => "defineattr(structure = [var:structure], attrname = [str], attrtype = ['int','char','float','bool','string'], storage = ['sparse','dense'] (default 'sparse'))";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Defines a Node attribute for the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. The name of the node attribute is 'attrname' and its data type is one of 'int' (integer), 'char' (single character), 'float' (floating point), 'bool' (boolean, true or false), or 'string'.";
+        public string Description => "Defines a Node attribute for the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. The name of the node attribute is 'attrname' and its data type is one of 'int' (integer), 'char' (single character), 'float' (floating point), 'bool' (boolean, true or false), or 'string'. The optional 'storage' sets how the values are stored: 'sparse' (default) stores values per node, only for the nodes that have the attribute set, which suits attributes that only a subset of nodes have; 'dense' stores the values in one flat column with an entry for every node, which is faster and uses much less memory for attributes that (almost) all nodes have. Both behave identically otherwise: in either case a node may lack a value.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -40,7 +40,8 @@ namespace Threadle.CLIconsole.Commands
             if (!Misc.IsNameWithinBinaryLimit(attributeNameVerified))
                 return CommandResult.Fail("NameTooLong", $"The attribute name - '{attributeNameVerified}' - is too long; can max be 255 UTF8 bytes.");
             string attrType = command.GetArgumentThrowExceptionIfMissingOrNull("attrtype", "arg2");
-            return CommandResult.FromOperationResult(nodeset!.DefineNodeAttribute(attributeNameVerified, attrType));
+            string storage = command.GetArgument("storage", "arg3") ?? "sparse";
+            return CommandResult.FromOperationResult(nodeset!.DefineNodeAttribute(attributeNameVerified, attrType, storage));
         }
     }
 }

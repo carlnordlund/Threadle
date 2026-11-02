@@ -379,7 +379,8 @@ namespace Threadle.Core.Utilities
             int nbrAttributes = attributeDefs.Count;
             var header = nodeset.Name;
             if (attributeDefs.Count > 0)
-                header += "\t" + string.Join("\t", attributeDefs.Select(a => $"{a.AttrName}:{a.AttrType}"));
+                // Column header: 'name:Type' for sparse attributes, 'name:Type:dense' for dense attributes
+                header += "\t" + string.Join("\t", attributeDefs.Select(a => a.Storage == NodeAttributeStorage.Dense ? $"{a.AttrName}:{a.AttrType}:dense" : $"{a.AttrName}:{a.AttrType}"));
             writer.WriteLine(header);
             foreach (uint node in nodeset.NodeIdArray)
             {
@@ -420,10 +421,13 @@ namespace Threadle.Core.Utilities
             string[] attributeNames = new string[nbrCols - 1];
             for (int i = 1; i < nbrCols; i++)
             {
-                var parts = columns[i].Split(':', 2);
-                if (parts.Length != 2) throw new InvalidDataException($"Invalid column header: {columns[i]}");
+                // 'name:Type' (sparse) or 'name:Type:storage'
+                var parts = columns[i].Split(':', 3);
+                if (parts.Length < 2) throw new InvalidDataException($"Invalid column header: {columns[i]}");
                 attributeNames[i - 1] = parts[0];
-                nodeset.DefineNodeAttribute(parts[0], parts[1]);
+                OperationResult defineResult = nodeset.DefineNodeAttribute(parts[0], parts[1], parts.Length == 3 ? parts[2] : "sparse");
+                if (!defineResult.Success)
+                    throw new InvalidDataException($"Invalid column header '{columns[i]}': {defineResult.Message}");
             }
             string? line;
 

@@ -33,6 +33,20 @@
 
 ### New capability on existing commands
 
+- **`defineattr()` gained an optional `storage` argument** (`'sparse'` (default)
+  or `'dense'`). Sparse attributes keep values per node, only for nodes that
+  have them set — suited to register-style attributes that only a subset of
+  nodes have. Dense attributes keep values in one flat column with an entry per
+  node plus a presence bitmap — suited to attributes (almost) every node has.
+  Both behave identically otherwise: a dense attribute can still be unset for
+  a node, so `getattr()`, `removeattr()`, `filter()` with `isnull`/`notnull`,
+  `convertattr()` etc. work exactly as before. The storage mode is shown by
+  `info()`. Attributes created by analyses (degree, centralities, components,
+  etc.) and by `generateattr()` are now dense; an already existing attribute
+  keeps its storage mode. `duplicate(type=attribute)` and `convertattr()` copy the storage mode
+  of the source attribute, and merging nodesets yields a dense attribute if it
+  is dense in either source.
+
 > No new commands. Every change below loosens an existing restriction — existing
 > 1-mode calls to any of these commands are unaffected.
 
@@ -125,6 +139,23 @@
   unconditionally.
 
 ### Performance
+
+- **Node attribute storage rewritten.** Node membership is now a single
+  node-id-to-slot map (replacing the separate HashSet for nodes without
+  attributes and Dictionary for nodes with attributes). Sparse attribute
+  values are stored as one compact byte array per node (attribute indices
+  followed by raw 4-byte values) instead of two `List`s per node, and dense
+  attributes as flat per-slot columns. Measured on 1M nodes with 5 attributes
+  set on every node: managed memory down from 225 MB to 91 MB (sparse) or
+  48 MB (dense), and the script setting them runs 2–3.5× faster. Nodesets
+  without any attributes cost about 5 bytes more per node (19 → 23 MB per 1M
+  nodes).
+- **Binary format version 4**: each attribute definition now carries its
+  storage mode; nodes are written once (sorted), followed by sparse values
+  per node and dense columns (presence bitmap + values). Version 3 (and
+  earlier) files still load, with all attributes as sparse. TSV nodeset
+  headers mark dense attributes as `name:Type:dense`; plain `name:Type` headers
+  load as sparse, as before.
 
 - **`projecttwomode()`** no longer builds a single global dictionary holding every
   distinct projected pair before writing the result — that dictionary coexisting with

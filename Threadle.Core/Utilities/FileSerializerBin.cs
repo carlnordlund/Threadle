@@ -34,7 +34,7 @@ namespace Threadle.Core.Utilities
         /// Version 2: allowing more than 255 layers in networks
         /// Version 3: allowing saving string node attributes (with string pool before nodes in Nodeset)
         /// </summary>
-        private const byte FormatVersion = 3;
+        private const byte FormatVersion = 4;
         #endregion
 
 
@@ -554,6 +554,7 @@ namespace Threadle.Core.Utilities
             // Prepare collection of node attributes
             //var attributeDefs = new List<(string name, NodeAttributeType type)>(attrCount);
             NodeAttributeType[] attrDefs = new NodeAttributeType[attrCount];
+            NodeAttributeStorage[] attrStorages = new NodeAttributeStorage[attrCount];
 
             // Iterate node attribute data and define node attributes
             for (int i = 0; i < attrCount; i++)
@@ -562,9 +563,13 @@ namespace Threadle.Core.Utilities
                 byte typeByte = reader.ReadByte();
                 NodeAttributeType type = (NodeAttributeType)typeByte;
 
-                nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, type);
+                // Version 4 and later: storage mode (sparse/dense) follows the type. Earlier versions: all sparse.
+                NodeAttributeStorage storage = version >= 4 ? (NodeAttributeStorage)reader.ReadByte() : NodeAttributeStorage.Sparse;
+
+                nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, type, storage);
                 //attributeDefs.Add((attrName, type));
                 attrDefs[i] = type;
+                attrStorages[i] = storage;
             }
 
             // Version 3 only: read string pool
@@ -575,65 +580,103 @@ namespace Threadle.Core.Utilities
                     nodeset.GetOrAddStringToPool(ReadString(reader));
             }
 
-            // Get nbr of nodes WITHOUT attributes
-            int nbrNodesWithoutAttributes = reader.ReadInt32();
-
-            // I should prepare size of this hashset now!
-            nodeset.InitSizeNodesWithoutAttributes(nbrNodesWithoutAttributes);
-
-            // Iterate through all nodes without attributes
-            for (int i = 0; i < nbrNodesWithoutAttributes; i++)
-            {
-                // Read nodeId
-                uint nodeId = reader.ReadUInt32();
-
-                // Add node without any validation checks etc.
-                nodeset._addNodeWithoutAttribute(nodeId);
-            }
-
-            // Get nbr of nodes WITH attributes
-            int nbrNodesWithAttributes = reader.ReadInt32();
-
-            // Prepare capacity of collection of nodes with attributes
-            nodeset.InitSizeNodesWithAttributes(nbrNodesWithAttributes);
-
-            for (int i = 0; i < nbrNodesWithAttributes; i++)
-            {
-                // Read nodeId
-                uint nodeId = reader.ReadUInt32();
-
-                // Get nbr attributes for this node
-                byte nodeAttrCount = reader.ReadByte();
-
-                // Prepare storage for these node attributes
-                List<byte> attrIndexes = new(nodeAttrCount);
-                List<NodeAttributeValue> attrValues = new(nodeAttrCount);
-
-                // Loop through the attributes of this node
-                for (int a = 0; a < nodeAttrCount; a++)
-                {
-                    // Read attrIndex
-                    byte attrIndex = reader.ReadByte();
-                    //var def = attributeDefs[attrIndex];
-                    // Get raw value
-                    int rawValue = reader.ReadInt32();
-
-                    // Convert to NodeAttributeValue
-                    NodeAttributeValue value = NodeAttributeValue.FromRaw(rawValue);
-
-                    // Build up the attribute storage
-                    attrIndexes.Add(attrIndex);
-                    attrValues.Add(value);
-                }
-
-                // Add this node along with the attribute storage (tuple)
-                nodeset._addNodeWithAttributes(nodeId, (attrIndexes, attrValues));
-            }
+            if (version >= 4)
+                ReadNodesV4(reader, nodeset, attrStorages);
+            else
+                ReadNodesLegacy(reader, nodeset);
             nodeset.Filepath = filepath;
             nodeset.IsModified = false;
             return nodeset;
         }
 
+
+        /// <summary>
+        /// Support method to read the nodes and node attribute values of a Nodeset in format version 4 and later.
+        /// Layout: the number of nodes N, then N node ids; then, per node (in that order), a byte with the number
+        /// of sparse attributes k followed by k (attribute index, raw value) pairs; then, per dense attribute (in
+        /// definition order), a presence bitmap of ceil(N/64) ulongs followed by N raw values.
+        /// </summary>
+        /// <param name="reader">The binary reader.</param>
+        /// <param name="nodeset">The Nodeset (with attributes already defined) to populate.</param>
+        /// <param name="attrStorages">The storage modes of the attributes, in definition (file index) order.</param>
+        private static void ReadNodesV4(BinaryReader reader, Nodeset nodeset, NodeAttributeStorage[] attrStorages)
+        {
+            int nbrNodes = reader.ReadInt32();
+            nodeset.EnsureNodeCapacity(nbrNodes);
+            uint[] nodeIds = new uint[nbrNodes];
+            for (int i = 0; i < nbrNodes; i++)
+            {
+                nodeIds[i] = reader.ReadUInt32();
+                nodeset._addNodeWithoutAttribute(nodeIds[i]);
+            }
+
+            // Sparse attributes, per node
+            for (int i = 0; i < nbrNodes; i++)
+            {
+                byte k = reader.ReadByte();
+                if (k == 0)
+                    continue;
+                byte[] attrIndexes = new byte[k];
+                NodeAttributeValue[] attrValues = new NodeAttributeValue[k];
+                for (int a = 0; a < k; a++)
+                {
+                    attrIndexes[a] = reader.ReadByte();
+                    attrValues[a] = NodeAttributeValue.FromRaw(reader.ReadInt32());
+                }
+                nodeset._setSparseNodeAttributes(nodeIds[i], attrIndexes, attrValues);
+            }
+
+            // Dense attributes, per attribute. File index equals internal index, as attributes were defined in file order.
+            int nbrWords = (nbrNodes + 63) >> 6;
+            for (int a = 0; a < attrStorages.Length; a++)
+            {
+                if (attrStorages[a] != NodeAttributeStorage.Dense)
+                    continue;
+                ulong[] present = new ulong[nbrWords];
+                for (int w = 0; w < nbrWords; w++)
+                    present[w] = reader.ReadUInt64();
+                for (int i = 0; i < nbrNodes; i++)
+                {
+                    int rawValue = reader.ReadInt32();
+                    if ((present[i >> 6] & (1UL << (i & 63))) != 0)
+                        nodeset.SetNodeAttribute(nodeIds[i], (byte)a, NodeAttributeValue.FromRaw(rawValue));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Support method to read the nodes and node attribute values of a Nodeset in format version 3 and earlier,
+        /// where nodes without attributes and nodes with attributes are stored in two separate sections.
+        /// All attributes are sparse in these versions.
+        /// </summary>
+        /// <param name="reader">The binary reader.</param>
+        /// <param name="nodeset">The Nodeset (with attributes already defined) to populate.</param>
+        private static void ReadNodesLegacy(BinaryReader reader, Nodeset nodeset)
+        {
+            // Nodes WITHOUT attributes
+            int nbrNodesWithoutAttributes = reader.ReadInt32();
+            nodeset.EnsureNodeCapacity(nbrNodesWithoutAttributes);
+            for (int i = 0; i < nbrNodesWithoutAttributes; i++)
+                nodeset._addNodeWithoutAttribute(reader.ReadUInt32());
+
+            // Nodes WITH attributes
+            int nbrNodesWithAttributes = reader.ReadInt32();
+            nodeset.EnsureNodeCapacity(nbrNodesWithoutAttributes + nbrNodesWithAttributes);
+            for (int i = 0; i < nbrNodesWithAttributes; i++)
+            {
+                uint nodeId = reader.ReadUInt32();
+                byte nodeAttrCount = reader.ReadByte();
+                byte[] attrIndexes = new byte[nodeAttrCount];
+                NodeAttributeValue[] attrValues = new NodeAttributeValue[nodeAttrCount];
+                for (int a = 0; a < nodeAttrCount; a++)
+                {
+                    attrIndexes[a] = reader.ReadByte();
+                    attrValues[a] = NodeAttributeValue.FromRaw(reader.ReadInt32());
+                }
+                nodeset._addNodeWithoutAttribute(nodeId);
+                nodeset._setSparseNodeAttributes(nodeId, attrIndexes, attrValues);
+            }
+        }
 
         /// <summary>
         /// Support method to write a Nodeset object to file.
@@ -670,6 +713,8 @@ namespace Threadle.Core.Utilities
             {
                 WriteString(writer, attributeDefs[i].AttrName);
                 writer.Write((byte)attributeDefs[i].AttrType);
+                // Version 4: storage mode
+                writer.Write((byte)attributeDefs[i].Storage);
                 //nameToIndex[attributeDefs[i].Name] = i;
                 internalToHere[attributeDefs[i].Index] = i;
             }
@@ -680,42 +725,44 @@ namespace Threadle.Core.Utilities
             foreach (string str in pool)
                 WriteString(writer, str);
 
-            // Get array of nodes without attributes
-            var nodeIdsWithoutAttributes = nodeset.NodeIdArrayWithoutAttributes;
-
-            // Write number of nodes without attributes
-            writer.Write(nodeIdsWithoutAttributes.Length);
-
-            // Write each node id for those without attributes
-            foreach (uint nodeId in nodeIdsWithoutAttributes)
+            // Version 4: all node ids (sorted), which also becomes the slot order when loading
+            uint[] nodeIds = nodeset.NodeIdArray;
+            int nbrNodes = nodeIds.Length;
+            writer.Write(nbrNodes);
+            foreach (uint nodeId in nodeIds)
                 writer.Write(nodeId);
 
-            // Get array of nodes with attributes
-            var nodeIdsWithAttributes = nodeset.NodeIdArrayWithAttributes;
-
-            // Write number of nodes with attributes
-            writer.Write(nodeIdsWithAttributes.Length);
-
-            foreach (uint nodeId in nodeIdsWithAttributes)
+            // Sparse attributes, per node: count, then (index, raw value) pairs
+            foreach (uint nodeId in nodeIds)
             {
-                // Node id (4)
-                writer.Write(nodeId);
-
-                // Get node attribute info for this node
-                var attributes = nodeset.GetNodeAttributeTuple(nodeId)!;
-
-                // Nbr of node attributes
-                writer.Write((byte)attributes.Value.AttrIndexes.Count);
-
-                // Loop through the node attributes for this node and write
-                for (int i = 0; i < attributes.Value.AttrIndexes.Count; i++)
+                var sparsePairs = nodeset.GetSparseNodeAttributePairs(nodeId);
+                writer.Write((byte)sparsePairs.Count);
+                foreach (var (attrIndex, attrValue) in sparsePairs)
                 {
                     // Map from the real internal attrIndex value to the one used here
-                    writer.Write((byte)internalToHere[attributes.Value.AttrIndexes[i]]);
-
-                    // Write out the node attribute value in raw format
-                    writer.Write(attributes.Value.AttrValues[i].RawValueAsInt());
+                    writer.Write(internalToHere[attrIndex]);
+                    writer.Write(attrValue.RawValueAsInt());
                 }
+            }
+
+            // Dense attributes, per attribute in the order written above: presence bitmap, then all values
+            int nbrWords = (nbrNodes + 63) >> 6;
+            foreach (var attrDef in attributeDefs)
+            {
+                if (attrDef.Storage != NodeAttributeStorage.Dense)
+                    continue;
+                ulong[] present = new ulong[nbrWords];
+                int[] rawValues = new int[nbrNodes];
+                for (int i = 0; i < nbrNodes; i++)
+                    if (nodeset.GetNodeAttribute(nodeIds[i], attrDef.Index) is NodeAttributeValue value)
+                    {
+                        present[i >> 6] |= 1UL << (i & 63);
+                        rawValues[i] = value.RawValueAsInt();
+                    }
+                foreach (ulong word in present)
+                    writer.Write(word);
+                foreach (int rawValue in rawValues)
+                    writer.Write(rawValue);
             }
         }
 

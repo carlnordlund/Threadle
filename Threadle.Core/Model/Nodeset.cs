@@ -1,4 +1,5 @@
-﻿using Threadle.Core.Model.Enums;
+﻿using System.Buffers.Binary;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -11,14 +12,38 @@ namespace Threadle.Core.Model
     {
         #region Fields
         /// <summary>
-        /// Storage container for nodes WITH attributes
+        /// Maps each node id to its slot: a compact, internal position used to index the attribute storage.
+        /// This is the single source of node membership. Slots of removed nodes are recycled.
         /// </summary>
-        private Dictionary<uint, (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)> _nodesWithAttributes = new();
+        private Dictionary<uint, int> _slotOf = new();
 
         /// <summary>
-        /// Storage container for nodes WITHOUT attributes
+        /// The next never-used slot (i.e. the slot high-water mark).
         /// </summary>
-        private HashSet<uint> _nodesWithoutAttributes = new();
+        private int _nextSlot = 0;
+
+        /// <summary>
+        /// Slots freed by removed nodes, available for reuse. A freed slot is always fully cleared.
+        /// </summary>
+        private readonly Stack<int> _freeSlots = new();
+
+        /// <summary>
+        /// The number of slots that the per-slot storage arrays (sparse blobs and dense columns) have room for.
+        /// </summary>
+        private int _slotCapacity = 0;
+
+        /// <summary>
+        /// Storage for sparse node attributes, indexed by slot. Lazy-initialized when the first sparse value is set.
+        /// Each entry is null (no sparse attributes for that node) or a compact blob holding k attributes:
+        /// k attribute index bytes followed by k 4-byte (little-endian) raw values, i.e. the blob length is 5*k.
+        /// </summary>
+        private byte[]?[]? _sparse;
+
+        /// <summary>
+        /// Storage for dense node attributes, indexed by attribute index. An entry is null if the attribute
+        /// is not dense (or is dense but has no values yet: columns are created when the first value is set).
+        /// </summary>
+        private readonly DenseColumn?[] _dense = new DenseColumn?[256];
 
         /// <summary>
         /// Internal array storing an array of all nodeId uint values. Lazy-initialized by NodeIdArray
@@ -58,7 +83,7 @@ namespace Threadle.Core.Model
         /// <param name="createNodes">The number of nodes that are to be created from the start.</param>
         public Nodeset(string name, int createNodes = 0)
         {
-            InitSizeNodesWithoutAttributes(createNodes);
+            EnsureNodeCapacity(createNodes);
             Name = name;
             NodeAttributeDefinitionManager = new NodeAttributeDefinitionManager();
             if (createNodes > 0)
@@ -79,7 +104,9 @@ namespace Threadle.Core.Model
         {
             Name = name;
             NodeAttributeDefinitionManager = new NodeAttributeDefinitionManager();
-            _nodesWithoutAttributes = nodeIds;
+            EnsureNodeCapacity(nodeIds.Count);
+            foreach (uint nodeId in nodeIds)
+                _addNodeWithoutAttribute(nodeId);
             IsModified = false;
         }
         #endregion
@@ -105,19 +132,14 @@ namespace Threadle.Core.Model
                     if (count <= 0)
                         break;
                     lines.Add($"Node {nodeId}");
-                    if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                        for (int i = 0; i < attributes.AttrIndexes.Count; i++)
-                        {
-                            byte attrIndex = attributes.AttrIndexes[i];
-                            NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType);
-                            string displayValue = attrType == NodeAttributeType.String
-                                ? GetStringFromPool((int)attributes.AttrValues[i].GetValue(attrType)!)
-                                : attributes.AttrValues[i].ToString(attrType);
-                            lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attrIndex]}: {displayValue}");
-                            //lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attrIndex]}: {attributes.AttrValues[i].ToString(attrType)}");
-
-                        }
-                    //lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attributes.AttrIndexes[i]]}: {attributes.AttrValues[i]}");
+                    foreach (var (attrIndex, attrValue) in GetNodeAttributePairs(nodeId))
+                    {
+                        NodeAttributeDefinitionManager.TryGetAttributeType(attrIndex, out NodeAttributeType attrType);
+                        string displayValue = attrType == NodeAttributeType.String
+                            ? GetStringFromPool((int)attrValue.GetValue(attrType)!)
+                            : attrValue.ToString(attrType);
+                        lines.Add($" {NodeAttributeDefinitionManager.IndexToName[attrIndex]}: {displayValue}");
+                    }
                     count--;
                 }
                 return lines;
@@ -182,21 +204,9 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Returns an array of all NodeId uint values for nodes without node attributes.
-        /// Used by binary writer as it separates between nodes with and without attributes.
-        /// </summary>
-        internal uint[] NodeIdArrayWithoutAttributes => _nodesWithoutAttributes.ToArray();
-
-        /// <summary>
-        /// Returns an array of all NodeId uint values for nodes with node attributes
-        /// Used by binary reader as it separates between nodes with and without attributes.
-        /// </summary>
-        internal uint[] NodeIdArrayWithAttributes => _nodesWithAttributes.Keys.ToArray();
-
-        /// <summary>
         /// Returns the number of nodes in this Nodeset.
         /// </summary>
-        public int Count { get { return _nodesWithAttributes.Count + _nodesWithoutAttributes.Count; } }
+        public int Count => _slotOf.Count;
 
         /// <summary>
         /// Exposes the string pool for binary serialization.
@@ -233,6 +243,7 @@ namespace Threadle.Core.Model
                     allNames.Add(attrName);
 
             var attrTypes = new Dictionary<string, NodeAttributeType>();
+            var attrStorages = new Dictionary<string, NodeAttributeStorage>();
             foreach (string attrName in allNames)
             {
                 var def1 = nodeset1.NodeAttributeDefinitionManager.GetNodeAttributeDefinition(attrName);
@@ -240,6 +251,10 @@ namespace Threadle.Core.Model
                 if (def1 is not null && def2 is not null && def1.Value.AttrType != def2.Value.AttrType)
                     return OperationResult<Nodeset>.Fail("AttributeTypeMismatch", $"Attribute '{attrName}' is defined as '{def1.Value.AttrType}' in nodeset '{nodeset1.Name}' but '{def2.Value.AttrType}' in nodeset '{nodeset2.Name}'; rename one before merging.");
                 attrTypes[attrName] = def1?.AttrType ?? def2!.Value.AttrType;
+                // Dense if dense in either source
+                attrStorages[attrName] = (def1?.Storage == NodeAttributeStorage.Dense || def2?.Storage == NodeAttributeStorage.Dense)
+                    ? NodeAttributeStorage.Dense
+                    : NodeAttributeStorage.Sparse;
             }
 
             HashSet<uint> allIds = new(nodeset1.NodeIdArray);
@@ -249,7 +264,7 @@ namespace Threadle.Core.Model
             var mergedIndex = new Dictionary<string, byte>();
             foreach (string attrName in allNames)
             {
-                OperationResult<byte> defineResult = merged.DefineNodeAttribute(attrName, attrTypes[attrName]);
+                OperationResult<byte> defineResult = merged.DefineNodeAttribute(attrName, attrTypes[attrName], attrStorages[attrName]);
                 if (!defineResult.Success)
                     return OperationResult<Nodeset>.Fail(defineResult);
                 mergedIndex[attrName] = defineResult.Value;
@@ -327,7 +342,7 @@ namespace Threadle.Core.Model
         {
             if (Contains(nodeId))
                 return OperationResult.Fail("NodeAlreadyExists", $"Node with ID '{nodeId}' already exists in nodeset '{Name}'.");
-            _nodesWithoutAttributes.Add(nodeId);
+            _addNodeWithoutAttribute(nodeId);
             _modified();
             return OperationResult.Ok($"Node ID '{nodeId}' added to nodeset '{Name}'.");
         }
@@ -339,8 +354,14 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult RemoveNode(uint nodeId)
         {
-            if (_nodesWithoutAttributes.Remove(nodeId) || _nodesWithAttributes.Remove(nodeId))
+            if (_slotOf.Remove(nodeId, out int slot))
             {
+                // Clear all attribute storage for this slot before recycling it
+                if (_sparse != null)
+                    _sparse[slot] = null;
+                foreach (DenseColumn? column in _dense)
+                    column?.Clear(slot);
+                _freeSlots.Push(slot);
                 _modified();
                 return OperationResult.Ok($"Node '{nodeId}' removed from nodeset '{Name}'.");
             }
@@ -366,13 +387,16 @@ namespace Threadle.Core.Model
         /// <see cref="DefineNodeAttribute(string, NodeAttributeType)"/> method.
         /// </summary>
         /// <param name="attrName">The name of the nodal attribute (must be unique in this Nodeset).</param>
-        /// <param name="attributeType">The textual representation of this node attribute type (either 'char','int','float', or 'bool').</param>
+        /// <param name="attrTypeStr">The textual representation of this node attribute type (either 'char','int','float','bool', or 'string').</param>
+        /// <param name="storageStr">The textual representation of the storage mode (either 'sparse' or 'dense'). Defaults to 'sparse'.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
-        public OperationResult DefineNodeAttribute(string attrName, string attrTypeStr)
+        public OperationResult DefineNodeAttribute(string attrName, string attrTypeStr, string storageStr = "sparse")
         {
             if (!(Misc.GetAttributeType(attrTypeStr) is NodeAttributeType attrType))
                 return OperationResult.Fail("InvalidAttributeType", $"Attribute type '{attrTypeStr}' not recognized.");
-            return DefineNodeAttribute(attrName, attrType);
+            if (!(Misc.GetAttributeStorage(storageStr) is NodeAttributeStorage storage))
+                return OperationResult.Fail("InvalidAttributeStorage", $"Attribute storage '{storageStr}' not recognized: must be 'sparse' or 'dense'.");
+            return DefineNodeAttribute(attrName, attrType, storage);
         }
 
         /// <summary>
@@ -386,21 +410,14 @@ namespace Threadle.Core.Model
             if (!result.Success)
                 return result;
 
-            // Remove this attribute from all nodes and possibly move nodes to the collection for nodes without attributes
+            // Remove this attribute from all nodes: drop the dense column (if any) and strip it from all sparse blobs
             byte oldAttrIndex = result.Value;
-            List<uint> nodesNowWithoutAttributes = new();
-            foreach (var nodeId in _nodesWithAttributes.Keys)
-            {
-                if (!RemoveNodeAttribute(nodeId, oldAttrIndex))
-                    // The node has no more attributes left - mark it for moving to Hashset
-                    nodesNowWithoutAttributes.Add(nodeId);
-            }
-            // Iterate through nodes that now lost all attributes: move them to the HashSet instead
-            foreach (uint nodeId in nodesNowWithoutAttributes)
-            {
-                _nodesWithAttributes.Remove(nodeId);
-                _nodesWithoutAttributes.Add(nodeId);
-            }
+            _dense[oldAttrIndex] = null;
+            if (_sparse != null)
+                for (int slot = 0; slot < _nextSlot; slot++)
+                    if (_sparse[slot] != null)
+                        _removeSparse(slot, oldAttrIndex);
+            _modified();
             return OperationResult.Ok($"Node attribute '{attrName}' is no longer defined.");
         }
 
@@ -433,23 +450,21 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("AttributeUnknown", $"Node attribute '{from}' not found.");
             byte fromIndex = definition.Value.Index;
             NodeAttributeType attrType = definition.Value.AttrType;
+            NodeAttributeStorage storage = definition.Value.Storage;
             to = to.Trim();
             if (to.Length < 1)
                 return OperationResult.Fail("MissingAttributeName", "New name of attribute must be at least one character.");
             if (NodeAttributeDefinitionManager.CheckIfAttributeNameExists(to))
                 return OperationResult.Fail("AttributeAlreadyExists", $"Node attribute named '{to}' already defined.");
 
-            OperationResult<byte> defineResult = DefineNodeAttribute(to, attrType);
+            OperationResult<byte> defineResult = DefineNodeAttribute(to, attrType, storage);
             if (!defineResult.Success)
                 return defineResult;
             byte toIndex = defineResult.Value;
 
-            foreach (var kvp in _nodesWithAttributes)
-            {
-                int idx = kvp.Value.AttrIndexes.IndexOf(fromIndex);
-                if (idx >= 0)
-                    SetNodeAttribute(kvp.Key, toIndex, kvp.Value.AttrValues[idx]);
-            }
+            foreach (int slot in _slotOf.Values)
+                if (_tryGetBySlot(slot, fromIndex, out NodeAttributeValue value))
+                    _setBySlot(slot, toIndex, value);
             _modified();
             return OperationResult.Ok($"Node attribute '{from}' duplicated as '{to}'.");
         }
@@ -481,24 +496,23 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("AttributeUnknown", $"Node attribute '{from}' not found.");
             byte fromIndex = definition.Value.Index;
             NodeAttributeType fromType = definition.Value.AttrType;
+            NodeAttributeStorage storage = definition.Value.Storage;
             to = to.Trim();
             if (to.Length < 1)
                 return OperationResult.Fail("MissingAttributeName", "New name of attribute must be at least one character.");
             if (NodeAttributeDefinitionManager.CheckIfAttributeNameExists(to))
                 return OperationResult.Fail("AttributeAlreadyExists", $"Node attribute named '{to}' already defined.");
 
-            OperationResult<byte> defineResult = DefineNodeAttribute(to, newType);
+            OperationResult<byte> defineResult = DefineNodeAttribute(to, newType, storage);
             if (!defineResult.Success)
                 return defineResult;
             byte toIndex = defineResult.Value;
 
             int converted = 0, skipped = 0;
-            foreach (var kvp in _nodesWithAttributes)
+            foreach (int slot in _slotOf.Values)
             {
-                int idx = kvp.Value.AttrIndexes.IndexOf(fromIndex);
-                if (idx < 0)
+                if (!_tryGetBySlot(slot, fromIndex, out NodeAttributeValue oldValue))
                     continue;
-                NodeAttributeValue oldValue = kvp.Value.AttrValues[idx];
                 string str = fromType == NodeAttributeType.String
                     ? GetStringFromPool((int)oldValue.GetValue(fromType)!)
                     : oldValue.ToString(fromType);
@@ -509,7 +523,7 @@ namespace Threadle.Core.Model
 
                 if (newValue is NodeAttributeValue nav)
                 {
-                    SetNodeAttribute(kvp.Key, toIndex, nav);
+                    _setBySlot(slot, toIndex, nav);
                     converted++;
                 }
                 else
@@ -729,13 +743,8 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("NodeNotFound", $"Node ID '{nodeId}' not found in nodeset '{Name}'.");
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
                 return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return OperationResult<NodeAttributeValue>.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
-            if (!_removeAttributeFromTuple(attributes, attrIndex))
-            {
-                _nodesWithAttributes.Remove(nodeId);
-                _nodesWithoutAttributes.Add(nodeId);
-            }
+            if (!RemoveNodeAttribute(nodeId, attrIndex))
+                return OperationResult.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
             return OperationResult.Ok($"Attribute '{attrName}' removed for node {nodeId}.");
         }
 
@@ -766,37 +775,32 @@ namespace Threadle.Core.Model
             return OperationResult<List<uint>>.Ok(nodes, message);
         }
 
+        /// <summary>
+        /// Returns an estimate of the number of bytes used by this Nodeset: the node-to-slot map, the sparse
+        /// attribute blobs, the dense attribute columns, the node id cache and the string pool.
+        /// </summary>
+        /// <returns>The estimated number of bytes.</returns>
         public long GetEstimatedBytes()
         {
-            int Na = _nodesWithAttributes.Count;
-            int Nw = _nodesWithoutAttributes.Count;
-            // _ nodesWithAttributes: dictionary entries + buckets
-            long bytes = (long)Na * 28 + (long)(Na / 0.72 + 1) * 4;
-            // per attributed node:
-            // - List<byte>: 32 (object) + 16 (array) + 4 = 52 bytes
-            // - List<NodeAttributeValue>: 32 (object) + 16(array) + 4*4 = 64 bytes
-            // total: 116 bytes
-            bytes += (long)Na * 116;
-            // Sample up to 100 attributed nodes to estimate average attribute count,
-            // then calculate: 1 byte (attribute index) + 4 byte (NodeAttributeValue) per attribute
-            if (Na > 0)
+            int n = _slotOf.Count;
+            // _slotOf: Dictionary<uint,int> entries (16 bytes) + buckets (4 bytes), at ~72% load factor
+            long bytes = (long)(n / 0.72 + 1) * 20;
+            if (_sparse != null)
             {
-                int sampleSize = Math.Min(100, Na);
-                int totalAttrs = 0;
-                int sampled = 0;
-                foreach (var attrs in _nodesWithAttributes.Values)
-                {
-                    totalAttrs += attrs.AttrIndexes.Count;
-                    if (++sampled >= sampleSize)
-                        break;
-                }
-                double avgAttrs = (double)totalAttrs / sampled;
-                bytes += (long)(Na * avgAttrs * 5);
+                // Array of blob references
+                bytes += 24 + (long)_sparse.Length * 8;
+                // Each blob: 24 bytes array overhead + payload rounded up to 8 bytes
+                for (int slot = 0; slot < _nextSlot; slot++)
+                    if (_sparse[slot] is byte[] blob)
+                        bytes += 24 + ((blob.Length + 7) & ~7);
             }
-            // nodesWithoutAttributes: just hashset entries + buckets
-            bytes += (long)Nw * 12 + (long)(Nw / 0.72 + 1) * 4;
+            foreach (DenseColumn? column in _dense)
+                if (column != null)
+                    bytes += column.EstimatedBytes;
             if (_nodeIdCache != null)
-                bytes += 16 + (long)_nodeIdCache.Length * 4;
+                bytes += 24 + (long)_nodeIdCache.Length * 4;
+            foreach (string str in _stringPool)
+                bytes += 22 + 2L * str.Length + 24;
             return bytes;
         }
         #endregion
@@ -832,11 +836,12 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="attrName">The name of the nodal attribute (must be unique in this Nodeset).</param>
         /// <param name="attrType">The type (using the <see cref="NodeAttributeType"/> enum) of this attribute.</param>
+        /// <param name="storage">The storage mode (sparse or dense) of this attribute. Defaults to sparse.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, including the internal attribute index of the
         /// added attribute.</returns>
-        internal OperationResult<byte> DefineNodeAttribute(string attrName, NodeAttributeType attrType)
+        internal OperationResult<byte> DefineNodeAttribute(string attrName, NodeAttributeType attrType, NodeAttributeStorage storage = NodeAttributeStorage.Sparse)
         {
-            OperationResult<byte> result = NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, attrType);
+            OperationResult<byte> result = NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, attrType, storage);
             if (result.Success)
                 _modified();
             return result;
@@ -845,7 +850,8 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Defines and sets node attribute values for multiple nodes based on the provided dictionary of nodeId=>attributeValueStr.
         /// If the attribute is already defined, it checks that the provided type matches the existing type. If it exists but with a different type,
-        /// an error is returned. If the attribute is not yet defined, it is defined based on the provided type.
+        /// an error is returned. If the attribute is not yet defined, it is defined based on the provided type, using dense storage (as this
+        /// method is used for storing results of analyses, where all nodes get a value). An existing attribute keeps its storage mode.
         /// </summary>
         /// <param name="attrName">The name of the node attribute.</param>
         /// <param name="attrDict">The dictionary of nodeId=>attributeValueStr.</param>
@@ -855,7 +861,7 @@ namespace Threadle.Core.Model
         {
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
             {
-                OperationResult<byte> defineresult = DefineNodeAttribute(attrName, attrType);
+                OperationResult<byte> defineresult = DefineNodeAttribute(attrName, attrType, NodeAttributeStorage.Dense);
                 if (!defineresult.Success)
                     return defineresult;
                 attrIndex = defineresult.Value;
@@ -872,145 +878,178 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds a Node to the collection of nodes without attributes.
-        /// No verification is done: to be used with loaders.
+        /// Adds a node (initially without attributes) to this Nodeset, assigning it a slot.
+        /// No verification is done apart from ignoring an already existing node id: to be used with loaders.
         /// </summary>
         /// <param name="nodeId">The node id to add.</param>
         internal void _addNodeWithoutAttribute(uint nodeId)
         {
-            if (_nodesWithoutAttributes.Add(nodeId))
-                _nodeIdCache = null;
-        }
-
-        /// <summary>
-        /// Adds a node with the specified nodeId to this Nodeset. Possible to provide an optional attribute tuple
-        /// where node attribute indices are mapped on <see cref="NodeAttributeValue"/> objects.
-        /// </summary>
-        /// <param name="nodeId">The node id to add.</param>
-        /// <param name="nodeAttributes">A tuple with index and attrValue lists for attributes.</param>
-        internal void _addNodeWithAttributes(uint nodeId, (List<byte> attrIndexes, List<NodeAttributeValue> attrValues)? nodeAttributes)
-        {
-            if (nodeAttributes != null && nodeAttributes.Value.attrIndexes.Count > 0)
-                _nodesWithAttributes[nodeId] = (nodeAttributes.Value.attrIndexes, nodeAttributes.Value.attrValues);
+            if (_slotOf.ContainsKey(nodeId))
+                return;
+            int slot;
+            if (_freeSlots.Count > 0)
+                slot = _freeSlots.Pop();
             else
-                _nodesWithoutAttributes.Add(nodeId);
+            {
+                slot = _nextSlot++;
+                if (slot >= _slotCapacity)
+                    _growSlotCapacity(slot + 1);
+            }
+            _slotOf.Add(nodeId, slot);
             _nodeIdCache = null;
         }
 
+        /// <summary>
+        /// Adds a node to this Nodeset (if not already present) and copies all of its attribute values
+        /// (sparse and dense) from the corresponding node in the source Nodeset. Requires that both Nodesets
+        /// use the same attribute indices, e.g. when this Nodeset's <see cref="NodeAttributeDefinitionManager"/> is
+        /// a clone of the source's, and that the string pool has been copied in the same order.
+        /// </summary>
+        /// <param name="source">The source Nodeset.</param>
+        /// <param name="nodeId">The node id to copy.</param>
+        internal void CopyNodeFrom(Nodeset source, uint nodeId)
+        {
+            if (!source._slotOf.TryGetValue(nodeId, out int sourceSlot))
+                return;
+            _addNodeWithoutAttribute(nodeId);
+            int slot = _slotOf[nodeId];
+            if (source._sparse?[sourceSlot] is byte[] blob)
+            {
+                _sparse ??= new byte[]?[_slotCapacity];
+                _sparse[slot] = (byte[])blob.Clone();
+            }
+            for (int a = 0; a < 256; a++)
+                if (source._dense[a] is DenseColumn sourceColumn && sourceColumn.TryGet(sourceSlot, out NodeAttributeValue value))
+                    _getOrCreateDenseColumn((byte)a).Set(slot, value);
+        }
 
         /// <summary>
         /// Checks if the Nodeset contains a node object with the specified id.
         /// </summary>
         /// <param name="nodeId">The id of the node that is to be checked.</param>
         /// <returns>True if the node id exists, false otherwise.</returns>
-        internal bool Contains(uint nodeId)
-        {
-            return _nodesWithoutAttributes.Contains(nodeId) || _nodesWithAttributes.ContainsKey(nodeId);
-        }
+        internal bool Contains(uint nodeId) => _slotOf.ContainsKey(nodeId);
 
         /// <summary>
         /// Sets a node attribute for a specific node, given the attribute index and attribute attrValue.
-        /// If node lacks attributes, it is moved to the dictionary for attributes and the new attribute is installed.
-        /// If the node has attributes, it first checks if this attribute exists: if so, it overwrites the existing attrValue.
-        /// Otherwise: it adds this as a new attribute.
+        /// Dense attributes are written to their column; sparse attributes are written to the node's
+        /// sparse blob (overwriting an existing value, or adding it). Does nothing if the node doesn't exist.
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         /// <param name="attrIndex">The attribute index.</param>
         /// <param name="attrValue">The <see cref="NodeAttributeValue"/> to set the attribute to.</param>
         internal void SetNodeAttribute(uint nodeId, byte attrIndex, NodeAttributeValue attrValue)
         {
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-            {
-                _nodesWithoutAttributes.Remove(nodeId);
-                _nodesWithAttributes.Add(nodeId, (new() { attrIndex }, new() { attrValue }));
-            }
-            else
-            {
-                int index = attributes.AttrIndexes.IndexOf(attrIndex);
-                if (index >= 0)
-                    attributes.AttrValues[index] = attrValue;
-                else
-                {
-                    attributes.AttrIndexes.Add(attrIndex);
-                    attributes.AttrValues.Add(attrValue);
-                }
-            }
+            if (_slotOf.TryGetValue(nodeId, out int slot))
+                _setBySlot(slot, attrIndex, attrValue);
         }
 
         /// <summary>
         /// Gets the specified attribute from a specific node id based on the attribute index.
-        /// Returns null if the node does not have this attribute (or no attributes whatsoever)
+        /// Returns null if the node does not have this attribute set (or doesn't exist).
         /// </summary>
         /// <param name="nodeId">The node id.</param>
         /// <param name="attrIndex">The attribute index.</param>
         /// <returns>Returns a <see cref="NodeAttributeValue"/>, or null if attribute is missing.</returns>
         internal NodeAttributeValue? GetNodeAttribute(uint nodeId, byte attrIndex)
         {
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return null;
-            int index = attributes.AttrIndexes.IndexOf(attrIndex);
-            if (index >= 0)
-                return attributes.AttrValues[index];
+            if (_slotOf.TryGetValue(nodeId, out int slot) && _tryGetBySlot(slot, attrIndex, out NodeAttributeValue value))
+                return value;
             return null;
         }
 
         /// <summary>
-        /// Removes the specified attribute from a node and shifts its lists of attribute indexes and attribute values.
-        /// Returns false if it doesn't have any attributes before or after removal. Returns true if it has attributes
-        /// left after removal.
+        /// Removes (unsets) the specified attribute from a node.
         /// </summary>
         /// <param name="nodeId">The node id</param>
         /// <param name="attrIndex">The attribute index</param>
-        /// <returns>Returns true if it still has attributes left, false if it has no attributes before or after removal.</returns>
+        /// <returns>Returns true if the attribute was set and is now removed, false if it wasn't set (or the node doesn't exist).</returns>
         internal bool RemoveNodeAttribute(uint nodeId, byte attrIndex)
         {
-            if (!_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
+            if (!_slotOf.TryGetValue(nodeId, out int slot))
                 return false;
-            return _removeAttributeFromTuple(attributes, attrIndex);
+            if (_dense[attrIndex] is DenseColumn column)
+                return column.Clear(slot);
+            return _removeSparse(slot, attrIndex);
         }
 
         /// <summary>
-        /// Clones the attribute tuple for a specific node. Returns null if the node lacks attributes.
+        /// Returns all attributes (sparse and dense) that are set for a specific node, as (attribute index, value) pairs.
+        /// Sparse attributes come first, then dense attributes in attribute index order. Returns an empty list if the
+        /// node has no attributes or doesn't exist.
         /// </summary>
         /// <param name="nodeId">The node id</param>
-        /// <returns>The attribute tuple, or null if missing.</returns>
-        internal (List<byte>, List<NodeAttributeValue>)? CloneNodeAttributeTuple(uint nodeId)
+        /// <returns>A list of (attribute index, value) pairs.</returns>
+        internal List<(byte Index, NodeAttributeValue Value)> GetNodeAttributePairs(uint nodeId)
         {
-            if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
+            var pairs = new List<(byte, NodeAttributeValue)>();
+            if (!_slotOf.TryGetValue(nodeId, out int slot))
+                return pairs;
+            pairs.AddRange(GetSparseNodeAttributePairs(nodeId));
+            for (int a = 0; a < 256; a++)
+                if (_dense[a] is DenseColumn column && column.TryGet(slot, out NodeAttributeValue value))
+                    pairs.Add(((byte)a, value));
+            return pairs;
+        }
+
+        /// <summary>
+        /// Returns the sparse attributes set for a specific node, as (attribute index, value) pairs.
+        /// Used by the binary writer, which stores dense attributes separately.
+        /// </summary>
+        /// <param name="nodeId">The node id</param>
+        /// <returns>A list of (attribute index, value) pairs (empty if none).</returns>
+        internal List<(byte Index, NodeAttributeValue Value)> GetSparseNodeAttributePairs(uint nodeId)
+        {
+            var pairs = new List<(byte, NodeAttributeValue)>();
+            if (_sparse != null && _slotOf.TryGetValue(nodeId, out int slot) && _sparse[slot] is byte[] blob)
             {
-                return (new List<byte>(attributes.AttrIndexes), new List<NodeAttributeValue>(attributes.AttrValues));
+                int k = blob.Length / 5;
+                for (int i = 0; i < k; i++)
+                    pairs.Add((blob[i], NodeAttributeValue.FromRaw(BinaryPrimitives.ReadInt32LittleEndian(blob.AsSpan(k + 4 * i)))));
             }
-            return null;
+            return pairs;
         }
 
         /// <summary>
-        /// Gets the node attribute tuple for a specific node id. Returns null if it lacks attributes.
+        /// Sets several sparse attributes of a node at once, replacing any sparse attributes it had.
+        /// No verification is done (indices must be unique, sparse, and defined): to be used with loaders.
         /// </summary>
-        /// <param name="nodeId">The node id</param>
-        /// <returns>The attribute tuple, or null if missing.</returns>
-        internal (List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues)? GetNodeAttributeTuple(uint nodeId)
+        /// <param name="nodeId">The node id.</param>
+        /// <param name="attrIndexes">The attribute indices.</param>
+        /// <param name="attrValues">The attribute values (same length and order as the indices).</param>
+        internal void _setSparseNodeAttributes(uint nodeId, byte[] attrIndexes, NodeAttributeValue[] attrValues)
         {
-            if (_nodesWithAttributes.TryGetValue(nodeId, out var attributes))
-                return attributes;
-            return null;
+            if (!_slotOf.TryGetValue(nodeId, out int slot))
+                return;
+            int k = attrIndexes.Length;
+            if (k == 0)
+            {
+                if (_sparse != null)
+                    _sparse[slot] = null;
+                return;
+            }
+            byte[] blob = new byte[5 * k];
+            for (int i = 0; i < k; i++)
+            {
+                blob[i] = attrIndexes[i];
+                BinaryPrimitives.WriteInt32LittleEndian(blob.AsSpan(k + 4 * i), attrValues[i].RawValueAsInt());
+            }
+            _sparse ??= new byte[]?[_slotCapacity];
+            _sparse[slot] = blob;
         }
 
         /// <summary>
-        /// Initialize the capacity of the Hashset storing nodes without attributes
+        /// Makes sure the internal storage has room for at least the given number of nodes,
+        /// avoiding repeated re-allocations when the number of nodes is known in advance (e.g. when loading).
         /// </summary>
-        /// <param name="nbrNodesWithoutAttributes">Upper range of number of nodes</param>
-        internal void InitSizeNodesWithoutAttributes(int nbrNodesWithoutAttributes)
+        /// <param name="nbrNodes">The expected number of nodes.</param>
+        internal void EnsureNodeCapacity(int nbrNodes)
         {
-            _nodesWithoutAttributes = new(nbrNodesWithoutAttributes);
-        }
-
-        /// <summary>
-        /// Initialize the capacity of the Dictionary storing nodes with attributes
-        /// </summary>
-        /// <param name="nbrNodesWithAttributes">Upper range of number of nodes</param>
-        internal void InitSizeNodesWithAttributes(int nbrNodesWithAttributes)
-        {
-            _nodesWithAttributes = new(nbrNodesWithAttributes);
+            if (nbrNodes <= 0)
+                return;
+            _slotOf.EnsureCapacity(nbrNodes);
+            if (nbrNodes > _slotCapacity)
+                _growSlotCapacity(nbrNodes, exact: true);
         }
 
         /// <summary>
@@ -1041,10 +1080,8 @@ namespace Threadle.Core.Model
         /// <returns></returns>
         private uint[] _getAllNodeIds()
         {
-            int totalNbrNodes = _nodesWithAttributes.Count + _nodesWithoutAttributes.Count;
-            uint[] allNodes = new uint[totalNbrNodes];
-            _nodesWithAttributes.Keys.CopyTo(allNodes, 0);
-            _nodesWithoutAttributes.CopyTo(allNodes, _nodesWithAttributes.Count);
+            uint[] allNodes = new uint[_slotOf.Count];
+            _slotOf.Keys.CopyTo(allNodes, 0);
             Array.Sort(allNodes);
             return allNodes;
         }
@@ -1061,25 +1098,127 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Removes the specified attribute from a attribute tuple and 'shifts' the items
-        /// (places the last item where this was).
+        /// Grows the capacity of all per-slot storage (sparse blob array and dense columns) to hold at least
+        /// <paramref name="required"/> slots. Unless <paramref name="exact"/> is set, capacity is doubled to
+        /// amortize the cost of growing.
         /// </summary>
-        /// <param name="nodeId">The node id</param>
-        /// <param name="attributeIndex">The attribute index</param>
-        /// <returns>Returns true if it still has attributes left, false if all attributes are gone now.</returns>
-        private bool _removeAttributeFromTuple((List<byte> AttrIndexes, List<NodeAttributeValue> AttrValues) attributes, byte attributeIndex)
+        private void _growSlotCapacity(int required, bool exact = false)
         {
-            int index = attributes.AttrIndexes.IndexOf(attributeIndex);
-            if (index >= 0)
-            {
-                int lastIndex = attributes.AttrIndexes.Count - 1;
-                attributes.AttrIndexes[index] = attributes.AttrIndexes[lastIndex];
-                attributes.AttrValues[index] = attributes.AttrValues[lastIndex];
+            int newCapacity = exact ? required : Math.Max(required, Math.Max(16, _slotCapacity * 2));
+            if (_sparse != null)
+                Array.Resize(ref _sparse, newCapacity);
+            foreach (DenseColumn? column in _dense)
+                column?.EnsureCapacity(newCapacity);
+            _slotCapacity = newCapacity;
+        }
 
-                attributes.AttrIndexes.RemoveAt(lastIndex);
-                attributes.AttrValues.RemoveAt(lastIndex);
+        /// <summary>
+        /// Returns the dense column for the given attribute index, creating it if needed.
+        /// </summary>
+        private DenseColumn _getOrCreateDenseColumn(byte attrIndex)
+            => _dense[attrIndex] ??= new DenseColumn(_slotCapacity);
+
+        /// <summary>
+        /// Tries to get the value of an attribute at the given slot, from the dense column if the attribute
+        /// has one, otherwise from the slot's sparse blob.
+        /// </summary>
+        private bool _tryGetBySlot(int slot, byte attrIndex, out NodeAttributeValue value)
+        {
+            if (_dense[attrIndex] is DenseColumn column)
+                return column.TryGet(slot, out value);
+            if (_sparse?[slot] is byte[] blob)
+            {
+                int k = blob.Length / 5;
+                int i = Array.IndexOf(blob, attrIndex, 0, k);
+                if (i >= 0)
+                {
+                    value = NodeAttributeValue.FromRaw(BinaryPrimitives.ReadInt32LittleEndian(blob.AsSpan(k + 4 * i)));
+                    return true;
+                }
             }
-            return (attributes.AttrIndexes.Count > 0);
+            value = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Sets the value of an attribute at the given slot. Dense attributes (as given by the
+        /// definition manager) are written to their column, which is created on first use; sparse attributes
+        /// are written to the slot's blob.
+        /// </summary>
+        private void _setBySlot(int slot, byte attrIndex, NodeAttributeValue value)
+        {
+            DenseColumn? column = _dense[attrIndex];
+            if (column == null && NodeAttributeDefinitionManager.TryGetAttributeStorage(attrIndex, out NodeAttributeStorage storage) && storage == NodeAttributeStorage.Dense)
+                column = _getOrCreateDenseColumn(attrIndex);
+            if (column != null)
+            {
+                column.Set(slot, value);
+                return;
+            }
+            _setSparse(slot, attrIndex, value);
+        }
+
+        /// <summary>
+        /// Sets a sparse attribute value in the slot's blob: overwrites in place if present, otherwise
+        /// re-allocates the blob with room for one more attribute.
+        /// </summary>
+        private void _setSparse(int slot, byte attrIndex, NodeAttributeValue value)
+        {
+            _sparse ??= new byte[]?[_slotCapacity];
+            int raw = value.RawValueAsInt();
+            byte[]? blob = _sparse[slot];
+            if (blob == null)
+            {
+                blob = new byte[5];
+                blob[0] = attrIndex;
+                BinaryPrimitives.WriteInt32LittleEndian(blob.AsSpan(1), raw);
+                _sparse[slot] = blob;
+                return;
+            }
+            int k = blob.Length / 5;
+            int i = Array.IndexOf(blob, attrIndex, 0, k);
+            if (i >= 0)
+            {
+                BinaryPrimitives.WriteInt32LittleEndian(blob.AsSpan(k + 4 * i), raw);
+                return;
+            }
+            // New layout: [k old indices][new index][k old values][new value]
+            byte[] newBlob = new byte[5 * (k + 1)];
+            blob.AsSpan(0, k).CopyTo(newBlob);
+            newBlob[k] = attrIndex;
+            blob.AsSpan(k, 4 * k).CopyTo(newBlob.AsSpan(k + 1));
+            BinaryPrimitives.WriteInt32LittleEndian(newBlob.AsSpan(k + 1 + 4 * k), raw);
+            _sparse[slot] = newBlob;
+        }
+
+        /// <summary>
+        /// Removes a sparse attribute from the slot's blob, re-allocating it with room for one attribute less
+        /// (or setting it to null if no attributes remain).
+        /// </summary>
+        /// <returns>True if the attribute was present and is now removed, false otherwise.</returns>
+        private bool _removeSparse(int slot, byte attrIndex)
+        {
+            if (_sparse?[slot] is not byte[] blob)
+                return false;
+            int k = blob.Length / 5;
+            int i = Array.IndexOf(blob, attrIndex, 0, k);
+            if (i < 0)
+                return false;
+            if (k == 1)
+            {
+                _sparse[slot] = null;
+                return true;
+            }
+            int m = k - 1;
+            byte[] newBlob = new byte[5 * m];
+            // Indices, skipping i
+            blob.AsSpan(0, i).CopyTo(newBlob);
+            blob.AsSpan(i + 1, k - i - 1).CopyTo(newBlob.AsSpan(i));
+            // Values, skipping i
+            blob.AsSpan(k, 4 * i).CopyTo(newBlob.AsSpan(m));
+            blob.AsSpan(k + 4 * (i + 1), 4 * (k - i - 1)).CopyTo(newBlob.AsSpan(m + 4 * i));
+            _sparse[slot] = newBlob;
+            return true;
         }
         #endregion
     }

@@ -515,7 +515,8 @@ namespace Threadle.Core.Analysis
             for (uint i = 0; i < (uint)labels.Length; i++)
             {
                 int poolIndex = nodesetResults.GetOrAddStringToPool(labels[i]);
-                nodesetResults._addNodeWithAttributes(i, (new List<byte> { labelIndex }, new List<NodeAttributeValue> { new NodeAttributeValue(poolIndex) }));
+                nodesetResults._addNodeWithoutAttribute(i);
+                nodesetResults.SetNodeAttribute(i, labelIndex, new NodeAttributeValue(poolIndex));
                 labelToNodeId[labels[i]] = i;
             }
 

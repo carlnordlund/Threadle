@@ -183,21 +183,16 @@ namespace Threadle.Core.Utilities
             {
                 writer.WriteStartElement("node");
                 writer.WriteAttributeString("id", nodeId.ToString(CultureInfo.InvariantCulture));
-                var tuple = nodeset.GetNodeAttributeTuple(nodeId);
-                if (tuple != null)
+                foreach (var (attrIndex, attrValue) in nodeset.GetNodeAttributePairs(nodeId).OrderBy(p => p.Index))
                 {
-                    var (attrIndexes, attrValues) = tuple.Value;
-                    for (int i = 0; i < attrIndexes.Count; i++)
+                    NodeAttributeType attrType = indexToType[attrIndex];
+                    string valueStr = attrType switch
                     {
-                        NodeAttributeType attrType = indexToType[attrIndexes[i]];
-                        string valueStr = attrType switch
-                        {
-                            NodeAttributeType.String => nodeset.GetStringFromPool(attrValues[i].RawValueAsInt()),
-                            NodeAttributeType.Bool => (bool)attrValues[i].GetValue(attrType)! ? "true" : "false",
-                            _ => attrValues[i].ToString(attrType)
-                        };
-                        WriteData(writer, $"v{attrIndexes[i]}", valueStr);
-                    }
+                        NodeAttributeType.String => nodeset.GetStringFromPool(attrValue.RawValueAsInt()),
+                        NodeAttributeType.Bool => (bool)attrValue.GetValue(attrType)! ? "true" : "false",
+                        _ => attrValue.ToString(attrType)
+                    };
+                    WriteData(writer, $"v{attrIndex}", valueStr);
                 }
                 writer.WriteEndElement();
             }

@@ -219,6 +219,20 @@ namespace Threadle.Core.Utilities
             };
 
         /// <summary>
+        /// Returns the <see cref="NodeAttributeStorage"/> corresponding to the given string ('sparse' or 'dense'),
+        /// or null if not recognized.
+        /// </summary>
+        /// <param name="storageName">The textual representation of the storage mode.</param>
+        /// <returns>The <see cref="NodeAttributeStorage"/>, or null if not recognized.</returns>
+        internal static NodeAttributeStorage? GetAttributeStorage(string storageName)
+            => storageName.Trim().ToLowerInvariant() switch
+            {
+                "sparse" => NodeAttributeStorage.Sparse,
+                "dense" => NodeAttributeStorage.Dense,
+                _ => null
+            };
+
+        /// <summary>
         /// Adjusts the connection value based on the specified edge type.
         /// </summary>
         /// <param name="value">The input value to be adjusted.</param>

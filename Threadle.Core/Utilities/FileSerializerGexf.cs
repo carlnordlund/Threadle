@@ -57,18 +57,18 @@ namespace Threadle.Core.Utilities
                 writer.WriteStartElement("node");
                 writer.WriteAttributeString("id", $"{nodeId}");
                 writer.WriteAttributeString("label", $"{nodeId}");
-                var tuple = network.Nodeset.GetNodeAttributeTuple(nodeId);
-                if (tuple!=null)
+                var attrPairs = network.Nodeset.GetNodeAttributePairs(nodeId);
+                if (attrPairs.Count > 0)
                 {
                     writer.WriteStartElement("attvalues");
-                    for (int i = 0; i < tuple.Value.AttrIndexes.Count; i++)
+                    foreach (var (attrIndex, attrValue) in attrPairs)
                     {
                         writer.WriteStartElement("attvalue");
-                        writer.WriteAttributeString("for", $"{tuple.Value.AttrIndexes[i]}");
-                        NodeAttributeType attrType = indexToType[tuple.Value.AttrIndexes[i]];
+                        writer.WriteAttributeString("for", $"{attrIndex}");
+                        NodeAttributeType attrType = indexToType[attrIndex];
                         string valueStr = attrType == NodeAttributeType.String
-                            ? network.Nodeset.StringPool[(int)tuple.Value.AttrValues[i].GetValue(NodeAttributeType.String)!]
-                            : tuple.Value.AttrValues[i].ToString(attrType);
+                            ? network.Nodeset.StringPool[(int)attrValue.GetValue(NodeAttributeType.String)!]
+                            : attrValue.ToString(attrType);
 
                         writer.WriteAttributeString("value", valueStr);
                         writer.WriteEndElement();

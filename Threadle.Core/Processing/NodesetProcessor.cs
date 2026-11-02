@@ -40,7 +40,7 @@ namespace Threadle.Core.Processing
             foreach (uint nodeId in sourceNodeset.NodeIdArray)
             {
                 if (MatchesCondition(sourceNodeset, nodeId, attrName, condition, attrValueStr))
-                    filtered._addNodeWithAttributes(nodeId, sourceNodeset.CloneNodeAttributeTuple(nodeId));
+                    filtered.CopyNodeFrom(sourceNodeset, nodeId);
             }
             return OperationResult<Nodeset>.Ok(filtered);
         }
