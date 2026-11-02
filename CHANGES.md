@@ -4,15 +4,27 @@
 
 ### New features
 
-- **New `setattrstorage()` command**: `setattrstorage(structure, attrname,
-  storage = ['sparse','dense','auto'])` converts a node attribute between
-  sparse and dense storage in place — same name, type and values. With
-  `'auto'`, the storage estimated to use the least memory for that attribute
-  is chosen, based on which nodes currently have it set and on whether those
-  nodes also carry other sparse attributes (dense pays off when most nodes
-  have the attribute; a rare attribute among other sparse ones stays sparse).
-  The returned message includes both estimates; if the attribute already has
-  the chosen storage, nothing changes.
+- **New `setattrstorage()` command**: `setattrstorage(structure,
+  storage = ['sparse','dense','auto'], *attrname)` converts node attributes
+  between sparse and dense storage in place — same names, types and values.
+  - **With `attrname`**, only that attribute changes. `'auto'` picks the
+    storage estimated to use less memory for it: dense costs 4 bytes plus
+    1 bit for every node, sparse about 5 bytes per stored value (more where
+    it is a node's only value). In practice dense wins once more than about
+    80% of nodes have a value. The estimate depends only on which nodes have
+    values, not on the other attributes' current storage, so converting
+    attributes one at a time gives the same result in any order. The message
+    includes both estimates.
+  - **Without `attrname`**, all attributes change: `'sparse'`/`'dense'` set
+    every attribute to that storage, and `'auto'` picks the combination
+    estimated to use the least memory for the nodeset as a whole. It
+    compares the exact total of "the j most populated attributes dense, the
+    rest sparse" for every j, so it also accounts for costs that only exist
+    while some attribute is sparse (e.g. the 8-byte-per-node array of
+    references to sparse values, released once no sparse value is left).
+    The message reports the estimate before and after and which attributes
+    ended up dense and sparse.
+  - If an attribute already has the chosen storage, it is left unchanged.
 
 - **`setting()` gained `executiontime`** (boolean, default `false`): when enabled,
   each dispatched command's wall-clock execution time (in milliseconds) and name
