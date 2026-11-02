@@ -145,7 +145,8 @@ namespace Threadle.Core.Processing
                     : values.Where(kvp => !ineligible.Contains(kvp.Key))
                             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
-                OperationResult result = nodeset.DefineAndSetNodeAttributeValues(name, toImport, type);
+                // Imported attributes are defined as sparse (as for other importers); setattrstorage() can convert them afterwards
+                OperationResult result = nodeset.DefineAndSetNodeAttributeValues(name, toImport, type, NodeAttributeStorage.Sparse);
                 if (!result.Success)
                     return result;
             }

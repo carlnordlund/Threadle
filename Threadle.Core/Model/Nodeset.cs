@@ -680,6 +680,7 @@ namespace Threadle.Core.Model
 
 
             SetNodeAttribute(nodeId, attrIndex, attrValue);
+            IsModified = true;
             return OperationResult.Ok($"Attribute '{attrName}' for node {nodeId} set to {attrValueStr}.");
         }
 
@@ -730,6 +731,7 @@ namespace Threadle.Core.Model
 
             for (int i = 0; i < nodeIds.Length; i++)
                 SetNodeAttribute(nodeIds[i], attrIndex, values[attrValueStrs == null ? 0 : i]);
+            IsModified = true;
             int nbrNodes = nodeIds.Distinct().Count();
             return OperationResult.Ok($"Attribute '{attrName}' set for {nbrNodes} node(s) in nodeset '{Name}'.");
         }
@@ -809,6 +811,7 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("AttributeUnknown", $"Unknown attribute '{attrName}' in nodeset '{Name}'.");
             if (!RemoveNodeAttribute(nodeId, attrIndex))
                 return OperationResult.Fail("AttributeNotSet", $"Attribute '{attrName}' not set for node '{nodeId}' in nodeset '{Name}'.");
+            IsModified = true;
             return OperationResult.Ok($"Attribute '{attrName}' removed for node {nodeId}.");
         }
 
@@ -952,18 +955,20 @@ namespace Threadle.Core.Model
         /// <summary>
         /// Defines and sets node attribute values for multiple nodes based on the provided dictionary of nodeId=>attributeValueStr.
         /// If the attribute is already defined, it checks that the provided type matches the existing type. If it exists but with a different type,
-        /// an error is returned. If the attribute is not yet defined, it is defined based on the provided type, using dense storage (as this
-        /// method is used for storing results of analyses, where all nodes get a value). An existing attribute keeps its storage mode.
+        /// an error is returned. If the attribute is not yet defined, it is defined based on the provided type and storage mode. The storage
+        /// defaults to dense, as this method is mainly used for storing results of analyses, where all nodes get a value; importers pass sparse.
+        /// An existing attribute keeps its storage mode.
         /// </summary>
         /// <param name="attrName">The name of the node attribute.</param>
         /// <param name="attrDict">The dictionary of nodeId=>attributeValueStr.</param>
         /// <param name="attrType">The type of the node attribute.</param>
+        /// <param name="storage">The storage mode to use if the attribute is not yet defined (defaults to dense).</param>
         /// <returns>Returns an <see cref="OperationResult"/> informing how well it went.</returns>
-        internal OperationResult DefineAndSetNodeAttributeValues(string attrName, Dictionary<uint, string> attrDict, NodeAttributeType attrType)
+        internal OperationResult DefineAndSetNodeAttributeValues(string attrName, Dictionary<uint, string> attrDict, NodeAttributeType attrType, NodeAttributeStorage storage = NodeAttributeStorage.Dense)
         {
             if (!NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
             {
-                OperationResult<byte> defineresult = DefineNodeAttribute(attrName, attrType, NodeAttributeStorage.Dense);
+                OperationResult<byte> defineresult = DefineNodeAttribute(attrName, attrType, storage);
                 if (!defineresult.Success)
                     return defineresult;
                 attrIndex = defineresult.Value;

@@ -402,6 +402,34 @@ public class NodeAttributeStorageTests : IDisposable
     }
 
     [Fact]
+    public void ImportNodeAttributes_NewAttribute_IsStoredSparse()
+    {
+        var ns = MakeNodeset();
+        var attrs = new List<(string, NodeAttributeType, Dictionary<uint, string>)>
+        {
+            ("income", NodeAttributeType.Int, new() { [1] = "100", [3] = "300" })
+        };
+        Assert.True(NodesetProcessor.ImportNodeAttributes(ns, attrs).Success);
+        Assert.Equal("Sparse", StorageOf(ns, "income"));
+        Assert.Equal(300, Value(ns, 3, "income"));
+        Assert.Null(Value(ns, 2, "income"));
+    }
+
+    [Fact]
+    public void ImportNodeAttributes_ExistingDenseAttribute_KeepsDense()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("income", "int", "dense");
+        var attrs = new List<(string, NodeAttributeType, Dictionary<uint, string>)>
+        {
+            ("income", NodeAttributeType.Int, new() { [2] = "200" })
+        };
+        Assert.True(NodesetProcessor.ImportNodeAttributes(ns, attrs).Success);
+        Assert.Equal("Dense", StorageOf(ns, "income"));
+        Assert.Equal(200, Value(ns, 2, "income"));
+    }
+
+    [Fact]
     public void GenerateAttr_IsStoredDense()
     {
         var ns = MakeNodeset();
@@ -697,6 +725,88 @@ public class NodeAttributeStorageTests : IDisposable
         ns.SetNodeAttributeStorage("s_int", "dense");
         ns.SetNodeAttributeStorage("d_char", "sparse");
         AssertSameAttributes(ns, SaveAndLoad(ns, ".bin"));
+    }
+
+    // ── Modified flag: attribute value changes must mark the nodeset modified ──
+
+    [Fact]
+    public void SetAttr_MarksModified()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        ns.IsModified = false;
+        Assert.True(ns.SetNodeAttribute(1, "a", "5").Success);
+        Assert.True(ns.IsModified);
+    }
+
+    [Fact]
+    public void SetAttr_Failed_DoesNotMarkModified()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        ns.IsModified = false;
+        Assert.False(ns.SetNodeAttribute(1, "a", "notanumber").Success);
+        Assert.False(ns.IsModified);
+    }
+
+    [Fact]
+    public void SetAttrs_MarksModified()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        ns.IsModified = false;
+        Assert.True(ns.SetNodeAttributes(null, "a", "5", null).Success);
+        Assert.True(ns.IsModified);
+    }
+
+    [Fact]
+    public void RemoveAttr_MarksModified()
+    {
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        ns.SetNodeAttribute(1, "a", "5");
+        ns.IsModified = false;
+        Assert.True(ns.RemoveNodeAttribute(1, "a").Success);
+        Assert.True(ns.IsModified);
+    }
+
+    [Fact]
+    public void GenerateAttr_MarksModified()
+    {
+        var ns = MakeNodeset();
+        ns.IsModified = false;
+        Assert.True(Generators.GenerateIntAttr(ns, "g", 1, 3).Success);
+        Assert.True(ns.IsModified);
+    }
+
+    [Fact]
+    public void NetworkSave_AfterSetAttr_ResavesNodesetValues()
+    {
+        // Saving a network re-saves its nodeset only if the nodeset is marked modified,
+        // so a value set with setattr() must survive a save of the network alone.
+        var ns = MakeNodeset();
+        ns.DefineNodeAttribute("a", "int");
+        ns.DefineNodeAttribute("d", "float", "dense");
+        string nsPath = TempFile(".bin");
+        Assert.True(FileManager.Save(ns, nsPath).Success);
+        var net = new Network("net", ns);
+        net.AddLayerOneMode("layer", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddEdge("layer", 1, 2);
+        string netPath = TempFile(".bin");
+        Assert.True(FileManager.Save(net, netPath).Success);
+
+        ns.SetNodeAttribute(3, "a", "33");
+        ns.SetNodeAttributes(null, "d", "1.5", null);
+        Generators.GenerateIntAttr(ns, "g", 7, 7);
+        Assert.True(FileManager.Save(net, netPath).Success);
+
+        var load = FileManager.Load(netPath, "network");
+        Assert.True(load.Success, load.Message);
+        var loadedNs = ((Network)load.Value!.MainStructure).Nodeset;
+        Assert.Equal(33, Value(loadedNs, 3, "a"));
+        Assert.Equal(1.5f, Value(loadedNs, 5, "d"));
+        Assert.Equal(7, Value(loadedNs, 1, "g"));
+        Assert.Equal("Dense", StorageOf(loadedNs, "d"));
     }
 
     // ── Memory estimate ───────────────────────────────────────────────────────

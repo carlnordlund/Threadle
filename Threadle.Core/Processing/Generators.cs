@@ -24,8 +24,8 @@ namespace Threadle.Core.Processing
             if (minValue > maxValue)
                 return OperationResult.Fail("ArgumentOutOfRange", $"The 'minvalue' ({minValue}) is greater than the 'maxvalue' ({maxValue}).");
             if (maxValue == int.MaxValue)
-                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {int.MaxValue-1}).");
-            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Int, NodeAttributeStorage.Dense);
+                return OperationResult.Fail("ArgumentOutOfRange", $"The 'maxvalue' is too large (max is {int.MaxValue - 1}).");
+            var attrDefineResult = nodeset.DefineNodeAttribute(attrName, NodeAttributeType.Int, NodeAttributeStorage.Dense);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
             byte attrIndex = attrDefineResult.Value;
@@ -52,7 +52,7 @@ namespace Threadle.Core.Processing
             if ((double)maxValue - (double)minValue > (double)float.MaxValue)
                 return OperationResult.Fail("ArgumentOutOfRange", "The range between 'minvalue' and 'maxvalue' is too large.");
 
-            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Float, NodeAttributeStorage.Dense);
+            var attrDefineResult = nodeset.DefineNodeAttribute(attrName, NodeAttributeType.Float, NodeAttributeStorage.Dense);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
             byte attrIndex = attrDefineResult.Value;
@@ -71,7 +71,7 @@ namespace Threadle.Core.Processing
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateBoolAttr(Nodeset nodeset, string attrName, double p)
         {
-            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Bool, NodeAttributeStorage.Dense);
+            var attrDefineResult = nodeset.DefineNodeAttribute(attrName, NodeAttributeType.Bool, NodeAttributeStorage.Dense);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
             byte attrIndex = attrDefineResult.Value;
@@ -91,7 +91,7 @@ namespace Threadle.Core.Processing
         /// <returns>An <see cref="OperationResult"/> object informing how well it went.</returns>
         public static OperationResult GenerateCharAttr(Nodeset nodeset, string attrName, string charString)
         {
-            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.Char, NodeAttributeStorage.Dense);
+            var attrDefineResult = nodeset.DefineNodeAttribute(attrName, NodeAttributeType.Char, NodeAttributeStorage.Dense);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
             byte attrIndex = attrDefineResult.Value;
@@ -122,7 +122,7 @@ namespace Threadle.Core.Processing
                 return OperationResult.Fail("InvalidArgument",
                     "The 'values' argument must contain at least one semicolon-separated string value.");
 
-            var attrDefineResult = nodeset.NodeAttributeDefinitionManager.DefineNewNodeAttribute(attrName, NodeAttributeType.String, NodeAttributeStorage.Dense);
+            var attrDefineResult = nodeset.DefineNodeAttribute(attrName, NodeAttributeType.String, NodeAttributeStorage.Dense);
             if (!attrDefineResult.Success)
                 return attrDefineResult;
             byte attrIndex = attrDefineResult.Value;
