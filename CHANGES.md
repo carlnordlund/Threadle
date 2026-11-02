@@ -4,6 +4,16 @@
 
 ### New features
 
+- **New `setattrstorage()` command**: `setattrstorage(structure, attrname,
+  storage = ['sparse','dense','auto'])` converts a node attribute between
+  sparse and dense storage in place — same name, type and values. With
+  `'auto'`, the storage estimated to use the least memory for that attribute
+  is chosen, based on which nodes currently have it set and on whether those
+  nodes also carry other sparse attributes (dense pays off when most nodes
+  have the attribute; a rare attribute among other sparse ones stays sparse).
+  The returned message includes both estimates; if the attribute already has
+  the chosen storage, nothing changes.
+
 - **`setting()` gained `executiontime`** (boolean, default `false`): when enabled,
   each dispatched command's wall-clock execution time (in milliseconds) and name
   are measured and stored internally. **New `lastexecutiontime()` command**
