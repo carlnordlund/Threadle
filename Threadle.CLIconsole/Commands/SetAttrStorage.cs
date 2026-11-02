@@ -12,12 +12,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "setattrstorage(structure = [var:structure], attrname = [str], storage = ['sparse','dense','auto'])";
+        public string Syntax => "setattrstorage(structure = [var:structure], storage = ['sparse','dense','auto'], *attrname = [str])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Changes how the values of the node attribute 'attrname' are stored, in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. The attribute keeps its name, type and all its values; only the storage changes. 'sparse' stores values per node, only for nodes that have the attribute set; 'dense' stores them in one flat column with an entry for every node. With 'auto', the storage estimated to use the least memory for this attribute is chosen, based on which nodes currently have it set and on whether those nodes also have other sparse attributes; as a rule of thumb, dense pays off when most nodes have the attribute. The estimates are included in the returned message. If the attribute already has the chosen storage, nothing changes.";
+        public string Description => "Changes how node attribute values are stored, in the Nodeset (or the nodeset of the provided Network) that has the variable name [var:structure]. Attributes keep their names, types and all their values; only the storage changes. 'sparse' stores values per node, only for nodes that have the attribute set; 'dense' stores them in one flat column with an entry for every node. If 'attrname' is given, only that attribute is changed: with 'auto', it gets the storage estimated to use the least memory for it, based on how many nodes have it set (as a rule of thumb, dense pays off when more than about 80% of nodes have a value). If 'attrname' is omitted, all node attributes are changed: 'sparse' or 'dense' sets every attribute to that storage, and 'auto' chooses the combination of storages estimated to use the least memory for the nodeset as a whole, also returning the estimated memory before and after and which attributes ended up dense and sparse.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -33,9 +33,9 @@ namespace Threadle.CLIconsole.Commands
         {
             if (CommandHelpers.TryGetNodesetFromIStructure(context, command.GetArgumentThrowExceptionIfMissingOrNull("structure", "arg0"), out var nodeset) is CommandResult commandResult)
                 return commandResult;
-            string attrName = command.GetArgumentThrowExceptionIfMissingOrNull("attrname", "arg1");
-            string storage = command.GetArgumentThrowExceptionIfMissingOrNull("storage", "arg2");
-            return CommandResult.FromOperationResult(nodeset!.SetNodeAttributeStorage(attrName, storage));
+            string storage = command.GetArgumentThrowExceptionIfMissingOrNull("storage", "arg1");
+            string? attrName = command.GetArgument("attrname", "arg2");
+            return CommandResult.FromOperationResult(nodeset!.SetNodeAttributeStorage(string.IsNullOrEmpty(attrName) ? null : attrName, storage));
         }
     }
 }

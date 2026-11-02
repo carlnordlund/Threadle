@@ -727,6 +727,185 @@ public class NodeAttributeStorageTests : IDisposable
         AssertSameAttributes(ns, SaveAndLoad(ns, ".bin"));
     }
 
+    // ── setattrstorage 'auto': fly-brain-like layout ──────────────────────────
+
+    /// <summary>
+    /// Mimics the fly brain connectome nodeset: 10 string attributes set on every node (some with few
+    /// distinct values, one with all values unique) plus one string attribute set on ~7% of nodes,
+    /// all sparse to begin with (as after loading/importing).
+    /// </summary>
+    private static Nodeset MakeFlyBrainLike(int n = 2000)
+    {
+        var ns = new Nodeset("fly", n);
+        for (int a = 0; a < 10; a++)
+            ns.DefineNodeAttribute($"full{a}", "string");
+        ns.DefineNodeAttribute("nerve", "string");
+        string[] classes = ["optic", "central", "visual_centrifugal", "sensory", "motor"];
+        foreach (uint id in ns.NodeIdArray)
+        {
+            for (int a = 0; a < 10; a++)
+                ns.SetNodeAttribute(id, $"full{a}", a == 0 ? $"neuron_{id}" : classes[(id + a) % classes.Length]);
+            if (id % 14 == 0)
+                ns.SetNodeAttribute(id, "nerve", $"n{id % 8}");
+        }
+        return ns;
+    }
+
+    private static Dictionary<string, object?> Snapshot(Nodeset ns)
+    {
+        var snap = new Dictionary<string, object?>();
+        foreach (string attr in ns.GetDefinedAttributeNames())
+            foreach (uint id in ns.NodeIdArray)
+                snap[$"{attr}/{id}"] = Value(ns, id, attr);
+        return snap;
+    }
+
+    [Fact]
+    public void Auto_FullyPopulatedAttribute_AmongOtherSparse_ChoosesDense()
+    {
+        // Previously chose sparse: with 10 other sparse values per node, blob padding made the
+        // exact marginal cost of one more value only 0 or 8 bytes per node.
+        var ns = MakeFlyBrainLike();
+        var r = ns.SetNodeAttributeStorage("full1", "auto");
+        Assert.True(r.Success);
+        Assert.Equal("Dense", StorageOf(ns, "full1"));
+        // All-unique strings behave the same (values are 4-byte pool indices either way)
+        ns.SetNodeAttributeStorage("full0", "auto");
+        Assert.Equal("Dense", StorageOf(ns, "full0"));
+    }
+
+    [Fact]
+    public void Auto_RarelyPopulatedAttribute_ChoosesSparse()
+    {
+        var ns = MakeFlyBrainLike();
+        ns.SetNodeAttributeStorage("nerve", "auto");
+        Assert.Equal("Sparse", StorageOf(ns, "nerve"));
+    }
+
+    [Fact]
+    public void Auto_PerAttribute_IsOrderIndependent()
+    {
+        var ns1 = MakeFlyBrainLike();
+        var ns2 = MakeFlyBrainLike();
+        var names = ns1.GetDefinedAttributeNames();
+        foreach (string a in names)
+            ns1.SetNodeAttributeStorage(a, "auto");
+        foreach (string a in Enumerable.Reverse(names))
+            ns2.SetNodeAttributeStorage(a, "auto");
+        foreach (string a in names)
+            Assert.Equal(StorageOf(ns1, a), StorageOf(ns2, a));
+    }
+
+    [Fact]
+    public void Auto_AllAttributes_FlyBrainLike_AllDense_AndPreservesValues()
+    {
+        // With the 10 full attributes dense, 'nerve' would be the only sparse attribute left: the per-node
+        // array of blob references (8 bytes/node) would then exist only for it, which costs more than a
+        // dense column (~4.1 bytes/node) - so the nodeset-wide optimum makes it dense too.
+        var ns = MakeFlyBrainLike();
+        var before = Snapshot(ns);
+        long bytesBefore = ns.GetEstimatedBytes();
+        var r = ns.SetNodeAttributeStorage(null, "auto");
+        Assert.True(r.Success, r.Message);
+        Assert.Contains("auto: estimated", r.Message);
+        Assert.Contains("11 node attribute(s)", r.Message);
+        foreach (string a in ns.GetDefinedAttributeNames())
+            Assert.Equal("Dense", StorageOf(ns, a));
+        Assert.Equal(before, Snapshot(ns));
+        Assert.True(ns.GetEstimatedBytes() < bytesBefore);
+        Assert.True(ns.IsModified);
+    }
+
+    [Fact]
+    public void Auto_AllAttributes_ManyRareAttributes_StaySparse()
+    {
+        // Six rare attributes on distinct ~7% subsets: together they make the sparse infrastructure
+        // worth keeping, so they stay sparse while the full attributes go dense.
+        var ns = MakeFlyBrainLike();
+        for (int r = 1; r <= 5; r++)
+        {
+            ns.DefineNodeAttribute($"rare{r}", "string");
+            foreach (uint id in ns.NodeIdArray)
+                if (id % 14 == r)
+                    ns.SetNodeAttribute(id, $"rare{r}", "x");
+        }
+        var before = Snapshot(ns);
+        Assert.True(ns.SetNodeAttributeStorage(null, "auto").Success);
+        for (int a = 0; a < 10; a++)
+            Assert.Equal("Dense", StorageOf(ns, $"full{a}"));
+        Assert.Equal("Sparse", StorageOf(ns, "nerve"));
+        for (int r = 1; r <= 5; r++)
+            Assert.Equal("Sparse", StorageOf(ns, $"rare{r}"));
+        Assert.Equal(before, Snapshot(ns));
+    }
+
+    [Fact]
+    public void Auto_AllAttributes_IsStable()
+    {
+        var ns = MakeFlyBrainLike();
+        ns.SetNodeAttributeStorage(null, "auto");
+        ns.IsModified = false;
+        var r = ns.SetNodeAttributeStorage(null, "auto");
+        Assert.Contains("0 converted", r.Message);
+        Assert.False(ns.IsModified);
+    }
+
+    [Fact]
+    public void Auto_AllAttributes_AllRare_StaysSparse()
+    {
+        // Four attributes on the same 3% of nodes: sparse costs ~1.4 kB of blobs plus the 8 kB reference
+        // array, dense would cost four ~4.2 kB columns.
+        var ns = new Nodeset("ns", 1000);
+        ns.DefineNodeAttribute("a", "int");
+        ns.DefineNodeAttribute("b", "int", "dense");
+        ns.DefineNodeAttribute("c", "int");
+        ns.DefineNodeAttribute("d", "int", "dense");
+        foreach (string attr in new[] { "a", "b", "c", "d" })
+            for (uint id = 0; id < 30; id++)
+                ns.SetNodeAttribute(id, attr, "2");
+        Assert.True(ns.SetNodeAttributeStorage(null, "auto").Success);
+        foreach (string attr in new[] { "a", "b", "c", "d" })
+            Assert.Equal("Sparse", StorageOf(ns, attr));
+        Assert.Equal(2, Value(ns, 29, "b"));
+    }
+
+    [Theory]
+    [InlineData("dense", "Dense")]
+    [InlineData("sparse", "Sparse")]
+    public void AllAttributes_ExplicitStorage_SetsEveryAttribute(string storage, string expected)
+    {
+        var ns = MakeFlyBrainLike(200);
+        var before = Snapshot(ns);
+        Assert.True(ns.SetNodeAttributeStorage(null, storage).Success);
+        foreach (string a in ns.GetDefinedAttributeNames())
+            Assert.Equal(expected, StorageOf(ns, a));
+        Assert.Equal(before, Snapshot(ns));
+    }
+
+    [Fact]
+    public void AllAttributes_NoAttributesDefined_Succeeds()
+    {
+        var ns = MakeNodeset();
+        var r = ns.SetNodeAttributeStorage(null, "auto");
+        Assert.True(r.Success);
+        Assert.Contains("no node attributes", r.Message);
+    }
+
+    [Fact]
+    public void AllAttributes_InvalidStorage_Fails()
+    {
+        var ns = MakeFlyBrainLike(50);
+        Assert.Equal("InvalidAttributeStorage", ns.SetNodeAttributeStorage(null, "columnar").Code);
+    }
+
+    [Fact]
+    public void Auto_AllAttributes_SurvivesBinaryRoundTrip()
+    {
+        var ns = MakeFlyBrainLike(300);
+        ns.SetNodeAttributeStorage(null, "auto");
+        AssertSameAttributes(ns, SaveAndLoad(ns, ".bin"));
+    }
+
     // ── Modified flag: attribute value changes must mark the nodeset modified ──
 
     [Fact]

@@ -417,6 +417,7 @@ namespace Threadle.Core.Model
                 for (int slot = 0; slot < _nextSlot; slot++)
                     if (_sparse[slot] != null)
                         _removeSparse(slot, oldAttrIndex);
+            _releaseSparseIfEmpty();
             _modified();
             return OperationResult.Ok($"Node attribute '{attrName}' is no longer defined.");
         }
@@ -534,16 +535,27 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Changes the storage mode of a node attribute in place: the attribute keeps its name, type and all
-        /// its values; only the way the values are stored changes. With 'auto', the storage mode that is
-        /// estimated to use the least memory for this attribute, given the current values, is chosen
-        /// (see <see cref="EstimateAttributeStorageBytes(byte)"/>); on a tie, the current mode is kept.
+        /// Changes the storage mode of one node attribute, or of all node attributes, in place: attributes keep
+        /// their names, types and all their values; only the way the values are stored changes.
+        /// With a named attribute, 'sparse'/'dense' convert it, and 'auto' picks the mode estimated to use the
+        /// least memory for that attribute (see <see cref="EstimateAttributeStorageBytes(byte)"/>; on a tie, the
+        /// current mode is kept). Without an attribute name (null), 'sparse'/'dense' convert every attribute, and
+        /// 'auto' picks the combination of modes estimated to use the least memory for the nodeset as a whole
+        /// (see <see cref="_findBestStorageLayout"/>).
         /// </summary>
-        /// <param name="attrName">The name of the node attribute.</param>
+        /// <param name="attrName">The name of the node attribute, or null for all node attributes.</param>
         /// <param name="storageStr">The storage mode: 'sparse', 'dense', or 'auto'.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went, including which storage was set.</returns>
-        public OperationResult SetNodeAttributeStorage(string attrName, string storageStr)
+        public OperationResult SetNodeAttributeStorage(string? attrName, string storageStr)
         {
+            bool auto = storageStr.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase);
+            NodeAttributeStorage? explicitTarget = auto ? null : Misc.GetAttributeStorage(storageStr);
+            if (!auto && explicitTarget == null)
+                return OperationResult.Fail("InvalidAttributeStorage", $"Attribute storage '{storageStr}' not recognized: must be 'sparse', 'dense', or 'auto'.");
+
+            if (attrName == null)
+                return _setAllNodeAttributesStorage(explicitTarget);
+
             var definition = NodeAttributeDefinitionManager.GetNodeAttributeDefinition(attrName);
             if (definition is null)
                 return OperationResult.Fail("AttributeUnknown", $"Node attribute '{attrName}' not found.");
@@ -552,7 +564,7 @@ namespace Threadle.Core.Model
 
             NodeAttributeStorage target;
             string estimateInfo = "";
-            if (storageStr.Trim().Equals("auto", StringComparison.OrdinalIgnoreCase))
+            if (auto)
             {
                 var (sparseBytes, denseBytes) = EstimateAttributeStorageBytes(attrIndex);
                 target = sparseBytes < denseBytes ? NodeAttributeStorage.Sparse
@@ -560,39 +572,13 @@ namespace Threadle.Core.Model
                     : current;
                 estimateInfo = $" (auto: estimated {Misc.FormatBytes(sparseBytes)} as sparse, {Misc.FormatBytes(denseBytes)} as dense)";
             }
-            else if (Misc.GetAttributeStorage(storageStr) is NodeAttributeStorage parsed)
-                target = parsed;
             else
-                return OperationResult.Fail("InvalidAttributeStorage", $"Attribute storage '{storageStr}' not recognized: must be 'sparse', 'dense', or 'auto'.");
+                target = explicitTarget!.Value;
 
             string targetStr = target.ToString().ToLowerInvariant();
             if (target == current)
                 return OperationResult.Ok($"Node attribute '{attrName}' already has {targetStr} storage{estimateInfo}.");
-
-            if (target == NodeAttributeStorage.Dense)
-            {
-                // Move values from the sparse blobs into a new dense column
-                // (reading the blobs directly: once the column exists, _tryGetBySlot would read from the column)
-                DenseColumn column = _getOrCreateDenseColumn(attrIndex);
-                if (_sparse != null)
-                    foreach (int slot in _slotOf.Values)
-                        if (_tryGetSparse(slot, attrIndex, out NodeAttributeValue value))
-                        {
-                            _removeSparse(slot, attrIndex);
-                            column.Set(slot, value);
-                        }
-            }
-            else
-            {
-                // Move values from the dense column into the sparse blobs
-                DenseColumn? column = _dense[attrIndex];
-                _dense[attrIndex] = null;
-                if (column != null)
-                    foreach (int slot in _slotOf.Values)
-                        if (column.TryGet(slot, out NodeAttributeValue value))
-                            _setSparse(slot, attrIndex, value);
-            }
-            NodeAttributeDefinitionManager.SetAttributeStorage(attrIndex, target);
+            _convertStorage(attrIndex, target);
             _modified();
             return OperationResult.Ok($"Node attribute '{attrName}' converted from {current.ToString().ToLowerInvariant()} to {targetStr} storage{estimateInfo}.");
         }
@@ -876,39 +862,41 @@ namespace Threadle.Core.Model
         #region Method (internal)
         /// <summary>
         /// Estimates how many bytes the values of a node attribute would occupy as sparse and as dense,
-        /// given which nodes currently have it set (regardless of its current storage mode).
+        /// given which nodes currently have it set. The estimate depends only on which nodes have values (for
+        /// this and the other attributes), never on the other attributes' current storage modes, so converting
+        /// attributes one at a time with 'auto' gives the same result in any order.
         /// Dense: one 4-byte value per slot plus one presence bit per slot, for all slots, set or not.
-        /// Sparse: for each node that has the value, the growth of that node's blob (5 bytes, plus array
-        /// overhead if it is the node's only sparse attribute, plus rounding to 8 bytes); plus the per-slot
-        /// array of blob references (8 bytes per slot) if no other sparse attribute is defined, since that
-        /// array then exists only because of this attribute.
+        /// Sparse: 5 bytes per stored value (1 index byte + 4 value bytes) for a node that has values for other
+        /// attributes too, whose blob overhead is then counted as shared; for a node where this is its only value,
+        /// a whole one-value blob (array header + padding); plus the per-slot array of blob references (8 bytes
+        /// per slot) if no other attribute has any value at all, since that array then exists only for this one.
+        /// Using the average 5 bytes per value, rather than the exact growth of each node's padded blob (0 or 8
+        /// bytes), also keeps a fully populated attribute from staying sparse just because padding happens to be
+        /// free. For the exact, nodeset-wide optimum use 'auto' without an attribute name (<see cref="_findBestStorageLayout"/>).
         /// </summary>
         /// <param name="attrIndex">The node attribute index.</param>
         /// <returns>The estimated bytes as sparse and as dense.</returns>
         internal (long SparseBytes, long DenseBytes) EstimateAttributeStorageBytes(byte attrIndex)
         {
-            int slots = Math.Max(_slotCapacity, _slotOf.Count);
-            long denseBytes = 72 + 4L * slots + 8L * ((slots + 63) >> 6);
-
-            static long blobBytes(int k) => k == 0 ? 0 : 24 + ((5 * k + 7) & ~7);
+            long denseBytes = _denseColumnBytes();
+            List<byte> others = NodeAttributeDefinitionManager.IndexToStorage.Keys.Where(a => a != attrIndex).ToList();
             long sparseBytes = 0;
+            bool otherValuesExist = false;
             foreach (int slot in _slotOf.Values)
             {
-                if (!_tryGetBySlot(slot, attrIndex, out _))
-                    continue;
-                // Number of OTHER sparse attributes this node has
-                int kOther = 0;
-                if (_sparse?[slot] is byte[] blob)
-                {
-                    int k = blob.Length / 5;
-                    kOther = Array.IndexOf(blob, attrIndex, 0, k) >= 0 ? k - 1 : k;
-                }
-                sparseBytes += blobBytes(kOther + 1) - blobBytes(kOther);
+                bool hasOther = false;
+                foreach (byte a in others)
+                    if (_tryGetBySlot(slot, a, out _))
+                    {
+                        hasOther = true;
+                        break;
+                    }
+                otherValuesExist |= hasOther;
+                if (_tryGetBySlot(slot, attrIndex, out _))
+                    sparseBytes += hasOther ? 5 : _blobBytes(1);
             }
-            bool otherSparseDefined = NodeAttributeDefinitionManager.IndexToStorage
-                .Any(kvp => kvp.Key != attrIndex && kvp.Value == NodeAttributeStorage.Sparse);
-            if (!otherSparseDefined)
-                sparseBytes += 24 + 8L * slots;
+            if (!otherValuesExist)
+                sparseBytes += _sparseReferenceArrayBytes();
             return (sparseBytes, denseBytes);
         }
 
@@ -1202,6 +1190,216 @@ namespace Threadle.Core.Model
             IsModified = true;
             _nodeIdCache = null;
 
+        }
+
+        /// <summary>
+        /// Sets the storage mode of every defined node attribute: to the given mode, or (if null) to the
+        /// combination estimated to use the least memory overall (see <see cref="_findBestStorageLayout"/>).
+        /// </summary>
+        private OperationResult _setAllNodeAttributesStorage(NodeAttributeStorage? explicitTarget)
+        {
+            var defs = NodeAttributeDefinitionManager.GetAllNodeAttributeDefinitions().OrderBy(d => d.Index).ToList();
+            if (defs.Count == 0)
+                return OperationResult.Ok($"Nodeset '{Name}' has no node attributes.");
+
+            Dictionary<byte, NodeAttributeStorage> targets;
+            string estimateInfo = "";
+            if (explicitTarget is NodeAttributeStorage t)
+                targets = defs.ToDictionary(d => d.Index, _ => t);
+            else
+            {
+                long before = _estimateLayoutBytes(defs.Select(d => d.Index).ToList(), idx => NodeAttributeDefinitionManager.IndexToStorage[idx] == NodeAttributeStorage.Dense);
+                (targets, long after) = _findBestStorageLayout(defs.Select(d => d.Index).ToList());
+                estimateInfo = $" (auto: estimated {Misc.FormatBytes(before)} before, {Misc.FormatBytes(after)} after)";
+            }
+
+            int converted = 0;
+            foreach (var d in defs)
+                if (targets[d.Index] != d.Storage)
+                {
+                    _convertStorage(d.Index, targets[d.Index]);
+                    converted++;
+                }
+            if (converted > 0)
+                _modified();
+
+            string dense = string.Join(", ", defs.Where(d => targets[d.Index] == NodeAttributeStorage.Dense).Select(d => d.AttrName));
+            string sparse = string.Join(", ", defs.Where(d => targets[d.Index] == NodeAttributeStorage.Sparse).Select(d => d.AttrName));
+            return OperationResult.Ok($"Storage set for {defs.Count} node attribute(s) in nodeset '{Name}', {converted} converted{estimateInfo}. "
+                + $"Dense: {(dense.Length > 0 ? dense : "(none)")}. Sparse: {(sparse.Length > 0 ? sparse : "(none)")}.");
+        }
+
+        /// <summary>
+        /// Moves the values of one attribute to the given storage mode and updates its definition.
+        /// Does nothing if the attribute already has that mode.
+        /// </summary>
+        private void _convertStorage(byte attrIndex, NodeAttributeStorage target)
+        {
+            if (!NodeAttributeDefinitionManager.TryGetAttributeStorage(attrIndex, out NodeAttributeStorage current) || current == target)
+                return;
+            if (target == NodeAttributeStorage.Dense)
+            {
+                // Move values from the sparse blobs into a new dense column
+                // (reading the blobs directly: once the column exists, _tryGetBySlot would read from the column)
+                DenseColumn column = _getOrCreateDenseColumn(attrIndex);
+                if (_sparse != null)
+                    foreach (int slot in _slotOf.Values)
+                        if (_tryGetSparse(slot, attrIndex, out NodeAttributeValue value))
+                        {
+                            _removeSparse(slot, attrIndex);
+                            column.Set(slot, value);
+                        }
+                _releaseSparseIfEmpty();
+            }
+            else
+            {
+                // Move values from the dense column into the sparse blobs
+                DenseColumn? column = _dense[attrIndex];
+                _dense[attrIndex] = null;
+                if (column != null)
+                    foreach (int slot in _slotOf.Values)
+                        if (column.TryGet(slot, out NodeAttributeValue value))
+                            _setSparse(slot, attrIndex, value);
+            }
+            NodeAttributeDefinitionManager.SetAttributeStorage(attrIndex, target);
+        }
+
+        /// <summary>
+        /// Releases the per-slot array of sparse blob references if no node has any sparse value left, so a
+        /// nodeset whose attributes are all dense (or empty) doesn't keep paying 8 bytes per node for it.
+        /// It is re-created on demand the next time a sparse value is set.
+        /// </summary>
+        private void _releaseSparseIfEmpty()
+        {
+            if (_sparse == null)
+                return;
+            for (int slot = 0; slot < _nextSlot; slot++)
+                if (_sparse[slot] != null)
+                    return;
+            _sparse = null;
+        }
+
+        /// <summary>
+        /// Size in bytes of a sparse blob holding k values: .NET array header (24 bytes) plus 5 bytes per value,
+        /// rounded up to a multiple of 8. Zero if the node has no sparse values (no blob at all).
+        /// </summary>
+        private static long _blobBytes(int k) => k == 0 ? 0 : 24 + ((5 * k + 7) & ~7);
+
+        /// <summary>
+        /// Size in bytes of one dense column for the current number of slots: 4 bytes per value plus one
+        /// presence bit per slot, plus object/array overhead.
+        /// </summary>
+        private long _denseColumnBytes()
+        {
+            int slots = Math.Max(_slotCapacity, _slotOf.Count);
+            return 72 + 4L * slots + 8L * ((slots + 63) >> 6);
+        }
+
+        /// <summary>
+        /// Size in bytes of the per-slot array of sparse blob references, which exists as soon as any node has a sparse value.
+        /// </summary>
+        private long _sparseReferenceArrayBytes() => 24 + 8L * Math.Max(_slotCapacity, _slotOf.Count);
+
+        /// <summary>
+        /// Estimates the total attribute storage, in bytes, of the given attributes under a given assignment of
+        /// storage modes: one dense column per dense attribute, plus each node's sparse blob (sized from how many
+        /// of the sparse attributes it has set) and the sparse reference array if any sparse value exists.
+        /// </summary>
+        private long _estimateLayoutBytes(List<byte> attrIndexes, Func<byte, bool> isDense)
+        {
+            long bytes = 0;
+            var sparseAttrs = new List<byte>();
+            foreach (byte a in attrIndexes)
+            {
+                if (isDense(a))
+                    bytes += _denseColumnBytes();
+                else
+                    sparseAttrs.Add(a);
+            }
+            bool anySparseValue = false;
+            foreach (int slot in _slotOf.Values)
+            {
+                int k = 0;
+                foreach (byte a in sparseAttrs)
+                    if (_tryGetBySlot(slot, a, out _))
+                        k++;
+                if (k > 0)
+                {
+                    bytes += _blobBytes(k);
+                    anySparseValue = true;
+                }
+            }
+            if (anySparseValue)
+                bytes += _sparseReferenceArrayBytes();
+            return bytes;
+        }
+
+        /// <summary>
+        /// Finds the combination of storage modes for the given attributes that is estimated to use the least
+        /// memory in total. Attributes are ranked by how many nodes have them set (most first); the candidates are
+        /// "the j most populated attributes dense, the rest sparse" for every j from 0 to the number of attributes,
+        /// and the cheapest candidate wins (ties go to fewer dense attributes). Each candidate's total is exact
+        /// under the same memory model as <see cref="_estimateLayoutBytes"/>, including how sparse blobs shrink as
+        /// attributes leave them; candidates are evaluated incrementally, so the whole search costs one pass over
+        /// the attribute values.
+        /// </summary>
+        /// <returns>The chosen storage mode per attribute index, and the estimated total bytes of that layout.</returns>
+        private (Dictionary<byte, NodeAttributeStorage> Targets, long Bytes) _findBestStorageLayout(List<byte> attrIndexes)
+        {
+            // Per slot: how many of the attributes are set (all sparse, i.e. candidate j = 0)
+            int[] k = new int[_nextSlot];
+            var setCount = new Dictionary<byte, int>();
+            foreach (byte a in attrIndexes)
+            {
+                int count = 0;
+                foreach (int slot in _slotOf.Values)
+                    if (_tryGetBySlot(slot, a, out _))
+                    {
+                        k[slot]++;
+                        count++;
+                    }
+                setCount[a] = count;
+            }
+            long sparseBytes = 0;
+            int nodesWithSparse = 0;
+            foreach (int slot in _slotOf.Values)
+                if (k[slot] > 0)
+                {
+                    sparseBytes += _blobBytes(k[slot]);
+                    nodesWithSparse++;
+                }
+
+            List<byte> ranked = attrIndexes.OrderByDescending(a => setCount[a]).ThenBy(a => a).ToList();
+            long columnBytes = _denseColumnBytes();
+            long referenceBytes = _sparseReferenceArrayBytes();
+
+            long Total(int j) => j * columnBytes + sparseBytes + (nodesWithSparse > 0 ? referenceBytes : 0);
+            long bestBytes = Total(0);
+            int bestJ = 0;
+            for (int j = 1; j <= ranked.Count; j++)
+            {
+                // Move ranked[j-1] from sparse to dense: every node that has it loses one sparse value
+                byte a = ranked[j - 1];
+                foreach (int slot in _slotOf.Values)
+                    if (_tryGetBySlot(slot, a, out _))
+                    {
+                        sparseBytes += _blobBytes(k[slot] - 1) - _blobBytes(k[slot]);
+                        k[slot]--;
+                        if (k[slot] == 0)
+                            nodesWithSparse--;
+                    }
+                long total = Total(j);
+                if (total < bestBytes)
+                {
+                    bestBytes = total;
+                    bestJ = j;
+                }
+            }
+
+            var targets = new Dictionary<byte, NodeAttributeStorage>();
+            for (int i = 0; i < ranked.Count; i++)
+                targets[ranked[i]] = i < bestJ ? NodeAttributeStorage.Dense : NodeAttributeStorage.Sparse;
+            return (targets, bestBytes);
         }
 
         /// <summary>
