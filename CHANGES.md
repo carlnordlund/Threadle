@@ -145,6 +145,19 @@
   all-pairs pass as the default mode, same cost, just without `AvgDistance`/
   `PairsConsidered` in the result. Either way the result also carries `Algorithm`
   (`"iFUB"` or `"AllPairs"`) so a caller can see which path actually ran.
+  - **iFUB fixed to actually stop early.** As first implemented it gave exact
+    results but examined nearly every node, so `diameteronly=true` was no faster
+    than the exhaustive pass: its stopping test used the bound `(i−1) + ecc(root)`
+    instead of iFUB's `2(i−1)`, and it started from a peripheral root (the far end
+    of a double sweep), whose eccentricity is close to the diameter. It now uses
+    `2(i−1)` and starts from a central root — the midpoint of the double-sweep
+    path, found with one extra BFS — with the double sweep's longest distance as
+    the initial lower bound, as iFUB is designed. Still exact for any root; on a
+    382,000-node 2-mode test network with a sparse periphery, the exact diameter
+    now takes 2.5 s where it previously ran for over 5 minutes without finishing.
+    On graphs with no periphery (e.g. uniformly random ones, where almost every
+    node is equally far from everything) iFUB still has to examine a large share
+    of the nodes.
 
 ### Behavior changes
 
