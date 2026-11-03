@@ -911,7 +911,8 @@ namespace Threadle.Core.Analysis
                 }
 
                 if (i == 0) break;
-                long ub = (i - 1) + eccR;
+                long ub = 2L * (i - 1);
+                //long ub = (i - 1) + eccR;
                 if (lb >= ub) break;
             }
             return lb;
