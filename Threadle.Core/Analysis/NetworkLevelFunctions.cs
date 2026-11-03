@@ -858,24 +858,73 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Exact diameter via the iFUB algorithm (Crescenzi, Grossi, Lanzi &amp; Marino 2012):
-        /// picks a likely-peripheral root via one double-sweep trial (<see cref="DoubleSweepRoot"/>),
-        /// then processes BFS-tree levels (by distance from that root) from farthest to nearest,
-        /// computing each unprocessed node's exact eccentricity (one more BFS per node,
-        /// parallelized within the level) and tracking a running lower bound, stopping as soon as
-        /// that lower bound meets the upper bound implied by the triangle inequality through the
-        /// root: for root r with eccentricity eccR, any node x satisfies ecc(x) &lt;= dist(r,x) +
-        /// eccR, so once every node at level i has a known exact eccentricity, any still-
-        /// unprocessed node (level &lt; i) has ecc &lt;= (i-1)+eccR - if the running lower bound
-        /// already meets that, it IS the exact diameter and the loop stops. This bound only holds
-        /// when distances are symmetric; callers must check that before calling this, it is not
-        /// re-checked here. Often examines only a small fraction of a component's nodes on
-        /// real-world graphs; no improved worst-case bound (e.g. a path graph needs most nodes
-        /// examined regardless) - exact either way, just not always fast.
+        /// Finds a central root for <see cref="DiameterIFUB"/>, together with a lower bound on the
+        /// diameter. A double sweep (BFS from a random node x to its farthest node r, then BFS from r
+        /// to its farthest node y, at distance ecc) gives two far-apart nodes; one more BFS, from y,
+        /// then identifies a midpoint m of a shortest r-y path: any node with d(r,m) = floor(ecc/2)
+        /// and d(y,m) = ecc - floor(ecc/2) lies on such a path, and the r-farthest-first BFS
+        /// guarantees one exists. m is returned as the root, with its own BFS distances and
+        /// eccentricity. The lower bound is the largest eccentricity seen along the way (those of r,
+        /// y and m) - every one of them is a real shortest-path length, so a valid lower bound.
+        /// This is the start-point heuristic iFUB is designed around (Crescenzi, Grossi, Habib,
+        /// Lanzi &amp; Marino 2013 use the midpoint of a sweep path): a central root has eccentricity
+        /// about half the diameter, so iFUB's stopping test can succeed after only the outermost
+        /// levels around it. Four BFS calls in total (from x, r, y and m).
+        /// </summary>
+        private static (long LowerBound, GraphAlgorithms.BFSDistances DistFromRoot, int EccRoot) CentralRootForIFUB(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        {
+            GraphAlgorithms.BFSDistances Bfs(uint source) => GraphAlgorithms.BFS(source, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            static (uint Farthest, int Ecc) FarthestOf(GraphAlgorithms.BFSDistances dist, uint fallback)
+            {
+                uint farthest = fallback;
+                int ecc = 0;
+                foreach (var (node, d) in dist)
+                    if (d > ecc) { ecc = d; farthest = node; }
+                return (farthest, ecc);
+            }
+
+            uint x = component[Misc.Random.Next(component.Length)];
+            var (r, _) = FarthestOf(Bfs(x), x);
+            var distFromR = Bfs(r);
+            var (y, ecc) = FarthestOf(distFromR, r);
+            var distFromY = Bfs(y);
+            int eccY = FarthestOf(distFromY, y).Ecc;
+
+            int half = ecc / 2;
+            uint m = r;
+            foreach (var (node, d) in distFromR)
+                if (d == half && distFromY[node] == ecc - half)
+                {
+                    m = node;
+                    break;
+                }
+            var distFromM = Bfs(m);
+            int eccM = FarthestOf(distFromM, m).Ecc;
+
+            long lowerBound = Math.Max(ecc, Math.Max(eccY, eccM));
+            return (lowerBound, distFromM, eccM);
+        }
+
+        /// <summary>
+        /// Exact diameter via the iFUB algorithm (Crescenzi, Grossi, Habib, Lanzi &amp; Marino 2013):
+        /// picks a central root m and an initial lower bound via <see cref="CentralRootForIFUB"/>,
+        /// then processes BFS-tree levels (by distance from m) from farthest to nearest, computing
+        /// each node's exact eccentricity (one more BFS per node, parallelized within the level) and
+        /// raising the lower bound lb accordingly. After level i is done, every node at distance
+        /// i or more from m has a known eccentricity, and any two nodes both within distance i-1 of m
+        /// are at most 2(i-1) apart (through m) - so once lb &gt;= 2(i-1), lb IS the exact diameter and
+        /// the loop stops. The same argument with i-1 = ecc(m) gives the bound 2*ecc(m) before any
+        /// level is processed. This only holds when distances are symmetric; callers must check
+        /// that before calling this, it is not re-checked here. The result is exact for any choice
+        /// of root; a central root just lets the stopping test succeed early - typically after the
+        /// outermost level or two, which on real-world graphs hold a small fraction of the nodes.
+        /// No improved worst-case bound (e.g. a path graph still needs about half its nodes examined).
         /// </summary>
         private static long DiameterIFUB(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
-            var (_, distFromRoot, eccR) = DoubleSweepRoot(component, componentIndex, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            var (lb, distFromRoot, eccRoot) = CentralRootForIFUB(component, componentIndex, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            if (lb >= 2L * eccRoot)
+                return lb;
 
             var levels = new Dictionary<int, List<uint>>();
             foreach (var (node, d) in distFromRoot)
@@ -885,9 +934,8 @@ namespace Threadle.Core.Analysis
                 list.Add(node);
             }
 
-            long lb = eccR;
             var mergeLock = new object();
-            for (int i = eccR; i >= 0; i--)
+            for (int i = eccRoot; i >= 0; i--)
             {
                 if (levels.TryGetValue(i, out var levelNodes) && levelNodes.Count > 0)
                 {
@@ -912,7 +960,6 @@ namespace Threadle.Core.Analysis
 
                 if (i == 0) break;
                 long ub = 2L * (i - 1);
-                //long ub = (i - 1) + eccR;
                 if (lb >= ub) break;
             }
             return lb;
