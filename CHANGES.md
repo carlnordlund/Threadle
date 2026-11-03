@@ -176,6 +176,22 @@
 
 ### Performance
 
+- **Faster BFS for distance-based commands on 2-mode layers.** `diameter()` (all
+  modes), `eccentricity()`, `closenesscentrality()`, `harmoniccentrality()` and
+  `shortestpathsattributes()` run one BFS per source node. Each command now
+  builds, once, a re-indexed copy of every packed 2-mode layer in the command's
+  compact node numbering (node → hyperedges, hyperedge → members, as plain int
+  arrays), and each worker thread reuses its distance array, queue and a
+  per-hyperedge visited stamp across all its BFS calls — instead of allocating a
+  new distance array and hyperedge set per call and doing a dictionary lookup
+  per member scanned. Results are unchanged. Measured on random 2-mode test
+  networks (4 cores): sampled `diameter()` with 64 sources on 382,000 nodes
+  6.4 s → 1.8 s; exact `diameter()` on 38,200 nodes 110 s → 22 s. 1-mode
+  layers gain little (closeness on a 30,000-node 1-mode network 54 s → 49 s),
+  since their neighbour lookups are unchanged. Extra memory per command: two
+  int arrays the size of the layer's affiliation count per packed 2-mode layer
+  (≈12 MB for a 1.5M-affiliation layer), plus per thread one distance array,
+  one queue and one hyperedge stamp array.
 - **Node attribute storage rewritten.** Node membership is now a single
   node-id-to-slot map (replacing the separate HashSet for nodes without
   attributes and Dictionary for nodes with attributes). Sparse attribute
