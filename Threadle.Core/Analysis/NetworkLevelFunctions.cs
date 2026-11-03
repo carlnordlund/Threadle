@@ -571,14 +571,19 @@ namespace Threadle.Core.Analysis
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
             int[] ecc = new int[nodeIds.Length];
-            System.Threading.Tasks.Parallel.For(0, nodeIds.Length, UserSettings.GetParallelOptions(), i =>
-            {
-                var dist = GraphAlgorithms.BFS(nodeIds[i], nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal);
-                int max = 0;
-                foreach (int d in dist.Values)
-                    if (d > max) max = d;
-                ecc[i] = max;
-            });
+            var bfsContext = GraphAlgorithms.BFSContext.Create(nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            System.Threading.Tasks.Parallel.For(0, nodeIds.Length, UserSettings.GetParallelOptions(),
+                () => new GraphAlgorithms.BFSScratch(),
+                (i, loopState, scratch) =>
+                {
+                    var dist = GraphAlgorithms.BFS(nodeIds[i], bfsContext, scratch);
+                    int max = 0;
+                    foreach (int d in dist.Values)
+                        if (d > max) max = d;
+                    ecc[i] = max;
+                    return scratch;
+                },
+                _ => { });
 
             var result = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++)
@@ -642,20 +647,21 @@ namespace Threadle.Core.Analysis
                     {
                         long maxDistFallback = 0;
                         var mergeLockFallback = new object();
+                        var bfsContextFallback = GraphAlgorithms.BFSContext.Create(componentIndex, component, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
                         System.Threading.Tasks.Parallel.For(0, component.Length, UserSettings.GetParallelOptions(),
-                            () => 0L,
-                            (i, loopState, localMax) =>
+                            () => (Max: 0L, Scratch: new GraphAlgorithms.BFSScratch()),
+                            (i, loopState, local) =>
                             {
-                                var dist = GraphAlgorithms.BFS(component[i], componentIndex, component, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
+                                var dist = GraphAlgorithms.BFS(component[i], bfsContextFallback, local.Scratch);
                                 foreach (int d in dist.Values)
-                                    if (d > localMax) localMax = d;
-                                return localMax;
+                                    if (d > local.Max) local.Max = d;
+                                return local;
                             },
-                            localMax =>
+                            local =>
                             {
                                 lock (mergeLockFallback)
                                 {
-                                    if (localMax > maxDistFallback) maxDistFallback = localMax;
+                                    if (local.Max > maxDistFallback) maxDistFallback = local.Max;
                                 }
                             });
                         diameterOnlyValue = maxDistFallback;
@@ -681,12 +687,13 @@ namespace Threadle.Core.Analysis
             {
                 GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
                 var mergeLock = new object();
+                var bfsContext = GraphAlgorithms.BFSContext.Create(componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
                 System.Threading.Tasks.Parallel.For(0, component.Length, UserSettings.GetParallelOptions(),
-                    () => (Max: 0L, Sum: 0L, Pairs: 0L),
+                    () => (Max: 0L, Sum: 0L, Pairs: 0L, Scratch: new GraphAlgorithms.BFSScratch()),
                     (i, loopState, local) =>
                     {
                         uint src = component[i];
-                        var dist = GraphAlgorithms.BFS(src, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                        var dist = GraphAlgorithms.BFS(src, bfsContext, local.Scratch);
                         foreach (var (node, d) in dist)
                         {
                             if (node == src) continue;
@@ -768,20 +775,28 @@ namespace Threadle.Core.Analysis
 
             uint[] sources = compSize > 0 ? CentralityFunctions.SampleNodes(component, sampleSize) : [];
             var perSourceMeans = new double[sources.Length];
-            System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(), i =>
+            if (sources.Length > 0)
             {
-                uint src = sources[i];
-                var dist = GraphAlgorithms.BFS(src, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
-                long sum = 0;
-                long count = 0;
-                foreach (var (node, d) in dist)
-                {
-                    if (node == src) continue;
-                    sum += d;
-                    count++;
-                }
-                perSourceMeans[i] = count > 0 ? (double)sum / count : 0.0;
-            });
+                var bfsContext = GraphAlgorithms.BFSContext.Create(componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
+                    () => new GraphAlgorithms.BFSScratch(),
+                    (i, loopState, scratch) =>
+                    {
+                        uint src = sources[i];
+                        var dist = GraphAlgorithms.BFS(src, bfsContext, scratch);
+                        long sum = 0;
+                        long count = 0;
+                        foreach (var (node, d) in dist)
+                        {
+                            if (node == src) continue;
+                            sum += d;
+                            count++;
+                        }
+                        perSourceMeans[i] = count > 0 ? (double)sum / count : 0.0;
+                        return scratch;
+                    },
+                    _ => { });
+            }
 
             int k = perSourceMeans.Length;
             double mean = k > 0 ? perSourceMeans.Average() : 0.0;
@@ -935,25 +950,27 @@ namespace Threadle.Core.Analysis
             }
 
             var mergeLock = new object();
+            var bfsContext = GraphAlgorithms.BFSContext.Create(componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
             for (int i = eccRoot; i >= 0; i--)
             {
                 if (levels.TryGetValue(i, out var levelNodes) && levelNodes.Count > 0)
                 {
                     System.Threading.Tasks.Parallel.For(0, levelNodes.Count, UserSettings.GetParallelOptions(),
-                        () => 0L,
-                        (j, loopState, localBest) =>
+                        () => (Best: 0L, Scratch: new GraphAlgorithms.BFSScratch()),
+                        (j, loopState, local) =>
                         {
-                            var dist = GraphAlgorithms.BFS(levelNodes[j], componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                            var dist = GraphAlgorithms.BFS(levelNodes[j], bfsContext, local.Scratch);
                             int ecc = 0;
                             foreach (int d in dist.Values)
                                 if (d > ecc) ecc = d;
-                            return Math.Max(localBest, (long)ecc);
+                            if (ecc > local.Best) local.Best = ecc;
+                            return local;
                         },
-                        localBest =>
+                        local =>
                         {
                             lock (mergeLock)
                             {
-                                if (localBest > lb) lb = localBest;
+                                if (local.Best > lb) lb = local.Best;
                             }
                         });
                 }

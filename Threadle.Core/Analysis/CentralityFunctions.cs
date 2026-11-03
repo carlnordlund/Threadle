@@ -137,9 +137,9 @@ namespace Threadle.Core.Analysis
         /// this same "distances only" shape. Same distances either way, since both BFS variants
         /// compute identical shortest-path levels - only the bookkeeping differs.
         /// </summary>
-        internal static void AccumulateDistanceCentralities(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
+        internal static void AccumulateDistanceCentralities(uint source, GraphAlgorithms.BFSContext bfsContext, GraphAlgorithms.BFSScratch scratch, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
         {
-            var dist = GraphAlgorithms.BFS(source, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal);
+            var dist = GraphAlgorithms.BFS(source, bfsContext, scratch);
 
             foreach (var (v, d) in dist)
             {
@@ -165,16 +165,20 @@ namespace Threadle.Core.Analysis
             var closenessReachable = new Dictionary<uint, int>();
             var harmonic = new Dictionary<uint, double>();
             var mergeLock = new object();
+            if (sources.Length == 0)
+                return (closenessDistSum, closenessReachable, harmonic);
+            var bfsContext = GraphAlgorithms.BFSContext.Create(nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal);
 
             System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
                 () => (
                     ClosenessDistSum: new Dictionary<uint, double>(),
                     ClosenessReachable: new Dictionary<uint, int>(),
-                    Harmonic: new Dictionary<uint, double>()
+                    Harmonic: new Dictionary<uint, double>(),
+                    Scratch: new GraphAlgorithms.BFSScratch()
                 ),
                 (i, loopState, local) =>
                 {
-                    AccumulateDistanceCentralities(sources[i], nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal,
+                    AccumulateDistanceCentralities(sources[i], bfsContext, local.Scratch,
                         local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic);
                     return local;
                 },

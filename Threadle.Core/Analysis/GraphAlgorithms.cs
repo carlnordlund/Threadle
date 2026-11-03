@@ -103,9 +103,9 @@ namespace Threadle.Core.Analysis
             private int[] _stamp = [];
             private int _currentStamp;
             private int[] _order = [];      // compact indices; doubles as the BFS queue (head
-                                             // pointer while filling, see BFSBrandes) and, once the
-                                             // forward pass finishes, the exact backward-pass order
-                                             // read in reverse - no separate Stack<uint>/Queue<uint>.
+                                            // pointer while filling, see BFSBrandes) and, once the
+                                            // forward pass finishes, the exact backward-pass order
+                                            // read in reverse - no separate Stack<uint>/Queue<uint>.
             private int _orderCount;
 
             internal readonly Dictionary<uint, List<uint>> Pred = [];
@@ -269,6 +269,264 @@ namespace Threadle.Core.Analysis
                         }
                     }
                 }
+            }
+            return new BFSDistances(dist, nodeIndex, nodeIds);
+        }
+
+        /// <summary>
+        /// Read-only, per-operation precomputation for the scratch-based <see cref="BFS(uint, BFSContext, BFSScratch)"/>:
+        /// built once by a caller that runs many BFS calls over the same node universe and layers (one per
+        /// source node, across worker threads), and shared by all of them. For every packed (static) 2-mode
+        /// layer it re-expresses the layer's two CSR structures in the operation's compact 0..n-1 node numbering
+        /// (<see cref="NodeIndex"/>): each node's hyperedges as one flat array, and each hyperedge's members
+        /// as compact indices (-1 for a member outside the node universe, e.g. outside the largest component).
+        /// The BFS inner loop then works on plain arrays, with no dictionary lookup per node or member - the
+        /// plain <see cref="BFS(uint, Dictionary{uint, int}, uint[], List{ILayerOneMode}, List{LayerTwoMode}, List{LayerTwoModeStatic}, EdgeTraversal)"/>
+        /// does one lookup per dequeued node (to find its hyperedges) and one per member scanned. Costs two
+        /// int arrays of the layer's total affiliation count plus one of n+1 and one of (hyperedges+1), per
+        /// static 2-mode layer, for the duration of the operation. 1-mode and unpacked 2-mode layers are
+        /// traversed exactly as in the plain BFS.
+        /// </summary>
+        internal sealed class BFSContext
+        {
+            internal readonly Dictionary<uint, int> NodeIndex;
+            internal readonly uint[] NodeIds;
+            internal readonly List<ILayerOneMode> OneModes;
+            internal readonly List<LayerTwoMode> TwoModesDynamic;
+            internal readonly EdgeTraversal Traversal;
+            internal readonly StaticTwoModeIndex[] TwoModesStatic;
+
+            /// <summary>One static 2-mode layer, re-indexed into the operation's compact node numbering.</summary>
+            internal sealed class StaticTwoModeIndex
+            {
+                /// <summary>Node i's hyperedges are NodeHyperedges[NodeOffsets[i] .. NodeOffsets[i+1]).</summary>
+                internal int[] NodeOffsets = [];
+                internal int[] NodeHyperedges = [];
+                /// <summary>Hyperedge h's members are HyperedgeMembers[HyperedgeOffsets[h] .. HyperedgeOffsets[h+1]), as compact node indices or -1.</summary>
+                internal int[] HyperedgeOffsets = [];
+                internal int[] HyperedgeMembers = [];
+                internal int HyperedgeCount;
+            }
+
+            private BFSContext(Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, StaticTwoModeIndex[] twoModesStatic, EdgeTraversal traversal)
+            {
+                NodeIndex = nodeIndex;
+                NodeIds = nodeIds;
+                OneModes = oneModes;
+                TwoModesDynamic = twoModesDynamic;
+                TwoModesStatic = twoModesStatic;
+                Traversal = traversal;
+            }
+
+            /// <summary>
+            /// Builds the context for one operation. <paramref name="nodeIndex"/> must map every id in
+            /// <paramref name="nodeIds"/> to its position there (the same pair the plain BFS takes).
+            /// </summary>
+            internal static BFSContext Create(Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+            {
+                int n = nodeIds.Length;
+                var statics = new StaticTwoModeIndex[twoModesStatic.Count];
+                for (int li = 0; li < twoModesStatic.Count; li++)
+                {
+                    LayerTwoModeStatic layer = twoModesStatic[li];
+                    var idx = new StaticTwoModeIndex();
+
+                    // Node -> hyperedges, in compact node order
+                    int[] nodeOffsets = new int[n + 1];
+                    for (int i = 0; i < n; i++)
+                        nodeOffsets[i + 1] = nodeOffsets[i] + (layer.TryGetNodeHyperedgeRange(nodeIds[i], out int s, out int e) ? e - s : 0);
+                    int[] nodeHyperedges = new int[nodeOffsets[n]];
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (!layer.TryGetNodeHyperedgeRange(nodeIds[i], out int s, out int e))
+                            continue;
+                        int w = nodeOffsets[i];
+                        for (int k = s; k < e; k++)
+                            nodeHyperedges[w++] = layer.GetNodeHyperedgeIndex(k);
+                    }
+
+                    // Hyperedge -> members, as compact node indices (-1 if outside the node universe)
+                    int h = (int)layer.NbrHyperedges;
+                    int[] hyperedgeOffsets = new int[h + 1];
+                    for (int he = 0; he < h; he++)
+                    {
+                        layer.GetHyperedgeRange(he, out int s, out int e);
+                        hyperedgeOffsets[he + 1] = hyperedgeOffsets[he] + (e - s);
+                    }
+                    int[] hyperedgeMembers = new int[hyperedgeOffsets[h]];
+                    for (int he = 0; he < h; he++)
+                    {
+                        layer.GetHyperedgeRange(he, out int s, out int e);
+                        int w = hyperedgeOffsets[he];
+                        for (int j = s; j < e; j++)
+                            hyperedgeMembers[w++] = nodeIndex.TryGetValue(layer.GetHyperedgeNodeAt(j), out int m) ? m : -1;
+                    }
+
+                    idx.NodeOffsets = nodeOffsets;
+                    idx.NodeHyperedges = nodeHyperedges;
+                    idx.HyperedgeOffsets = hyperedgeOffsets;
+                    idx.HyperedgeMembers = hyperedgeMembers;
+                    idx.HyperedgeCount = h;
+                    statics[li] = idx;
+                }
+                return new BFSContext(nodeIndex, nodeIds, oneModes, twoModesDynamic, statics, traversal);
+            }
+        }
+
+        /// <summary>
+        /// Reusable per-thread state for <see cref="BFS(uint, BFSContext, BFSScratch)"/>: the distance array
+        /// and queue (allocated once, not per call), a visited-stamp array per static 2-mode layer (a hyperedge
+        /// counts as visited in the current call when its stamp equals the current generation, so starting a
+        /// new call is one increment instead of clearing or allocating a set), and a visited set per unpacked
+        /// 2-mode layer (cleared, not reallocated). Create one per worker thread, e.g. via Parallel.For's
+        /// local-state factory, and never share one between threads. The distances a call returns live in
+        /// this scratch's array, so they are only valid until the next call with the same scratch.
+        /// </summary>
+        internal sealed class BFSScratch
+        {
+            internal int[] Dist = [];
+            internal int[] Queue = [];
+            internal int[][] HyperedgeStamp = [];
+            internal int Generation;
+            internal HashSet<Hyperedge>[] DynVisited = [];
+            private BFSContext? _context;
+
+            // State read by the 1-mode visitor below, which is created once per scratch rather than per call
+            private int _queueTail;
+            private int _nextDist;
+            private Dictionary<uint, int> _nodeIndex = [];
+            internal readonly Action<uint> VisitOneModeAlter;
+
+            internal BFSScratch()
+            {
+                VisitOneModeAlter = v =>
+                {
+                    if (_nodeIndex.TryGetValue(v, out int vIdx) && Dist[vIdx] < 0)
+                    {
+                        Dist[vIdx] = _nextDist;
+                        Queue[_queueTail++] = vIdx;
+                    }
+                };
+            }
+
+            internal int QueueTail { get => _queueTail; set => _queueTail = value; }
+            internal int NextDist { set => _nextDist = value; }
+
+            /// <summary>Prepares for a call with the given context: sizes the arrays on first use (or if the context changed), resets per-call state.</summary>
+            internal void StartCall(BFSContext context)
+            {
+                if (!ReferenceEquals(_context, context))
+                {
+                    _context = context;
+                    _nodeIndex = context.NodeIndex;
+                    int n = context.NodeIds.Length;
+                    Dist = new int[n];
+                    Queue = new int[n];
+                    HyperedgeStamp = new int[context.TwoModesStatic.Length][];
+                    for (int li = 0; li < HyperedgeStamp.Length; li++)
+                        HyperedgeStamp[li] = new int[context.TwoModesStatic[li].HyperedgeCount];
+                    Generation = 0;
+                    DynVisited = new HashSet<Hyperedge>[context.TwoModesDynamic.Count];
+                    for (int li = 0; li < DynVisited.Length; li++)
+                        DynVisited[li] = new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance);
+                }
+                Array.Fill(Dist, -1);
+                _queueTail = 0;
+                if (Generation == int.MaxValue)
+                {
+                    foreach (int[] stamps in HyperedgeStamp)
+                        Array.Clear(stamps);
+                    Generation = 0;
+                }
+                Generation++;
+                foreach (var set in DynVisited)
+                    set.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Single-source BFS, identical in result to the plain
+        /// <see cref="BFS(uint, Dictionary{uint, int}, uint[], List{ILayerOneMode}, List{LayerTwoMode}, List{LayerTwoModeStatic}, EdgeTraversal)"/>
+        /// (same reached nodes, same distances; the same 1-mode, unpacked 2-mode and packed 2-mode traversal
+        /// rules, each hyperedge expanded at most once), but for callers that run many BFS calls in one
+        /// operation: it uses a shared, precomputed <paramref name="context"/> and a per-thread reusable
+        /// <paramref name="scratch"/>, so a call allocates nothing and the packed 2-mode inner loop does no
+        /// dictionary lookups. The returned distances live in <paramref name="scratch"/>'s array and are only
+        /// valid until the next call with the same scratch - consume them before calling again. Callers that
+        /// need to keep several BFS results at once use the plain BFS instead.
+        /// </summary>
+        internal static BFSDistances BFS(uint source, BFSContext context, BFSScratch scratch)
+        {
+            scratch.StartCall(context);
+            int[] dist = scratch.Dist;
+            int[] queue = scratch.Queue;
+            int gen = scratch.Generation;
+            uint[] nodeIds = context.NodeIds;
+
+            int sourceIdx = context.NodeIndex[source];
+            dist[sourceIdx] = 0;
+            queue[0] = sourceIdx;
+            scratch.QueueTail = 1;
+            int head = 0;
+
+            var oneModes = context.OneModes;
+            var twoModesDynamic = context.TwoModesDynamic;
+            var statics = context.TwoModesStatic;
+            var nodeIndex = context.NodeIndex;
+
+            while (head < scratch.QueueTail)
+            {
+                int uIdx = queue[head++];
+                int next = dist[uIdx] + 1;
+
+                if (oneModes.Count > 0)
+                {
+                    scratch.NextDist = next;
+                    uint u = nodeIds[uIdx];
+                    foreach (var layer in oneModes)
+                        layer.VisitAlters(u, context.Traversal, scratch.VisitOneModeAlter);
+                }
+
+                int tail = scratch.QueueTail;
+                for (int li = 0; li < twoModesDynamic.Count; li++)
+                {
+                    var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(nodeIds[uIdx]);
+                    if (hec == null) continue;
+                    var visited = scratch.DynVisited[li];
+                    foreach (var he in hec.HyperEdges)
+                        if (visited.Add(he))
+                            foreach (uint m in he.NodeIds)
+                                if (nodeIndex.TryGetValue(m, out int mIdx) && dist[mIdx] < 0)
+                                {
+                                    dist[mIdx] = next;
+                                    queue[tail++] = mIdx;
+                                }
+                }
+
+                for (int li = 0; li < statics.Length; li++)
+                {
+                    var st = statics[li];
+                    int[] stamp = scratch.HyperedgeStamp[li];
+                    int[] nodeHyperedges = st.NodeHyperedges;
+                    int[] hyperedgeOffsets = st.HyperedgeOffsets;
+                    int[] members = st.HyperedgeMembers;
+                    for (int k = st.NodeOffsets[uIdx], kEnd = st.NodeOffsets[uIdx + 1]; k < kEnd; k++)
+                    {
+                        int h = nodeHyperedges[k];
+                        if (stamp[h] == gen) continue;
+                        stamp[h] = gen;
+                        for (int j = hyperedgeOffsets[h], jEnd = hyperedgeOffsets[h + 1]; j < jEnd; j++)
+                        {
+                            int mIdx = members[j];
+                            if (mIdx >= 0 && dist[mIdx] < 0)
+                            {
+                                dist[mIdx] = next;
+                                queue[tail++] = mIdx;
+                            }
+                        }
+                    }
+                }
+                scratch.QueueTail = tail;
             }
             return new BFSDistances(dist, nodeIndex, nodeIds);
         }
