@@ -116,10 +116,7 @@ namespace Threadle.Core.Analysis
                 bool improved = LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community);
                 int[] refined = RefinePartition(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community, randomness);
 
-                var commMap = new Dictionary<int, int>(curN);
-                for (int i = 0; i < curN; i++)
-                    if (!commMap.ContainsKey(refined[i])) commMap[refined[i]] = commMap.Count;
-                int newN = commMap.Count;
+                var (commMap, newN) = RenumberByFirstAppearance(refined);
 
                 for (int i = 0; i < n0; i++)
                     mapping[i] = commMap[refined[mapping[i]]];
@@ -127,39 +124,20 @@ namespace Threadle.Core.Analysis
                 if (!improved || newN == curN)
                     break;
 
-                var newAdj = new Dictionary<int, double>[newN];
-                for (int i = 0; i < newN; i++) newAdj[i] = new Dictionary<int, double>();
-                for (int u = 0; u < curN; u++)
-                {
-                    int cu = commMap[refined[u]];
-                    var nbrs = curNeighbors[u];
-                    var wts = curWeights[u];
-                    for (int k = 0; k < nbrs.Length; k++)
-                    {
-                        int cv = commMap[refined[nbrs[k]]];
-                        newAdj[cu][cv] = newAdj[cu].GetValueOrDefault(cv) + wts[k];
-                    }
-                }
+                int[] superOf = new int[curN];
+                for (int u = 0; u < curN; u++) superOf[u] = commMap[refined[u]];
 
                 // Seed the next level's local-moving from the P-groups computed at this level
                 // (every super-node's members share one P value, since refinement never crosses
                 // a P boundary), so aggregation continues from Leiden's own prior progress instead
                 // of restarting from singletons — same efficiency/quality trick as the paper.
-                var pGroupToId = new Dictionary<int, int>(newN);
+                // (P-group ids numbered by first appearance along u, as the previous dictionary did)
+                var (pGroupToId, _) = RenumberByFirstAppearance(community);
                 int[] nextSeed = new int[newN];
                 for (int u = 0; u < curN; u++)
-                {
-                    int cu = commMap[refined[u]];
-                    int pu = community[u];
-                    if (!pGroupToId.TryGetValue(pu, out int seedId))
-                    {
-                        seedId = pGroupToId.Count;
-                        pGroupToId[pu] = seedId;
-                    }
-                    nextSeed[cu] = seedId;
-                }
+                    nextSeed[superOf[u]] = pGroupToId[community[u]];
 
-                (curNeighbors, curWeights) = ToArrays(newAdj, newN);
+                (curNeighbors, curWeights) = Aggregate(curN, curNeighbors, curWeights, superOf, newN);
                 curDegree = new double[newN];
                 for (int i = 0; i < newN; i++) curDegree[i] = SumArray(curWeights[i]);
                 curN = newN;
@@ -255,10 +233,7 @@ namespace Threadle.Core.Analysis
                     ? ParallelLocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community)
                     : LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community);
 
-                var commMap = new Dictionary<int, int>(curN);
-                for (int i = 0; i < curN; i++)
-                    if (!commMap.ContainsKey(community[i])) commMap[community[i]] = commMap.Count;
-                int newN = commMap.Count;
+                var (commMap, newN) = RenumberByFirstAppearance(community);
 
                 for (int i = 0; i < n0; i++)
                     mapping[i] = commMap[community[mapping[i]]];
@@ -266,21 +241,9 @@ namespace Threadle.Core.Analysis
                 if (!improved || newN == curN)
                     break;
 
-                var newAdj = new Dictionary<int, double>[newN];
-                for (int i = 0; i < newN; i++) newAdj[i] = new Dictionary<int, double>();
-                for (int u = 0; u < curN; u++)
-                {
-                    int cu = commMap[community[u]];
-                    var nbrs = curNeighbors[u];
-                    var wts = curWeights[u];
-                    for (int k = 0; k < nbrs.Length; k++)
-                    {
-                        int cv = commMap[community[nbrs[k]]];
-                        newAdj[cu][cv] = newAdj[cu].GetValueOrDefault(cv) + wts[k];
-                    }
-                }
-
-                (curNeighbors, curWeights) = ToArrays(newAdj, newN);
+                int[] superOf = new int[curN];
+                for (int u = 0; u < curN; u++) superOf[u] = commMap[community[u]];
+                (curNeighbors, curWeights) = Aggregate(curN, curNeighbors, curWeights, superOf, newN);
                 curDegree = new double[newN];
                 for (int i = 0; i < newN; i++) curDegree[i] = SumArray(curWeights[i]);
                 curN = newN;
@@ -346,7 +309,7 @@ namespace Threadle.Core.Analysis
             int[] order = new int[n0];
             for (int i = 0; i < n0; i++) order[i] = i;
 
-            var weightByLabel = new Dictionary<int, double>();
+            var weightByLabel = new WeightAccumulator(n0);
             var bestLabels = new List<int>();
 
             for (int pass = 0; pass < maxIterations; pass++)
@@ -362,18 +325,21 @@ namespace Threadle.Core.Analysis
 
                     weightByLabel.Clear();
                     for (int k = 0; k < nbrs.Length; k++)
-                    {
-                        int l = label[nbrs[k]];
-                        weightByLabel[l] = weightByLabel.GetValueOrDefault(l) + wts[k];
-                    }
+                        weightByLabel.Add(label[nbrs[k]], wts[k]);
 
                     double maxWeight = double.NegativeInfinity;
-                    foreach (double w in weightByLabel.Values)
+                    for (int t = 0; t < weightByLabel.Count; t++)
+                    {
+                        double w = weightByLabel[weightByLabel.KeyAt(t)];
                         if (w > maxWeight) maxWeight = w;
+                    }
 
                     bestLabels.Clear();
-                    foreach (var (l, w) in weightByLabel)
-                        if (w >= maxWeight - Epsilon) bestLabels.Add(l);
+                    for (int t = 0; t < weightByLabel.Count; t++)
+                    {
+                        int l = weightByLabel.KeyAt(t);
+                        if (weightByLabel[l] >= maxWeight - Epsilon) bestLabels.Add(l);
+                    }
 
                     int newLabel = bestLabels[Misc.Random.Next(bestLabels.Count)];
                     if (newLabel != label[u])
@@ -560,7 +526,7 @@ namespace Threadle.Core.Analysis
             for (int i = 0; i < n; i++) order[i] = i;
             Shuffle(order);
 
-            var candidateWeight = new Dictionary<int, double>();
+            var candidateWeight = new WeightAccumulator(n);
             var candidateIds = new List<int>();
             var candidateGains = new List<double>();
             var candidateWeights = new List<double>();
@@ -577,8 +543,7 @@ namespace Threadle.Core.Analysis
                 {
                     int v = nbrs[k];
                     if (v == u || P[v] != pu) continue; // stay within u's own P-community
-                    int c = refined[v];
-                    candidateWeight[c] = candidateWeight.GetValueOrDefault(c) + wts[k];
+                    candidateWeight.Add(refined[v], wts[k]);
                 }
                 if (candidateWeight.Count == 0) continue; // no eligible neighbor: stays singleton
 
@@ -587,9 +552,10 @@ namespace Threadle.Core.Analysis
                 candidateIds.Clear();
                 candidateGains.Clear();
                 double bestGain = 0.0; // staying singleton has gain 0 by definition
-                foreach (var (c, kIn) in candidateWeight)
+                for (int t = 0; t < candidateWeight.Count; t++)
                 {
-                    double gain = kIn - resolution * sigmaTot[c] * degree[u] / twoM;
+                    int c = candidateWeight.KeyAt(t);
+                    double gain = candidateWeight[c] - resolution * sigmaTot[c] * degree[u] / twoM;
                     if (gain > Epsilon)
                     {
                         candidateIds.Add(c);
@@ -638,6 +604,110 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Reusable "weight per key" accumulator replacing a Dictionary&lt;int, double&gt; that is cleared
+        /// and refilled for every node: a weight array indexed by key, plus the keys touched since the
+        /// last <see cref="Clear"/> in first-touched order. A dictionary that is only ever cleared and
+        /// added to enumerates in insertion order, so iterating <see cref="Keys"/> visits keys in exactly
+        /// the order the dictionary did, and each key's weight is summed in the same order - results,
+        /// including tie-breaks, are identical. Keys must be in 0 .. capacity-1. Touched-ness is tracked
+        /// with a generation stamp, so zero or negative weights can't hide a key.
+        /// </summary>
+        private sealed class WeightAccumulator(int capacity)
+        {
+            private readonly double[] _weight = new double[capacity];
+            private readonly int[] _stamp = new int[capacity];
+            private readonly int[] _keys = new int[capacity];
+            private int _count;
+            private int _gen = 1;
+
+            internal int Count => _count;
+            internal int KeyAt(int i) => _keys[i];
+            internal double this[int key] => _stamp[key] == _gen ? _weight[key] : 0.0;
+
+            internal void Add(int key, double w)
+            {
+                if (_stamp[key] != _gen)
+                {
+                    _stamp[key] = _gen;
+                    _weight[key] = w;
+                    _keys[_count++] = key;
+                }
+                else
+                    _weight[key] += w;
+            }
+
+            internal void Clear()
+            {
+                _count = 0;
+                if (++_gen == int.MaxValue)
+                {
+                    Array.Clear(_stamp);
+                    _gen = 1;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Renumbers community ids (each in 0 .. ids.Length-1) to 0 .. C-1 in order of first appearance
+        /// along <paramref name="ids"/> - the same numbering a first-seen Dictionary&lt;int, int&gt; gives.
+        /// Returns the old-id -&gt; new-id map (-1 for unused ids) and C.
+        /// </summary>
+        private static (int[] map, int count) RenumberByFirstAppearance(int[] ids)
+        {
+            int[] map = new int[ids.Length];
+            Array.Fill(map, -1);
+            int count = 0;
+            foreach (int id in ids)
+                if (map[id] < 0) map[id] = count++;
+            return (map, count);
+        }
+
+        /// <summary>
+        /// Builds the next level's graph by collapsing each community into one node: for super-node cu,
+        /// the summed weight to every super-node cv, from all edges (u, v) with u in cu and v in cv.
+        /// Produces exactly what the previous Dictionary&lt;int, double&gt;[]-based aggregation produced:
+        /// each row's neighbours in the order the dictionary first saw them (members of cu in increasing
+        /// node order, then each member's neighbours in order) and each weight summed in that same order.
+        /// <paramref name="superOf"/>[u] is u's super-node (0 .. newN-1).
+        /// </summary>
+        private static (int[][] neighbors, double[][] weights) Aggregate(int curN, int[][] curNeighbors, double[][] curWeights, int[] superOf, int newN)
+        {
+            // Members of each super-node, in increasing node order (stable counting sort)
+            int[] start = new int[newN + 1];
+            for (int u = 0; u < curN; u++) start[superOf[u] + 1]++;
+            for (int c = 0; c < newN; c++) start[c + 1] += start[c];
+            int[] members = new int[curN];
+            int[] fill = (int[])start.Clone();
+            for (int u = 0; u < curN; u++) members[fill[superOf[u]]++] = u;
+
+            var acc = new WeightAccumulator(newN);
+            var neighbors = new int[newN][];
+            var weights = new double[newN][];
+            for (int cu = 0; cu < newN; cu++)
+            {
+                acc.Clear();
+                for (int m = start[cu]; m < start[cu + 1]; m++)
+                {
+                    int u = members[m];
+                    var nbrs = curNeighbors[u];
+                    var wts = curWeights[u];
+                    for (int k = 0; k < nbrs.Length; k++)
+                        acc.Add(superOf[nbrs[k]], wts[k]);
+                }
+                var nb = new int[acc.Count];
+                var wt = new double[acc.Count];
+                for (int i = 0; i < acc.Count; i++)
+                {
+                    nb[i] = acc.KeyAt(i);
+                    wt[i] = acc[nb[i]];
+                }
+                neighbors[cu] = nb;
+                weights[cu] = wt;
+            }
+            return (neighbors, weights);
+        }
+
+        /// <summary>
         /// Repeatedly sweeps all nodes (in random order) moving each to whichever neighboring
         /// community (including its own) yields the greatest modularity gain, until a full sweep
         /// produces no moves. Returns whether any node ever moved.
@@ -656,7 +726,7 @@ namespace Threadle.Core.Analysis
             Shuffle(order);
 
             bool improvedAny = false;
-            var neighborCommWeight = new Dictionary<int, double>();
+            var neighborCommWeight = new WeightAccumulator(n);
 
             bool improvedThisPass = true;
             while (improvedThisPass)
@@ -674,17 +744,18 @@ namespace Threadle.Core.Analysis
                     {
                         int v = nbrs[k];
                         if (v == u) continue; // self-loop: no inter-community linkage signal
-                        int c = community[v];
-                        neighborCommWeight[c] = neighborCommWeight.GetValueOrDefault(c) + wts[k];
+                        neighborCommWeight.Add(community[v], wts[k]);
                     }
 
                     int bestComm = currentComm;
-                    double bestGain = neighborCommWeight.GetValueOrDefault(currentComm)
+                    double bestGain = neighborCommWeight[currentComm]
                         - resolution * sigmaTot[currentComm] * degree[u] / twoM;
 
-                    foreach (var (c, kIn) in neighborCommWeight)
+                    for (int t = 0; t < neighborCommWeight.Count; t++)
                     {
+                        int c = neighborCommWeight.KeyAt(t);
                         if (c == currentComm) continue;
+                        double kIn = neighborCommWeight[c];
                         double gain = kIn - resolution * sigmaTot[c] * degree[u] / twoM;
                         if (gain > bestGain + Epsilon)
                         {
@@ -786,25 +857,29 @@ namespace Threadle.Core.Analysis
         private static double ComputeModularity(int n0, int[][] neighbors0, double[][] weights0,
             double[] degree0, double twoM, double resolution, int[] mapping)
         {
-            var sigmaTot = new Dictionary<int, double>();
-            var sigmaIn = new Dictionary<int, double>();
+            // Arrays indexed by community id, summed in the same order as the previous dictionaries
+            // (communities in order of first appearance along u), so Q is bit-for-bit the same.
+            int maxC = 0;
+            for (int u = 0; u < n0; u++) if (mapping[u] > maxC) maxC = mapping[u];
+            var sigmaTot = new WeightAccumulator(maxC + 1);
+            var sigmaIn = new double[maxC + 1];
             for (int u = 0; u < n0; u++)
             {
                 int cu = mapping[u];
-                sigmaTot[cu] = sigmaTot.GetValueOrDefault(cu) + degree0[u];
+                sigmaTot.Add(cu, degree0[u]);
                 var nbrs = neighbors0[u];
                 var wts = weights0[u];
                 for (int k = 0; k < nbrs.Length; k++)
                     if (mapping[nbrs[k]] == cu)
-                        sigmaIn[cu] = sigmaIn.GetValueOrDefault(cu) + wts[k];
+                        sigmaIn[cu] += wts[k];
             }
 
             double q = 0.0;
-            foreach (var (c, stot) in sigmaTot)
+            for (int t = 0; t < sigmaTot.Count; t++)
             {
-                double sin = sigmaIn.GetValueOrDefault(c);
-                double frac = stot / twoM;
-                q += sin / twoM - resolution * frac * frac;
+                int c = sigmaTot.KeyAt(t);
+                double frac = sigmaTot[c] / twoM;
+                q += sigmaIn[c] / twoM - resolution * frac * frac;
             }
             return q;
         }
