@@ -4,6 +4,21 @@
 
 ### New features
 
+- **`communitydetection()` gained `maxsweeps`** (default 0 = no limit), for
+  `louvain`, `plm`, `leiden` and `lpam`, on 1-mode and 2-mode layers: caps the
+  number of local-moving sweeps per level. By default local moving repeats
+  until a full sweep moves no node; on weakly structured networks most of the
+  time can go into long tails of sweeps that each move only a few nodes. With
+  the default, results are unchanged (verified byte-for-byte against the
+  previous build). Measured with `maxsweeps=32` on 100,000-node test networks:
+  scale-free `louvain` 11.3 s → 1.7 s, `leiden` 11.6 s → 2.2 s, `lpam`
+  10.7 s → 1.5 s; random `louvain`/`leiden`/`lpam` about 3.5× faster; a
+  small-world network with clear communities and a random 2-mode network
+  hardly changed (local moving converged within 32 sweeps). Modularity moved
+  by a few percent either way for `louvain`/`leiden` (within run-to-run
+  variation), but `lpam`, having a single level, lost up to 7% on the
+  scale-free network. For `plm`, `maxsweeps` replaces its own default cap of 32.
+
 - **New community detection type `plm`** (`communitydetection(..., type=plm)`):
   the parallel Louvain method of Staudt & Meyerhenke (2016), as in NetworKit.
   Same multi-level local moving and aggregation as `louvain`, but each
