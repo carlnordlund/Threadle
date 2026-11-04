@@ -108,6 +108,32 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Detects communities with the parallel Louvain method (PLM; Staudt &amp; Meyerhenke 2016, as in
+        /// NetworKit): Louvain's multi-level local moving and aggregation, but with each local-moving sweep
+        /// processing nodes in parallel across up to 'maxthreads' threads (see 'setting()'), sharing one
+        /// community assignment without locking around each move. Faster than 'louvain' on multi-core
+        /// machines, with modularity typically close to it; because threads see each other's moves at
+        /// slightly different times, results can differ between runs even with the same randomseed(),
+        /// unless maxthreads is 1. Accepts the same layers as <see cref="CommunityDetectionLouvain"/>
+        /// (1-mode layers combined and symmetrized, or a single 2-mode layer on its own, count-weighted)
+        /// and the same resolution. numRestarts runs are done one after another (each is already
+        /// parallel), keeping the highest-modularity result. Returns NbrCommunities, CommunitySizes
+        /// (descending), Modularity and NumRestarts.
+        /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionPLM(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1)
+        {
+            if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
+                return err!;
+
+            attrName = ResolveCommunityAttrName(layerNames, attrName);
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var (communities, modularity) = twoMode != null
+                ? CommunityFunctions.PlmCommunitiesTwoMode(nodeIds, twoMode, resolution, numRestarts)
+                : CommunityFunctions.PlmCommunities(nodeIds, oneModes, resolution, numRestarts);
+            return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
+        }
+
+        /// <summary>
         /// Detects communities via asynchronous label propagation (Raghavan, Albert &amp; Kumara 2007)
         /// for the specified 1-mode layer(s), storing the community index as an integer node
         /// attribute. Unlike Louvain, this does not optimize modularity — each node repeatedly

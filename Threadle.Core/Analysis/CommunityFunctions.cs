@@ -242,7 +242,7 @@ namespace Threadle.Core.Analysis
         /// the singleton case); the loop composes further aggregation into it exactly as before.
         /// </summary>
         private static int[] RunLouvainLevelsFrom(int n0, int[] initialMapping, int curN,
-            int[][] curNeighbors, double[][] curWeights, double[] curDegree, double twoM, double resolution)
+            int[][] curNeighbors, double[][] curWeights, double[] curDegree, double twoM, double resolution, bool parallel = false)
         {
             int[] mapping = (int[])initialMapping.Clone();
 
@@ -251,7 +251,9 @@ namespace Threadle.Core.Analysis
                 int[] community = new int[curN];
                 for (int i = 0; i < curN; i++) community[i] = i;
 
-                bool improved = LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community);
+                bool improved = parallel
+                    ? ParallelLocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community)
+                    : LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community);
 
                 var commMap = new Dictionary<int, int>(curN);
                 for (int i = 0; i < curN; i++)
@@ -1008,47 +1010,176 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Count-weighted per-node degree for a single 2-mode layer, pseudo-projected (traversed
-        /// node-hyperedge-node directly, without materializing a 1-mode projection): the sum of
-        /// shared-hyperedge counts over each node's distinct co-affiliates, via
-        /// <see cref="ILayer.GetNodeAltersWithWeights"/> (the same weight the engine already
-        /// computes for eigenvectorcentrality()/getedge()'s default projection). Unlike
-        /// <see cref="BuildAdjacency"/>, this never builds a pairwise adjacency structure — cost is
-        /// O(Σ of each node's own hyperedge sizes), the same bound every other 2-mode-capable
-        /// traversal in this codebase relies on.
+        /// A 2-mode layer's node-hyperedge incidence, re-indexed once per community-detection call into the
+        /// call's compact node numbering (positions in its nodeIds array), as plain int arrays: node i's
+        /// hyperedges are NodeHyperedges[NodeOffsets[i] .. NodeOffsets[i+1]), and hyperedge h's members are
+        /// Members[HyperedgeOffsets[h] .. HyperedgeOffsets[h+1]) (compact indices, -1 for a member outside
+        /// nodeIds). Both lists keep exactly the order the layer's own GetNodeAltersWithWeights walks them
+        /// in (a node's hyperedges in the layer's order, then each hyperedge's members in order), so the
+        /// local-moving and label-propagation loops below see co-members - and therefore first encounter
+        /// communities and break ties - exactly as before. Also holds each node's count-weighted degree
+        /// (the sum of its shared-hyperedge counts with every co-member, i.e. sum over its hyperedges of the
+        /// number of other members), computed in one linear pass instead of one quadratic co-member
+        /// dictionary per node. Read-only once built, so restarts and parallel workers can share it.
         /// </summary>
-        private static (double[] degree, double twoM) ComputeDegreeTwoMode(uint[] nodeIds, ILayer layer)
+        internal sealed class TwoModeIncidence
         {
-            int n = nodeIds.Length;
-            double[] degree = new double[n];
-            for (int i = 0; i < n; i++)
+            internal int[] NodeOffsets = [];
+            internal int[] NodeHyperedges = [];
+            internal int[] HyperedgeOffsets = [];
+            internal int[] Members = [];
+            internal double[] Degree = [];
+            internal double TwoM;
+
+            internal static TwoModeIncidence Build(uint[] nodeIds, ILayerTwoMode layer)
             {
-                var (alters, weights) = layer.GetNodeAltersWithWeights(nodeIds[i], EdgeTraversal.Both);
-                double d = 0.0;
-                var wSpan = weights.Span;
-                for (int k = 0; k < alters.Length; k++)
-                    d += wSpan.Length > 0 ? wSpan[k] : 1.0;
-                degree[i] = d;
+                int n = nodeIds.Length;
+                var idx = new Dictionary<uint, int>(n);
+                for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+
+                var nodeOffsets = new int[n + 1];
+                var nodeHyperedges = new List<int>();
+                var hyperedgeOffsets = new List<int> { 0 };
+                var members = new List<int>();
+
+                if (layer is LayerTwoModeStatic st)
+                {
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (st.TryGetNodeHyperedgeRange(nodeIds[i], out int s, out int e))
+                            for (int k = s; k < e; k++)
+                                nodeHyperedges.Add(st.GetNodeHyperedgeIndex(k));
+                        nodeOffsets[i + 1] = nodeHyperedges.Count;
+                    }
+                    int h = (int)st.NbrHyperedges;
+                    for (int he = 0; he < h; he++)
+                    {
+                        st.GetHyperedgeRange(he, out int s, out int e);
+                        for (int j = s; j < e; j++)
+                            members.Add(idx.TryGetValue(st.GetHyperedgeNodeAt(j), out int m) ? m : -1);
+                        hyperedgeOffsets.Add(members.Count);
+                    }
+                }
+                else if (layer is LayerTwoMode dyn)
+                {
+                    // Hyperedges are numbered in the order nodes first reach them
+                    var heIndex = new Dictionary<Hyperedge, int>(ReferenceEqualityComparer.Instance);
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (dyn.GetNonEmptyHyperedgeCollection(nodeIds[i]) is HyperedgeCollection hec)
+                            foreach (Hyperedge he in hec.HyperEdges)
+                            {
+                                if (!heIndex.TryGetValue(he, out int hIdx))
+                                {
+                                    hIdx = heIndex.Count;
+                                    heIndex[he] = hIdx;
+                                    foreach (uint m in he.NodeIds)
+                                        members.Add(idx.TryGetValue(m, out int mi) ? mi : -1);
+                                    hyperedgeOffsets.Add(members.Count);
+                                }
+                                nodeHyperedges.Add(hIdx);
+                            }
+                        nodeOffsets[i + 1] = nodeHyperedges.Count;
+                    }
+                }
+                else
+                    throw new NotSupportedException($"Unsupported 2-mode layer type '{layer.GetType().Name}'.");
+
+                var inc = new TwoModeIncidence
+                {
+                    NodeOffsets = nodeOffsets,
+                    NodeHyperedges = nodeHyperedges.ToArray(),
+                    HyperedgeOffsets = hyperedgeOffsets.ToArray(),
+                    Members = members.ToArray()
+                };
+                inc.ComputeDegrees(n);
+                return inc;
             }
-            return (degree, SumArray(degree));
+
+            /// <summary>
+            /// Degree[i] = sum over node i's hyperedge entries of (members - occurrences of i itself): exactly
+            /// the sum of the co-member weights GetNodeAltersWithWeights returns. Linear in the incidence size;
+            /// a hyperedge listing the same node more than once is handled exactly via a per-hyperedge count,
+            /// built only for such hyperedges.
+            /// </summary>
+            private void ComputeDegrees(int n)
+            {
+                int hCount = HyperedgeOffsets.Length - 1;
+                Dictionary<int, int>[]? selfCounts = null;
+                var seen = new HashSet<int>();
+                for (int h = 0; h < hCount; h++)
+                {
+                    seen.Clear();
+                    bool dup = false;
+                    for (int j = HyperedgeOffsets[h]; j < HyperedgeOffsets[h + 1]; j++)
+                        if (Members[j] >= 0 && !seen.Add(Members[j])) { dup = true; break; }
+                    if (!dup) continue;
+                    selfCounts ??= new Dictionary<int, int>[hCount];
+                    var counts = new Dictionary<int, int>();
+                    for (int j = HyperedgeOffsets[h]; j < HyperedgeOffsets[h + 1]; j++)
+                        if (Members[j] >= 0)
+                            counts[Members[j]] = counts.GetValueOrDefault(Members[j]) + 1;
+                    selfCounts[h] = counts;
+                }
+
+                Degree = new double[n];
+                for (int i = 0; i < n; i++)
+                {
+                    double d = 0.0;
+                    for (int k = NodeOffsets[i]; k < NodeOffsets[i + 1]; k++)
+                    {
+                        int h = NodeHyperedges[k];
+                        int size = HyperedgeOffsets[h + 1] - HyperedgeOffsets[h];
+                        int self = selfCounts?[h] is Dictionary<int, int> c ? c.GetValueOrDefault(i) : 1;
+                        d += size - self;
+                    }
+                    Degree[i] = d;
+                }
+                TwoM = SumArray(Degree);
+            }
+
+            /// <summary>
+            /// Adds node <paramref name="ui"/>'s shared-hyperedge counts with every co-member into
+            /// <paramref name="weightBy"/>, keyed by <paramref name="label"/>[co-member], appending each key to
+            /// <paramref name="touched"/> the first time it is seen (in the same first-seen order the previous
+            /// dictionary-based code enumerated). Returns the number of keys touched. The caller resets
+            /// weightBy for the touched keys afterwards.
+            /// </summary>
+            internal int AccumulateByLabel(int ui, int[] label, double[] weightBy, int[] touched)
+            {
+                int count = 0;
+                for (int k = NodeOffsets[ui], kEnd = NodeOffsets[ui + 1]; k < kEnd; k++)
+                {
+                    int h = NodeHyperedges[k];
+                    for (int j = HyperedgeOffsets[h], jEnd = HyperedgeOffsets[h + 1]; j < jEnd; j++)
+                    {
+                        int vi = Members[j];
+                        if (vi < 0 || vi == ui) continue;
+                        int c = label[vi];
+                        if (weightBy[c] == 0.0)
+                            touched[count++] = c;
+                        weightBy[c] += 1.0;
+                    }
+                }
+                return count;
+            }
         }
 
         /// <summary>
         /// A single hyperedge-direct local-moving pass over a 2-mode layer: the same
         /// sweep-until-no-moves loop and modularity-gain formula as <see cref="LocalMovingPhase"/>,
-        /// but each node's weight toward a candidate community is accumulated directly from
-        /// <see cref="ILayer.GetNodeAltersWithWeights"/> (grouped by each co-affiliate's *current*
-        /// community) instead of being read from a precomputed neighbor/weight array - so no
-        /// pairwise adjacency is ever built. Cost per node per sweep is O(that node's own degree),
-        /// not O(hyperedge size squared). This is the only "count"-weighted tie-strength
+        /// but each node's weight toward a candidate community is accumulated directly from the
+        /// layer's incidence (<see cref="TwoModeIncidence"/>), grouped by each co-affiliate's *current*
+        /// community - so no pairwise adjacency is ever built. Each node's cost per sweep is the total
+        /// size of its hyperedges (inherently quadratic in hyperedge size summed over all nodes); the
+        /// accumulation uses one reusable per-community array instead of a co-member dictionary per node
+        /// per sweep, with identical results. This is the only "count"-weighted tie-strength
         /// convention offered for 2-mode community detection (see the type's remarks on why
         /// "binary" isn't offered here).
         /// </summary>
-        private static int[] RunLocalMovingTwoMode(uint[] nodeIds, ILayer layer, double[] degree, double twoM, double resolution)
+        private static int[] RunLocalMovingTwoMode(TwoModeIncidence inc, double[] degree, double twoM, double resolution)
         {
-            int n = nodeIds.Length;
-            var idx = new Dictionary<uint, int>(n);
-            for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+            int n = degree.Length;
 
             int[] community = new int[n];
             for (int i = 0; i < n; i++) community[i] = i;
@@ -1060,7 +1191,8 @@ namespace Threadle.Core.Analysis
             for (int i = 0; i < n; i++) order[i] = i;
             Shuffle(order);
 
-            var neighborCommWeight = new Dictionary<int, double>();
+            var weightBy = new double[n];
+            var touched = new int[n];
 
             bool improvedThisPass = true;
             while (improvedThisPass)
@@ -1068,36 +1200,28 @@ namespace Threadle.Core.Analysis
                 improvedThisPass = false;
                 foreach (int ui in order)
                 {
-                    uint u = nodeIds[ui];
                     int currentComm = community[ui];
                     sigmaTot[currentComm] -= degree[ui];
 
-                    neighborCommWeight.Clear();
-                    var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
-                    var aSpan = alters.Span;
-                    var wSpan = weights.Span;
-                    for (int k = 0; k < aSpan.Length; k++)
-                    {
-                        if (!idx.TryGetValue(aSpan[k], out int vi) || vi == ui) continue;
-                        double w = wSpan.Length > 0 ? wSpan[k] : 1.0;
-                        int c = community[vi];
-                        neighborCommWeight[c] = neighborCommWeight.GetValueOrDefault(c) + w;
-                    }
+                    int nTouched = inc.AccumulateByLabel(ui, community, weightBy, touched);
 
                     int bestComm = currentComm;
-                    double bestGain = neighborCommWeight.GetValueOrDefault(currentComm)
+                    double bestGain = weightBy[currentComm]
                         - resolution * sigmaTot[currentComm] * degree[ui] / twoM;
 
-                    foreach (var (c, kIn) in neighborCommWeight)
+                    for (int t = 0; t < nTouched; t++)
                     {
+                        int c = touched[t];
                         if (c == currentComm) continue;
-                        double gain = kIn - resolution * sigmaTot[c] * degree[ui] / twoM;
+                        double gain = weightBy[c] - resolution * sigmaTot[c] * degree[ui] / twoM;
                         if (gain > bestGain + Epsilon)
                         {
                             bestGain = gain;
                             bestComm = c;
                         }
                     }
+                    for (int t = 0; t < nTouched; t++)
+                        weightBy[touched[t]] = 0.0;
 
                     sigmaTot[bestComm] += degree[ui];
                     if (bestComm != currentComm)
@@ -1232,6 +1356,256 @@ namespace Threadle.Core.Analysis
             return q;
         }
 
+        // ── Parallel Louvain (PLM) ──────────────────────────────────────────────────────────
+        //
+        // The parallel Louvain method of Staudt & Meyerhenke (2016, NetworKit's PLM): the same
+        // multi-level local moving + aggregation as Louvain, but each local-moving sweep processes
+        // nodes in parallel across up to 'maxthreads' threads. All threads read and update one shared
+        // community array and one shared per-community degree total (sigmaTot, updated atomically),
+        // without locking around a node's whole evaluate-and-move step: a node may decide using a
+        // neighbour's community or a community total that another thread changes a moment later.
+        // Louvain tolerates this well - the resulting modularity is close to sequential Louvain's -
+        // but results depend on thread timing, so they can differ between runs even with the same
+        // seed, unless maxthreads is 1. Because simultaneous moves can make nodes swap back and forth,
+        // sweeps per level are capped (PlmMaxSweepsPerLevel, as NetworKit caps them). Aggregation and
+        // the modularity calculation are the same, sequential, code as Louvain's.
+
+        /// <summary>Upper bound on parallel local-moving sweeps per level (see the section remarks).</summary>
+        private const int PlmMaxSweepsPerLevel = 32;
+
+        /// <summary>Atomically adds <paramref name="value"/> to <paramref name="target"/> (compare-and-swap loop).</summary>
+        private static void AtomicAdd(ref double target, double value)
+        {
+            double current = Volatile.Read(ref target);
+            while (true)
+            {
+                double replaced = Interlocked.CompareExchange(ref target, current + value, current);
+                if (replaced.Equals(current))
+                    return;
+                current = replaced;
+            }
+        }
+
+        /// <summary>Per-thread scratch for a parallel local-moving sweep: per-community weights and the communities touched.</summary>
+        private sealed class PlmScratch(int n)
+        {
+            internal readonly double[] WeightBy = new double[n];
+            internal readonly int[] Touched = new int[n];
+            // 1-mode only: marks a community as touched for the current node (Mark[c] == Generation), so a
+            // zero or negative edge weight can't hide it the way a "weight is still 0" test would
+            internal readonly int[] Mark = new int[n];
+            internal int Generation;
+        }
+
+        /// <summary>
+        /// One node's PLM decision, shared by the 1-mode and 2-mode sweeps: given its per-community weights
+        /// (already accumulated in scratch, for nTouched communities), picks the community with the best
+        /// modularity gain - evaluating its own community with itself removed - and, if that differs from its
+        /// current one, moves it (atomic sigmaTot updates). Resets the scratch weights. Returns whether it moved.
+        /// </summary>
+        private static bool PlmDecideAndMove(int u, int nTouched, PlmScratch scratch, double[] degree, double twoM, double resolution, int[] community, double[] sigmaTot)
+        {
+            double[] weightBy = scratch.WeightBy;
+            int[] touched = scratch.Touched;
+            int currentComm = Volatile.Read(ref community[u]);
+            double dU = degree[u];
+
+            int bestComm = currentComm;
+            double bestGain = weightBy[currentComm] - resolution * (Volatile.Read(ref sigmaTot[currentComm]) - dU) * dU / twoM;
+            for (int t = 0; t < nTouched; t++)
+            {
+                int c = touched[t];
+                if (c == currentComm) continue;
+                double gain = weightBy[c] - resolution * Volatile.Read(ref sigmaTot[c]) * dU / twoM;
+                if (gain > bestGain + Epsilon)
+                {
+                    bestGain = gain;
+                    bestComm = c;
+                }
+            }
+            for (int t = 0; t < nTouched; t++)
+                weightBy[touched[t]] = 0.0;
+
+            if (bestComm == currentComm)
+                return false;
+            AtomicAdd(ref sigmaTot[currentComm], -dU);
+            AtomicAdd(ref sigmaTot[bestComm], dU);
+            Volatile.Write(ref community[u], bestComm);
+            return true;
+        }
+
+        /// <summary>
+        /// Parallel counterpart of <see cref="LocalMovingPhase"/> for PLM: sweeps all nodes in parallel
+        /// (in a random order shuffled once, split across threads) until a sweep moves no node or
+        /// <see cref="PlmMaxSweepsPerLevel"/> sweeps have run. Returns whether any node ever moved.
+        /// </summary>
+        private static bool ParallelLocalMovingPhase(int n, int[][] neighbors, double[][] weights,
+            double[] degree, double twoM, double resolution, int[] community)
+        {
+            var sigmaTot = new double[n];
+            for (int i = 0; i < n; i++) sigmaTot[community[i]] += degree[i];
+
+            int[] order = new int[n];
+            for (int i = 0; i < n; i++) order[i] = i;
+            Shuffle(order);
+
+            bool improvedAny = false;
+            for (int sweep = 0; sweep < PlmMaxSweepsPerLevel; sweep++)
+            {
+                int moved = 0;
+                System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                    () => (Scratch: new PlmScratch(n), Moved: 0),
+                    (i, loopState, local) =>
+                    {
+                        int u = order[i];
+                        var nbrs = neighbors[u];
+                        var wts = weights[u];
+                        double[] weightBy = local.Scratch.WeightBy;
+                        int[] touched = local.Scratch.Touched;
+                        int[] mark = local.Scratch.Mark;
+                        int gen = ++local.Scratch.Generation;
+                        int nTouched = 0;
+                        for (int k = 0; k < nbrs.Length; k++)
+                        {
+                            int v = nbrs[k];
+                            if (v == u) continue; // self-loop: no inter-community linkage signal
+                            int c = Volatile.Read(ref community[v]);
+                            if (mark[c] != gen)
+                            {
+                                mark[c] = gen;
+                                touched[nTouched++] = c;
+                            }
+                            weightBy[c] += wts[k];
+                        }
+                        if (PlmDecideAndMove(u, nTouched, local.Scratch, degree, twoM, resolution, community, sigmaTot))
+                            local.Moved++;
+                        return local;
+                    },
+                    local => Interlocked.Add(ref moved, local.Moved));
+                if (moved == 0)
+                    break;
+                improvedAny = true;
+            }
+            return improvedAny;
+        }
+
+        /// <summary>
+        /// Parallel counterpart of <see cref="RunLocalMovingTwoMode"/> for PLM on a 2-mode layer: level 0,
+        /// accumulated directly from the layer's incidence, with each thread using its own scratch arrays.
+        /// </summary>
+        private static int[] ParallelLocalMovingTwoMode(TwoModeIncidence inc, double[] degree, double twoM, double resolution)
+        {
+            int n = degree.Length;
+            int[] community = new int[n];
+            for (int i = 0; i < n; i++) community[i] = i;
+            var sigmaTot = (double[])degree.Clone();
+
+            int[] order = new int[n];
+            for (int i = 0; i < n; i++) order[i] = i;
+            Shuffle(order);
+
+            for (int sweep = 0; sweep < PlmMaxSweepsPerLevel; sweep++)
+            {
+                int moved = 0;
+                System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                    () => (Scratch: new PlmScratch(n), Moved: 0),
+                    (i, loopState, local) =>
+                    {
+                        int u = order[i];
+                        int nTouched = inc.AccumulateByLabel(u, community, local.Scratch.WeightBy, local.Scratch.Touched);
+                        if (PlmDecideAndMove(u, nTouched, local.Scratch, degree, twoM, resolution, community, sigmaTot))
+                            local.Moved++;
+                        return local;
+                    },
+                    local => Interlocked.Add(ref moved, local.Moved));
+                if (moved == 0)
+                    break;
+            }
+            return community;
+        }
+
+        /// <summary>
+        /// Runs <paramref name="numRestarts"/> PLM runs one after another (each run is itself parallel, so
+        /// running restarts concurrently would only oversubscribe the threads) and keeps the one with the
+        /// highest modularity.
+        /// </summary>
+        private static (Dictionary<uint, int> communities, double modularity) RunBestOfRestartsSequential(
+            int numRestarts, Func<(Dictionary<uint, int> communities, double modularity)> singleRun)
+        {
+            var best = singleRun();
+            for (int r = 1; r < numRestarts; r++)
+            {
+                var candidate = singleRun();
+                if (candidate.modularity > best.modularity)
+                    best = candidate;
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// Parallel Louvain (PLM, see the section remarks) for 1-mode layers, combined and symmetrized
+        /// exactly as in <see cref="LouvainCommunities"/>; same resolution semantics. numRestarts runs
+        /// are done one after another, keeping the highest-modularity result.
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) PlmCommunities(
+            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, int numRestarts = 1)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            var (neighbors0, weights0, degree0, twoM) = BuildAdjacency(nodeIds, layers);
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            return RunBestOfRestartsSequential(Math.Max(1, numRestarts), () =>
+            {
+                int[] identity = new int[n0];
+                for (int i = 0; i < n0; i++) identity[i] = i;
+                int[] mapping = RunLouvainLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution, parallel: true);
+                var communities = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
+                return (communities, ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping));
+            });
+        }
+
+        /// <summary>
+        /// Parallel Louvain (PLM, see the section remarks) for a single 2-mode layer, pseudo-projected and
+        /// count-weighted like <see cref="LouvainCommunitiesTwoMode"/>: level 0 runs in parallel directly
+        /// on the layer's incidence, then the first aggregation and all further levels run as in Louvain,
+        /// with parallel local moving.
+        /// </summary>
+        internal static (Dictionary<uint, int> communities, double modularity) PlmCommunitiesTwoMode(
+            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, int numRestarts = 1)
+        {
+            int n0 = nodeIds.Length;
+            if (n0 == 0)
+                return (new Dictionary<uint, int>(0), 0.0);
+
+            var inc = TwoModeIncidence.Build(nodeIds, layer);
+            var (degree0, twoM) = (inc.Degree, inc.TwoM);
+            if (twoM <= 0)
+            {
+                var singletons = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) singletons[nodeIds[i]] = i;
+                return (singletons, 0.0);
+            }
+
+            return RunBestOfRestartsSequential(Math.Max(1, numRestarts), () =>
+            {
+                int[] level0Community = ParallelLocalMovingTwoMode(inc, degree0, twoM, resolution);
+                var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
+                int[] mapping = RunLouvainLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, parallel: true);
+                var communities = new Dictionary<uint, int>(n0);
+                for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
+                return (communities, ComputeModularityTwoMode(nodeIds, layer, degree0, twoM, mapping, resolution));
+            });
+        }
+
         // ── 2-mode community detection (pseudo-projected, count-weighted tie strength only) ──
         //
         // Louvain/Leiden/LabelPropagation/LPAm's 2-mode entry points below never call
@@ -1277,7 +1651,8 @@ namespace Threadle.Core.Analysis
             if (n0 == 0)
                 return (new Dictionary<uint, int>(0), 0.0);
 
-            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            var inc = TwoModeIncidence.Build(nodeIds, layer);
+            var (degree0, twoM) = (inc.Degree, inc.TwoM);
             if (twoM <= 0)
             {
                 var singletons = new Dictionary<uint, int>(n0);
@@ -1286,17 +1661,17 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LouvainSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution);
+                return LouvainSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution);
 
             return RunBestOfRestarts(numRestarts,
-                () => LouvainSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution));
+                () => LouvainSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution));
         }
 
         private static (Dictionary<uint, int> communities, double modularity) LouvainSingleRunTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM, double resolution)
+            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, double resolution)
         {
             int n0 = nodeIds.Length;
-            int[] level0Community = RunLocalMovingTwoMode(nodeIds, layer, degree0, twoM, resolution);
+            int[] level0Community = RunLocalMovingTwoMode(inc, degree0, twoM, resolution);
             var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
 
             int[] mapping = RunLouvainLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution);
@@ -1328,7 +1703,8 @@ namespace Threadle.Core.Analysis
 
             randomness = Math.Max(randomness, 1e-6);
 
-            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            var inc = TwoModeIncidence.Build(nodeIds, layer);
+            var (degree0, twoM) = (inc.Degree, inc.TwoM);
             if (twoM <= 0)
             {
                 var singletons = new Dictionary<uint, int>(n0);
@@ -1337,17 +1713,17 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LeidenSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution, randomness);
+                return LeidenSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, randomness);
 
             return RunBestOfRestarts(numRestarts,
-                () => LeidenSingleRunTwoMode(nodeIds, layer, degree0, twoM, resolution, randomness));
+                () => LeidenSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, randomness));
         }
 
         private static (Dictionary<uint, int> communities, double modularity) LeidenSingleRunTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM, double resolution, double randomness)
+            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, double resolution, double randomness)
         {
             int n0 = nodeIds.Length;
-            int[] level0Community = RunLocalMovingTwoMode(nodeIds, layer, degree0, twoM, resolution);
+            int[] level0Community = RunLocalMovingTwoMode(inc, degree0, twoM, resolution);
             var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
 
             int[] mapping = RunLeidenLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, randomness, seedCommunity: null);
@@ -1376,7 +1752,8 @@ namespace Threadle.Core.Analysis
             if (n0 == 0)
                 return (new Dictionary<uint, int>(0), 0.0);
 
-            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            var inc = TwoModeIncidence.Build(nodeIds, layer);
+            var (degree0, twoM) = (inc.Degree, inc.TwoM);
             if (twoM <= 0)
             {
                 var singletons = new Dictionary<uint, int>(n0);
@@ -1385,18 +1762,16 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LabelPropagationSingleRunTwoMode(nodeIds, layer, degree0, twoM, maxIterations);
+                return LabelPropagationSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, maxIterations);
 
             return RunBestOfRestarts(numRestarts,
-                () => LabelPropagationSingleRunTwoMode(nodeIds, layer, degree0, twoM, maxIterations));
+                () => LabelPropagationSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, maxIterations));
         }
 
         private static (Dictionary<uint, int> communities, double modularity) LabelPropagationSingleRunTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM, int maxIterations)
+            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, int maxIterations)
         {
             int n0 = nodeIds.Length;
-            var idx = new Dictionary<uint, int>(n0);
-            for (int i = 0; i < n0; i++) idx[nodeIds[i]] = i;
 
             int[] label = new int[n0];
             for (int i = 0; i < n0; i++) label[i] = i;
@@ -1404,7 +1779,9 @@ namespace Threadle.Core.Analysis
             int[] order = new int[n0];
             for (int i = 0; i < n0; i++) order[i] = i;
 
-            var weightByLabel = new Dictionary<int, double>();
+            // Per-label weights in a reusable array (reset after each node), labels in first-seen order
+            var weightByLabel = new double[n0];
+            var touched = new int[n0];
             var bestLabels = new List<int>();
 
             for (int pass = 0; pass < maxIterations; pass++)
@@ -1414,29 +1791,18 @@ namespace Threadle.Core.Analysis
 
                 foreach (int ui in order)
                 {
-                    uint u = nodeIds[ui];
-                    var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
-                    if (alters.Length == 0) continue;
-                    var aSpan = alters.Span;
-                    var wSpan = weights.Span;
-
-                    weightByLabel.Clear();
-                    for (int k = 0; k < aSpan.Length; k++)
-                    {
-                        if (!idx.TryGetValue(aSpan[k], out int vi)) continue;
-                        double w = wSpan.Length > 0 ? wSpan[k] : 1.0;
-                        int l = label[vi];
-                        weightByLabel[l] = weightByLabel.GetValueOrDefault(l) + w;
-                    }
-                    if (weightByLabel.Count == 0) continue;
+                    int nTouched = inc.AccumulateByLabel(ui, label, weightByLabel, touched);
+                    if (nTouched == 0) continue;
 
                     double maxWeight = double.NegativeInfinity;
-                    foreach (double w in weightByLabel.Values)
-                        if (w > maxWeight) maxWeight = w;
+                    for (int t = 0; t < nTouched; t++)
+                        if (weightByLabel[touched[t]] > maxWeight) maxWeight = weightByLabel[touched[t]];
 
                     bestLabels.Clear();
-                    foreach (var (l, w) in weightByLabel)
-                        if (w >= maxWeight - Epsilon) bestLabels.Add(l);
+                    for (int t = 0; t < nTouched; t++)
+                        if (weightByLabel[touched[t]] >= maxWeight - Epsilon) bestLabels.Add(touched[t]);
+                    for (int t = 0; t < nTouched; t++)
+                        weightByLabel[touched[t]] = 0.0;
 
                     int newLabel = bestLabels[Misc.Random.Next(bestLabels.Count)];
                     if (newLabel != label[ui])
@@ -1482,7 +1848,8 @@ namespace Threadle.Core.Analysis
             if (n0 == 0)
                 return (new Dictionary<uint, int>(0), 0.0);
 
-            var (degree0, twoM) = ComputeDegreeTwoMode(nodeIds, layer);
+            var inc = TwoModeIncidence.Build(nodeIds, layer);
+            var (degree0, twoM) = (inc.Degree, inc.TwoM);
             if (twoM <= 0)
             {
                 var singletons = new Dictionary<uint, int>(n0);
@@ -1491,17 +1858,17 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LPAmSingleRunTwoMode(nodeIds, layer, degree0, twoM);
+                return LPAmSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM);
 
             return RunBestOfRestarts(numRestarts,
-                () => LPAmSingleRunTwoMode(nodeIds, layer, degree0, twoM));
+                () => LPAmSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM));
         }
 
         private static (Dictionary<uint, int> communities, double modularity) LPAmSingleRunTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, double[] degree0, double twoM)
+            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM)
         {
             int n0 = nodeIds.Length;
-            int[] community = RunLocalMovingTwoMode(nodeIds, layer, degree0, twoM, 1.0);
+            int[] community = RunLocalMovingTwoMode(inc, degree0, twoM, 1.0);
 
             var commMap = new Dictionary<int, int>(n0);
             var communities = new Dictionary<uint, int>(n0);

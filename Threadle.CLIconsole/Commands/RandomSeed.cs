@@ -32,7 +32,12 @@ namespace Threadle.CLIconsole.Commands
         /// <param name="context">The <see cref="CommandContext"/> providing shared console variable memory.</param>
         public CommandResult Execute(CommandPackage command, CommandContext context)
         {
-            int seed = command.GetArgumentParseInt("seed", 6031769);
+            // Accept both randomseed(seed=42) and randomseed(42); a value that isn't an integer is an error,
+            // not silently replaced by the default seed.
+            int seed = 6031769;
+            if (command.GetArgument("seed", "arg0") is string seedStr
+                && !int.TryParse(seedStr, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out seed))
+                return CommandResult.Fail("InvalidArgument", $"Seed '{seedStr}' is not an integer.");
             Misc.SetRandomSeed(seed);
             return CommandResult.Ok($"Random seed set to: {seed}");
         }
