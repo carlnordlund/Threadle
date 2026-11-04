@@ -4,6 +4,20 @@
 
 ### New features
 
+- **New community detection type `plm`** (`communitydetection(..., type=plm)`):
+  the parallel Louvain method of Staudt & Meyerhenke (2016), as in NetworKit.
+  Same multi-level local moving and aggregation as `louvain`, but each
+  local-moving sweep processes nodes in parallel across up to `maxthreads`
+  threads, sharing one community assignment without locking around each move
+  (per-community totals are updated atomically; sweeps per level are capped at
+  32). Works on 1-mode layers and on a single 2-mode layer, with the same
+  `resolution`; `numrestarts` runs one after another. Modularity is typically
+  close to `louvain`'s, but results can differ between runs even with the same
+  `randomseed()` unless `maxthreads` is 1. `louvain` itself is unchanged.
+  Measured on 4 cores: a 300,000-node random 1-mode network (≈5M edges)
+  `louvain` 92 s, `plm` 6 s, modularity 0.2429 vs 0.2428; a 382,000-node random
+  2-mode network `louvain` 23.5 s, `plm` 13.0 s.
+
 - **New `setattrstorage()` command**: `setattrstorage(structure,
   storage = ['sparse','dense','auto'], *attrname)` converts node attributes
   between sparse and dense storage in place — same names, types and values.
@@ -176,6 +190,16 @@
 
 ### Performance
 
+- **Faster 2-mode community detection, identical results.** `louvain`,
+  `leiden`, `lp` and `lpam` on a 2-mode layer built a fresh co-member
+  dictionary (plus two arrays) for every node on every sweep, and did a
+  dictionary lookup and update per co-member. They now share a node–hyperedge
+  incidence built once per call, as plain int arrays, and add shared-hyperedge
+  counts per community into one reusable array; degrees are computed in one
+  linear pass. Co-members are visited in exactly the same order as before, so
+  communities and modularity are unchanged (verified byte-for-byte on saved
+  results across seeds, packed and unpacked layers). `louvain` on a
+  382,000-node random 2-mode network: 86 s → 35 s.
 - **Faster BFS for distance-based commands on 2-mode layers.** `diameter()` (all
   modes), `eccentricity()`, `closenesscentrality()`, `harmoniccentrality()` and
   `shortestpathsattributes()` run one BFS per source node. Each command now
@@ -300,6 +324,10 @@
 
 ### Fixes
 
+- **`randomseed()` ignored a positional seed.** It only read `seed=…`, so
+  `randomseed(42)` silently set the default seed (6031769). It now accepts the
+  positional form, and rejects a value that isn't an integer instead of
+  ignoring it.
 - **`setattr()`, `setattrs()`, `removeattr()` and `generateattr()` now mark
   the nodeset as modified.** Previously they changed attribute values
   without setting the flag, so saving a *network* afterwards — which
