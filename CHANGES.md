@@ -190,6 +190,19 @@
 
 ### Performance
 
+- **1-mode community detection without per-node dictionaries, identical
+  results.** `louvain`, `leiden`, `lp` and `lpam` on 1-mode layers (and
+  `plm`'s aggregation) cleared and refilled a dictionary for every node visit,
+  built a dictionary per community when aggregating, and used dictionaries for
+  renumbering and the modularity calculation. They now use a weight array plus
+  a list of keys in first-seen order, and aggregate by grouping each
+  community's members. Keys are visited and weights summed in exactly the same
+  order as before, so communities, tie-breaks and modularity are identical
+  (verified byte-for-byte across methods, layer types and seeds). Measured on a
+  300,000-node random 1-mode network: `louvain` 81.6 s → 70.1 s, `leiden`
+  72.8 s → 55.8 s, `lpam` 27.5 s → 22.4 s, `lp` 11.4 s → 9.5 s. Most of
+  `louvain`'s remaining time is spent in long tails of local-moving sweeps that
+  move only a few nodes each (`plm` caps these at 32 per level).
 - **Faster 2-mode community detection, identical results.** `louvain`,
   `leiden`, `lp` and `lpam` on a 2-mode layer built a fresh co-member
   dictionary (plus two arrays) for every node on every sweep, and did a
