@@ -431,6 +431,17 @@ namespace Threadle.Core.Model
             return [.. result];
         }
 
+        // Read-only CSR accessors for GraphAlgorithms.BFSContext, which lets the distance BFS read a packed
+        // layer's neighbour arrays directly instead of calling VisitAlters once per node (one callback per
+        // neighbour). Node i of this layer (i = NodeIdToIndexMapper[nodeId]) has outbound neighbours
+        // CsrNeighborNodeIds[CsrOffsets[i] .. CsrOffsets[i+1]), and - for directed layers - inbound
+        // neighbours CsrInNeighborNodeIds[CsrInOffsets[i] .. CsrInOffsets[i+1]).
+        internal Dictionary<uint, int> NodeIdToIndexMapper => _nodeIdToIndexMapper;
+        internal int[] CsrOffsets => _offsets;
+        internal uint[] CsrNeighborNodeIds => _neighborNodeIds;
+        internal int[]? CsrInOffsets => _inOffsets;
+        internal uint[]? CsrInNeighborNodeIds => _inNeighborNodeIds;
+
         /// <inheritdoc/>
         public void VisitAlters(uint nodeId, EdgeTraversal edgeTraversal, Action<uint> visitAlter)
         {

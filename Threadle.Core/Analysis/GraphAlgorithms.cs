@@ -296,6 +296,39 @@ namespace Threadle.Core.Analysis
             internal readonly EdgeTraversal Traversal;
             internal readonly StaticTwoModeIndex[] TwoModesStatic;
 
+            /// <summary>
+            /// Parallel to <see cref="OneModes"/>: for a packed (static) 1-mode layer, direct access to its own
+            /// CSR arrays; null for an unpacked layer, which is traversed via ILayerOneMode.VisitAlters as before.
+            /// </summary>
+            internal readonly StaticOneModeIndex?[] OneModesStatic;
+
+            /// <summary>
+            /// Direct-address lookup from node id to compact index (-1 if the id is not in the node universe),
+            /// used instead of <see cref="NodeIndex"/> when node ids are dense enough: built only if the largest
+            /// node id is at most <see cref="DirectIndexMaxSlotsPerNode"/> times the node count (plus a small
+            /// constant), so it never costs more than a few int per node. Null otherwise.
+            /// </summary>
+            internal readonly int[]? DirectIndex;
+
+            /// <summary>See <see cref="DirectIndex"/>.</summary>
+            internal const int DirectIndexMaxSlotsPerNode = 4;
+            private const int DirectIndexMinSlots = 1 << 20;
+
+            /// <summary>
+            /// One packed 1-mode layer: its own CSR arrays (not copied), plus the position in that layer of each
+            /// compact node (-1 if the layer doesn't have the node) and which directions to follow.
+            /// </summary>
+            internal sealed class StaticOneModeIndex
+            {
+                internal int[] LayerPos = [];
+                internal int[] Offsets = [];
+                internal uint[] Neighbors = [];
+                internal int[]? InOffsets;
+                internal uint[]? InNeighbors;
+                internal bool UseOut;
+                internal bool UseIn;
+            }
+
             /// <summary>One static 2-mode layer, re-indexed into the operation's compact node numbering.</summary>
             internal sealed class StaticTwoModeIndex
             {
@@ -308,11 +341,13 @@ namespace Threadle.Core.Analysis
                 internal int HyperedgeCount;
             }
 
-            private BFSContext(Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, StaticTwoModeIndex[] twoModesStatic, EdgeTraversal traversal)
+            private BFSContext(Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, StaticOneModeIndex?[] oneModesStatic, int[]? directIndex, List<LayerTwoMode> twoModesDynamic, StaticTwoModeIndex[] twoModesStatic, EdgeTraversal traversal)
             {
                 NodeIndex = nodeIndex;
                 NodeIds = nodeIds;
                 OneModes = oneModes;
+                OneModesStatic = oneModesStatic;
+                DirectIndex = directIndex;
                 TwoModesDynamic = twoModesDynamic;
                 TwoModesStatic = twoModesStatic;
                 Traversal = traversal;
@@ -369,7 +404,47 @@ namespace Threadle.Core.Analysis
                     idx.HyperedgeCount = h;
                     statics[li] = idx;
                 }
-                return new BFSContext(nodeIndex, nodeIds, oneModes, twoModesDynamic, statics, traversal);
+
+                // Direct-address id -> compact index, if node ids are dense enough
+                int[]? directIndex = null;
+                uint maxId = 0;
+                foreach (uint id in nodeIds)
+                    if (id > maxId) maxId = id;
+                if (n > 0 && (long)maxId + 1 <= (long)DirectIndexMaxSlotsPerNode * n + DirectIndexMinSlots)
+                {
+                    directIndex = new int[maxId + 1];
+                    Array.Fill(directIndex, -1);
+                    for (int i = 0; i < n; i++)
+                        directIndex[nodeIds[i]] = i;
+                }
+
+                // Packed 1-mode layers: reference their CSR arrays, map compact index -> layer position
+                var oneModesStatic = new StaticOneModeIndex?[oneModes.Count];
+                for (int li = 0; li < oneModes.Count; li++)
+                {
+                    if (oneModes[li] is not LayerOneModeStatic layer)
+                        continue;
+                    int[] layerPos = new int[n];
+                    var mapper = layer.NodeIdToIndexMapper;
+                    for (int i = 0; i < n; i++)
+                        layerPos[i] = mapper.TryGetValue(nodeIds[i], out int p) ? p : -1;
+                    // Same direction rules as LayerOneModeStatic.VisitAlters
+                    bool useOut = !layer.IsDirectional || traversal == EdgeTraversal.Out || traversal == EdgeTraversal.Both;
+                    bool useIn = layer.IsDirectional && (traversal == EdgeTraversal.In || traversal == EdgeTraversal.Both)
+                        && layer.CsrInOffsets != null && layer.CsrInNeighborNodeIds != null;
+                    oneModesStatic[li] = new StaticOneModeIndex
+                    {
+                        LayerPos = layerPos,
+                        Offsets = layer.CsrOffsets,
+                        Neighbors = layer.CsrNeighborNodeIds,
+                        InOffsets = layer.CsrInOffsets,
+                        InNeighbors = layer.CsrInNeighborNodeIds,
+                        UseOut = useOut,
+                        UseIn = useIn
+                    };
+                }
+
+                return new BFSContext(nodeIndex, nodeIds, oneModes, oneModesStatic, directIndex, twoModesDynamic, statics, traversal);
             }
         }
 
@@ -395,13 +470,19 @@ namespace Threadle.Core.Analysis
             private int _queueTail;
             private int _nextDist;
             private Dictionary<uint, int> _nodeIndex = [];
+            private int[]? _directIndex;
             internal readonly Action<uint> VisitOneModeAlter;
 
             internal BFSScratch()
             {
                 VisitOneModeAlter = v =>
                 {
-                    if (_nodeIndex.TryGetValue(v, out int vIdx) && Dist[vIdx] < 0)
+                    int vIdx;
+                    if (_directIndex != null)
+                        vIdx = v < (uint)_directIndex.Length ? _directIndex[v] : -1;
+                    else if (!_nodeIndex.TryGetValue(v, out vIdx))
+                        vIdx = -1;
+                    if (vIdx >= 0 && Dist[vIdx] < 0)
                     {
                         Dist[vIdx] = _nextDist;
                         Queue[_queueTail++] = vIdx;
@@ -419,6 +500,7 @@ namespace Threadle.Core.Analysis
                 {
                     _context = context;
                     _nodeIndex = context.NodeIndex;
+                    _directIndex = context.DirectIndex;
                     int n = context.NodeIds.Length;
                     Dist = new int[n];
                     Queue = new int[n];
@@ -470,24 +552,71 @@ namespace Threadle.Core.Analysis
             int head = 0;
 
             var oneModes = context.OneModes;
+            var oneModesStatic = context.OneModesStatic;
             var twoModesDynamic = context.TwoModesDynamic;
             var statics = context.TwoModesStatic;
             var nodeIndex = context.NodeIndex;
+            int[]? direct = context.DirectIndex;
 
             while (head < scratch.QueueTail)
             {
                 int uIdx = queue[head++];
                 int next = dist[uIdx] + 1;
+                int tail = scratch.QueueTail;
 
-                if (oneModes.Count > 0)
+                for (int li = 0; li < oneModes.Count; li++)
                 {
-                    scratch.NextDist = next;
-                    uint u = nodeIds[uIdx];
-                    foreach (var layer in oneModes)
-                        layer.VisitAlters(u, context.Traversal, scratch.VisitOneModeAlter);
+                    var fast = oneModesStatic[li];
+                    if (fast == null)
+                    {
+                        // Unpacked layer: same callback-based traversal as before
+                        scratch.QueueTail = tail;
+                        scratch.NextDist = next;
+                        oneModes[li].VisitAlters(nodeIds[uIdx], context.Traversal, scratch.VisitOneModeAlter);
+                        tail = scratch.QueueTail;
+                        continue;
+                    }
+                    int p = fast.LayerPos[uIdx];
+                    if (p < 0) continue;
+                    if (fast.UseOut)
+                    {
+                        uint[] nb = fast.Neighbors;
+                        for (int j = fast.Offsets[p], jEnd = fast.Offsets[p + 1]; j < jEnd; j++)
+                        {
+                            uint v = nb[j];
+                            int vIdx;
+                            if (direct != null)
+                                vIdx = v < (uint)direct.Length ? direct[v] : -1;
+                            else if (!nodeIndex.TryGetValue(v, out vIdx))
+                                vIdx = -1;
+                            if (vIdx >= 0 && dist[vIdx] < 0)
+                            {
+                                dist[vIdx] = next;
+                                queue[tail++] = vIdx;
+                            }
+                        }
+                    }
+                    if (fast.UseIn)
+                    {
+                        uint[] nb = fast.InNeighbors!;
+                        int[] off = fast.InOffsets!;
+                        for (int j = off[p], jEnd = off[p + 1]; j < jEnd; j++)
+                        {
+                            uint v = nb[j];
+                            int vIdx;
+                            if (direct != null)
+                                vIdx = v < (uint)direct.Length ? direct[v] : -1;
+                            else if (!nodeIndex.TryGetValue(v, out vIdx))
+                                vIdx = -1;
+                            if (vIdx >= 0 && dist[vIdx] < 0)
+                            {
+                                dist[vIdx] = next;
+                                queue[tail++] = vIdx;
+                            }
+                        }
+                    }
                 }
 
-                int tail = scratch.QueueTail;
                 for (int li = 0; li < twoModesDynamic.Count; li++)
                 {
                     var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(nodeIds[uIdx]);

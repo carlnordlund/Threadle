@@ -63,7 +63,16 @@ public class BFSEquivalenceTests
 
     // ── Test networks ──────────────────────────────────────────────────────────
 
-    public enum Kind { Undirected, Directed, TwoMode, TwoModePacked, Mixed }
+    public enum Kind
+    {
+        Undirected, Directed, TwoMode, TwoModePacked, Mixed,
+        // Packed 1-mode layers take the BFS's direct-CSR path
+        UndirectedPacked, DirectedPacked, MixedPacked,
+        // Node ids spread over the whole uint range: no direct id lookup array, dictionary fallback
+        UndirectedPackedSparseIds, DirectedPackedSparseIds
+    }
+
+    private static bool IsSparseIds(Kind kind) => kind is Kind.UndirectedPackedSparseIds or Kind.DirectedPackedSparseIds;
 
     /// <summary>
     /// Random network of the given kind; returns the layer names to analyze. Sparse enough to have
@@ -74,10 +83,29 @@ public class BFSEquivalenceTests
         Misc.SetRandomSeed(seed);
         var ns = new Nodeset("ns");
         for (uint i = 1; i <= 90; i++)
-            ns.AddNode(i);
+            ns.AddNode(IsSparseIds(kind) ? i * 40_000_000u : i);
         var net = new Network("net", ns);
         switch (kind)
         {
+            case Kind.UndirectedPacked:
+            case Kind.UndirectedPackedSparseIds:
+                net.AddLayerOneMode("l", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+                Assert.True(Generators.GenerateErdosRenyiLayer(net, "l", 0.035).Success);
+                Assert.True(net.Pack("l").Success);
+                return (net, ["l"]);
+            case Kind.DirectedPacked:
+            case Kind.DirectedPackedSparseIds:
+                net.AddLayerOneMode("l", EdgeDirectionality.Directed, EdgeType.Binary, false);
+                Assert.True(Generators.GenerateErdosRenyiLayer(net, "l", 0.03).Success);
+                Assert.True(net.Pack("l").Success);
+                return (net, ["l"]);
+            case Kind.MixedPacked:
+                net.AddLayerOneMode("l", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+                Assert.True(Generators.GenerateErdosRenyiLayer(net, "l", 0.012).Success);
+                net.AddLayerTwoMode("a");
+                Assert.True(Generators.GenerateRandomTwoModeLayer(net, "a", 60, 1).Success);
+                Assert.True(net.Pack(null).Success);
+                return (net, ["l", "a"]);
             case Kind.Undirected:
                 net.AddLayerOneMode("l", EdgeDirectionality.Undirected, EdgeType.Binary, false);
                 Assert.True(Generators.GenerateErdosRenyiLayer(net, "l", 0.035).Success);
@@ -113,6 +141,13 @@ public class BFSEquivalenceTests
             yield return [Kind.Directed, EdgeTraversal.Both, seed];
             yield return [Kind.TwoMode, EdgeTraversal.Out, seed];
             yield return [Kind.TwoModePacked, EdgeTraversal.Out, seed];
+            yield return [Kind.UndirectedPacked, EdgeTraversal.Out, seed];
+            yield return [Kind.DirectedPacked, EdgeTraversal.Out, seed];
+            yield return [Kind.DirectedPacked, EdgeTraversal.In, seed];
+            yield return [Kind.DirectedPacked, EdgeTraversal.Both, seed];
+            yield return [Kind.UndirectedPackedSparseIds, EdgeTraversal.Out, seed];
+            yield return [Kind.DirectedPackedSparseIds, EdgeTraversal.In, seed];
+            yield return [Kind.DirectedPackedSparseIds, EdgeTraversal.Both, seed];
         }
     }
 
@@ -121,7 +156,10 @@ public class BFSEquivalenceTests
         foreach (var c in SingleLayerCases())
             yield return c;
         foreach (int seed in new[] { 11, 12, 13 })
+        {
             yield return [Kind.Mixed, EdgeTraversal.Out, seed];
+            yield return [Kind.MixedPacked, EdgeTraversal.Out, seed];
+        }
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
