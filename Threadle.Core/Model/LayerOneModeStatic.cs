@@ -441,6 +441,7 @@ namespace Threadle.Core.Model
         internal uint[] CsrNeighborNodeIds => _neighborNodeIds;
         internal int[]? CsrInOffsets => _inOffsets;
         internal uint[]? CsrInNeighborNodeIds => _inNeighborNodeIds;
+        internal float[]? CsrValues => _values;
 
         /// <inheritdoc/>
         public void VisitAlters(uint nodeId, EdgeTraversal edgeTraversal, Action<uint> visitAlter)

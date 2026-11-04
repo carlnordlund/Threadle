@@ -1049,44 +1049,131 @@ namespace Threadle.Core.Analysis
             var idx = new Dictionary<uint, int>(n);
             for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
 
-            var adjDict = new Dictionary<int, double>[n];
-            for (int i = 0; i < n; i++) adjDict[i] = new Dictionary<int, double>();
+            // Two passes over the same edge stream: the first counts each node's contributions, the second
+            // writes them, in order, into rows of exactly that size. Each row is then merged in place
+            // (a neighbour's later contributions are summed into its first slot), so rows end up in
+            // exactly the order - and with exactly the sums - the earlier per-node Dictionary<int, double>
+            // gave (insertion-ordered, summed in arrival order), without that dictionary's ~40+ bytes per
+            // entry and resize garbage, and without holding dictionaries and arrays at the same time.
+            int[] count = new int[n];
+            ScanAdjacencyContributions(nodeIds, layers, idx, count, null, null);
+            var neighbors = new int[n][];
+            var weights = new double[n][];
+            for (int i = 0; i < n; i++)
+            {
+                neighbors[i] = count[i] == 0 ? [] : new int[count[i]];
+                weights[i] = count[i] == 0 ? [] : new double[count[i]];
+            }
+            Array.Clear(count);
+            ScanAdjacencyContributions(nodeIds, layers, idx, count, neighbors, weights);
+
+            int[] stamp = new int[n];
+            int[] slot = new int[n];
+            for (int u = 0; u < n; u++)
+            {
+                int[] nb = neighbors[u];
+                double[] wt = weights[u];
+                int gen = u + 1, len = 0;
+                for (int k = 0; k < nb.Length; k++)
+                {
+                    int v = nb[k];
+                    if (stamp[v] != gen)
+                    {
+                        stamp[v] = gen;
+                        slot[v] = len;
+                        nb[len] = v;
+                        wt[len] = 0.0 + wt[k]; // as GetValueOrDefault(v) + w did on first sight
+                        len++;
+                    }
+                    else
+                        wt[slot[v]] += wt[k];
+                }
+                if (len < nb.Length)
+                {
+                    Array.Resize(ref neighbors[u], len);
+                    Array.Resize(ref weights[u], len);
+                }
+            }
+
+            double[] degree = new double[n];
+            for (int i = 0; i < n; i++) degree[i] = SumArray(weights[i]);
+            double twoM = SumArray(degree);
+            return (neighbors, weights, degree, twoM);
+        }
+
+        /// <summary>
+        /// Walks every symmetrized contribution <see cref="BuildAdjacency"/> makes, in its fixed order:
+        /// per layer, each edge (u, v) from GetAllEgoData adds w to u's row and then to v's row, and on a
+        /// symmetric layer with self-ties each node's self-tie then adds 2w to its own row. With
+        /// <paramref name="neighbors"/> null it only counts per row (in <paramref name="pos"/>);
+        /// otherwise it writes each contribution at the row's next position.
+        /// </summary>
+        private static void ScanAdjacencyContributions(uint[] nodeIds, List<ILayerOneMode> layers, Dictionary<uint, int> idx,
+            int[] pos, int[][]? neighbors, double[][]? weights)
+        {
+            void Add(int u, int v, double w)
+            {
+                int p = pos[u]++;
+                if (neighbors != null)
+                {
+                    neighbors[u][p] = v;
+                    weights![u][p] = w;
+                }
+            }
 
             foreach (var layer in layers)
             {
-                foreach (var (egoId, alters, values) in layer.GetAllEgoData())
+                if (layer is LayerOneModeStatic packed)
                 {
-                    if (!idx.TryGetValue(egoId, out int ui)) continue;
-                    var aSpan = alters.Span;
-                    var wSpan = values.Span;
-                    bool hasWeights = wSpan.Length > 0;
-                    for (int k = 0; k < aSpan.Length; k++)
+                    // Same edges in the same order as packed.GetAllEgoData() yields them (egos in mapper
+                    // order; on a symmetric layer only alters with a larger id), read straight from the
+                    // layer's CSR arrays instead of through a fresh list and array per ego.
+                    int[] offsets = packed.CsrOffsets;
+                    uint[] nbrIds = packed.CsrNeighborNodeIds;
+                    float[]? vals = packed.CsrValues;
+                    bool symmetric = packed.IsSymmetric;
+                    foreach (var (egoId, li) in packed.NodeIdToIndexMapper)
                     {
-                        if (!idx.TryGetValue(aSpan[k], out int vi)) continue;
-                        double w = hasWeights ? wSpan[k] : 1.0;
-                        adjDict[ui][vi] = adjDict[ui].GetValueOrDefault(vi) + w;
-                        adjDict[vi][ui] = adjDict[vi].GetValueOrDefault(ui) + w;
+                        if (!idx.TryGetValue(egoId, out int ui)) continue;
+                        for (int j = offsets[li]; j < offsets[li + 1]; j++)
+                        {
+                            uint alter = nbrIds[j];
+                            if (symmetric && alter <= egoId) continue;
+                            if (!idx.TryGetValue(alter, out int vi)) continue;
+                            double w = vals != null ? vals[j] : 1.0;
+                            Add(ui, vi, w);
+                            Add(vi, ui, w);
+                        }
                     }
                 }
+                else
+                    foreach (var (egoId, alters, values) in layer.GetAllEgoData())
+                    {
+                        if (!idx.TryGetValue(egoId, out int ui)) continue;
+                        var aSpan = alters.Span;
+                        var wSpan = values.Span;
+                        bool hasWeights = wSpan.Length > 0;
+                        for (int k = 0; k < aSpan.Length; k++)
+                        {
+                            if (!idx.TryGetValue(aSpan[k], out int vi)) continue;
+                            double w = hasWeights ? wSpan[k] : 1.0;
+                            Add(ui, vi, w);
+                            Add(vi, ui, w);
+                        }
+                    }
 
                 // GetAllEgoData() never yields self-loops for symmetric layers: add them explicitly,
                 // counted twice per the standard undirected-graph degree convention (same as a normal
-                // discovered edge would be, which accumulates into adjDict[ui][vi] from both "sides").
+                // discovered edge would be, which contributes to the row from both "sides").
                 if (!layer.IsDirectional && layer.Selfties)
                     foreach (uint nodeId in nodeIds)
                     {
                         if (!idx.TryGetValue(nodeId, out int ui)) continue;
                         if (!layer.CheckEdgeExists(nodeId, nodeId)) continue;
                         double w = layer.GetEdgeValue(nodeId, nodeId);
-                        adjDict[ui][ui] = adjDict[ui].GetValueOrDefault(ui) + 2 * w;
+                        Add(ui, ui, 2 * w);
                     }
             }
-
-            var (neighbors, weights) = ToArrays(adjDict, n);
-            double[] degree = new double[n];
-            for (int i = 0; i < n; i++) degree[i] = SumArray(weights[i]);
-            double twoM = SumArray(degree);
-            return (neighbors, weights, degree, twoM);
         }
 
         /// <summary>
@@ -1476,6 +1563,30 @@ namespace Threadle.Core.Analysis
             // zero or negative edge weight can't hide it the way a "weight is still 0" test would
             internal readonly int[] Mark = new int[n];
             internal int Generation;
+
+            /// <summary>Starts a new node's marks (scratches are reused across sweeps, so the counter can grow large).</summary>
+            internal int NextGeneration()
+            {
+                if (++Generation == int.MaxValue)
+                {
+                    Array.Clear(Mark);
+                    Generation = 1;
+                }
+                return Generation;
+            }
+        }
+
+        /// <summary>
+        /// Hands out <see cref="PlmScratch"/> instances to Parallel.For tasks and takes them back when a task
+        /// ends, so one local-moving phase allocates about one scratch per thread in total, instead of a new
+        /// one (three n-sized arrays) for every task of every sweep. A scratch is always left clean
+        /// (WeightBy all zero, marks older than any future generation), so reuse doesn't change results.
+        /// </summary>
+        private sealed class PlmScratchPool(int n)
+        {
+            private readonly System.Collections.Concurrent.ConcurrentBag<PlmScratch> _bag = [];
+            internal PlmScratch Rent() => _bag.TryTake(out var s) ? s : new PlmScratch(n);
+            internal void Return(PlmScratch s) => _bag.Add(s);
         }
 
         /// <summary>
@@ -1531,12 +1642,13 @@ namespace Threadle.Core.Analysis
             Shuffle(order);
 
             bool improvedAny = false;
+            var pool = new PlmScratchPool(n);
             int sweepCap = maxSweeps > 0 ? maxSweeps : PlmMaxSweepsPerLevel;
             for (int sweep = 0; sweep < sweepCap; sweep++)
             {
                 int moved = 0;
                 System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
-                    () => (Scratch: new PlmScratch(n), Moved: 0),
+                    () => (Scratch: pool.Rent(), Moved: 0),
                     (i, loopState, local) =>
                     {
                         int u = order[i];
@@ -1545,7 +1657,7 @@ namespace Threadle.Core.Analysis
                         double[] weightBy = local.Scratch.WeightBy;
                         int[] touched = local.Scratch.Touched;
                         int[] mark = local.Scratch.Mark;
-                        int gen = ++local.Scratch.Generation;
+                        int gen = local.Scratch.NextGeneration();
                         int nTouched = 0;
                         for (int k = 0; k < nbrs.Length; k++)
                         {
@@ -1563,7 +1675,11 @@ namespace Threadle.Core.Analysis
                             local.Moved++;
                         return local;
                     },
-                    local => Interlocked.Add(ref moved, local.Moved));
+                    local =>
+                    {
+                        Interlocked.Add(ref moved, local.Moved);
+                        pool.Return(local.Scratch);
+                    });
                 if (moved == 0)
                     break;
                 improvedAny = true;
@@ -1586,12 +1702,13 @@ namespace Threadle.Core.Analysis
             for (int i = 0; i < n; i++) order[i] = i;
             Shuffle(order);
 
+            var pool = new PlmScratchPool(n);
             int sweepCap = maxSweeps > 0 ? maxSweeps : PlmMaxSweepsPerLevel;
             for (int sweep = 0; sweep < sweepCap; sweep++)
             {
                 int moved = 0;
                 System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
-                    () => (Scratch: new PlmScratch(n), Moved: 0),
+                    () => (Scratch: pool.Rent(), Moved: 0),
                     (i, loopState, local) =>
                     {
                         int u = order[i];
@@ -1600,7 +1717,11 @@ namespace Threadle.Core.Analysis
                             local.Moved++;
                         return local;
                     },
-                    local => Interlocked.Add(ref moved, local.Moved));
+                    local =>
+                    {
+                        Interlocked.Add(ref moved, local.Moved);
+                        pool.Return(local.Scratch);
+                    });
                 if (moved == 0)
                     break;
             }
