@@ -925,7 +925,7 @@ namespace Threadle.Core.Analysis
         /// only which pairs are adjacent matters, not their weight. Runs the per-source BFS passes in
         /// parallel across up to 'maxthreads' threads (see 'setting()'), merging thread-local partial
         /// sums under a lock once per thread's batch — same accumulate+merge pattern as
-        /// CentralityFunctions.AccumulateEdgeBetweennessForSources, just over this module's own
+        /// BrandesBetweenness.EdgeBetweenness, just over this module's own
         /// compact adjacency representation rather than ILayerOneMode.
         /// </summary>
         private static Dictionary<(int, int), double> ComputeEdgeBetweenness(int n, Dictionary<int, double>[] adj)

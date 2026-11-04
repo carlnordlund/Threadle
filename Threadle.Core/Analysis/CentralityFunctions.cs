@@ -27,115 +27,11 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Single-source BFSBrandes pass that accumulates contributions to betweenness,
-        /// closeness, and harmonic centrality in-place. All three are accumulated together
-        /// so callers pay only one BFS per source regardless of which metrics they need.
-        /// <paramref name="scratch"/>/<paramref name="delta"/> are reused across every source a
-        /// thread handles (see <see cref="GraphAlgorithms.BFSBrandesScratch"/>) rather than
-        /// allocated fresh per call.
-        /// </summary>
-        internal static void AccumulateBFSCentralities(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, Dictionary<uint, double> betweenness, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic, GraphAlgorithms.BFSBrandesScratch scratch, Dictionary<uint, double> delta)
-        {
-            GraphAlgorithms.BFSBrandes(source, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal, scratch);
-            int[] dist = scratch.Dist;
-            long[] sigma = scratch.Sigma;
-            var pred = scratch.Pred;
-            int[] order = scratch.Order;
-            int orderCount = scratch.OrderCount;
-            int sourceIdx = nodeIndex[source];
-
-            // Closeness + harmonic: accumulate from distances produced by this source's BFS
-            for (int i = 0; i < orderCount; i++)
-            {
-                int vIdx = order[i];
-                if (vIdx == sourceIdx) continue;
-                int d = dist[vIdx];
-                closenessDistSum[source] = closenessDistSum.GetValueOrDefault(source) + d;
-                closenessReachable[source] = closenessReachable.GetValueOrDefault(source) + 1;
-                harmonic[source] = harmonic.GetValueOrDefault(source) + 1.0 / d;
-            }
-
-            // Brandes back-propagation for betweenness
-            delta.Clear();
-            for (int i = orderCount - 1; i >= 0; i--)
-            {
-                int wIdx = order[i];
-                uint w = nodeIds[wIdx];
-                if (!pred.TryGetValue(w, out var preds)) continue;
-                double sigmaw = sigma[wIdx];
-                foreach (uint v in preds)
-                {
-                    double sigmav = sigma[nodeIndex[v]];
-                    double contrib = (sigmav / sigmaw) * (1.0 + delta.GetValueOrDefault(w));
-                    delta[v] = delta.GetValueOrDefault(v) + contrib;
-                }
-                if (w != source)
-                    betweenness[w] = betweenness.GetValueOrDefault(w) + delta.GetValueOrDefault(w);
-            }
-        }
-
-        /// <summary>
-        /// Runs AccumulateBFSCentralities for every source node in parallel (up to 'maxthreads',
-        /// see 'setting()'), then merges the per-source contributions into shared accumulators.
-        /// Each thread accumulates into its own local dictionaries (thread-local partial sums, one
-        /// BFS per source with no locking on the hot path); the partial sums are merged under a
-        /// single lock once per thread's batch, not once per source. Used by BetweennessCentrality,
-        /// ClosenessCentrality, and HarmonicCentrality, which all share this same BFS pass.
-        /// </summary>
-        internal static (Dictionary<uint, double> Betweenness, Dictionary<uint, double> ClosenessDistSum, Dictionary<uint, int> ClosenessReachable, Dictionary<uint, double> Harmonic)
-            AccumulateBFSCentralitiesForSources(uint[] sources, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
-        {
-            var betweenness = new Dictionary<uint, double>();
-            var closenessDistSum = new Dictionary<uint, double>();
-            var closenessReachable = new Dictionary<uint, int>();
-            var harmonic = new Dictionary<uint, double>();
-            var mergeLock = new object();
-
-            System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
-                () => (
-                    Betweenness: new Dictionary<uint, double>(),
-                    ClosenessDistSum: new Dictionary<uint, double>(),
-                    ClosenessReachable: new Dictionary<uint, int>(),
-                    Harmonic: new Dictionary<uint, double>(),
-                    Scratch: new GraphAlgorithms.BFSBrandesScratch(),
-                    Delta: new Dictionary<uint, double>()
-                ),
-                (i, loopState, local) =>
-                {
-                    AccumulateBFSCentralities(sources[i], nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, traversal,
-                        local.Betweenness, local.ClosenessDistSum, local.ClosenessReachable, local.Harmonic,
-                        local.Scratch, local.Delta);
-                    return local;
-                },
-                local =>
-                {
-                    lock (mergeLock)
-                    {
-                        foreach (var (node, value) in local.Betweenness)
-                            betweenness[node] = betweenness.GetValueOrDefault(node) + value;
-                        foreach (var (node, value) in local.ClosenessDistSum)
-                            closenessDistSum[node] = closenessDistSum.GetValueOrDefault(node) + value;
-                        foreach (var (node, value) in local.ClosenessReachable)
-                            closenessReachable[node] = closenessReachable.GetValueOrDefault(node) + value;
-                        foreach (var (node, value) in local.Harmonic)
-                            harmonic[node] = harmonic.GetValueOrDefault(node) + value;
-                    }
-                });
-
-            return (betweenness, closenessDistSum, closenessReachable, harmonic);
-        }
-
-        /// <summary>
         /// Single-source plain-BFS pass that accumulates contributions to closeness and harmonic
-        /// centrality only - the same loop AccumulateBFSCentralities runs over its BFSBrandes
-        /// 'dist' output, but here fed by GraphAlgorithms.BFS instead. Closeness/harmonic never
-        /// read sigma/predecessors/order (only 'dist'), so this avoids paying for Brandes' sigma
-        /// bookkeeping at all: on a 2-mode layer, BFSBrandes must re-scan a hyperedge's member list
-        /// once per same-level arriving member to keep sigma correct (worst case O(Σ hyperedge
-        /// sizes squared)), where plain BFS expands each hyperedge exactly once (O(Σ hyperedge
-        /// sizes)) - the same traversal NetworkLevelFunctions.Diameter/Eccentricity already use for
-        /// this same "distances only" shape. Same distances either way, since both BFS variants
-        /// compute identical shortest-path levels - only the bookkeeping differs.
+        /// centrality only, fed by GraphAlgorithms.BFS. Closeness/harmonic only need distances, so
+        /// this skips the path counting and backward pass that betweenness (BrandesBetweenness)
+        /// needs - the same "distances only" traversal NetworkLevelFunctions.Diameter/Eccentricity
+        /// use.
         /// </summary>
         internal static void AccumulateDistanceCentralities(uint source, GraphAlgorithms.BFSContext bfsContext, GraphAlgorithms.BFSScratch scratch, Dictionary<uint, double> closenessDistSum, Dictionary<uint, int> closenessReachable, Dictionary<uint, double> harmonic)
         {
@@ -153,10 +49,9 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Runs AccumulateDistanceCentralities for every source node in parallel (up to
         /// 'maxthreads', see 'setting()'), then merges the per-source contributions into shared
-        /// accumulators - same thread-local-then-merge-under-lock pattern as
-        /// AccumulateBFSCentralitiesForSources, just built on the cheaper plain-BFS single-source
-        /// function above. Used by ClosenessCentrality and HarmonicCentrality only; betweenness
-        /// still needs AccumulateBFSCentralitiesForSources's real Brandes pass.
+        /// accumulators (thread-local partial sums, merged under a lock once per thread's batch).
+        /// Used by ClosenessCentrality and HarmonicCentrality; betweenness uses
+        /// BrandesBetweenness.NodeBetweenness.
         /// </summary>
         internal static (Dictionary<uint, double> ClosenessDistSum, Dictionary<uint, int> ClosenessReachable, Dictionary<uint, double> Harmonic)
             AccumulateDistanceCentralitiesForSources(uint[] sources, Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
@@ -200,7 +95,7 @@ namespace Threadle.Core.Analysis
 
         /// <summary>
         /// Normalizes raw betweenness scores. raw[v] is accumulated by running Brandes' backward
-        /// pass from every node as source (AccumulateBFSCentralitiesForSources), which sums over
+        /// pass from every node as source (BrandesBetweenness.NodeBetweenness), which sums over
         /// every ORDERED pair (s,t). For a directed graph that already matches the (n-1)(n-2)
         /// denominator (the count of ordered pairs excluding v). For an undirected graph (or any
         /// traversal where paths are symmetric, i.e. sigma_st(v) == sigma_ts(v)), each unordered
@@ -220,78 +115,6 @@ namespace Threadle.Core.Analysis
             foreach (uint v in allNodeIds)
                 result[v] = norm > 0 ? raw.GetValueOrDefault(v) * scale / norm : 0.0;
             return result;
-        }
-
-        /// <summary>
-        /// Single-source BFSBrandes pass that accumulates contributions to edge betweenness for a
-        /// single 1-mode layer. Each predecessor edge (v,w) on a shortest-path DAG is credited with
-        /// the exact same per-predecessor contribution term that AccumulateBFSCentralities folds
-        /// into node w's cumulative delta, so this reuses the identical Brandes backward pass —
-        /// it just also credits the edge, not only the node. For undirected layers, the edge key is
-        /// canonicalized (lower node id first) so both discovery directions accumulate into the same
-        /// entry, representing one undirected edge; for directed layers, (v,w) is kept as-is, since
-        /// arcs v→w and w→v (if both exist) are distinct ties with independent scores.
-        /// </summary>
-        internal static void AccumulateEdgeBetweenness(uint source, Dictionary<uint, int> nodeIndex, uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal, Dictionary<(uint From, uint To), double> edgeBetweenness, GraphAlgorithms.BFSBrandesScratch scratch, Dictionary<uint, double> delta)
-        {
-            GraphAlgorithms.BFSBrandes(source, nodeIndex, nodeIds, [layer], [], [], traversal, scratch);
-            long[] sigma = scratch.Sigma;
-            var pred = scratch.Pred;
-            int[] order = scratch.Order;
-            int orderCount = scratch.OrderCount;
-
-            bool directed = layer.IsDirectional;
-            delta.Clear();
-            for (int i = orderCount - 1; i >= 0; i--)
-            {
-                int wIdx = order[i];
-                uint w = nodeIds[wIdx];
-                if (!pred.TryGetValue(w, out var preds)) continue;
-                double sigmaw = sigma[wIdx];
-                foreach (uint v in preds)
-                {
-                    double sigmav = sigma[nodeIndex[v]];
-                    double contrib = (sigmav / sigmaw) * (1.0 + delta.GetValueOrDefault(w));
-                    delta[v] = delta.GetValueOrDefault(v) + contrib;
-
-                    var edgeKey = (directed || v < w) ? (v, w) : (w, v);
-                    edgeBetweenness[edgeKey] = edgeBetweenness.GetValueOrDefault(edgeKey) + contrib;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Runs AccumulateEdgeBetweenness for every source node in parallel (up to 'maxthreads', see
-        /// 'setting()'), merging thread-local partial sums into a shared accumulator under a lock
-        /// after each thread's batch — same accumulate+merge pattern as
-        /// AccumulateBFSCentralitiesForSources.
-        /// </summary>
-        internal static Dictionary<(uint From, uint To), double> AccumulateEdgeBetweennessForSources(uint[] sources, Dictionary<uint, int> nodeIndex, uint[] nodeIds, ILayerOneMode layer, EdgeTraversal traversal)
-        {
-            var edgeBetweenness = new Dictionary<(uint From, uint To), double>();
-            var mergeLock = new object();
-
-            System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
-                () => (
-                    Local: new Dictionary<(uint From, uint To), double>(),
-                    Scratch: new GraphAlgorithms.BFSBrandesScratch(),
-                    Delta: new Dictionary<uint, double>()
-                ),
-                (i, loopState, local) =>
-                {
-                    AccumulateEdgeBetweenness(sources[i], nodeIndex, nodeIds, layer, traversal, local.Local, local.Scratch, local.Delta);
-                    return local;
-                },
-                local =>
-                {
-                    lock (mergeLock)
-                    {
-                        foreach (var (edge, value) in local.Local)
-                            edgeBetweenness[edge] = edgeBetweenness.GetValueOrDefault(edge) + value;
-                    }
-                });
-
-            return edgeBetweenness;
         }
 
         /// <summary>
@@ -482,7 +305,7 @@ namespace Threadle.Core.Analysis
         /// own disjoint output-index slot, no merge needed); the per-iteration update is a
         /// scatter-add (each source node's share is added to every one of its targets), so it uses
         /// the same thread-local-accumulator-merged-under-lock pattern as
-        /// AccumulateBFSCentralitiesForSources - each thread accumulates into its own private
+        /// AccumulateDistanceCentralitiesForSources - each thread accumulates into its own private
         /// array, summed into the shared one once per thread's batch, not once per source. The
         /// outer iteration loop itself stays sequential (each iteration needs the previous one's
         /// fully-merged result). Floating-point summation is not associative, so a parallel run's

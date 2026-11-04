@@ -639,7 +639,7 @@ namespace Threadle.Core.Analysis
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
 
-            var (bw, _, _, _) = CentralityFunctions.AccumulateBFSCentralitiesForSources(sources, nodeIndex, nodeIds, one, dynTwo, statTwo, traversal);
+            var bw = BrandesBetweenness.NodeBetweenness(sources, nodeIds, nodeIndex, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeBetweenness(bw, nodeIds, sources.Length);
             attrName = string.IsNullOrEmpty(attrName) ? "betweenness" : attrName;
@@ -675,7 +675,7 @@ namespace Threadle.Core.Analysis
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
 
-            var raw = CentralityFunctions.AccumulateEdgeBetweennessForSources(sources, nodeIndex, nodeIds, layer, EdgeTraversal.Out);
+            var raw = BrandesBetweenness.EdgeBetweenness(sources, nodeIds, nodeIndex, layer, EdgeTraversal.Out);
             var final = normalize
                 ? CentralityFunctions.FinalizeEdgeBetweenness(raw, nodeIds.Length, sources.Length)
                 : raw;
