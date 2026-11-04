@@ -205,6 +205,26 @@
 
 ### Performance
 
+- **Faster `betweennesscentrality()` and `edgebetweennesscentrality()`, on 1-mode and
+  2-mode layers.** The Brandes pass no longer stores a predecessor list per
+  node or uses dictionaries for distances and path counts: it works on plain
+  arrays indexed by the command's compact node numbering, reused per thread,
+  and the backward pass finds predecessors by re-scanning neighbours. On a
+  2-mode layer, each hyperedge's path counts are now summed once per BFS level
+  rather than once per arriving member, so the cost per source drops from up
+  to O(Σ hyperedge size²) to O(Σ hyperedge size). The counting rules are
+  unchanged: a 1-mode tie counts once per layer, and a 2-mode tie once per
+  shared hyperedge. 1-mode results are identical to before (verified
+  byte-for-byte). 2-mode results can differ only in the last floating-point
+  digits (at most about 2e-15 relative), because sums are added in a
+  different order. Checked against the previous implementation on 132 cases
+  (1-mode directed/undirected, multilayer, valued, packed and unpacked 2-mode,
+  mixed 1-mode + 2-mode, sampled) and against a separate textbook Brandes
+  reference in the new tests. Sampled `betweennesscentrality()` with 100
+  sources (4 cores): 382,000-node random 2-mode network 65.8 s → 5.4 s;
+  300,000-node random 1-mode network 52.5 s → 8.4 s; 100,000-node
+  scale-free 1-mode network 6.3 s → 1.9 s. GC heap after the run also
+  dropped (e.g. 1.46 GB → 74 MB on the 300,000-node network).
 - **1-mode community detection without per-node dictionaries, identical
   results.** `louvain`, `leiden`, `lp` and `lpam` on 1-mode layers (and
   `plm`'s aggregation) cleared and refilled a dictionary for every node visit,
