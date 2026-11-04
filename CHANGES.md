@@ -205,6 +205,39 @@
 
 ### Performance
 
+- **Much faster `shortestpath()`/`shortestpaths()`, identical results.** The
+  bidirectional BFS now stops at the first node reached from both sides,
+  instead of finishing that BFS level. This is exact: every meeting found in
+  that level has the same length, and the first one found was already the
+  one kept, so distances and returned paths are unchanged. It also stops as
+  soon as either side has nothing left to expand: that side has then reached
+  everything it can, so there is no path. Before, the other side kept going;
+  for a pair involving an isolated node, that meant traversing the whole
+  rest of the network. Packed 1-mode layers are read straight from their
+  neighbour arrays instead of through a copied array per node. Verified
+  against the previous implementation (identical distances and paths on
+  24,060 pairs: 1-mode directed and undirected, packed and unpacked,
+  multilayer, 2-mode, mixed) and against a plain-BFS reference in the new
+  tests. On a 382,000-node projected 1-mode network: 1,000 pairs 20.6 s →
+  0.32 s; a single `shortestpath()` call about 70 ms → 0.3 ms.
+- **1-mode community detection uses about a third of the memory, identical
+  results.** `louvain`, `plm`, `leiden`, `lp` and `lpam` on 1-mode layers
+  built their symmetrized working copy of the network as one
+  `Dictionary<int, double>` per node, then copied it into arrays while the
+  dictionaries were still alive. They now count each node's neighbours
+  first and fill the final arrays directly, in the same order and with the
+  same weight sums. Packed layers are read straight from their own arrays.
+  `plm` also reuses its per-thread working arrays across sweeps, instead of
+  allocating new ones for every sweep. Communities and modularity are
+  unchanged (verified byte-for-byte across all five methods on directed,
+  undirected, valued and multilayer networks with self-ties and sparse node
+  ids). Measured peak heap on a 382,000-node projected 1-mode network (97 MB
+  as loaded): `louvain` 1.97 GB → 0.61 GB, `plm` 2.17 GB → 0.66 GB, `leiden`
+  2.12 GB → 0.74 GB, `lpam` 1.77 GB → 0.43 GB. All four also got faster:
+  `louvain` 77 s → 55 s, `plm` 40 s → 23 s, `leiden` 62 s → 45 s, `lpam`
+  51 s → 35 s. Most of what remains is needed data: the level-0 working copy
+  (kept for the final modularity) plus the first aggregated levels, which
+  on a weakly clustered network are still large.
 - **Faster `betweennesscentrality()` and `edgebetweennesscentrality()`, on 1-mode and
   2-mode layers.** The Brandes pass no longer stores a predecessor list per
   node or uses dictionaries for distances and path counts: it works on plain
