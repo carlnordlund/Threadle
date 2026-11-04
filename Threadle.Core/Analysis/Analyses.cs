@@ -53,16 +53,18 @@ namespace Threadle.Core.Analysis
         /// that a single run can get stuck in. Exact reproducibility via randomseed() across
         /// restarts is only guaranteed when maxthreads is set to 1.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionLeiden(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLeiden(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1, int maxSweeps = 0)
         {
+            if (maxSweeps < 0)
+                return OperationResult<Dictionary<string, object>>.Fail("InvalidArgument", "'maxsweeps' must be 0 (no limit) or a positive number of sweeps.");
             if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var (communities, modularity) = twoMode != null
-                ? CommunityFunctions.LeidenCommunitiesTwoMode(nodeIds, twoMode, resolution, randomness, numRestarts)
-                : CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness, numRestarts);
+                ? CommunityFunctions.LeidenCommunitiesTwoMode(nodeIds, twoMode, resolution, randomness, numRestarts, maxSweeps)
+                : CommunityFunctions.LeidenCommunities(nodeIds, oneModes, resolution, randomness, numRestarts, maxSweeps);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -93,17 +95,22 @@ namespace Threadle.Core.Analysis
         /// keeps the highest-modularity result — a way to escape local optima that a single run can
         /// get stuck in. Exact reproducibility via randomseed() across restarts is only guaranteed
         /// when maxthreads is set to 1.
-        /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionLouvain(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1)
+        /// maxSweeps (default 0 = no limit) caps local-moving sweeps per level; the same option exists
+        /// for Leiden, LPAm and PLM (where it replaces PLM's own default cap of 32). See the
+        /// communitydetection() CLI description for when it helps.
+        /// /// </summary>
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLouvain(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1, int maxSweeps = 0)
         {
+            if (maxSweeps < 0)
+                return OperationResult<Dictionary<string, object>>.Fail("InvalidArgument", "'maxsweeps' must be 0 (no limit) or a positive number of sweeps.");
             if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var (communities, modularity) = twoMode != null
-                ? CommunityFunctions.LouvainCommunitiesTwoMode(nodeIds, twoMode, resolution, numRestarts)
-                : CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution, numRestarts);
+                ? CommunityFunctions.LouvainCommunitiesTwoMode(nodeIds, twoMode, resolution, numRestarts, maxSweeps)
+                : CommunityFunctions.LouvainCommunities(nodeIds, oneModes, resolution, numRestarts, maxSweeps);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -120,16 +127,18 @@ namespace Threadle.Core.Analysis
         /// parallel), keeping the highest-modularity result. Returns NbrCommunities, CommunitySizes
         /// (descending), Modularity and NumRestarts.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionPLM(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionPLM(Network network, string[]? layerNames, string? attrName = null, double resolution = 1.0, int numRestarts = 1, int maxSweeps = 0)
         {
+            if (maxSweeps < 0)
+                return OperationResult<Dictionary<string, object>>.Fail("InvalidArgument", "'maxsweeps' must be 0 (no limit) or a positive number of sweeps.");
             if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var (communities, modularity) = twoMode != null
-                ? CommunityFunctions.PlmCommunitiesTwoMode(nodeIds, twoMode, resolution, numRestarts)
-                : CommunityFunctions.PlmCommunities(nodeIds, oneModes, resolution, numRestarts);
+                ? CommunityFunctions.PlmCommunitiesTwoMode(nodeIds, twoMode, resolution, numRestarts, maxSweeps)
+                : CommunityFunctions.PlmCommunities(nodeIds, oneModes, resolution, numRestarts, maxSweeps);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 
@@ -188,16 +197,18 @@ namespace Threadle.Core.Analysis
         /// 'setting()') and keeps the highest-modularity result. Exact reproducibility via
         /// randomseed() across restarts is only guaranteed when maxthreads is set to 1.
         /// </summary>
-        public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null, int numRestarts = 1)
+        public static OperationResult<Dictionary<string, object>> CommunityDetectionLPAm(Network network, string[]? layerNames, string? attrName = null, int numRestarts = 1, int maxSweeps = 0)
         {
+            if (maxSweeps < 0)
+                return OperationResult<Dictionary<string, object>>.Fail("InvalidArgument", "'maxsweeps' must be 0 (no limit) or a positive number of sweeps.");
             if (!TryResolveLayersForCommunityDetection(network, layerNames, out var oneModes, out var twoMode, out var err))
                 return err!;
 
             attrName = ResolveCommunityAttrName(layerNames, attrName);
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var (communities, modularity) = twoMode != null
-                ? CommunityFunctions.LPAmCommunitiesTwoMode(nodeIds, twoMode, numRestarts)
-                : CommunityFunctions.LPAmCommunities(nodeIds, oneModes, numRestarts);
+                ? CommunityFunctions.LPAmCommunitiesTwoMode(nodeIds, twoMode, numRestarts, maxSweeps)
+                : CommunityFunctions.LPAmCommunities(nodeIds, oneModes, numRestarts, maxSweeps);
             return StoreCommunityResult(network, attrName, communities, modularity, numRestarts);
         }
 

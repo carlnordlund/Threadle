@@ -41,7 +41,7 @@ namespace Threadle.Core.Analysis
         /// is set to 1.
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LeidenCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
+            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -59,10 +59,10 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LeidenSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, randomness);
+                return LeidenSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, randomness, maxSweeps);
 
             return RunBestOfRestarts(numRestarts,
-                () => LeidenSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, randomness));
+                () => LeidenSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, randomness, maxSweeps));
         }
 
         /// <summary>
@@ -71,13 +71,13 @@ namespace Threadle.Core.Analysis
         /// for independent restarts against the same arrays.
         /// </summary>
         private static (Dictionary<uint, int> communities, double modularity) LeidenSingleRun(
-            uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution, double randomness)
+            uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution, double randomness, int maxSweeps)
         {
             int n0 = nodeIds.Length;
             int[] identity = new int[n0];
             for (int i = 0; i < n0; i++) identity[i] = i;
 
-            int[] mapping = RunLeidenLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution, randomness, seedCommunity: null);
+            int[] mapping = RunLeidenLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution, randomness, seedCommunity: null, maxSweeps: maxSweeps);
 
             var communities = new Dictionary<uint, int>(n0);
             for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
@@ -101,7 +101,7 @@ namespace Threadle.Core.Analysis
         /// </summary>
         private static int[] RunLeidenLevelsFrom(int n0, int[] initialMapping, int curN,
             int[][] curNeighbors, double[][] curWeights, double[] curDegree, double twoM, double resolution,
-            double randomness, int[]? seedCommunity)
+            double randomness, int[]? seedCommunity, int maxSweeps = 0)
         {
             int[] mapping = (int[])initialMapping.Clone();
 
@@ -113,7 +113,7 @@ namespace Threadle.Core.Analysis
                 else
                     Array.Copy(seedCommunity, community, curN);
 
-                bool improved = LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community);
+                bool improved = LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community, maxSweeps);
                 int[] refined = RefinePartition(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community, randomness);
 
                 var (commMap, newN) = RenumberByFirstAppearance(refined);
@@ -165,7 +165,7 @@ namespace Threadle.Core.Analysis
         /// via randomseed() is only guaranteed when maxthreads is set to 1.
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LouvainCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, int numRestarts = 1)
+            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -182,10 +182,10 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LouvainSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution);
+                return LouvainSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, maxSweeps);
 
             return RunBestOfRestarts(numRestarts,
-                () => LouvainSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution));
+                () => LouvainSingleRun(nodeIds, neighbors0, weights0, degree0, twoM, resolution, maxSweeps));
         }
 
         /// <summary>
@@ -194,13 +194,13 @@ namespace Threadle.Core.Analysis
         /// adjacency. Safe to call concurrently for independent restarts against the same arrays.
         /// </summary>
         private static (Dictionary<uint, int> communities, double modularity) LouvainSingleRun(
-            uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution)
+            uint[] nodeIds, int[][] neighbors0, double[][] weights0, double[] degree0, double twoM, double resolution, int maxSweeps)
         {
             int n0 = nodeIds.Length;
             int[] identity = new int[n0];
             for (int i = 0; i < n0; i++) identity[i] = i;
 
-            int[] mapping = RunLouvainLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution);
+            int[] mapping = RunLouvainLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution, maxSweeps: maxSweeps);
 
             var communities = new Dictionary<uint, int>(n0);
             for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
@@ -220,7 +220,7 @@ namespace Threadle.Core.Analysis
         /// the singleton case); the loop composes further aggregation into it exactly as before.
         /// </summary>
         private static int[] RunLouvainLevelsFrom(int n0, int[] initialMapping, int curN,
-            int[][] curNeighbors, double[][] curWeights, double[] curDegree, double twoM, double resolution, bool parallel = false)
+            int[][] curNeighbors, double[][] curWeights, double[] curDegree, double twoM, double resolution, bool parallel = false, int maxSweeps = 0)
         {
             int[] mapping = (int[])initialMapping.Clone();
 
@@ -230,8 +230,8 @@ namespace Threadle.Core.Analysis
                 for (int i = 0; i < curN; i++) community[i] = i;
 
                 bool improved = parallel
-                    ? ParallelLocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community)
-                    : LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community);
+                    ? ParallelLocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community, maxSweeps)
+                    : LocalMovingPhase(curN, curNeighbors, curWeights, curDegree, twoM, resolution, community, maxSweeps);
 
                 var (commMap, newN) = RenumberByFirstAppearance(community);
 
@@ -710,10 +710,14 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Repeatedly sweeps all nodes (in random order) moving each to whichever neighboring
         /// community (including its own) yields the greatest modularity gain, until a full sweep
-        /// produces no moves. Returns whether any node ever moved.
+        /// produces no moves - or, if <paramref name="maxSweeps"/> is positive, until that many sweeps
+        /// have run (the user-facing 'maxsweeps' option: on weakly structured networks local moving
+        /// can spend most of its time in long tails of sweeps that move only a few nodes each; stopping
+        /// early trades a little modularity for speed). 0 means no limit, the default and the original
+        /// behaviour. Returns whether any node ever moved.
         /// </summary>
         private static bool LocalMovingPhase(int n, int[][] neighbors, double[][] weights,
-            double[] degree, double twoM, double resolution, int[] community)
+            double[] degree, double twoM, double resolution, int[] community, int maxSweeps = 0)
         {
             // Aggregated by the actual starting groups in `community` rather than assumed to be
             // singletons — matters once callers (e.g. Leiden) seed this with a non-singleton
@@ -729,7 +733,8 @@ namespace Threadle.Core.Analysis
             var neighborCommWeight = new WeightAccumulator(n);
 
             bool improvedThisPass = true;
-            while (improvedThisPass)
+            int sweeps = 0;
+            while (improvedThisPass && (maxSweeps <= 0 || sweeps++ < maxSweeps))
             {
                 improvedThisPass = false;
                 foreach (int u in order)
@@ -794,7 +799,7 @@ namespace Threadle.Core.Analysis
                  /// guaranteed when maxthreads is set to 1.
                  /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LPAmCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers, int numRestarts = 1)
+            uint[] nodeIds, List<ILayerOneMode> layers, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -810,10 +815,10 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LPAmSingleRun(nodeIds, neighbors, weights, degree, twoM);
+                return LPAmSingleRun(nodeIds, neighbors, weights, degree, twoM, maxSweeps);
 
             return RunBestOfRestarts(numRestarts,
-                () => LPAmSingleRun(nodeIds, neighbors, weights, degree, twoM));
+                () => LPAmSingleRun(nodeIds, neighbors, weights, degree, twoM, maxSweeps));
         }
 
         /// <summary>
@@ -821,14 +826,14 @@ namespace Threadle.Core.Analysis
         /// Safe to call concurrently for independent restarts against the same arrays.
         /// </summary>
         private static (Dictionary<uint, int> communities, double modularity) LPAmSingleRun(
-            uint[] nodeIds, int[][] neighbors, double[][] weights, double[] degree, double twoM)
+            uint[] nodeIds, int[][] neighbors, double[][] weights, double[] degree, double twoM, int maxSweeps)
         {
             int n0 = nodeIds.Length;
 
             int[] community = new int[n0];
             for (int i = 0; i < n0; i++) community[i] = i;
 
-            LocalMovingPhase(n0, neighbors, weights, degree, twoM, 1.0, community);
+            LocalMovingPhase(n0, neighbors, weights, degree, twoM, 1.0, community, maxSweeps);
 
             var commMap = new Dictionary<int, int>(n0);
             var communities = new Dictionary<uint, int>(n0);
@@ -1252,7 +1257,7 @@ namespace Threadle.Core.Analysis
         /// convention offered for 2-mode community detection (see the type's remarks on why
         /// "binary" isn't offered here).
         /// </summary>
-        private static int[] RunLocalMovingTwoMode(TwoModeIncidence inc, double[] degree, double twoM, double resolution)
+        private static int[] RunLocalMovingTwoMode(TwoModeIncidence inc, double[] degree, double twoM, double resolution, int maxSweeps = 0)
         {
             int n = degree.Length;
 
@@ -1270,7 +1275,8 @@ namespace Threadle.Core.Analysis
             var touched = new int[n];
 
             bool improvedThisPass = true;
-            while (improvedThisPass)
+            int sweeps = 0;
+            while (improvedThisPass && (maxSweeps <= 0 || sweeps++ < maxSweeps))
             {
                 improvedThisPass = false;
                 foreach (int ui in order)
@@ -1515,7 +1521,7 @@ namespace Threadle.Core.Analysis
         /// <see cref="PlmMaxSweepsPerLevel"/> sweeps have run. Returns whether any node ever moved.
         /// </summary>
         private static bool ParallelLocalMovingPhase(int n, int[][] neighbors, double[][] weights,
-            double[] degree, double twoM, double resolution, int[] community)
+            double[] degree, double twoM, double resolution, int[] community, int maxSweeps = 0)
         {
             var sigmaTot = new double[n];
             for (int i = 0; i < n; i++) sigmaTot[community[i]] += degree[i];
@@ -1525,7 +1531,8 @@ namespace Threadle.Core.Analysis
             Shuffle(order);
 
             bool improvedAny = false;
-            for (int sweep = 0; sweep < PlmMaxSweepsPerLevel; sweep++)
+            int sweepCap = maxSweeps > 0 ? maxSweeps : PlmMaxSweepsPerLevel;
+            for (int sweep = 0; sweep < sweepCap; sweep++)
             {
                 int moved = 0;
                 System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
@@ -1568,7 +1575,7 @@ namespace Threadle.Core.Analysis
         /// Parallel counterpart of <see cref="RunLocalMovingTwoMode"/> for PLM on a 2-mode layer: level 0,
         /// accumulated directly from the layer's incidence, with each thread using its own scratch arrays.
         /// </summary>
-        private static int[] ParallelLocalMovingTwoMode(TwoModeIncidence inc, double[] degree, double twoM, double resolution)
+        private static int[] ParallelLocalMovingTwoMode(TwoModeIncidence inc, double[] degree, double twoM, double resolution, int maxSweeps = 0)
         {
             int n = degree.Length;
             int[] community = new int[n];
@@ -1579,7 +1586,8 @@ namespace Threadle.Core.Analysis
             for (int i = 0; i < n; i++) order[i] = i;
             Shuffle(order);
 
-            for (int sweep = 0; sweep < PlmMaxSweepsPerLevel; sweep++)
+            int sweepCap = maxSweeps > 0 ? maxSweeps : PlmMaxSweepsPerLevel;
+            for (int sweep = 0; sweep < sweepCap; sweep++)
             {
                 int moved = 0;
                 System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
@@ -1623,7 +1631,7 @@ namespace Threadle.Core.Analysis
         /// are done one after another, keeping the highest-modularity result.
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) PlmCommunities(
-            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, int numRestarts = 1)
+            uint[] nodeIds, List<ILayerOneMode> layers, double resolution = 1.0, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -1641,7 +1649,7 @@ namespace Threadle.Core.Analysis
             {
                 int[] identity = new int[n0];
                 for (int i = 0; i < n0; i++) identity[i] = i;
-                int[] mapping = RunLouvainLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution, parallel: true);
+                int[] mapping = RunLouvainLevelsFrom(n0, identity, n0, neighbors0, weights0, degree0, twoM, resolution, parallel: true, maxSweeps: maxSweeps);
                 var communities = new Dictionary<uint, int>(n0);
                 for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
                 return (communities, ComputeModularity(n0, neighbors0, weights0, degree0, twoM, resolution, mapping));
@@ -1655,7 +1663,7 @@ namespace Threadle.Core.Analysis
         /// with parallel local moving.
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) PlmCommunitiesTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, int numRestarts = 1)
+            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -1672,9 +1680,9 @@ namespace Threadle.Core.Analysis
 
             return RunBestOfRestartsSequential(Math.Max(1, numRestarts), () =>
             {
-                int[] level0Community = ParallelLocalMovingTwoMode(inc, degree0, twoM, resolution);
+                int[] level0Community = ParallelLocalMovingTwoMode(inc, degree0, twoM, resolution, maxSweeps);
                 var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
-                int[] mapping = RunLouvainLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, parallel: true);
+                int[] mapping = RunLouvainLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, parallel: true, maxSweeps: maxSweeps);
                 var communities = new Dictionary<uint, int>(n0);
                 for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
                 return (communities, ComputeModularityTwoMode(nodeIds, layer, degree0, twoM, mapping, resolution));
@@ -1720,7 +1728,7 @@ namespace Threadle.Core.Analysis
         /// (same resolution semantics, same numRestarts/best-of-restarts behavior).
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LouvainCommunitiesTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, int numRestarts = 1)
+            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -1736,20 +1744,20 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LouvainSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution);
+                return LouvainSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, maxSweeps);
 
             return RunBestOfRestarts(numRestarts,
-                () => LouvainSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution));
+                () => LouvainSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, maxSweeps));
         }
 
         private static (Dictionary<uint, int> communities, double modularity) LouvainSingleRunTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, double resolution)
+            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, double resolution, int maxSweeps)
         {
             int n0 = nodeIds.Length;
-            int[] level0Community = RunLocalMovingTwoMode(inc, degree0, twoM, resolution);
+            int[] level0Community = RunLocalMovingTwoMode(inc, degree0, twoM, resolution, maxSweeps);
             var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
 
-            int[] mapping = RunLouvainLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution);
+            int[] mapping = RunLouvainLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, maxSweeps: maxSweeps);
 
             var communities = new Dictionary<uint, int>(n0);
             for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
@@ -1770,7 +1778,7 @@ namespace Threadle.Core.Analysis
         /// semantics, same numRestarts/best-of-restarts behavior).
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LeidenCommunitiesTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1)
+            uint[] nodeIds, ILayerTwoMode layer, double resolution = 1.0, double randomness = 0.01, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -1788,20 +1796,20 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LeidenSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, randomness);
+                return LeidenSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, randomness, maxSweeps);
 
             return RunBestOfRestarts(numRestarts,
-                () => LeidenSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, randomness));
+                () => LeidenSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, resolution, randomness, maxSweeps));
         }
 
         private static (Dictionary<uint, int> communities, double modularity) LeidenSingleRunTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, double resolution, double randomness)
+            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, double resolution, double randomness, int maxSweeps)
         {
             int n0 = nodeIds.Length;
-            int[] level0Community = RunLocalMovingTwoMode(inc, degree0, twoM, resolution);
+            int[] level0Community = RunLocalMovingTwoMode(inc, degree0, twoM, resolution, maxSweeps);
             var (neighbors1, weights1, degree1, mapping0) = BuildFirstAggregationTwoMode(nodeIds, layer, level0Community);
 
-            int[] mapping = RunLeidenLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, randomness, seedCommunity: null);
+            int[] mapping = RunLeidenLevelsFrom(n0, mapping0, neighbors1.Length, neighbors1, weights1, degree1, twoM, resolution, randomness, seedCommunity: null, maxSweeps: maxSweeps);
 
             var communities = new Dictionary<uint, int>(n0);
             for (int i = 0; i < n0; i++) communities[nodeIds[i]] = mapping[i];
@@ -1917,7 +1925,7 @@ namespace Threadle.Core.Analysis
         /// numRestarts/best-of-restarts behavior).
         /// </summary>
         internal static (Dictionary<uint, int> communities, double modularity) LPAmCommunitiesTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, int numRestarts = 1)
+            uint[] nodeIds, ILayerTwoMode layer, int numRestarts = 1, int maxSweeps = 0)
         {
             int n0 = nodeIds.Length;
             if (n0 == 0)
@@ -1933,17 +1941,17 @@ namespace Threadle.Core.Analysis
             }
 
             if (numRestarts <= 1)
-                return LPAmSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM);
+                return LPAmSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, maxSweeps);
 
             return RunBestOfRestarts(numRestarts,
-                () => LPAmSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM));
+                () => LPAmSingleRunTwoMode(nodeIds, layer, inc, degree0, twoM, maxSweeps));
         }
 
         private static (Dictionary<uint, int> communities, double modularity) LPAmSingleRunTwoMode(
-            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM)
+            uint[] nodeIds, ILayerTwoMode layer, TwoModeIncidence inc, double[] degree0, double twoM, int maxSweeps)
         {
             int n0 = nodeIds.Length;
-            int[] community = RunLocalMovingTwoMode(inc, degree0, twoM, 1.0);
+            int[] community = RunLocalMovingTwoMode(inc, degree0, twoM, 1.0, maxSweeps);
 
             var commMap = new Dictionary<int, int>(n0);
             var communities = new Dictionary<uint, int>(n0);
