@@ -6,7 +6,19 @@ namespace Threadle.Core.Analysis
 {
     /// <summary>
     /// Brandes' algorithm for node and edge betweenness, without per-node predecessor lists and without
-    /// dictionaries on the hot path. Per source node:
+    /// dictionaries on the hot path. Betweenness is computed on the binary union graph of the selected
+    /// layers: two nodes are tied if any selected layer ties them (a 1-mode edge in the traversal direction,
+    /// or at least one shared hyperedge on a 2-mode layer), and a tie counts once however many layers or
+    /// hyperedges carry it - the same result as Brandes on a materialized binary projection / union.
+    ///
+    /// The traversal below works per connection (per 1-mode layer, per hyperedge), which by itself would
+    /// count a pair connected k times as k parallel ties. That is corrected exactly: the pairs connected
+    /// more than once (v reaches w through k &gt; 1 connections) are found once per command
+    /// (<see cref="Context.ExcessPred"/>), and in each BFS the k - 1 surplus copies of sigma[v] are taken
+    /// back out of sigma[w] as soon as w's level is complete (integer arithmetic, so path counts are exact),
+    /// and the matching surplus dependency is taken back out of delta[v] in the backward pass. With a single
+    /// 1-mode layer no pair can be connected twice, nothing is precomputed, and results are unchanged.
+    /// Per source:
     ///
     /// Forward pass (BFS): distances and shortest-path counts (sigma) in per-thread arrays, nodes recorded in
     /// discovery order (which is also BFS level order). A node one level further from the source receives the
@@ -29,7 +41,8 @@ namespace Threadle.Core.Analysis
     /// differently, so values can differ from the pairwise version in the last few bits of a double.
     ///
     /// Nodes outside the command's node universe are ignored, exactly as before. Hyperedges are assumed not
-    /// to list the same node twice (the model de-duplicates members on insertion).
+    /// to list the same node twice (the model de-duplicates members on insertion). The description of
+    /// per-connection counting above is what the traversal does before the binary correction.
     /// </summary>
     internal static class BrandesBetweenness
     {
@@ -43,6 +56,17 @@ namespace Threadle.Core.Analysis
             internal readonly EdgeTraversal ReverseTraversal;
             internal readonly OneMode[] OneModes;
             internal readonly CommunityFunctions.TwoModeIncidence[] TwoModes;
+
+            /// <summary>
+            /// Binary-union correction, per node w (null when no pair can be connected more than once, i.e. a
+            /// single 1-mode layer): the predecessor-side neighbours v that reach w through more than one
+            /// connection in the traversal direction, ExcessPred[w][i], and how many surplus connections they
+            /// have, ExcessCount[w][i] (connections - 1). Nodes with none share one empty array.
+            /// </summary>
+            internal readonly int[][]? ExcessPred;
+            internal readonly int[][]? ExcessCount;
+            /// <summary>Total number of (w, v) entries in <see cref="ExcessPred"/>.</summary>
+            internal readonly long ExcessEntries;
 
             /// <summary>A 1-mode layer: packed layers are read through their CSR arrays, unpacked ones through the layer's own methods.</summary>
             internal sealed class OneMode
@@ -114,6 +138,121 @@ namespace Threadle.Core.Analysis
                 foreach (var l in twoModesDynamic) twoModes.Add(CommunityFunctions.TwoModeIncidence.Build(nodeIds, l));
                 foreach (var l in twoModesStatic) twoModes.Add(CommunityFunctions.TwoModeIncidence.Build(nodeIds, l));
                 TwoModes = twoModes.ToArray();
+
+                if (TwoModes.Length > 0 || OneModes.Length > 1)
+                    (ExcessPred, ExcessCount, ExcessEntries) = BuildExcess();
+            }
+
+            /// <summary>
+            /// For every node w, counts the connections through which each neighbour v reaches w in the
+            /// traversal direction (= w's neighbours in the reverse direction): one per 1-mode layer with the
+            /// edge (counted once per layer, as the traversal does, also under 'both' on a directed layer),
+            /// plus one per shared hyperedge on each 2-mode layer. Keeps the neighbours counted more than once.
+            /// Runs once per command, in parallel over w, with per-thread counters: O(E + sum of hyperedge
+            /// sizes squared) time once, memory only for the kept pairs.
+            /// </summary>
+            private (int[][], int[][], long) BuildExcess()
+            {
+                int n = NodeIds.Length;
+                var pred = new int[n][];
+                var count = new int[n][];
+                long entries = 0;
+                System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                    () => (Count: new int[n], Stamp: new int[n], Keys: new List<int>(), Gen: 0, Entries: 0L),
+                    (w, loopState, local) =>
+                    {
+                        int gen = ++local.Gen;
+                        var keys = local.Keys;
+                        keys.Clear();
+                        void Hit(int v)
+                        {
+                            if (v < 0 || v == w) return;
+                            if (local.Stamp[v] != gen)
+                            {
+                                local.Stamp[v] = gen;
+                                local.Count[v] = 1;
+                                keys.Add(v);
+                            }
+                            else
+                                local.Count[v]++;
+                        }
+
+                        uint wId = NodeIds[w];
+                        foreach (var om in OneModes)
+                        {
+                            if (om.LayerPos == null)
+                            {
+                                // GetNodeAlters lists each neighbour once (its 'both' union is de-duplicated)
+                                foreach (uint v in om.Layer.GetNodeAlters(wId, ReverseTraversal))
+                                    Hit(IndexOf(v));
+                                continue;
+                            }
+                            int p = om.LayerPos[w];
+                            if (p < 0) continue;
+                            if (om.Dedup)
+                            {
+                                // Directed layer under 'both': a neighbour in both directions counts once
+                                var layerSeen = new HashSet<int>();
+                                for (int j = om.OutOffsets[p], e = om.OutOffsets[p + 1]; j < e; j++)
+                                {
+                                    int v = IndexOf(om.OutNbrs[j]);
+                                    if (v >= 0 && layerSeen.Add(v)) Hit(v);
+                                }
+                                if (om.InOffsets != null && om.InNbrs != null)
+                                    for (int j = om.InOffsets[p], e = om.InOffsets[p + 1]; j < e; j++)
+                                    {
+                                        int v = IndexOf(om.InNbrs[j]);
+                                        if (v >= 0 && layerSeen.Add(v)) Hit(v);
+                                    }
+                                continue;
+                            }
+                            if (om.RevOut)
+                                for (int j = om.OutOffsets[p], e = om.OutOffsets[p + 1]; j < e; j++)
+                                    Hit(IndexOf(om.OutNbrs[j]));
+                            if (om.RevIn)
+                                for (int j = om.InOffsets![p], e = om.InOffsets[p + 1]; j < e; j++)
+                                    Hit(IndexOf(om.InNbrs![j]));
+                        }
+                        foreach (var inc in TwoModes)
+                            for (int k = inc.NodeOffsets[w], kEnd = inc.NodeOffsets[w + 1]; k < kEnd; k++)
+                            {
+                                int h = inc.NodeHyperedges[k];
+                                for (int j = inc.HyperedgeOffsets[h], jEnd = inc.HyperedgeOffsets[h + 1]; j < jEnd; j++)
+                                    Hit(inc.Members[j]);
+                            }
+
+                        int kept = 0;
+                        foreach (int v in keys)
+                            if (local.Count[v] > 1) kept++;
+                        if (kept == 0)
+                        {
+                            pred[w] = [];
+                            count[w] = [];
+                        }
+                        else
+                        {
+                            var pv = new int[kept];
+                            var pc = new int[kept];
+                            int i = 0;
+                            foreach (int v in keys)
+                                if (local.Count[v] > 1)
+                                {
+                                    pv[i] = v;
+                                    pc[i++] = local.Count[v] - 1;
+                                }
+                            pred[w] = pv;
+                            count[w] = pc;
+                            local.Entries += kept;
+                        }
+                        if (local.Gen == int.MaxValue)
+                        {
+                            Array.Clear(local.Stamp);
+                            local.Gen = 0;
+                        }
+                        return local;
+                    },
+                    local => Interlocked.Add(ref entries, local.Entries));
+                return (pred, count, entries);
             }
 
             internal int IndexOf(uint v)
@@ -246,8 +385,34 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds = ctx.NodeIds;
             int gen = s.Gen;
             int head = 0;
+            int levelEnd = 1; // Order[head .. levelEnd) is the level being expanded
+            var excessPred = ctx.ExcessPred;
+            var excessCount = ctx.ExcessCount;
             while (head < s.OrderCount)
             {
+                if (head == levelEnd)
+                {
+                    // The next level is now complete (everything in Order[head ..) was reached from the level
+                    // just expanded): take surplus connections back out of its path counts before they are used.
+                    if (excessPred != null)
+                        for (int i = head; i < s.OrderCount; i++)
+                        {
+                            int w = s.Order[i];
+                            int[] pv = excessPred[w];
+                            if (pv.Length == 0) continue;
+                            int[] pc = excessCount![w];
+                            int below = s.Dist[w] - 1;
+                            long surplus = 0;
+                            for (int j = 0; j < pv.Length; j++)
+                            {
+                                int v = pv[j];
+                                if (s.Reached[v] == gen && s.Dist[v] == below)
+                                    surplus += pc[j] * s.Sigma[v];
+                            }
+                            s.Sigma[w] -= surplus;
+                        }
+                    levelEnd = s.OrderCount;
+                }
                 int uIdx = s.Order[head++];
                 uint u = nodeIds[uIdx];
                 int d = s.Dist[uIdx];
@@ -424,6 +589,20 @@ namespace Threadle.Core.Analysis
                                 }
                                 s.BackwardNeighbor(vIdx, w, below, factor);
                             }
+                    }
+                    if (ctx.ExcessPred != null)
+                    {
+                        int[] pv = ctx.ExcessPred[w];
+                        if (pv.Length > 0)
+                        {
+                            int[] pc = ctx.ExcessCount![w];
+                            for (int j = 0; j < pv.Length; j++)
+                            {
+                                int v = pv[j];
+                                if (s.Reached[v] == gen && s.Dist[v] == below)
+                                    delta[v] -= pc[j] * ((s.Sigma[v] / (double)s.Sigma[w]) * factor);
+                            }
+                        }
                     }
                     if (betweenness != null)
                         betweenness[w] += delta[w];
