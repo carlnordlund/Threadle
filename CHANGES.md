@@ -191,7 +191,8 @@
 ### Behavior changes
 
 - **`betweennesscentrality()` is now computed on the binary union of the
-  selected layers.** On a 2-mode layer, two nodes are tied if they share at
+  selected layers by default, with a new `projection` argument
+  (`'binary'` (default) or `'count'`).** On a 2-mode layer, two nodes are tied if they share at
   least one hyperedge, and the tie counts once. Before, a pair sharing three
   hyperedges acted like three parallel ties, multiplying the shortest paths
   through it. Likewise, with several layers, a tie present in more than one
@@ -199,8 +200,12 @@
   hyperedge) now counts once. Results now equal betweenness on a
   materialized binary projection or union, which is what igraph, NetworKit
   and graph-tool give after a standard projection, without ever
-  materializing it. Single-layer 1-mode results are unchanged, and so are
-  2-mode results where no pair shares more than one hyperedge. How it works:
+  materializing it. `projection='count'` keeps the previous behaviour:
+  every connection counts, as on the count-weighted projection (the value
+  `getedge()` returns) read as a multigraph. The argument is named and
+  parsed like `assortativity()`'s; `'newman'` is rejected. Single-layer
+  1-mode results are the same either way, and so are 2-mode results where
+  no pair shares more than one hyperedge. How the binary default works:
   the fast per-hyperedge computation is kept, and the double counting is
   subtracted exactly. Once per command, the pairs connected more than once
   are found (stored only for those pairs). In each BFS, their surplus path

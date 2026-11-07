@@ -21,7 +21,7 @@ public class BetweennessReferenceTests
     // ── Reference ────────────────────────────────────────────────────────────
 
     /// <summary>For each node index, the list of (neighbour index, multiplicity) along the traversal direction.</summary>
-    private static List<(int V, int Mult)>[] MultiAdjacency(Network net, string[] layers, EdgeTraversal traversal, uint[] ids, Dictionary<uint, int> idx)
+    private static List<(int V, int Mult)>[] MultiAdjacency(Network net, string[] layers, EdgeTraversal traversal, uint[] ids, Dictionary<uint, int> idx, bool binary = true)
     {
         int n = ids.Length;
         var counts = new Dictionary<int, int>[n];
@@ -49,8 +49,9 @@ public class BetweennessReferenceTests
                             counts[i][vi] = counts[i].GetValueOrDefault(vi) + 1;
             }
         }
-        // Binary union: every tie counts once, however many layers / shared hyperedges carry it
-        return counts.Select(c => c.Select(kv => (kv.Key, 1)).ToList()).ToArray();
+        // Binary union: every tie counts once, however many layers / shared hyperedges carry it.
+        // Count: once per layer it is in, and once per shared hyperedge.
+        return counts.Select(c => c.Select(kv => (kv.Key, binary ? 1 : kv.Value)).ToList()).ToArray();
     }
 
     /// <summary>Textbook Brandes on a multigraph: raw node betweenness and raw edge credits (v, w) per source.</summary>
@@ -110,7 +111,7 @@ public class BetweennessReferenceTests
         Assert.True(Math.Abs(expected - actual) <= 1e-6 * Math.Max(1.0, Math.Abs(expected)), $"expected {expected}, got {actual}");
     }
 
-    private static void CheckNodeBetweenness(Network net, string[] layers, EdgeTraversal traversal, int sampleSize = 0)
+    private static void CheckNodeBetweenness(Network net, string[] layers, EdgeTraversal traversal, int sampleSize = 0, ProjectionMethod projection = ProjectionMethod.Binary)
     {
         uint[] ids = net.Nodeset.NodeIdArray;
         var idx = new Dictionary<uint, int>();
@@ -118,7 +119,7 @@ public class BetweennessReferenceTests
 
         // Same sample as the command draws (SampleNodes uses Misc.Random): reseed before each
         Misc.SetRandomSeed(77);
-        Assert.True(Analyses.BetweennessCentrality(net, layers, "bw", sampleSize, traversal).Success);
+        Assert.True(Analyses.BetweennessCentrality(net, layers, "bw", sampleSize, traversal, projection).Success);
         int n = ids.Length;
         IEnumerable<int> sources = Enumerable.Range(0, n);
         if (sampleSize > 0 && sampleSize < n)
@@ -136,7 +137,7 @@ public class BetweennessReferenceTests
             sources = pool.Take(sampleSize).Select(id => idx[id]);
         }
 
-        var (raw, _) = Brandes(MultiAdjacency(net, layers, traversal, ids, idx), sources);
+        var (raw, _) = Brandes(MultiAdjacency(net, layers, traversal, ids, idx, projection == ProjectionMethod.Binary), sources);
         double norm = (n - 1.0) * (n - 2.0);
         double scale = (sampleSize > 0 && sampleSize < n) ? (double)n / sampleSize : 1.0;
         for (int i = 0; i < n; i++)
@@ -378,5 +379,65 @@ public class BetweennessReferenceTests
         net.AddHyperedge("x", "d", [4, 3]);
         CheckNodeBetweenness(net, ["d", "x"], EdgeTraversal.Out);
         Assert.Equal(Attr(net, 4, "bw"), Attr(net, 2, "bw"), 6);
+    }
+
+    // ── projection = 'count': every connection counts (count-weighted multigraph) ──
+
+    [Fact]
+    public void Count_TwoMode_PairsSharingSeveralHyperedges_CountMultiplicity()
+    {
+        // 1-2 share three hyperedges: node 2 carries three times as many 1->3 paths as node 4
+        foreach (bool packed in new[] { false, true })
+        {
+            var net = Make(5, 1);
+            net.AddLayerTwoMode("x");
+            net.AddHyperedge("x", "a", [1, 2]);
+            net.AddHyperedge("x", "b", [1, 2]);
+            net.AddHyperedge("x", "c", [1, 2]);
+            net.AddHyperedge("x", "d", [2, 3]);
+            net.AddHyperedge("x", "e", [1, 4]);
+            net.AddHyperedge("x", "f", [4, 3]);
+            if (packed) net.Pack(null);
+            CheckNodeBetweenness(net, ["x"], EdgeTraversal.Out, projection: ProjectionMethod.Count);
+            Assert.True(Attr(net, 2, "bw") > Attr(net, 4, "bw"));
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Seeds))]
+    public void Count_MixedAndMultilayer_MatchMultigraphReference(int seed)
+    {
+        var net = Make(120, seed);
+        net.AddLayerOneMode("d", EdgeDirectionality.Directed, EdgeType.Binary, false);
+        net.AddLayerOneMode("u", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddLayerTwoMode("x");
+        Generators.GenerateErdosRenyiLayer(net, "d", 0.02);
+        Generators.GenerateErdosRenyiLayer(net, "u", 0.02);
+        var rng = new Random(seed);
+        for (int h = 0; h < 60; h++)
+            net.AddHyperedge("x", $"h{h}", Enumerable.Range(0, 2 + rng.Next(5)).Select(_ => (uint)rng.Next(40)).Distinct().ToArray());
+        if (seed != 2) net.Pack(null);
+        foreach (var t in new[] { EdgeTraversal.Out, EdgeTraversal.Both })
+        {
+            CheckNodeBetweenness(net, ["d", "u", "x"], t, projection: ProjectionMethod.Count);
+            CheckNodeBetweenness(net, ["d", "u", "x"], t, projection: ProjectionMethod.Binary);
+        }
+    }
+
+    [Fact]
+    public void Projection_DefaultsToBinary_AndNewmanIsRejected()
+    {
+        var net = Make(5, 1);
+        net.AddLayerTwoMode("x");
+        net.AddHyperedge("x", "a", [1, 2]);
+        net.AddHyperedge("x", "b", [1, 2]);
+        net.AddHyperedge("x", "c", [2, 3]);
+        Assert.True(Analyses.BetweennessCentrality(net, ["x"], "dflt").Success);
+        Assert.True(Analyses.BetweennessCentrality(net, ["x"], "bin", projection: ProjectionMethod.Binary).Success);
+        foreach (uint id in net.Nodeset.NodeIdArray)
+            Assert.Equal(Attr(net, id, "bin"), Attr(net, id, "dflt"));
+        var r = Analyses.BetweennessCentrality(net, ["x"], "nw", projection: ProjectionMethod.Newman);
+        Assert.False(r.Success);
+        Assert.Equal("InvalidArgument", r.Code);
     }
 }

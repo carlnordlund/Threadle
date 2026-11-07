@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -6,8 +6,8 @@ namespace Threadle.Core.Analysis
 {
     /// <summary>
     /// Brandes' algorithm for node and edge betweenness, without per-node predecessor lists and without
-    /// dictionaries on the hot path. Betweenness is computed on the binary union graph of the selected
-    /// layers: two nodes are tied if any selected layer ties them (a 1-mode edge in the traversal direction,
+    /// dictionaries on the hot path. By default (binary) betweenness is computed on the binary union graph
+    /// of the selected layers: two nodes are tied if any selected layer ties them (a 1-mode edge in the traversal direction,
     /// or at least one shared hyperedge on a 2-mode layer), and a tie counts once however many layers or
     /// hyperedges carry it - the same result as Brandes on a materialized binary projection / union.
     ///
@@ -18,7 +18,9 @@ namespace Threadle.Core.Analysis
     /// back out of sigma[w] as soon as w's level is complete (integer arithmetic, so path counts are exact),
     /// and the matching surplus dependency is taken back out of delta[v] in the backward pass. With a single
     /// 1-mode layer no pair can be connected twice, nothing is precomputed, and results are unchanged.
-    /// Per source:
+    /// With binary = false (projection 'count') the correction is skipped and every connection counts:
+    /// betweenness on the count-weighted multigraph, where a pair sharing k hyperedges (or tied in k
+    /// layers) acts as k parallel ties. Per source:
     ///
     /// Forward pass (BFS): distances and shortest-path counts (sigma) in per-thread arrays, nodes recorded in
     /// discovery order (which is also BFS level order). A node one level further from the source receives the
@@ -84,7 +86,7 @@ namespace Threadle.Core.Analysis
             }
 
             internal Context(uint[] nodeIds, Dictionary<uint, int> nodeIndex, List<ILayerOneMode> oneModes,
-                List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+                List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, bool binary = true)
             {
                 NodeIds = nodeIds;
                 NodeIndex = nodeIndex;
@@ -139,7 +141,7 @@ namespace Threadle.Core.Analysis
                 foreach (var l in twoModesStatic) twoModes.Add(CommunityFunctions.TwoModeIncidence.Build(nodeIds, l));
                 TwoModes = twoModes.ToArray();
 
-                if (TwoModes.Length > 0 || OneModes.Length > 1)
+                if (binary && (TwoModes.Length > 0 || OneModes.Length > 1))
                     (ExcessPred, ExcessCount, ExcessEntries) = BuildExcess();
             }
 
@@ -613,16 +615,17 @@ namespace Threadle.Core.Analysis
         /// <summary>
         /// Raw (unnormalized) node betweenness summed over the given sources, in parallel across up to
         /// 'maxthreads' threads; each thread sums into its own array, merged under a lock. Returns one entry
-        /// per node of <paramref name="nodeIds"/>.
+        /// per node of <paramref name="nodeIds"/>. <paramref name="binary"/>: ties counted once on the union of
+        /// the layers (default), or once per connection (count-weighted multigraph) when false.
         /// </summary>
         internal static Dictionary<uint, double> NodeBetweenness(uint[] sources, uint[] nodeIds, Dictionary<uint, int> nodeIndex,
-            List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+            List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal, bool binary = true)
         {
             int n = nodeIds.Length;
             var total = new double[n];
             if (sources.Length > 0)
             {
-                var ctx = new Context(nodeIds, nodeIndex, oneModes, twoModesDynamic, twoModesStatic, traversal);
+                var ctx = new Context(nodeIds, nodeIndex, oneModes, twoModesDynamic, twoModesStatic, traversal, binary);
                 var mergeLock = new object();
                 System.Threading.Tasks.Parallel.For(0, sources.Length, UserSettings.GetParallelOptions(),
                     () => (Scratch: new Scratch(), Sum: new double[n]),
