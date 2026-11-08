@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Processing;
@@ -625,17 +625,12 @@ namespace Threadle.Core.Analysis
         /// v; this holds for both directed and undirected layers, since the undirected
         /// accumulation already sums each unordered pair twice (once per direction), which
         /// cancels against halving the ordered-pair count. When sampleSize > 0, scales the
-        /// result by n/sampleSize. The per-source BFS passes run in parallel across up to
-        /// 'maxthreads' threads (see 'setting()'). 'projection': Binary (default) computes
-        /// betweenness on the binary union of the layers - a tie counts once however many layers
-        /// or shared hyperedges carry it, as on a materialized binary projection; Count counts
-        /// every connection (a pair sharing k hyperedges, or tied in k layers, acts as k parallel
-        /// ties), as on the count-weighted projection read as a multigraph. Newman is rejected.
+        /// result by n/sampleSize. The per-source BFS passes (shared with ClosenessCentrality
+        /// and HarmonicCentrality) run in parallel across up to 'maxthreads' threads (see
+        /// 'setting()').
         /// </summary>
-        public static OperationResult BetweennessCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, EdgeTraversal traversal = EdgeTraversal.Out, ProjectionMethod projection = ProjectionMethod.Binary)
+        public static OperationResult BetweennessCentrality(Network network, string[]? layerNames, string? attrName = null, int sampleSize = 0, EdgeTraversal traversal = EdgeTraversal.Out)
         {
-            if (projection == ProjectionMethod.Newman)
-                return OperationResult.Fail("InvalidArgument", "betweennesscentrality() supports projection 'binary' (default) or 'count', not 'newman'.");
             if (!TryResolveLayers(network, layerNames, out var one, out var dynTwo, out var statTwo, out var err))
                 return err!;
 
@@ -644,7 +639,7 @@ namespace Threadle.Core.Analysis
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
 
-            var bw = BrandesBetweenness.NodeBetweenness(sources, nodeIds, nodeIndex, one, dynTwo, statTwo, traversal, binary: projection == ProjectionMethod.Binary);
+            var bw = BrandesBetweenness.NodeBetweenness(sources, nodeIds, nodeIndex, one, dynTwo, statTwo, traversal);
 
             var final = CentralityFunctions.FinalizeBetweenness(bw, nodeIds, sources.Length);
             attrName = string.IsNullOrEmpty(attrName) ? "betweenness" : attrName;
