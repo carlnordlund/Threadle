@@ -190,6 +190,29 @@
 
 ### Behavior changes
 
+- **`betweennesscentrality()` is now computed on the binary union of the
+  selected layers.** On a 2-mode layer, two nodes are tied if they share at
+  least one hyperedge, and the tie counts once. Before, a pair sharing three
+  hyperedges acted like three parallel ties, multiplying the shortest paths
+  through it. Likewise, with several layers, a tie present in more than one
+  selected layer (including a 1-mode tie that also exists as a shared
+  hyperedge) now counts once. Results now equal betweenness on a
+  materialized binary projection or union, which is what igraph, NetworKit
+  and graph-tool give after a standard projection, without ever
+  materializing it. Single-layer 1-mode results are unchanged, and so are
+  2-mode results where no pair shares more than one hyperedge. How it works:
+  the fast per-hyperedge computation is kept, and the double counting is
+  subtracted exactly. Once per command, the pairs connected more than once
+  are found (stored only for those pairs). In each BFS, their surplus path
+  counts are removed as soon as a level is complete, and the matching
+  surplus dependency is removed in the backward pass. Verified against
+  betweenness on Threadle's own materialized binary projection (identical
+  on a 200,000-node network with 1.7 million repeated pairs) and against
+  the independent reference in `BetweennessReferenceTests.cs`. Cost:
+  sampled betweenness with 100 sources took 5.2 s instead of 4.5 s on a
+  random 382,000-node 2-mode network (few repeated pairs), and 4.0 s
+  instead of 2.7 s, with about 50 MB more memory, on the repeat-heavy
+  200,000-node network.
 - **The `onlyoutboundedges` setting was removed.** It let a directed 1-mode layer
   skip its per-node inbound edge index while dynamic, to save memory for
   walker-only workloads — but it was a global, live-toggled flag with no
@@ -245,9 +268,9 @@
   and the backward pass finds predecessors by re-scanning neighbours. On a
   2-mode layer, each hyperedge's path counts are now summed once per BFS level
   rather than once per arriving member, so the cost per source drops from up
-  to O(Σ hyperedge size²) to O(Σ hyperedge size). The counting rules are
-  unchanged: a 1-mode tie counts once per layer, and a 2-mode tie once per
-  shared hyperedge. 1-mode results are identical to before (verified
+  to O(Σ hyperedge size²) to O(Σ hyperedge size). (Ties are now counted
+  once on the binary union of the selected layers; see Behavior changes.)
+  1-mode results are identical to before (verified
   byte-for-byte). 2-mode results can differ only in the last floating-point
   digits (at most about 2e-15 relative), because sums are added in a
   different order. Checked against the previous implementation on 132 cases
