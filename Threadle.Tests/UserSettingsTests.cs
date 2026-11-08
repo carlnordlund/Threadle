@@ -1,49 +1,25 @@
-﻿using Threadle.Core.Utilities;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Tests;
 
 public class UserSettingsTests
 {
-    // ── Set(string, object) — bool settings, typed value ────────────────────
+    // ── Removed settings ────────────────────────────────────────────────────
 
-    [Fact]
-    public void Set_NodeCacheBoolValue_Succeeds()
+    [Theory]
+    [InlineData("nodecache")]
+    [InlineData("blockmultiedges")]
+    public void Set_RemovedSetting_IsUnknown(string name)
     {
-        bool original = UserSettings.NodeCache;
-        try
-        {
-            var result = UserSettings.Set("nodecache", false);
-            Assert.True(result.Success);
-            Assert.False(UserSettings.NodeCache);
-        }
-        finally
-        {
-            UserSettings.NodeCache = original;
-        }
-    }
-
-    // ── Set(string, object) — bool settings, string value (as from the CLI) ─
-
-    [Fact]
-    public void Set_NodeCacheStringValue_Succeeds()
-    {
-        bool original = UserSettings.NodeCache;
-        try
-        {
-            var result = UserSettings.Set("nodecache", "false");
-            Assert.True(result.Success);
-            Assert.False(UserSettings.NodeCache);
-        }
-        finally
-        {
-            UserSettings.NodeCache = original;
-        }
+        var result = UserSettings.Set(name, "false");
+        Assert.False(result.Success);
+        Assert.Equal("SettingNotFound", result.Code);
     }
 
     [Fact]
-    public void Set_BoolSetting_InvalidStringValue_Fails()
+    public void Set_MaxThreads_InvalidStringValue_Fails()
     {
-        var result = UserSettings.Set("nodecache", "notabool");
+        var result = UserSettings.Set("maxthreads", "notanint");
         Assert.False(result.Success);
         Assert.Equal("InvalidValue", result.Code);
     }

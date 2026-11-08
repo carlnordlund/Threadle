@@ -1,4 +1,4 @@
-﻿using Threadle.CLIconsole.Parsing;
+using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Utilities;
@@ -18,7 +18,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Changes the setting 'name' to 'value'. Boolean settings are 'nodecache' (use node cache, lazy initialized), 'verbose', and 'executiontime' (measure each command's execution time, in milliseconds, retrievable afterward via 'lastexecutiontime()'; off by default). The integer setting 'maxthreads' caps the number of threads parallelized methods (e.g. betweennesscentrality) may use concurrently; -1 is unconstrained, i.e. .NET decides based on available cores. It cannot exceed the number of available processor cores, nor the limit set by 'maxthreadslimit' in the optional appconfig.json file next to the Threadle executable (where -1 then means that limit). Its value at startup is -1, unless set by 'defaultmaxthreads' in appconfig.json (see 'systeminfo()').";
+        public string Description => "Changes the setting 'name' to 'value'. Boolean settings are 'verbose' (show result messages) and 'executiontime' (measure each command's execution time, in milliseconds, retrievable afterward via 'lastexecutiontime()'; off by default). The integer setting 'maxthreads' caps the number of threads parallelized methods (e.g. betweennesscentrality) may use concurrently; -1 is unconstrained, i.e. .NET decides based on available cores. It cannot exceed the number of available processor cores, nor the limit set by 'maxthreadslimit' in the optional appconfig.json file next to the Threadle executable (where -1 then means that limit). Its value at startup is -1, unless set by 'defaultmaxthreads' in appconfig.json (see 'systeminfo()').";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
