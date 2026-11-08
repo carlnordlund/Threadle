@@ -190,6 +190,13 @@
 
 ### Behavior changes
 
+- **The `nodecache` setting was removed; the node-id array is always
+  cached.** A nodeset's array of all node ids is built the first time it
+  is needed and kept until a node is added or removed (about 4 bytes per
+  node). Turning the cache off saved only that memory, but made every use
+  of the array rebuild it, which many analyses do repeatedly.
+  `setting(nodecache, …)` now fails as an unknown setting. The remaining
+  settings are `maxthreads`, `verbose` and `executiontime`.
 - **Multiedges are never allowed; the `blockmultiedges` setting was
   removed.** Adding an edge through the public API (`addedge()`,
   threadleR) always refuses a tie that already exists. Edgelist and matrix
