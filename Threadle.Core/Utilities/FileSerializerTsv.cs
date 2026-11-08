@@ -109,7 +109,7 @@ namespace Threadle.Core.Utilities
         /// <returns>The original stream or the GZip stream.</returns>
         private static Stream WrapIfCompressed(Stream stream, string filepath, FileFormat format, CompressionMode mode)
             => format == FileFormat.TsvGzip ? new GZipStream(stream, mode) : stream;
-        
+
 
         /// <summary>
         /// Support method to write a Network object to file, and possibly also its Nodeset object.
@@ -212,17 +212,22 @@ namespace Threadle.Core.Utilities
 
             void FlushIfNeeded()
             {
-                if (currentLayer == null && pendingName!=null)
+                if (currentLayer == null && pendingName != null)
                     currentLayer = pendingMode == 1 ?
                         new LayerOneMode(pendingName, pendingDir, pendingValueType, pendingSelfties) :
                         new LayerTwoMode { Name = pendingName };
-                if (currentLayer!=null)
+                if (currentLayer != null)
                 {
                     // _addHyperedge() (used below while parsing) trusts the file's node list as
                     // given, so a duplicate node id on one row needs cleaning up before the layer
                     // is packed/stored.
                     if (currentLayer is LayerTwoMode layerTwoModeToFlush)
                         layerTwoModeToFlush._deduplicateHyperedges();
+                    // Same for 1-mode ties: they are added without a per-edge check (a file written by
+                    // Threadle lists each tie once), so a hand-edited duplicate is removed here, keeping
+                    // the first occurrence.
+                    else if (currentLayer is LayerOneMode layerOneModeToFlush)
+                        layerOneModeToFlush._deduplicateEdgesets();
                     collectedLayers.Add(currentLayer.Name, compactLayers ? Misc.PackLayer(currentLayer) : currentLayer);
                     currentLayer = null;
                 }
@@ -307,7 +312,7 @@ namespace Threadle.Core.Utilities
                             if (string.IsNullOrWhiteSpace(parts[i]))
                                 continue;
                             if (uint.TryParse(parts[i], out uint partnerNodeId))
-                                layerOneMode.AddEdge(ego, partnerNodeId);
+                                layerOneMode._addImportedEdge(ego, partnerNodeId);
                         }
                     }
                     else
@@ -326,7 +331,7 @@ namespace Threadle.Core.Utilities
                             if (!float.TryParse(subparts[1], CultureInfo.InvariantCulture, out float val))
                                 continue;
 
-                            layerOneMode.AddEdge(ego, alter, val);
+                            layerOneMode._addImportedEdge(ego, alter, val);
                         }
                     }
                 }

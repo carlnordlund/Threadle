@@ -558,6 +558,20 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Adds an edge for a bulk import (edgelist, matrix, TSV): no duplicate check per edge - the importer
+        /// calls <see cref="_deduplicateEdgesets"/> once at the end, which keeps the first occurrence of each
+        /// tie (and its value). A self-tie on a layer that does not allow self-ties is skipped, as the checked
+        /// <see cref="AddEdge"/> would refuse it. Returns whether the edge was added.
+        /// </summary>
+        internal bool _addImportedEdge(uint node1Id, uint node2Id, float value = 1)
+        {
+            if (node1Id == node2Id && !Selfties)
+                return false;
+            _addEdge(node1Id, node2Id, value);
+            return true;
+        }
+
+        /// <summary>
         /// Add valued edges between an ego node and alter nodes without any validation.
         /// Used by binaryreader.
         /// See <see cref="_addBinaryEdges(uint, uint[])"/> for details on how it works!

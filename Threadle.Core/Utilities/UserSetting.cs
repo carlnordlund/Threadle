@@ -14,12 +14,6 @@
         public static bool NodeCache { get; set; } = true;
 
         /// <summary>
-        /// Setting for whether the adding of multiedges should be checked and blocked (true) or not (false).
-        /// When active, it is not possible to add a new edge between two nodes if there is already one there.
-        /// </summary>
-        public static bool BlockMultiedges { get; set; } = true;
-
-        /// <summary>
         /// Setting for the maximum number of threads that parallelized methods (e.g. betweenness centrality)
         /// are allowed to use concurrently (the 'maxthreads' setting). -1 (the default) means unconstrained,
         /// i.e. .NET decides based on the number of available cores. Any other value must be a positive
@@ -54,11 +48,6 @@
                     if (!Misc.TryConvertToBool(value, out bool nodeCacheValue))
                         return OperationResult.Fail("InvalidValue", $"Setting 'nodecache' requires a boolean value ('true'/'false'), got '{value}'.");
                     NodeCache = nodeCacheValue;
-                    break;
-                case "blockmultiedges":
-                    if (!Misc.TryConvertToBool(value, out bool blockMultiedgesValue))
-                        return OperationResult.Fail("InvalidValue", $"Setting 'blockmultiedges' requires a boolean value ('true'/'false'), got '{value}'.");
-                    BlockMultiedges = blockMultiedgesValue;
                     break;
 
                 case "maxthreads":

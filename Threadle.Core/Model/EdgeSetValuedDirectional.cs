@@ -68,30 +68,30 @@ namespace Threadle.Core.Model
 
         #region Methods
         /// <summary>
-        /// Adds an inbound edge (Connection struct) to this edgeset. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an inbound edge (Connection struct) to this edgeset. It is first checked whether
+        /// this edge already exists: if so, it is not added and a failure is returned (multiedges are never allowed).
         /// </summary>
         /// <param name="partnerNodeId">The id of the source node.</param>
         /// <param name="value">The value of the edge.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
         {
-            if (UserSettings.BlockMultiedges && _inbound.Any(s => s.partnerNodeId == partnerNodeId))
+            if (_inbound.Any(s => s.partnerNodeId == partnerNodeId))
                 return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _inbound.Add(new Connection(partnerNodeId, value));
             return OperationResult.Ok();
         }
 
         /// <summary>
-        /// Adds an outbound edge (Connection struct) to this edgeset. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an outbound edge (Connection struct) to this edgeset. It is first checked whether
+        /// this edge already exists: if so, it is not added and a failure is returned (multiedges are never allowed).
         /// </summary>
         /// <param name="partnerNodeId">The id of the destination node.</param>
         /// <param name="value">The value of the edge.</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
         {
-            if (UserSettings.BlockMultiedges && _outbound.Any(s => s.partnerNodeId == partnerNodeId))
+            if (_outbound.Any(s => s.partnerNodeId == partnerNodeId))
                 return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _outbound.Add(new Connection(partnerNodeId, value));
             return OperationResult.Ok();

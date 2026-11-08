@@ -250,18 +250,20 @@ namespace Threadle.Core.Utilities
                     continue;
 
                 if (isValued)
-                    layerOneMode._addEdge(node1Id, node2Id, value);
+                    layerOneMode._addImportedEdge(node1Id, node2Id, value);
                 else
-                    layerOneMode._addEdge(node1Id, node2Id);
+                    layerOneMode._addImportedEdge(node1Id, node2Id);
             }
-            // Deduplicate edges
+            // Remove duplicate ties once, keeping the first occurrence of each
             layerOneMode._deduplicateEdgesets();
         }
 
         /// <summary>
         /// Imports a one-mode matrix file into a 1-mode network layer, with node ids given on first row and first column.
         /// Will add new nodes if the resolver is set to add missing nodes. Note that the order of rows and column nodes can be different:
-        /// it keeps track of these separately. Uses the normal Network.AddEdge() method: that will take care of the addMissingNodes.
+        /// it keeps track of these separately. Edges are added without a per-edge duplicate check and duplicates are removed
+        /// once at the end, keeping the first occurrence; zero cells, self-ties on a layer without self-ties and cells whose
+        /// nodes are missing (unless missing nodes are added) are skipped, as the checked Network.AddEdge() would.
         /// If the resolver is in label mode, row and column headers are node labels rather than node ids: headers that can't
         /// be resolved to nodes (i.e. unknown labels when missing nodes are not added) are ignored.
         /// </summary>
@@ -298,14 +300,29 @@ namespace Threadle.Core.Utilities
             float[,] data = Misc.ConvertStringCellsToFloatCells(cells, 1);
             bool addMissingNodes = resolver.AddMissingNodes;
             bool isDirected = layerOneMode.Directionality == EdgeDirectionality.Directed;
+            var nodeset = network.Nodeset;
+            bool anyAdded = false;
             for (int r = 1; r < nbrRows; r++)
             {
                 if (rowIds[r - 1] is not uint rowId)
                     continue;
                 for (int c = isDirected ? 1 : r; c < nbrCols; c++)
-                    if (data[r - 1, c - 1] != 0 && colIds[c - 1] is uint colId)
-                        network.AddEdge(layerOneMode, rowId, colId, data[r - 1, c - 1], addMissingNodes);
+                {
+                    if (data[r - 1, c - 1] == 0 || colIds[c - 1] is not uint colId)
+                        continue;
+                    float value = Misc.FixConnectionValue(data[r - 1, c - 1], layerOneMode.EdgeValueType);
+                    if (value == 0 || (rowId == colId && !layerOneMode.Selfties))
+                        continue;
+                    if (!addMissingNodes && !(nodeset.Contains(rowId) && nodeset.Contains(colId)))
+                        continue;
+                    if (!nodeset.Contains(rowId)) nodeset.AddNode(rowId);
+                    if (!nodeset.Contains(colId)) nodeset.AddNode(colId);
+                    anyAdded |= layerOneMode._addImportedEdge(rowId, colId, value);
+                }
             }
+            layerOneMode._deduplicateEdgesets();
+            if (anyAdded)
+                network.IsModified = true;
         }
 
         /// <summary>

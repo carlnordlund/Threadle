@@ -69,8 +69,8 @@ namespace Threadle.Core.Model
 
         #region Methods
         /// <summary>
-        /// Adds an (inbound) edge (Connection struct) to this edgeset with the specified value. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an (inbound) edge (Connection struct) to this edgeset with the specified value. It is first checked whether
+        /// this edge already exists: if so, it is not added and a failure is returned (multiedges are never allowed).
         /// </summary>
         /// <param name="partnerNodeId">The id of the partner node.</param>
         /// <param name="value">The value of the edge (defaults to 1).</param>
@@ -81,8 +81,8 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an (outbound) edge (Connection struct) to this edgeset with the specified value. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an (outbound) edge (Connection struct) to this edgeset with the specified value. It is first checked whether
+        /// this edge already exists: if so, it is not added and a failure is returned (multiedges are never allowed).
         /// </summary>
         /// <param name="partnerNodeId">The id of the partner node.</param>
         /// <param name="value">The value of the edge (defaults to 1).</param>
@@ -100,7 +100,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         private OperationResult AddEdge(uint partnerNodeId, float value)
         {
-            if (UserSettings.BlockMultiedges && _connections.Any(s => s.partnerNodeId == partnerNodeId))
+            if (_connections.Any(s => s.partnerNodeId == partnerNodeId))
                 return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _connections.Add(new Connection(partnerNodeId, value));
             return OperationResult.Ok();
@@ -229,7 +229,7 @@ namespace Threadle.Core.Model
         {
             var sb = new System.Text.StringBuilder();
             foreach (Connection conn in _connections)
-                if (conn.partnerNodeId>egoNodeId)
+                if (conn.partnerNodeId > egoNodeId)
                     sb.Append('\t').Append(conn.partnerNodeId).Append(';').Append(conn.value);
             return sb.ToString();
         }

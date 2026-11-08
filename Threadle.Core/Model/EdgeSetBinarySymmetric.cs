@@ -88,7 +88,7 @@ namespace Threadle.Core.Model
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         private OperationResult AddEdge(uint partnerNodeId)
         {
-            if (UserSettings.BlockMultiedges && _connections.Contains(partnerNodeId))
+            if (_connections.Contains(partnerNodeId))
                 return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _connections.Add(partnerNodeId);
             return OperationResult.Ok();
