@@ -175,33 +175,12 @@ namespace Threadle.Core.Model
         public NodeAttributeDefinitionManager NodeAttributeDefinitionManager { get; init; }
 
         /// <summary>
-        /// Returns an array of all NodeId uint values. How this is done depends mainly
-        /// on whether the 'nodecache' user setting is true or false. If active (true), the lazy-initialized
-        /// nodeIdCache is used: first time this array is requested, the array is generated and stored in memory
-        /// before being returned. Subsequent calls to NodeArray will return the same, already stored array.
-        /// Note that this nodecache array will be deleted as soon as a new node is added or removed.
-        /// If the 'nodecache' user setting is inactive (false), the array of Node objects is created on-the-fly.
-        /// This saves memory - no need for permanent storing Nodes in array as well as in the dictionary - but
-        /// the array must be created everytime it is called.
+        /// Returns an array of all node ids. The array is built the first time it is requested and kept
+        /// (about 4 bytes per node), so later requests return the same array; it is discarded as soon as a
+        /// node is added or removed, and rebuilt on the next request. Callers share the returned array and
+        /// must not modify it.
         /// </summary>
-        /// <remarks>
-        /// if picking a random node from the network many times while not adding/removing any nodes in between,
-        /// or if memory isn't critical, the nodecache can be active (its default). If memory is critical and if 
-        /// picking random nodes isn't crucial, it can be turned off.
-        /// </remarks>
-        public uint[] NodeIdArray
-        {
-            get
-            {
-                if (UserSettings.NodeCache)
-                {
-                    if (_nodeIdCache == null)
-                        _nodeIdCache = _getAllNodeIds();
-                    return _nodeIdCache;
-                }
-                return _getAllNodeIds();
-            }
-        }
+        public uint[] NodeIdArray => _nodeIdCache ??= _getAllNodeIds();
 
         /// <summary>
         /// Returns the number of nodes in this Nodeset.
@@ -370,7 +349,7 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Returns the node id specified by its index position in the NodeIdArray
-        /// Useful for traversing all nodes (when its better to have the nodecache active)
+        /// Useful for traversing all nodes.
         /// </summary>
         /// <param name="index">The index position of the node.</param>
         /// <returns>The Node id or null if no node found at this index.</returns>
@@ -1170,7 +1149,7 @@ namespace Threadle.Core.Model
 
         #region Private methods
         /// <summary>
-        /// Support function for new nodeCache to get all nodeIds
+        /// Builds the array of all node ids behind <see cref="NodeIdArray"/>.
         /// </summary>
         /// <returns></returns>
         private uint[] _getAllNodeIds()

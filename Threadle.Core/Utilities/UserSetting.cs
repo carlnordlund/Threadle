@@ -8,12 +8,6 @@
     {
         #region Properties
         /// <summary>
-        /// Setting for whether a NodeCache should be kept active (true) or only generated on-the-fly when needed (false).
-        /// An active NodeCache makes it slightly faster to iterate a nodeset, at the expense of storing all node ids in a separate array.
-        /// </summary>
-        public static bool NodeCache { get; set; } = true;
-
-        /// <summary>
         /// Setting for the maximum number of threads that parallelized methods (e.g. betweenness centrality)
         /// are allowed to use concurrently (the 'maxthreads' setting). -1 (the default) means unconstrained,
         /// i.e. .NET decides based on the number of available cores. Any other value must be a positive
@@ -44,12 +38,6 @@
         {
             switch (key)
             {
-                case "nodecache":
-                    if (!Misc.TryConvertToBool(value, out bool nodeCacheValue))
-                        return OperationResult.Fail("InvalidValue", $"Setting 'nodecache' requires a boolean value ('true'/'false'), got '{value}'.");
-                    NodeCache = nodeCacheValue;
-                    break;
-
                 case "maxthreads":
                     if (!Misc.TryConvertToInt(value, out int maxThreadsValue))
                         return OperationResult.Fail("InvalidValue", $"Setting 'maxthreads' requires an integer value, got '{value}'.");
