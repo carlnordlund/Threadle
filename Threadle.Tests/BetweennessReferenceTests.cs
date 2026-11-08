@@ -8,12 +8,13 @@ namespace Threadle.Tests;
 
 /// <summary>
 /// Checks betweennesscentrality() and edgebetweennesscentrality() against an independent, textbook
-/// Brandes implementation written here on a multigraph built only from the public API. The multigraph
-/// encodes Threadle's tie semantics: a 1-mode tie counts once per layer it is in (on a directed layer
-/// under 'both' traversal, once even if it exists in both directions - GetNodeAlters' de-duplicated
-/// union); a 2-mode tie counts once per hyperedge the two nodes share. Shortest paths are counted with
-/// that multiplicity. Covers 1-mode undirected/directed (out/in/both)/valued/multilayer, 2-mode packed
-/// and unpacked, mixed 1-mode + 2-mode, and sampled sources.
+/// Brandes implementation written here on a graph built only from the public API. The graph encodes
+/// Threadle's tie semantics: betweenness is on the binary union of the selected layers - two nodes are
+/// tied if any selected layer ties them in the traversal direction (a 1-mode edge, or at least one shared
+/// hyperedge), and the tie counts once however many layers or hyperedges carry it. (The reference still
+/// carries a per-tie multiplicity so it can express other conventions, but it is always 1 here.) Covers
+/// 1-mode undirected/directed (out/in/both)/valued/multilayer, 2-mode packed and unpacked, mixed 1-mode +
+/// 2-mode, sampled sources, and agreement with betweenness on a materialized binary projection.
 /// </summary>
 public class BetweennessReferenceTests
 {
@@ -48,7 +49,8 @@ public class BetweennessReferenceTests
                             counts[i][vi] = counts[i].GetValueOrDefault(vi) + 1;
             }
         }
-        return counts.Select(c => c.Select(kv => (kv.Key, kv.Value)).ToList()).ToArray();
+        // Binary union: every tie counts once, however many layers / shared hyperedges carry it
+        return counts.Select(c => c.Select(kv => (kv.Key, 1)).ToList()).ToArray();
     }
 
     /// <summary>Textbook Brandes on a multigraph: raw node betweenness and raw edge credits (v, w) per source.</summary>
@@ -216,10 +218,10 @@ public class BetweennessReferenceTests
     }
 
     [Fact]
-    public void TwoMode_PairsSharingSeveralHyperedges_CountMultiplicity()
+    public void TwoMode_PairsSharingSeveralHyperedges_CountOnce()
     {
-        // 1-2 share three hyperedges, 2-3 share one; 1-4-3 is another two-step path: node 2 carries
-        // three times as many shortest 1->3 paths as node 4
+        // 1-2 share three hyperedges, 2-3 share one; 1-4-3 is another two-step path. On the binary
+        // projection both 1->3 paths count once, so nodes 2 and 4 get the same betweenness.
         foreach (bool packed in new[] { false, true })
         {
             var net = Make(5, 1);
@@ -232,7 +234,7 @@ public class BetweennessReferenceTests
             net.AddHyperedge("x", "f", [4, 3]);
             if (packed) net.Pack(null);
             CheckNodeBetweenness(net, ["x"], EdgeTraversal.Out);
-            Assert.True(Attr(net, 2, "bw") > Attr(net, 4, "bw"));
+            Assert.Equal(Attr(net, 4, "bw"), Attr(net, 2, "bw"), 6);
         }
     }
 
@@ -294,5 +296,87 @@ public class BetweennessReferenceTests
         var eb = (ILayerOneMode)net.Layers["eb"];
         foreach (var ((a, b), value) in expected)
             AssertClose(value, eb.GetEdgeValue(a, b));
+    }
+
+    // ── Binary-union semantics against Threadle's own materialized projection / union ──
+
+    /// <summary>Betweenness of every node (same nodeset, so the same normalization either way).</summary>
+    private static Dictionary<uint, double> Raw(Network net, string[] layers, string attr)
+    {
+        var r = Analyses.BetweennessCentrality(net, layers, attr);
+        Assert.True(r.Success, r.Message);
+        return net.Nodeset.NodeIdArray.ToDictionary(id => id, id => Attr(net, id, attr));
+    }
+
+    private static void AssertSame(Dictionary<uint, double> expected, Dictionary<uint, double> actual)
+    {
+        foreach (var (id, e) in expected)
+            AssertClose(e, actual[id]);
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    public void TwoMode_ManyRepeatedPairs_MatchesMaterializedBinaryProjection(int seed, bool packed)
+    {
+        // Few, large hyperedges over few nodes: most co-member pairs share several hyperedges
+        var net = Make(60, seed);
+        net.AddLayerTwoMode("x");
+        var rng = new Random(seed);
+        for (int h = 0; h < 40; h++)
+            net.AddHyperedge("x", $"h{h}", Enumerable.Range(0, 2 + rng.Next(8)).Select(_ => (uint)rng.Next(60)).Distinct().ToArray());
+        if (packed) Assert.True(net.Pack("x").Success);
+        var pseudo = Raw(net, ["x"], "bw2");
+        Assert.True(NetworkProcessor.ProjectTwoModeToOneMode(net, "x", ProjectionMethod.Binary, "proj").Success);
+        var projected = Raw(net, ["proj"], "bw1");
+        AssertSame(projected, pseudo);
+    }
+
+    [Fact]
+    public void Multilayer_OverlappingEdges_CountOnce()
+    {
+        // Two layers with the same ties (plus a few extra in one): betweenness on both together equals
+        // betweenness on their union, not a double-counted multigraph
+        var net = Make(120, 4);
+        net.AddLayerOneMode("a", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddLayerOneMode("b", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddLayerOneMode("u", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        var rng = new Random(4);
+        for (int i = 0; i < 300; i++)
+        {
+            uint x = (uint)rng.Next(120), y = (uint)rng.Next(120);
+            if (x == y) continue;
+            net.AddEdge("a", x, y);
+            net.AddEdge("u", x, y);
+            if (i % 2 == 0) net.AddEdge("b", x, y);
+        }
+        for (int i = 0; i < 40; i++)
+        {
+            uint x = (uint)rng.Next(120), y = (uint)rng.Next(120);
+            if (x == y) continue;
+            net.AddEdge("b", x, y);
+            net.AddEdge("u", x, y);
+        }
+        net.Pack("a");
+        var both = Raw(net, ["a", "b"], "ab");
+        var union = Raw(net, ["u"], "uu");
+        AssertSame(union, both);
+    }
+
+    [Fact]
+    public void Mixed_TieInOneModeAndTwoMode_CountsOnce()
+    {
+        // 1-2 tied in the 1-mode layer and through a shared hyperedge; 1-4-3 / 1-2-3 are the two paths
+        var net = Make(5, 1);
+        net.AddLayerOneMode("d", EdgeDirectionality.Undirected, EdgeType.Binary, false);
+        net.AddLayerTwoMode("x");
+        net.AddEdge("d", 1, 2);
+        net.AddHyperedge("x", "a", [1, 2]);
+        net.AddHyperedge("x", "b", [2, 3]);
+        net.AddHyperedge("x", "c", [1, 4]);
+        net.AddHyperedge("x", "d", [4, 3]);
+        CheckNodeBetweenness(net, ["d", "x"], EdgeTraversal.Out);
+        Assert.Equal(Attr(net, 4, "bw"), Attr(net, 2, "bw"), 6);
     }
 }

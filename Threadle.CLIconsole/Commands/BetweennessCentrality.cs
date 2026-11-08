@@ -20,7 +20,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates betweenness centrality for each node using Brandes' algorithm and stores the result as a node attribute. Normalized by (n-1)(n-2), for both directed and undirected networks. When samplesize > 0, a random subset of source nodes is used and scores are scaled accordingly. The per-source BFS passes run in parallel across up to 'maxthreads' threads (see 'setting()'). See Brandes (2001); sampling: Brandes & Pich (2007).";
+        public string Description => "Calculates betweenness centrality for each node using Brandes' algorithm and stores the result as a node attribute. Normalized by (n-1)(n-2), for both directed and undirected networks. Computed on the binary union of the given layers: two nodes are tied if any layer ties them (on a 2-mode layer: if they share at least one hyperedge), and a tie counts once however many layers or hyperedges carry it - the same result as on a materialized binary projection, without materializing it. When samplesize > 0, a random subset of source nodes is used and scores are scaled accordingly. The per-source BFS passes run in parallel across up to 'maxthreads' threads (see 'setting()'). See Brandes (2001); sampling: Brandes & Pich (2007).";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
