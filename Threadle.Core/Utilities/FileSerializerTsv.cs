@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
@@ -223,6 +223,11 @@ namespace Threadle.Core.Utilities
                     // is packed/stored.
                     if (currentLayer is LayerTwoMode layerTwoModeToFlush)
                         layerTwoModeToFlush._deduplicateHyperedges();
+                    // Same for 1-mode ties: they are added without a per-edge check (a file written by
+                    // Threadle lists each tie once), so a hand-edited duplicate is removed here, keeping
+                    // the first occurrence.
+                    else if (currentLayer is LayerOneMode layerOneModeToFlush)
+                        layerOneModeToFlush._deduplicateEdgesets();
                     collectedLayers.Add(currentLayer.Name, compactLayers ? Misc.PackLayer(currentLayer) : currentLayer);
                     currentLayer = null;
                 }
@@ -307,7 +312,7 @@ namespace Threadle.Core.Utilities
                             if (string.IsNullOrWhiteSpace(parts[i]))
                                 continue;
                             if (uint.TryParse(parts[i], out uint partnerNodeId))
-                                layerOneMode.AddEdge(ego, partnerNodeId);
+                                layerOneMode._addImportedEdge(ego, partnerNodeId);
                         }
                     }
                     else
@@ -326,7 +331,7 @@ namespace Threadle.Core.Utilities
                             if (!float.TryParse(subparts[1], CultureInfo.InvariantCulture, out float val))
                                 continue;
 
-                            layerOneMode.AddEdge(ego, alter, val);
+                            layerOneMode._addImportedEdge(ego, alter, val);
                         }
                     }
                 }

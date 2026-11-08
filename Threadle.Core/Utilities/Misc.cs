@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -438,17 +438,18 @@ namespace Threadle.Core.Utilities
         {
             if (list.Count < 2)
                 return;
-            list.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
-
-            int write = 1;
-            for (int read = 1; read < list.Count; read++)
-            {
-                uint v = list[read].partnerNodeId;
-                if (v != list[read - 1].partnerNodeId)
+            // Keep the first occurrence of each partner (insertion order = order in the imported file), so
+            // a tie listed twice with different values keeps its first value - and keeps the same value in
+            // both of its edgesets (outbound at one node, inbound/connection at the other), since both
+            // receive the duplicates in the same order. Then sort by partner as before.
+            var seen = new HashSet<uint>(list.Count);
+            int write = 0;
+            for (int read = 0; read < list.Count; read++)
+                if (seen.Add(list[read].partnerNodeId))
                     list[write++] = list[read];
-            }
             if (write < list.Count)
                 list.RemoveRange(write, list.Count - write);
+            list.Sort((a, b) => a.partnerNodeId.CompareTo(b.partnerNodeId));
         }
 
         /// <summary>

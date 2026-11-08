@@ -1,4 +1,4 @@
-﻿namespace Threadle.Core.Utilities
+namespace Threadle.Core.Utilities
 {
     /// <summary>
     /// Static class holding various system settings that affects how Threadle works and
@@ -12,12 +12,6 @@
         /// An active NodeCache makes it slightly faster to iterate a nodeset, at the expense of storing all node ids in a separate array.
         /// </summary>
         public static bool NodeCache { get; set; } = true;
-
-        /// <summary>
-        /// Setting for whether the adding of multiedges should be checked and blocked (true) or not (false).
-        /// When active, it is not possible to add a new edge between two nodes if there is already one there.
-        /// </summary>
-        public static bool BlockMultiedges { get; set; } = true;
 
         /// <summary>
         /// Setting for the maximum number of threads that parallelized methods (e.g. betweenness centrality)
@@ -54,11 +48,6 @@
                     if (!Misc.TryConvertToBool(value, out bool nodeCacheValue))
                         return OperationResult.Fail("InvalidValue", $"Setting 'nodecache' requires a boolean value ('true'/'false'), got '{value}'.");
                     NodeCache = nodeCacheValue;
-                    break;
-                case "blockmultiedges":
-                    if (!Misc.TryConvertToBool(value, out bool blockMultiedgesValue))
-                        return OperationResult.Fail("InvalidValue", $"Setting 'blockmultiedges' requires a boolean value ('true'/'false'), got '{value}'.");
-                    BlockMultiedges = blockMultiedgesValue;
                     break;
 
                 case "maxthreads":

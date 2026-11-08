@@ -190,6 +190,17 @@
 
 ### Behavior changes
 
+- **Multiedges are never allowed; the `blockmultiedges` setting was
+  removed.** Adding an edge through the public API (`addedge()`,
+  threadleR) always refuses a tie that already exists. Edgelist and matrix
+  imports and TSV loading add ties without a per-edge check and remove
+  duplicates once at the end, silently keeping the first occurrence (an
+  undirected edgelist that lists both `a b` and `b a` gives one tie).
+  TSV loading and matrix import used to go through the checked public
+  method; they now use the same import route as edgelists. Binary `.bin`
+  loading is unchecked, as before: Threadle's own files never contain
+  multiedges. `setting(blockmultiedges, …)` now fails as an unknown
+  setting.
 - **`betweennesscentrality()` is now computed on the binary union of the
   selected layers.** On a 2-mode layer, two nodes are tied if they share at
   least one hyperedge, and the tie counts once. Before, a pair sharing three
@@ -428,6 +439,16 @@
 
 ### Fixes
 
+- **Duplicate ties in an imported file now keep the first value.** When an
+  edgelist (or a matrix, or a hand-edited TSV file) listed the same tie
+  more than once with different values on a valued layer, the value that
+  survived duplicate removal was effectively arbitrary for nodes with more
+  than 16 ties (the sort used was not stable). On a directed layer, the
+  outbound and inbound copies of the tie could even keep different values.
+  The first occurrence is now kept, on both copies.
+- **Edgelist import no longer adds self-ties to a layer that does not
+  allow them.** Such rows are now skipped, as `addedge()` and matrix import
+  already did.
 - **`randomseed()` ignored a positional seed.** It only read `seed=…`, so
   `randomseed(42)` silently set the default seed (6031769). It now accepts the
   positional form, and rejects a value that isn't an integer instead of

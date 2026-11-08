@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -58,15 +58,15 @@ namespace Threadle.Core.Model
 
         #region Methods
         /// <summary>
-        /// Adds an inbound edge to this edgeset. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an inbound edge to this edgeset. It is first checked whether
+        /// this edge already exists: if so, it is not added and a failure is returned (multiedges are never allowed).
         /// </summary>
         /// <param name="partnerNodeId">The id of the source node.</param>
         /// <param name="value">The value of the edge (has no effect here).</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddInboundEdge(uint partnerNodeId, float value = 1)
         {
-            if (UserSettings.BlockMultiedges && _inbound.Contains(partnerNodeId))
+            if (_inbound.Contains(partnerNodeId))
                 return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _inbound.Add(partnerNodeId);
             return OperationResult.Ok();
@@ -111,15 +111,15 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Adds an outbound edge to this edgeset. If the BlockMultiedges setting is active,
-        /// it is first checked if this edge exists: if so, a warning is returned.
+        /// Adds an outbound edge to this edgeset. It is first checked whether
+        /// this edge already exists: if so, it is not added and a failure is returned (multiedges are never allowed).
         /// </summary>
         /// <param name="partnerNodeId">The id of the destination node.</param>
         /// <param name="value">The value of the edge (has no effect here).</param>
         /// <returns><see cref="OperationResult"/> object informing how well it went.</returns>
         public OperationResult AddOutboundEdge(uint partnerNodeId, float value = 1)
         {
-            if (UserSettings.BlockMultiedges && _outbound.Contains(partnerNodeId))
+            if (_outbound.Contains(partnerNodeId))
                 return OperationResult.Fail("EdgeAlreadyExists", "Edge already exists (blocked)");
             _outbound.Add(partnerNodeId);
             return OperationResult.Ok();

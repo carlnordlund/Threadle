@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -555,6 +555,20 @@ namespace Threadle.Core.Model
             GetOrCreateEdgeset(node1Id)._addOutboundEdge(node2Id, value);
             if (node1Id != node2Id || !IsSymmetric)
                 GetOrCreateEdgeset(node2Id)._addInboundEdge(node1Id, value);
+        }
+
+        /// <summary>
+        /// Adds an edge for a bulk import (edgelist, matrix, TSV): no duplicate check per edge - the importer
+        /// calls <see cref="_deduplicateEdgesets"/> once at the end, which keeps the first occurrence of each
+        /// tie (and its value). A self-tie on a layer that does not allow self-ties is skipped, as the checked
+        /// <see cref="AddEdge"/> would refuse it. Returns whether the edge was added.
+        /// </summary>
+        internal bool _addImportedEdge(uint node1Id, uint node2Id, float value = 1)
+        {
+            if (node1Id == node2Id && !Selfties)
+                return false;
+            _addEdge(node1Id, node2Id, value);
+            return true;
         }
 
         /// <summary>
