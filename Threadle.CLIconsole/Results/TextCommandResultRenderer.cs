@@ -224,10 +224,22 @@ namespace Threadle.CLIconsole.Results
 
             foreach (var dict in items)
             {
-                var pairs = dict.Select(kvp => $"{kvp.Key}={kvp.Value}");
+                var pairs = dict.Select(kvp => $"{kvp.Key}={FormatInline(kvp.Value)}");
                 Console.Out.WriteLine($"{pad}[{string.Join(", ", pairs)}]");
             }
         }
+
+        /// <summary>
+        /// Formats a value for one-line display: a collection (other than a string) as "[a, b, c]",
+        /// anything else with ToString().
+        /// </summary>
+        private static string FormatInline(object? value) => value switch
+        {
+            null => "null",
+            string str => str,
+            System.Collections.IEnumerable items => $"[{string.Join(", ", items.Cast<object?>().Select(FormatInline))}]",
+            _ => value.ToString() ?? ""
+        };
 
         /// <summary>
         /// Helper method to display a collection of objects (one per line).

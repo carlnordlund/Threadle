@@ -112,7 +112,7 @@ namespace Threadle.Core.Model
                 foreach (var (layerName, layer) in source.Layers)
                 {
                     string targetName = merged.Layers.ContainsKey(layerName) ? $"{layerName}_{source.Name}" : layerName;
-                    ILayer copy = layer.CreateFilteredCopy(mergedNodeset);
+                    ILayer copy = layer.CreateFilteredCopy(mergedNodeset, keepEmptyHyperedges: true);
                     copy.Name = targetName;
                     OperationResult addResult = merged.AddLayer(targetName, copy);
                     if (!addResult.Success)
@@ -207,7 +207,7 @@ namespace Threadle.Core.Model
                 return OperationResult.Fail("InvalidLayerName", "Layer name cannot be empty.");
             if (Layers.ContainsKey(to))
                 return OperationResult.Fail("LayerAlreadyExists", $"Layer with name '{to}' already exists.");
-            ILayer copy = layerResult.Value!.CreateFilteredCopy(Nodeset);
+            ILayer copy = layerResult.Value!.CreateFilteredCopy(Nodeset, keepEmptyHyperedges: true);
             copy.Name = to;
             Layers[to] = copy;
             IsModified = true;

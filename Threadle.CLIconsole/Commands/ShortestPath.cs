@@ -56,7 +56,7 @@ namespace Threadle.CLIconsole.Commands
             string pathStr = string.Join(";", result.Value.Path);
             return CommandResult.Ok(
                 $"Shortest path from node '{node1id}' to '{node2id}' is {distance}: {pathStr}",
-                new Dictionary<string, object> { ["Distance"] = distance, ["Path"] = pathStr });
+                new Dictionary<string, object> { ["Distance"] = distance, ["Path"] = result.Value.Path });
         }
     }
 }

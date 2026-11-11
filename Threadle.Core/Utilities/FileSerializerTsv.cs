@@ -435,9 +435,11 @@ namespace Threadle.Core.Utilities
                     throw new InvalidDataException($"Invalid column header '{columns[i]}': {defineResult.Message}");
             }
             string? line;
+            int lineNumber = 1;
 
             while ((line = reader.ReadLine()) != null)
             {
+                lineNumber++;
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
                 var parts = line.Split('\t');
@@ -452,7 +454,11 @@ namespace Threadle.Core.Utilities
                 {
                     var val = parts[i];
                     if (string.IsNullOrEmpty(val)) continue;
-                    nodeset.SetNodeAttribute(nodeId, attributeNames[i - 1], val);
+                    // A value that does not fit its attribute's type (only possible in an edited file) is an
+                    // error, rather than silently leaving the node without a value
+                    var setResult = nodeset.SetNodeAttribute(nodeId, attributeNames[i - 1], val);
+                    if (!setResult.Success)
+                        throw new InvalidDataException($"Line {lineNumber}, node {nodeId}: {setResult.Message}");
                 }
             }
             nodeset.IsModified = false;

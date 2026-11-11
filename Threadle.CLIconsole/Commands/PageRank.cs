@@ -19,7 +19,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates PageRank scores for each node and stores the result as a node attribute. Uses directed out-edges (projected adjacency for 2-mode layers). Dangling nodes (no out-edges) redistribute their mass uniformly. Default damping factor 0.85. Iterates until convergence within tolerance or maxiterations is reached. See Page, Brin, Motwani, Winograd (1999).";
+        public string Description => "Calculates PageRank scores for each node and stores the result as a node attribute. Uses directed out-edges (projected adjacency for 2-mode layers). Dangling nodes (no out-edges) redistribute their mass uniformly. Default damping factor 0.85. Iterates until convergence within tolerance or maxiterations is reached. See Page, Brin, Motwani, Winograd (1999). On a 2-mode layer, PageRank runs on the binary projection (each distinct co-affiliate is one tie): finding each node's distinct co-affiliates costs O(sum of squared hyperedge sizes) once, after which each iteration is linear in the number of projected ties.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

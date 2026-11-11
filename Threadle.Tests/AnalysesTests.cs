@@ -3215,13 +3215,13 @@ public class AnalysesTests
         Assert.Equal((double)oneModeResult.Value!["AvgDistance"], (double)twoModeResult.Value!["AvgDistance"]);
     }
 
-    // ── Diameter: diameterOnly (iFUB) ──────────────────────────────────────────
+    // ── Diameter: diameterOnly (BoundingDiameters) ──────────────────────────────────────────
 
     [Fact]
-    public void Diameter_DiameterOnly_UndirectedPathGraph_MatchesExactDiameterViaIFUB()
+    public void Diameter_DiameterOnly_UndirectedPathGraph_MatchesExactDiameterViaBoundingDiameters()
     {
         // Same 5-node path as Diameter_PathGraph_ExactDiameterAndAvgDistance (true diameter 4).
-        // Undirected, so iFUB applies; diameterOnly's result must match the exhaustive method's
+        // Undirected, so BoundingDiameters applies; diameterOnly's result must match the exhaustive method's
         // Diameter exactly and must not carry AvgDistance/PairsConsidered.
         var net = MakeNetwork(5);
         AddUndirectedLayer(net, "layer");
@@ -3233,7 +3233,7 @@ public class AnalysesTests
         var result = Analyses.Diameter(net, "layer", diameterOnly: true);
 
         Assert.True(result.Success);
-        Assert.Equal("iFUB", result.Value!["Algorithm"]);
+        Assert.Equal("iFUB+BoundingDiameters", result.Value!["Algorithm"]);
         Assert.Equal(4, (int)result.Value!["Diameter"]);
         Assert.Equal(5, (int)result.Value!["ComponentSize"]);
         Assert.Equal(5, (int)result.Value!["TotalNodes"]);
@@ -3244,7 +3244,7 @@ public class AnalysesTests
     [Fact]
     public void Diameter_DiameterOnly_RingWithChords_MatchesExhaustiveDiameter()
     {
-        // A richer, less trivially-shaped graph than a path - cross-checks iFUB's early
+        // A richer, less trivially-shaped graph than a path - cross-checks BoundingDiameters' early
         // termination logic against the (unchanged, trusted) exhaustive all-pairs Diameter on
         // the same network, rather than a single hand-derived example.
         var net = MakeRingWithChordsNetwork(20);
@@ -3254,7 +3254,7 @@ public class AnalysesTests
 
         Assert.True(exact.Success);
         Assert.True(fast.Success);
-        Assert.Equal("iFUB", fast.Value!["Algorithm"]);
+        Assert.Equal("iFUB+BoundingDiameters", fast.Value!["Algorithm"]);
         Assert.Equal((int)exact.Value!["Diameter"], (int)fast.Value!["Diameter"]);
         Assert.Equal((int)exact.Value!["ComponentSize"], (int)fast.Value!["ComponentSize"]);
     }
@@ -3262,7 +3262,7 @@ public class AnalysesTests
     [Fact]
     public void Diameter_DiameterOnly_DirectedOutTraversal_FallsBackToAllPairs()
     {
-        // 1->2->3, default 'out' traversal: distances are not symmetric (iFUB's exactness proof
+        // 1->2->3, default 'out' traversal: distances are not symmetric (the bounds' exactness proof
         // doesn't apply), so diameterOnly falls back to the exhaustive all-pairs pass - same
         // Diameter value as the non-diameterOnly call, but Algorithm reports which path ran and
         // AvgDistance/PairsConsidered are still omitted.
@@ -3282,11 +3282,11 @@ public class AnalysesTests
     }
 
     [Fact]
-    public void Diameter_DiameterOnly_DirectedBothTraversal_UsesIFUB()
+    public void Diameter_DiameterOnly_DirectedBothTraversal_UsesBoundingDiameters()
     {
         // Same directed layer as above, but traversal=Both makes the query effectively
         // symmetric (BFS follows edges in both directions regardless of the layer's own
-        // directionality), so diameterOnly uses iFUB here even though the layer itself is
+        // directionality), so diameterOnly uses BoundingDiameters here even though the layer itself is
         // directed.
         var net = MakeNetwork(3);
         AddDirectedLayer(net, "layer");
@@ -3298,16 +3298,16 @@ public class AnalysesTests
 
         Assert.True(exact.Success);
         Assert.True(fast.Success);
-        Assert.Equal("iFUB", fast.Value!["Algorithm"]);
+        Assert.Equal("iFUB+BoundingDiameters", fast.Value!["Algorithm"]);
         Assert.Equal((int)exact.Value!["Diameter"], (int)fast.Value!["Diameter"]);
     }
 
     [Fact]
-    public void Diameter_DiameterOnly_TwoModeLayer_UsesIFUB_MatchesExactDiameter()
+    public void Diameter_DiameterOnly_TwoModeLayer_UsesBoundingDiameters_MatchesExactDiameter()
     {
         // Same hyperedges as Diameter_TwoModeLayer_MatchesOneModeProjection. A 2-mode layer has
         // no direction concept at all, so it's always effectively symmetric - diameterOnly must
-        // use iFUB here regardless of the (moot) traversal argument.
+        // use BoundingDiameters here regardless of the (moot) traversal argument.
         var net = MakeNetwork(7);
         net.AddLayerTwoMode("clubs");
         net.AddHyperedge("clubs", "c1", new uint[] { 1, 2, 3 });
@@ -3319,7 +3319,7 @@ public class AnalysesTests
 
         Assert.True(exact.Success);
         Assert.True(fast.Success);
-        Assert.Equal("iFUB", fast.Value!["Algorithm"]);
+        Assert.Equal("iFUB+BoundingDiameters", fast.Value!["Algorithm"]);
         Assert.Equal((int)exact.Value!["Diameter"], (int)fast.Value!["Diameter"]);
         Assert.Equal((int)exact.Value!["ComponentSize"], (int)fast.Value!["ComponentSize"]);
     }
@@ -3327,7 +3327,7 @@ public class AnalysesTests
     [Fact]
     public void Diameter_DiameterOnly_MaxThreadsOneVsMany_ProduceSameValues()
     {
-        // iFUB's own per-level parallel BFS pass needs the same sequential-vs-parallel
+        // BoundingDiameters' parallel BFS rounds needs the same sequential-vs-parallel
         // equivalence check as the exhaustive method already has (Diameter_MaxThreadsOneVsMany_
         // ProduceSameValues).
         if (Environment.ProcessorCount < 2)
@@ -3345,8 +3345,8 @@ public class AnalysesTests
 
             Assert.True(seqResult.Success);
             Assert.True(parResult.Success);
-            Assert.Equal("iFUB", seqResult.Value!["Algorithm"]);
-            Assert.Equal("iFUB", parResult.Value!["Algorithm"]);
+            Assert.Equal("iFUB+BoundingDiameters", seqResult.Value!["Algorithm"]);
+            Assert.Equal("iFUB+BoundingDiameters", parResult.Value!["Algorithm"]);
             Assert.Equal((int)seqResult.Value!["Diameter"], (int)parResult.Value!["Diameter"]);
         }
         finally

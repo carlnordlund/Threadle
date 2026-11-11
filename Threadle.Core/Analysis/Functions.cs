@@ -495,28 +495,15 @@ namespace Threadle.Core.Analysis
         /// <returns>A dictionary mapping each node ID to its corresponding component ID.</returns>
         internal static Dictionary<uint, int> ConnectedComponents(Network network, ILayer layer)
         {
-            Dictionary<uint, int> componentIds = [];
-            int currentComponentId = 0;
-            HashSet<uint> visited = [];
-
             GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
-
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
-            var scratch = new GraphAlgorithms.BFSReachScratch();
-
-            foreach (uint nodeId in nodeIds)
-            {
-                if (visited.Contains(nodeId)) continue;
-                var reached = GraphAlgorithms.BFSReachedNodes(nodeId, scratch, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
-                foreach (uint r in reached)
-                {
-                    visited.Add(r);
-                    componentIds[r] = currentComponentId;
-                }
-                currentComponentId++;
-            }
+            var context = GraphAlgorithms.BFSContext.Create(nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+            var (_, _, label) = GraphAlgorithms.ComponentsInOrder(context);
+            Dictionary<uint, int> componentIds = new(nodeIds.Length);
+            for (int i = 0; i < nodeIds.Length; i++)
+                componentIds[nodeIds[i]] = label[i];
             return componentIds;
         }
 

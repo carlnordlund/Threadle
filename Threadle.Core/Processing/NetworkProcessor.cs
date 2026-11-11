@@ -598,14 +598,19 @@ namespace Threadle.Core.Processing
         /// </summary>
         /// <param name="network">The original <see cref="Network"/> object.</param>
         /// <param name="nodeset">The <see cref="Nodeset"/> of the new <see cref="Network"/> object that is created.</param>
+        /// <param name="keepEmptyHyperedges">2-mode layers: keep hyperedges with no member in the nodeset
+        /// (default false: they are dropped, so the subnet's size follows the node subset). Hyperedges with
+        /// one or more members in the nodeset are always kept.</param>
         /// <returns>A <see cref="Network"/> object that is a subset of the provided 'network'.</returns>
-        public static OperationResult<Network> Subnet(Network network, Nodeset nodeset)
+        public static OperationResult<Network> Subnet(Network network, Nodeset nodeset, bool keepEmptyHyperedges = false)
         {
             Network subnet = new Network(network.Name + "_subnet", nodeset);
 
             foreach (var (layerName, layer) in network.Layers)
             {
-                subnet.AddLayer(layerName, layer.CreateFilteredCopy(nodeset));
+                ILayer copy = layer.CreateFilteredCopy(nodeset, keepEmptyHyperedges);
+                copy.Name = layerName; // same name as in the source network (not '..._filtered')
+                subnet.AddLayer(layerName, copy);
             }
             return OperationResult<Network>.Ok(subnet);
         }

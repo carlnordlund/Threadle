@@ -60,7 +60,7 @@ namespace Threadle.CLIconsole.Commands
                     ["distance"] = sp.Distance
                 };
                 if (returnPaths && sp.Path != null)
-                    entry["path"] = string.Join(";", sp.Path);
+                    entry["path"] = sp.Path;
                 payload.Add(entry);
             }
 

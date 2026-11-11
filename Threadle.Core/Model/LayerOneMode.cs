@@ -404,7 +404,7 @@ namespace Threadle.Core.Model
         /// </summary>
         /// <param name="nodeset">The Nodeset whose nodes to include</param>
         /// <returns>A copy of this Layer keeping the nodes that are in the Nodeset.</returns>
-        public ILayer CreateFilteredCopy(Nodeset nodeset)
+        public ILayer CreateFilteredCopy(Nodeset nodeset, bool keepEmptyHyperedges = false)
         {
             HashSet<uint> nodeIds = [.. nodeset.NodeIdArray];
             LayerOneMode layerCopy = new LayerOneMode(this.Name + "_filtered", this.Directionality, this.EdgeValueType, this.Selfties);

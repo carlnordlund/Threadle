@@ -511,22 +511,36 @@ namespace Threadle.Core.Model
 
         /// <summary>
         /// Create a new filtered version of this layer that only includes affiliations with the nodes
-        /// in the provided Nodeset
+        /// in the provided Nodeset. Hyperedges left with no members are dropped (and the remaining ones
+        /// renumbered) unless <paramref name="keepEmptyHyperedges"/> is true; hyperedges with one or more
+        /// remaining members are always kept.
         /// </summary>
         /// <returns>A copy of the current <see cref="ILayer"/> object.</returns>
-        public ILayer CreateFilteredCopy(Nodeset nodeset)
+        public ILayer CreateFilteredCopy(Nodeset nodeset, bool keepEmptyHyperedges = false)
         {
-            var newOffsetHyperedges = new int[_hyperedgeNames.Length + 1];
+            int nbrHyperedges = _hyperedgeNames.Length;
+            var newIndex = new int[nbrHyperedges]; // old hyperedge index -> new index, -1 if dropped
+            var newNames = new List<string>(nbrHyperedges);
+            var newOffsetHyperedgesList = new List<int>(nbrHyperedges + 1);
             var newHyperedgeNodeIds = new List<uint>(_hyperedgeNodeIdsFlat.Length);
 
-            for (int h = 0; h < _hyperedgeNames.Length; h++)
+            for (int h = 0; h < nbrHyperedges; h++)
             {
-                newOffsetHyperedges[h] = newHyperedgeNodeIds.Count;
+                int start = newHyperedgeNodeIds.Count;
                 for (int j = _offsetsHyperedges[h]; j < _offsetsHyperedges[h + 1]; j++)
                     if (nodeset.Contains(_hyperedgeNodeIdsFlat[j]))
                         newHyperedgeNodeIds.Add(_hyperedgeNodeIdsFlat[j]);
+                if (newHyperedgeNodeIds.Count == start && !keepEmptyHyperedges)
+                {
+                    newIndex[h] = -1;
+                    continue;
+                }
+                newIndex[h] = newNames.Count;
+                newNames.Add(_hyperedgeNames[h]);
+                newOffsetHyperedgesList.Add(start);
             }
-            newOffsetHyperedges[_hyperedgeNames.Length] = newHyperedgeNodeIds.Count;
+            newOffsetHyperedgesList.Add(newHyperedgeNodeIds.Count);
+            int[] newOffsetHyperedges = newOffsetHyperedgesList.ToArray();
 
             var newMapper = new Dictionary<uint, int>(_nodeIdToIndexMapper.Count);
             var newOffsetNodeIds = new List<int> { 0 };
@@ -539,11 +553,17 @@ namespace Threadle.Core.Model
                 int i = _nodeIdToIndexMapper[egoId];
                 newMapper[egoId] = newMapper.Count;
                 for (int k = _offsetsNodeIds[i]; k < _offsetsNodeIds[i + 1]; k++)
-                    newNodeIdHyperedges.Add(_nodeIdHyperedgesFlat[k]);
+                {
+                    // A node in the nodeset belongs only to hyperedges it keeps non-empty, so this is
+                    // never -1; checked anyway
+                    int nh = newIndex[_nodeIdHyperedgesFlat[k]];
+                    if (nh >= 0)
+                        newNodeIdHyperedges.Add(nh);
+                }
                 newOffsetNodeIds.Add(newNodeIdHyperedges.Count);
             }
 
-            return new LayerTwoModeStatic(Name + "_filtered", _hyperedgeNames, newOffsetHyperedges, newHyperedgeNodeIds.ToArray(), newMapper, newOffsetNodeIds.ToArray(), newNodeIdHyperedges.ToArray());
+            return new LayerTwoModeStatic(Name + "_filtered", newNames.ToArray(), newOffsetHyperedges, newHyperedgeNodeIds.ToArray(), newMapper, newOffsetNodeIds.ToArray(), newNodeIdHyperedges.ToArray());
         }
 
         /// <summary>

@@ -12,12 +12,12 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets the command syntax definition as shown in help and usage output.
         /// </summary>
-        public string Syntax => "[var:network] = subnet(network = [var:network2], nodeset = [var:nodeset])";
+        public string Syntax => "[var:network] = subnet(network = [var:network2], nodeset = [var:nodeset], *keepemptyhyperedges = ['false'(default),'true'])";
 
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Creates and stores a new network [var:network] that based on the provided network [var:network2] but only including the nodes in the provided nodeset [var:nodeset]. For instance, if a subset of a Nodeset has first been created using 'filter()', one can then use this command to create a subset of a network that is using the original Nodeset.";
+        public string Description => "Creates and stores a new network [var:network] that based on the provided network [var:network2] but only including the nodes in the provided nodeset [var:nodeset]. For instance, if a subset of a Nodeset has first been created using 'filter()', one can then use this command to create a subset of a network that is using the original Nodeset. In 2-mode layers, hyperedges with no members among the nodes in [var:nodeset] are dropped, so the subnet's size follows the node subset; set keepemptyhyperedges=true to keep them (e.g. to keep identical hyperedge sets across subnets). Hyperedges with one or more remaining members are always kept.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.
@@ -37,7 +37,8 @@ namespace Threadle.CLIconsole.Commands
             string nodesetName = command.GetArgumentThrowExceptionIfMissingOrNull("nodeset", "arg1");
             if (CommandHelpers.TryGetVariable<Nodeset>(context, nodesetName, out var nodeset) is CommandResult commandResultNodeset)
                 return commandResultNodeset;
-            OperationResult<Network> result = NetworkProcessor.Subnet(network, nodeset);
+            bool keepEmpty = command.GetArgumentParseBool("keepemptyhyperedges", false);
+            OperationResult<Network> result = NetworkProcessor.Subnet(network, nodeset, keepEmpty);
             if (!result.Success)
                 return CommandResult.Fail(result.Code, result.Message);
             var subnet = result.Value!;

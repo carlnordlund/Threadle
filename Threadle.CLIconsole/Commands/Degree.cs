@@ -20,7 +20,7 @@ namespace Threadle.CLIconsole.Commands
         /// <summary>
         /// Gets a human-readable description of what the command does.
         /// </summary>
-        public string Description => "Calculates the degree centrality for the specified layer and network, and storing the result as a node attribute. The optional direction parameter decides whether the inbound or the outbound (default) ties should be counted, or - for layers with directional relations - if both in- and outbound ties should be counted. For symmetric layers (and 2-mode layers), this is a moot option. The node attribute is automatically named to the layername and the direction, but this can be overridden with the attrName parameter.";
+        public string Description => "Calculates the degree centrality for the specified layer and network, and storing the result as a node attribute. The optional direction parameter decides whether the inbound or the outbound (default) ties should be counted, or - for layers with directional relations - if both in- and outbound ties should be counted. For symmetric layers (and 2-mode layers), this is a moot option. The node attribute is automatically named to the layername and the direction, but this can be overridden with the attrName parameter. On a 2-mode layer, degree is the number of distinct co-affiliates (binary projection); finding them costs O(sum of squared hyperedge sizes) in total.";
 
         /// <summary>
         /// Gets a value indicating whether this command produces output that must be assigned to a variable.

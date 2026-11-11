@@ -114,6 +114,40 @@ namespace Threadle.Core.Processing
             if (attributes.Count == 0)
                 return OperationResult.Fail("NoAttributes", "No attributes provided.");
 
+            // Check every value before changing anything: a value that does not fit its attribute's type
+            // (e.g. an 11-digit code in an Int column) fails the whole import, with the number of such values
+            // and the first one, instead of silently leaving those nodes without a value. Empty cells mean
+            // 'no value' and are skipped. Whole numbers too large to be exact in a 32-bit Float are accepted
+            // but reported.
+            var warnings = new List<string>();
+            foreach (var (name, type, values) in attributes)
+            {
+                if (type == NodeAttributeType.String)
+                    continue;
+                int rejected = 0, imprecise = 0;
+                string? firstRejected = null, firstImprecise = null;
+                foreach (var (nodeId, valueStr) in values)
+                {
+                    if (string.IsNullOrEmpty(valueStr) || (!addMissingNodes && !nodeset.Contains(nodeId)))
+                        continue;
+                    if (Misc.CreateNodeAttributeValueFromTypeAndString(type, valueStr) is null)
+                    {
+                        if (rejected++ == 0)
+                            firstRejected = $"node {nodeId}: {Misc.DescribeAttributeParseFailure(type, valueStr)}";
+                    }
+                    else if (type == NodeAttributeType.Float && Misc.LosesPrecisionAsFloat(valueStr, out float stored))
+                    {
+                        if (imprecise++ == 0)
+                            firstImprecise = $"'{valueStr}' is stored as {stored.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}";
+                    }
+                }
+                if (rejected > 0)
+                    return OperationResult.Fail("ParseAttributeValueError",
+                        $"{rejected} value(s) in column '{name}' cannot be stored as {type}; first: {firstRejected}. Nothing was imported.");
+                if (imprecise > 0)
+                    warnings.Add($" Warning: {imprecise} value(s) in column '{name}' are whole numbers too large to be exact as Float (32-bit, about 7 significant digits); e.g. {firstImprecise}. Use String to keep them exact.");
+            }
+
             HashSet<uint> allNodeIds = [];
             foreach (var attr in attributes)
                 foreach (uint id in attr.Values.Keys)
@@ -152,7 +186,8 @@ namespace Threadle.Core.Processing
             }
 
             string msg = $"Imported {attributes.Count} attribute(s) for {rowsImported} nodes into nodeset '{nodeset.Name}'."
-                + (rowsSkipped > 0 ? $" {rowsSkipped} rows skipped (node ids not found)." : string.Empty);
+                + (rowsSkipped > 0 ? $" {rowsSkipped} rows skipped (node ids not found)." : string.Empty)
+                + string.Concat(warnings);
             return OperationResult.Ok(msg);
         }
 
