@@ -457,6 +457,17 @@
 
 ### Fixes
 
+- **`subnet()` no longer keeps empty hyperedges in packed 2-mode layers.**
+  A packed 2-mode layer kept every hyperedge of the source network, even
+  those with no members among the subset's nodes (e.g. all 447,433
+  hyperedges for a 4,968-node subset of OpenAlex), so the subnet's size did
+  not follow the subset. Such hyperedges are now dropped (unpacked layers
+  already dropped them); hyperedges with one or more remaining members,
+  including single-member ones, are always kept. New option
+  `keepemptyhyperedges=true` keeps them all, e.g. for identical hyperedge
+  sets across subnets. Layers in the subnet now also keep their source
+  name internally (they were named `…_filtered`). `duplicate()` (layer) and
+  network merging keep empty hyperedges, as a copy should.
 - **Duplicate ties in an imported file now keep the first value.** When an
   edgelist (or a matrix, or a hand-edited TSV file) listed the same tie
   more than once with different values on a valued layer, the value that

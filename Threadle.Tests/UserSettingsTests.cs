@@ -1,7 +1,8 @@
-﻿using Threadle.Core.Utilities;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Tests;
 
+[Collection("MaxThreadsLimit")] // asserts the global 'maxthreads' value, which other test classes change while running
 public class UserSettingsTests
 {
     // ── Removed settings ────────────────────────────────────────────────────

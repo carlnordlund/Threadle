@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Model.Enums;
 
 namespace Threadle.Core.Model
 {
@@ -93,8 +93,11 @@ namespace Threadle.Core.Model
         /// Create a copy of this ILayer with those edges that refer to the nodes in the provided nodeset.
         /// </summary>
         /// <param name="nodeset">The <see cref="Nodeset"/> to filter on (only include edges with these node ids).</param>
+        /// <param name="keepEmptyHyperedges">2-mode layers only: keep hyperedges left with no members in the
+        /// nodeset (true), or drop them (false). Hyperedges with at least one remaining member are always kept.
+        /// Ignored for 1-mode layers.</param>
         /// <returns>A copy of the current <see cref="ILayer"/> object with relevant edges.</returns>
-        ILayer CreateFilteredCopy(Nodeset nodeset);
+        ILayer CreateFilteredCopy(Nodeset nodeset, bool keepEmptyHyperedges = false);
 
         /// <summary>
         /// Returns a list with the first n edges in the Layer. Used by the preview() CLI command.

@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model.Enums;
+using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Model
@@ -310,17 +310,18 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
-        /// Create a new empty copy of this ILayer
+        /// Create a copy of this layer with only the affiliations of the nodes in the provided Nodeset.
+        /// Hyperedges left with no members are dropped unless <paramref name="keepEmptyHyperedges"/> is true.
         /// </summary>
         /// <returns>A copy of the current <see cref="ILayer"/> object.</returns>
-        public ILayer CreateFilteredCopy(Nodeset nodeset)
+        public ILayer CreateFilteredCopy(Nodeset nodeset, bool keepEmptyHyperedges = false)
         {
             HashSet<uint> allowedNodeIds = [.. nodeset.NodeIdArray];
             LayerTwoMode layerCopy = new LayerTwoMode(this.Name + "_filtered");
             foreach (var (name, hyperedge) in AllHyperEdges)
             {
                 Hyperedge hyperedge_filtered = new(name, hyperedge.NodeIds.Intersect(allowedNodeIds).ToArray());
-                if (hyperedge_filtered.NbrNodes == 0)
+                if (hyperedge_filtered.NbrNodes == 0 && !keepEmptyHyperedges)
                     continue;
                 layerCopy.AllHyperEdges.Add(name, hyperedge_filtered);
                 foreach (uint nodeId in hyperedge_filtered.NodeIds)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -632,7 +632,7 @@ namespace Threadle.Core.Model
             _inNeighborNodeIds = IsDirectional ? [] : null;
         }
 
-        public ILayer CreateFilteredCopy(Nodeset nodeset)
+        public ILayer CreateFilteredCopy(Nodeset nodeset, bool keepEmptyHyperedges = false)
         {
             var _newMapper = new Dictionary<uint, int>(_nodeIdToIndexMapper.Count);
             var _newNeighborNodeIds = new List<uint>(_neighborNodeIds.Length);
