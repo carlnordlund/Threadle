@@ -165,8 +165,8 @@
   shortcut exists for a sum the way one exists for a max), so this is a genuine opt-in,
   not a transparent speed-up of the default. When the layer/traversal combination is
   effectively symmetric (a 2-mode layer, a symmetric 1-mode layer, or an explicit
-  `traversal=both`), this uses the iFUB algorithm (Crescenzi, Grossi, Lanzi & Marino
-  2012) — exact, but often examining only a small fraction of a component's nodes on
+  `traversal=both`), this uses the iFUB algorithm (Crescenzi, Grossi, Habib, Lanzi &
+  Marino 2013, the undirected-graph paper) — exact, but often examining only a small fraction of a component's nodes on
   real-world graphs (no improved worst-case bound — e.g. a path graph still needs most
   nodes examined — so this is an empirical/typical-case win, not an asymptotic one).
   Otherwise (a directed layer queried with `out`/`in` traversal, where distances aren't
@@ -190,6 +190,12 @@
 
 ### Behavior changes
 
+- **Shortest paths are returned as lists of node ids.** `shortestpath(...,
+  returnpath=true)` and `shortestpaths(..., returnpaths=true)` used to
+  return each path as a semicolon-separated string (`"34957;4176;..."`);
+  the `Path`/`path` fields are now arrays of node ids, so JSON clients
+  (threadleR, threadlepy) get vectors directly. Text output shows them as
+  `[34957, 4176, ...]`; the message line still shows the path.
 - **The `nodecache` setting was removed; the node-id array is always
   cached.** A nodeset's array of all node ids is built the first time it
   is needed and kept until a node is added or removed (about 4 bytes per
@@ -246,6 +252,85 @@
 
 ### Performance
 
+- **1-mode community detection: a third of the working memory on binary
+  layers, and faster setup.** For a single binary layer without self-ties
+  (the usual input), the working graph no longer stores a weight per
+  neighbour entry: every weight is 1, so all rows share one array of ones,
+  cutting it from 12 to 4 bytes per entry. When the layer is packed and
+  sorted (checked), the rows are taken directly from its neighbour arrays
+  in parallel, instead of being scattered row by row; otherwise the general
+  build is used, and a layer that still gives a repeated pair (a directed
+  layer with ties in both directions, weight 2) falls back to real weights.
+  Communities and modularity are unchanged (verified byte-for-byte across
+  all five methods, and by new tests comparing every route with the
+  weighted build). 120,000-node projected synthetic population (34 million
+  edges): peak heap above the graph 0.96 GB → 0.30 GB (total about 2.1×
+  the graph, was 4.4×); `louvain` 7.0 s → 3.0 s, `leiden` 8.5 s → 4.2 s,
+  `lpam` 6.6 s → 2.5 s, `plm` 7.1 s / 5.0 s → 3.3 s / 1.4 s (1 / 4
+  threads; local moving itself already scaled, the sequential setup did
+  not). `louvain` on the 382,000-node actor–movie-like projection:
+  55 s → 20 s.
+- **`pagerank()` scales with threads and uses less memory.** Each node's
+  distinct out-neighbours used to be collected in a new `HashSet` and
+  copied into an array of their own, and each iteration scattered into a
+  per-task n-sized buffer merged under a lock. The neighbour table is now
+  built in two passes straight into one CSR array, de-duplicating with a
+  reusable per-thread marker array; iterations are pull-based (each node
+  sums the shares of the nodes pointing to it; the table is transposed
+  once for directed layers), with no locks or per-thread buffers, so the
+  result no longer depends on the number of threads. Stored values are
+  unchanged at float precision. 120,000-node projected synthetic
+  population (34 million edges), 1 → 4 threads: 5.7 s / 2.5 s → 4.6 s /
+  1.7 s; the same population as a 2-mode layer: 6.0 s / 2.9 s → 4.8 s /
+  1.9 s. Total allocation 3.5 GB → 0.3 GB, and the peak no longer grows
+  with the thread count.
+- **Faster `shortestpaths()` batches on dense or large inputs.** A batch now
+  builds the node numbering and packed-layer lookups once and gives each
+  thread reusable per-node arrays (distances, predecessors, visit stamps),
+  instead of hash maps per pair; neighbour order and early stops are as
+  before, so distances and paths are identical (verified on 24,060 pairs).
+  The setup is proportional to the number of nodes, so it is used when
+  8 × pairs × average degree reaches the number of nodes; smaller batches
+  keep the per-pair search. 4 threads, 5,000 pairs: 382,000-node sparse
+  projection 0.75 s → 0.28 s; 120,000-node dense projected synthetic
+  population 0.53 s → 0.17 s (500 pairs: 0.12 s → 0.06 s).
+- **Faster `components()`, `diameter()` and the storing of analysis
+  results, especially on dense 1-mode layers.**
+  - `components()` (and the largest-component search inside `diameter()`)
+    now label all components in one pass over the packed neighbour arrays,
+    with a direct node-id index and each hyperedge expanded once, instead
+    of a per-edge callback and dictionary lookup in a separate BFS per
+    component. Component numbers and node order are unchanged. On a
+    120,000-node projected synthetic population (34 million edges):
+    0.65 s → 0.26 s (NetworKit: 0.15 s).
+  - `diameter(diameteronly=true)` on symmetric distances now combines iFUB
+    (Crescenzi, Grossi, Habib, Lanzi & Marino 2013) with BoundingDiameters
+    (Takes & Kosters 2011). The two share one set of per-node eccentricity
+    bounds; each round runs one BFS per thread, half chosen by each method,
+    and it stops as soon as either can prove the diameter. Still exact.
+    iFUB alone must run a BFS from every node in its outermost BFS levels,
+    which on some dense graphs means tens of thousands of BFS; bounds alone
+    stall when nearly all nodes have the same eccentricity; the
+    combination costs at most about twice the better of the two. Same
+    network: 2.7 s → 0.93 s (NetworKit's exact diameter: 14 s). The
+    reported `Algorithm` is now `iFUB+BoundingDiameters`.
+  - Analyses that store a node attribute (degree, components, centralities,
+    eccentricity, coreness, clustering, constraint, effective size,
+    community detection) now store the numbers directly instead of
+    converting each one to text and parsing it back. Float values are
+    rounded from double to float directly, which in rare cases differs from
+    the text route in the last bit (and is the more accurate of the two).
+- **Categorical `assortativity()` on a 2-mode layer in count mode is now
+  linear in the total hyperedge size.** It used to enumerate every pair of
+  co-members, O(Σ hyperedge size²); it now builds one category histogram
+  per hyperedge and sums the pair counts in closed form, as numeric
+  attributes already did. The result is the same (all intermediate sums are
+  integers, so exact). On an OpenAlex-like network (989 hyperedges,
+  ~250,000 memberships): 11.2 s → 0.13 s. Binary mode must count a pair
+  once however many hyperedges it shares, so it still enumerates each
+  node's distinct co-members (O(Σ hyperedge size²)), but it now runs in
+  parallel across up to `maxthreads` threads, for both categorical and
+  numeric attributes: 10.8 s → 4.2 s with 4 threads on the same network.
 - **Much faster `shortestpath()`/`shortestpaths()`, identical results.** The
   bidirectional BFS now stops at the first node reached from both sides,
   instead of finishing that BFS level. This is exact: every meeting found in
@@ -446,6 +531,36 @@
 
 ### Fixes
 
+- **Attribute values that do not fit their type are no longer silently
+  dropped.** An 11-digit census tract code in an `Int` column (32-bit,
+  −2,147,483,648 to 2,147,483,647), or text in a numeric column, used to
+  leave that node without a value, without any message.
+  - `importnodeattributes()` now checks every value first and fails as a
+    whole, changing nothing, with the number of offending values in the
+    column and the first one. Empty cells still mean "no value".
+  - Loading a nodeset TSV file with such a value (only possible in an
+    edited file) fails with the line and node.
+  - `setattr()`/`setattrs()` already refused such values; their message
+    now explains why (e.g. the `Int` range).
+  - A whole number too large to be exact as a 32-bit `Float` (more than
+    about 7 significant digits) is accepted by `importnodeattributes()`,
+    with a warning and an example of the rounded value.
+  - A GraphML integer key (`int`/`long`) with values outside the `Int`
+    range is imported as a String attribute, so no value is lost.
+  - The `defineattr()` help now states the type ranges and that every
+    value takes 4 bytes, and recommends `string` for long codes and
+    identifiers.
+- **`subnet()` no longer keeps empty hyperedges in packed 2-mode layers.**
+  A packed 2-mode layer kept every hyperedge of the source network, even
+  those with no members among the subset's nodes (e.g. all 447,433
+  hyperedges for a 4,968-node subset of OpenAlex), so the subnet's size did
+  not follow the subset. Such hyperedges are now dropped (unpacked layers
+  already dropped them); hyperedges with one or more remaining members,
+  including single-member ones, are always kept. New option
+  `keepemptyhyperedges=true` keeps them all, e.g. for identical hyperedge
+  sets across subnets. Layers in the subnet now also keep their source
+  name internally (they were named `…_filtered`). `duplicate()` (layer) and
+  network merging keep empty hyperedges, as a copy should.
 - **Duplicate ties in an imported file now keep the first value.** When an
   edgelist (or a matrix, or a hand-edited TSV file) listed the same tie
   more than once with different values on a valued layer, the value that
@@ -510,7 +625,9 @@
 ### New features
 
 - **Centrality measures**: betweenness, closeness, harmonic, eigenvector, and edge
-  betweenness centrality, all multithreaded.
+  betweenness centrality. All but eigenvector centrality are multithreaded
+  (eigenvector centrality is sequential; an earlier version of this entry
+  wrongly called it multithreaded).
 - **Clustering coefficient**: multiple methods (Watts-Strogatz, Fagiolo, Barrat,
   Onnela) plus overall transitivity, auto-selected by layer type unless overridden.
 - **Coreness** (k-core decomposition, Batagelj & Zaversnik 2003).
