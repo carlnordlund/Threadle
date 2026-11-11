@@ -252,6 +252,20 @@
 
 ### Performance
 
+- **`pagerank()` scales with threads and uses less memory.** Each node's
+  distinct out-neighbours used to be collected in a new `HashSet` and
+  copied into an array of their own, and each iteration scattered into a
+  per-task n-sized buffer merged under a lock. The neighbour table is now
+  built in two passes straight into one CSR array, de-duplicating with a
+  reusable per-thread marker array; iterations are pull-based (each node
+  sums the shares of the nodes pointing to it; the table is transposed
+  once for directed layers), with no locks or per-thread buffers, so the
+  result no longer depends on the number of threads. Stored values are
+  unchanged at float precision. 120,000-node projected synthetic
+  population (34 million edges), 1 → 4 threads: 5.7 s / 2.5 s → 4.6 s /
+  1.7 s; the same population as a 2-mode layer: 6.0 s / 2.9 s → 4.8 s /
+  1.9 s. Total allocation 3.5 GB → 0.3 GB, and the peak no longer grows
+  with the thread count.
 - **Faster `shortestpaths()` batches on dense or large inputs.** A batch now
   builds the node numbering and packed-layer lookups once and gives each
   thread reusable per-node arrays (distances, predecessors, visit stamps),

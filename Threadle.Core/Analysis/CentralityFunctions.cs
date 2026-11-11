@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
@@ -323,87 +323,142 @@ namespace Threadle.Core.Analysis
             var idx = new Dictionary<uint, int>(n);
             for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
 
-            // Precompute unique out-neighbor index lists (projected adjacency, deduplicated).
-            // Each thread writes only its own slot outNeighbors[ui] - no merge/lock needed.
-            var outNeighbors = new int[n][];
-            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(), ui =>
+            // Out-neighbour table (distinct neighbours, the binary projection for 2-mode layers) as one CSR
+            // array, built in two passes over the same neighbour stream - count, then fill - with a reusable
+            // per-thread marker array for de-duplication, instead of a HashSet and an array per node.
+            var offsets = new int[n + 1];
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                () => new PageRankNeighbourScratch(n, idx),
+                (ui, loopState, sc) =>
+                {
+                    offsets[ui + 1] = sc.Collect(nodeIds[ui], ui, oneModes, twoModesDynamic, twoModesStatic, null, 0);
+                    return sc;
+                },
+                _ => { });
+            for (int i = 0; i < n; i++) offsets[i + 1] += offsets[i];
+            var neighbours = new int[offsets[n]];
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
+                () => new PageRankNeighbourScratch(n, idx),
+                (ui, loopState, sc) =>
+                {
+                    sc.Collect(nodeIds[ui], ui, oneModes, twoModesDynamic, twoModesStatic, neighbours, offsets[ui]);
+                    return sc;
+                },
+                _ => { });
+
+            // Pull-based iteration: each node sums the shares of the nodes pointing to it. For symmetric relations
+            // (undirected 1-mode layers, 2-mode co-membership) those are its own out-neighbours; otherwise the
+            // table is transposed once. No locks or per-thread n-sized buffers, and the summation order per node
+            // is fixed, so the result does not depend on the number of threads.
+            bool symmetric = oneModes.All(l => !l.IsDirectional);
+            int[] inOffsets = offsets, inNeighbours = neighbours;
+            if (!symmetric)
             {
-                uint u = nodeIds[ui];
-                var neighbors = new HashSet<int>();
-                foreach (var layer in oneModes)
-                    foreach (uint v in layer.GetNodeAlters(u, EdgeTraversal.Out))
-                        if (idx.TryGetValue(v, out int vi)) neighbors.Add(vi);
-                foreach (var layer in twoModesDynamic)
-                {
-                    var hec = layer.GetNonEmptyHyperedgeCollection(u);
-                    if (hec == null) continue;
-                    foreach (var he in hec.HyperEdges)
-                        foreach (uint m in he.NodeIds)
-                            if (m != u && idx.TryGetValue(m, out int mi)) neighbors.Add(mi);
-                }
-                foreach (var layer in twoModesStatic)
-                {
-                    if (!layer.TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
-                    for (int k = nStart; k < nEnd; k++)
-                    {
-                        int hIdx = layer.GetNodeHyperedgeIndex(k);
-                        layer.GetHyperedgeRange(hIdx, out int hStart, out int hEnd);
-                        for (int j = hStart; j < hEnd; j++)
-                        {
-                            uint m = layer.GetHyperedgeNodeAt(j);
-                            if (m != u && idx.TryGetValue(m, out int mi)) neighbors.Add(mi);
-                        }
-                    }
-                }
-                outNeighbors[ui] = [.. neighbors];
-            });
+                inOffsets = new int[n + 1];
+                foreach (int v in neighbours) inOffsets[v + 1]++;
+                for (int i = 0; i < n; i++) inOffsets[i + 1] += inOffsets[i];
+                inNeighbours = new int[neighbours.Length];
+                var fill = (int[])inOffsets.Clone();
+                for (int u = 0; u < n; u++)
+                    for (int k = offsets[u]; k < offsets[u + 1]; k++)
+                        inNeighbours[fill[neighbours[k]]++] = u;
+            }
 
             double[] pr = new double[n];
+            double[] prNew = new double[n];
+            double[] share = new double[n];
             for (int i = 0; i < n; i++) pr[i] = 1.0 / n;
             double teleport = (1.0 - dampingFactor) / n;
-            var mergeLock = new object();
 
             for (int iter = 0; iter < maxIterations; iter++)
             {
-                double[] prNew = new double[n];
-                for (int i = 0; i < n; i++) prNew[i] = teleport;
                 double danglingSum = 0;
-
-                System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
-                    () => (Local: new double[n], DanglingSum: 0.0),
-                    (ui, loopState, local) =>
-                    {
-                        int[] outs = outNeighbors[ui];
-                        if (outs.Length == 0)
-                        {
-                            local.DanglingSum += pr[ui];
-                            return local;
-                        }
-                        double share = dampingFactor * pr[ui] / outs.Length;
-                        foreach (int vi in outs) local.Local[vi] += share;
-                        return local;
-                    },
-                    local =>
-                    {
-                        lock (mergeLock)
-                        {
-                            for (int i = 0; i < n; i++) prNew[i] += local.Local[i];
-                            danglingSum += local.DanglingSum;
-                        }
-                    });
-
-                double danglingContrib = dampingFactor * danglingSum / n;
-                for (int i = 0; i < n; i++) prNew[i] += danglingContrib;
+                for (int u = 0; u < n; u++)
+                {
+                    int deg = offsets[u + 1] - offsets[u];
+                    if (deg == 0) { danglingSum += pr[u]; share[u] = 0; }
+                    else share[u] = dampingFactor * pr[u] / deg;
+                }
+                double baseValue = teleport + dampingFactor * danglingSum / n;
+                System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(), v =>
+                {
+                    double sum = 0;
+                    for (int k = inOffsets[v]; k < inOffsets[v + 1]; k++)
+                        sum += share[inNeighbours[k]];
+                    prNew[v] = baseValue + sum;
+                });
 
                 double maxDiff = 0;
                 for (int i = 0; i < n; i++) maxDiff = Math.Max(maxDiff, Math.Abs(prNew[i] - pr[i]));
-                pr = prNew;
+                (pr, prNew) = (prNew, pr);
                 if (maxDiff < tolerance) break;
             }
 
             var result = new Dictionary<uint, double>(n);
             for (int i = 0; i < n; i++) result[nodeIds[i]] = pr[i];
             return result;
+        }
+
+
+        /// <summary>
+        /// Per-thread helper for PageRank's neighbour table: collects a node's distinct out-neighbours (1-mode
+        /// layers via VisitAlters, 2-mode co-members excluding the node itself), counting them or writing them
+        /// to the table, with a generation-stamped marker array for de-duplication.
+        /// </summary>
+        private sealed class PageRankNeighbourScratch
+        {
+            private readonly int[] _stamp;
+            private readonly Dictionary<uint, int> _idx;
+            private readonly Action<uint> _visit;
+            private int _gen;
+            private int _count;
+            private int[]? _target;
+            private int _pos;
+
+            internal PageRankNeighbourScratch(int n, Dictionary<uint, int> idx)
+            {
+                _stamp = new int[n];
+                _idx = idx;
+                _visit = v => { if (_idx.TryGetValue(v, out int vi)) Add(vi); };
+            }
+
+            private void Add(int vi)
+            {
+                if (_stamp[vi] == _gen) return;
+                _stamp[vi] = _gen;
+                if (_target != null) _target[_pos + _count] = vi;
+                _count++;
+            }
+
+            internal int Collect(uint u, int ui, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, int[]? target, int pos)
+            {
+                if (++_gen == int.MaxValue) { Array.Clear(_stamp); _gen = 1; }
+                _count = 0; _target = target; _pos = pos;
+                foreach (var layer in oneModes)
+                    layer.VisitAlters(u, EdgeTraversal.Out, _visit);
+                foreach (var layer in twoModesDynamic)
+                {
+                    var hec = layer.GetNonEmptyHyperedgeCollection(u);
+                    if (hec == null) continue;
+                    foreach (var he in hec.HyperEdges)
+                        foreach (uint m in he.NodeIds)
+                            if (m != u && _idx.TryGetValue(m, out int mi)) Add(mi);
+                }
+                foreach (var layer in twoModesStatic)
+                {
+                    if (!layer.TryGetNodeHyperedgeRange(u, out int nStart, out int nEnd)) continue;
+                    for (int k = nStart; k < nEnd; k++)
+                    {
+                        layer.GetHyperedgeRange(layer.GetNodeHyperedgeIndex(k), out int hStart, out int hEnd);
+                        for (int j = hStart; j < hEnd; j++)
+                        {
+                            uint m = layer.GetHyperedgeNodeAt(j);
+                            if (m != u && _idx.TryGetValue(m, out int mi)) Add(mi);
+                        }
+                    }
+                }
+                return _count;
+            }
         }
 
         #endregion
