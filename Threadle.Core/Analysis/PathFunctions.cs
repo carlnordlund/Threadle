@@ -1,5 +1,6 @@
-﻿using Threadle.Core.Model;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
+using Threadle.Core.Utilities;
 
 namespace Threadle.Core.Analysis
 {
@@ -65,6 +66,190 @@ namespace Threadle.Core.Analysis
             }
 
             return new ShortestPathResult(distance, path);
+        }
+
+        /// <summary>
+        /// Per-thread reusable state for <see cref="BidirectionalBFS(int, int, GraphAlgorithms.BFSContext, GraphAlgorithms.BFSContext, BidirScratch, bool)"/>:
+        /// per-node distance, predecessor and visit-stamp arrays for each direction (a node counts as reached in
+        /// the current search only if its stamp equals the current generation, so nothing is cleared between
+        /// pairs), per-hyperedge stamps for packed 2-mode layers, and reusable frontier lists.
+        /// </summary>
+        internal sealed class BidirScratch
+        {
+            internal int[] StampF = [], StampB = [], DistF = [], DistB = [], PredF = [], PredB = [];
+            internal int[][] HStampF = [], HStampB = [];
+            internal HashSet<Hyperedge>[] DynF = [], DynB = [];
+            internal List<int> FrontF = [], FrontB = [], NextF = [], NextB = [];
+            internal int Gen;
+            private GraphAlgorithms.BFSContext? _context;
+
+            internal void Start(GraphAlgorithms.BFSContext context)
+            {
+                if (!ReferenceEquals(_context, context))
+                {
+                    _context = context;
+                    int n = context.NodeIds.Length;
+                    StampF = new int[n]; StampB = new int[n];
+                    DistF = new int[n]; DistB = new int[n];
+                    PredF = new int[n]; PredB = new int[n];
+                    HStampF = context.TwoModesStatic.Select(st => new int[st.HyperedgeCount]).ToArray();
+                    HStampB = context.TwoModesStatic.Select(st => new int[st.HyperedgeCount]).ToArray();
+                    DynF = context.TwoModesDynamic.Select(_ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance)).ToArray();
+                    DynB = context.TwoModesDynamic.Select(_ => new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance)).ToArray();
+                    Gen = 0;
+                }
+                if (++Gen == int.MaxValue)
+                {
+                    Array.Clear(StampF); Array.Clear(StampB);
+                    foreach (var a in HStampF) Array.Clear(a);
+                    foreach (var a in HStampB) Array.Clear(a);
+                    Gen = 1;
+                }
+                foreach (var d in DynF) d.Clear();
+                foreach (var d in DynB) d.Clear();
+                FrontF.Clear(); FrontB.Clear();
+            }
+        }
+
+        /// <summary>
+        /// Array-based bidirectional BFS for one pair (compact node indices) of a batch, using per-command contexts
+        /// for the forward (Out) and backward (In) directions and per-thread reusable scratch. Same neighbour
+        /// order, same frontier choice and the same early stops as the per-pair version above, so it gives the
+        /// same distance and the same path; only the bookkeeping is arrays instead of hash maps.
+        /// </summary>
+        internal static ShortestPathResult BidirectionalBFS(int source, int target, GraphAlgorithms.BFSContext fwd, GraphAlgorithms.BFSContext bwd, BidirScratch sc, bool returnPath)
+        {
+            sc.Start(fwd);
+            int gen = sc.Gen;
+            uint[] nodeIds = fwd.NodeIds;
+            sc.StampF[source] = gen; sc.DistF[source] = 0; sc.PredF[source] = -1;
+            sc.StampB[target] = gen; sc.DistB[target] = 0; sc.PredB[target] = -1;
+            sc.FrontF.Add(source);
+            sc.FrontB.Add(target);
+            int levelF = 0, levelB = 0;
+            int meeting = -1, best = -1;
+
+            while (sc.FrontF.Count > 0 && sc.FrontB.Count > 0)
+            {
+                bool forward = sc.FrontF.Count <= sc.FrontB.Count;
+                if (forward)
+                {
+                    levelF++;
+                    sc.NextF.Clear();
+                    if (ExpandArrays(fwd, sc.FrontF, sc.NextF, levelF, sc.StampF, sc.DistF, sc.PredF, sc.HStampF, sc.DynF, sc.StampB, sc.DistB, gen, out meeting, out int otherDist))
+                    { best = levelF + otherDist; break; }
+                    (sc.FrontF, sc.NextF) = (sc.NextF, sc.FrontF);
+                }
+                else
+                {
+                    levelB++;
+                    sc.NextB.Clear();
+                    if (ExpandArrays(bwd, sc.FrontB, sc.NextB, levelB, sc.StampB, sc.DistB, sc.PredB, sc.HStampB, sc.DynB, sc.StampF, sc.DistF, gen, out meeting, out int otherDist))
+                    { best = levelB + otherDist; break; }
+                    (sc.FrontB, sc.NextB) = (sc.NextB, sc.FrontB);
+                }
+            }
+
+            if (best < 0)
+                return new ShortestPathResult(-1, null);
+            uint[]? path = null;
+            if (returnPath)
+            {
+                var list = new List<uint>(best + 1);
+                for (int cur = meeting; cur != -1; cur = sc.PredF[cur])
+                    list.Add(nodeIds[cur]);
+                list.Reverse();
+                for (int cur = sc.PredB[meeting]; cur != -1; cur = sc.PredB[cur])
+                    list.Add(nodeIds[cur]);
+                path = [.. list];
+            }
+            return new ShortestPathResult(best, path);
+        }
+
+        /// <summary>
+        /// One level of one direction for the array-based search: 1-mode layers in order (packed ones read from
+        /// their CSR arrays, unpacked ones through GetNodeAlters, as the per-pair version), then dynamic and
+        /// packed 2-mode layers. Returns true at the first newly reached node the other side has reached.
+        /// </summary>
+        private static bool ExpandArrays(GraphAlgorithms.BFSContext ctx, List<int> frontier, List<int> next, int level,
+            int[] stamp, int[] dist, int[] pred, int[][] hStamp, HashSet<Hyperedge>[] dyn, int[] otherStamp, int[] otherDist, int gen,
+            out int meeting, out int otherDistance)
+        {
+            meeting = -1;
+            otherDistance = 0;
+            uint[] nodeIds = ctx.NodeIds;
+            int[]? direct = ctx.DirectIndex;
+            var nodeIndex = ctx.NodeIndex;
+            int IndexOf(uint v) => direct != null ? (v < (uint)direct.Length ? direct[v] : -1) : (nodeIndex.TryGetValue(v, out int i) ? i : -1);
+
+            foreach (int u in frontier)
+            {
+                for (int li = 0; li < ctx.OneModes.Count; li++)
+                {
+                    var fast = ctx.OneModesStatic[li];
+                    if (fast == null)
+                    {
+                        foreach (uint v in ctx.OneModes[li].GetNodeAlters(nodeIds[u], ctx.Traversal))
+                            if (Reach(IndexOf(v), u, out meeting, out otherDistance)) return true;
+                        continue;
+                    }
+                    int p = fast.LayerPos[u];
+                    if (p < 0) continue;
+                    if (fast.UseOut)
+                    {
+                        uint[] nb = fast.Neighbors;
+                        for (int j = fast.Offsets[p], jEnd = fast.Offsets[p + 1]; j < jEnd; j++)
+                            if (Reach(IndexOf(nb[j]), u, out meeting, out otherDistance)) return true;
+                    }
+                    if (fast.UseIn)
+                    {
+                        uint[] nb = fast.InNeighbors!;
+                        int[] off = fast.InOffsets!;
+                        for (int j = off[p], jEnd = off[p + 1]; j < jEnd; j++)
+                            if (Reach(IndexOf(nb[j]), u, out meeting, out otherDistance)) return true;
+                    }
+                }
+                for (int li = 0; li < ctx.TwoModesDynamic.Count; li++)
+                {
+                    var hec = ctx.TwoModesDynamic[li].GetNonEmptyHyperedgeCollection(nodeIds[u]);
+                    if (hec == null) continue;
+                    foreach (var he in hec.HyperEdges)
+                        if (dyn[li].Add(he))
+                            foreach (uint m in he.NodeIds)
+                                if (Reach(IndexOf(m), u, out meeting, out otherDistance)) return true;
+                }
+                for (int li = 0; li < ctx.TwoModesStatic.Length; li++)
+                {
+                    var st = ctx.TwoModesStatic[li];
+                    int[] hs = hStamp[li];
+                    for (int k = st.NodeOffsets[u], kEnd = st.NodeOffsets[u + 1]; k < kEnd; k++)
+                    {
+                        int h = st.NodeHyperedges[k];
+                        if (hs[h] == gen) continue;
+                        hs[h] = gen;
+                        for (int j = st.HyperedgeOffsets[h], jEnd = st.HyperedgeOffsets[h + 1]; j < jEnd; j++)
+                            if (Reach(st.HyperedgeMembers[j], u, out meeting, out otherDistance)) return true;
+                    }
+                }
+            }
+            return false;
+
+            bool Reach(int v, int u, out int meet, out int od)
+            {
+                meet = -1;
+                od = 0;
+                if (v < 0 || stamp[v] == gen)
+                    return false;
+                stamp[v] = gen;
+                dist[v] = level;
+                pred[v] = u;
+                next.Add(v);
+                if (otherStamp[v] != gen)
+                    return false;
+                meet = v;
+                od = otherDist[v];
+                return true;
+            }
         }
 
         /// <summary>One direction's search state: distances, predecessors (if paths are wanted), current frontier.</summary>

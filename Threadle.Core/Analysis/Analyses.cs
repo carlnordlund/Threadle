@@ -989,14 +989,51 @@ namespace Threadle.Core.Analysis
 
             var results = new (uint From, uint To, ShortestPathResult Result)[pairs.Count];
 
-            System.Threading.Tasks.Parallel.For(0, pairs.Count, UserSettings.GetParallelOptions(), i =>
+            // The array-based search costs a setup proportional to the number of nodes and saves work
+            // proportional to the nodes each search reaches, which grows with the average degree: use it when
+            // 8 x pairs x average degree reaches the number of nodes (calibrated on sparse and dense test
+            // networks); otherwise the per-pair search, which needs no
+            // setup (same results either way).
+            int nodeCount = network.Nodeset.Count;
+            double neighbourEntries = 0;
+            foreach (var layer in one)
+                neighbourEntries += layer.NbrEdges * (layer.IsSymmetric ? 2.0 : 1.0);
+            foreach (ILayerTwoMode layer in dynTwo.Cast<ILayerTwoMode>().Concat(statTwo))
+                neighbourEntries += layer.NbrAffiliations * (layer.NbrAffiliations / Math.Max(1.0, layer.NbrHyperedges));
+            double averageDegree = nodeCount > 0 ? neighbourEntries / nodeCount : 0;
+            if (8.0 * pairs.Count * averageDegree < nodeCount)
             {
-                (uint from, uint to) = pairs[i];
-                ShortestPathResult result = from == to
-                    ? new ShortestPathResult(0, returnPath ? [from] : null)
-                    : PathFunctions.BidirectionalBFS(from, to, one, dynTwo, statTwo, returnPath);
-                results[i] = (from, to, result);
-            });
+                System.Threading.Tasks.Parallel.For(0, pairs.Count, UserSettings.GetParallelOptions(), i =>
+                {
+                    (uint from, uint to) = pairs[i];
+                    ShortestPathResult result = from == to
+                        ? new ShortestPathResult(0, returnPath ? [from] : null)
+                        : PathFunctions.BidirectionalBFS(from, to, one, dynTwo, statTwo, returnPath);
+                    results[i] = (from, to, result);
+                });
+                return OperationResult<List<(uint, uint, ShortestPathResult)>>.Ok([.. results]);
+            }
+
+            // Built once for the batch: compact node numbering, packed layers read through their arrays,
+            // 2-mode layers re-indexed; each thread reuses its own per-node arrays across its pairs
+            uint[] nodeIds = network.Nodeset.NodeIdArray;
+            var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
+            for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
+            var fwd = GraphAlgorithms.BFSContext.Create(nodeIndex, nodeIds, one, dynTwo, statTwo, EdgeTraversal.Out);
+            var bwd = fwd.WithTraversal(EdgeTraversal.In);
+
+            System.Threading.Tasks.Parallel.For(0, pairs.Count, UserSettings.GetParallelOptions(),
+                () => new PathFunctions.BidirScratch(),
+                (i, loopState, scratch) =>
+                {
+                    (uint from, uint to) = pairs[i];
+                    ShortestPathResult result = from == to
+                        ? new ShortestPathResult(0, returnPath ? [from] : null)
+                        : PathFunctions.BidirectionalBFS(nodeIndex[from], nodeIndex[to], fwd, bwd, scratch, returnPath);
+                    results[i] = (from, to, result);
+                    return scratch;
+                },
+                _ => { });
 
             return OperationResult<List<(uint, uint, ShortestPathResult)>>.Ok([.. results]);
         }

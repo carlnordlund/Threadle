@@ -252,6 +252,16 @@
 
 ### Performance
 
+- **Faster `shortestpaths()` batches on dense or large inputs.** A batch now
+  builds the node numbering and packed-layer lookups once and gives each
+  thread reusable per-node arrays (distances, predecessors, visit stamps),
+  instead of hash maps per pair; neighbour order and early stops are as
+  before, so distances and paths are identical (verified on 24,060 pairs).
+  The setup is proportional to the number of nodes, so it is used when
+  8 × pairs × average degree reaches the number of nodes; smaller batches
+  keep the per-pair search. 4 threads, 5,000 pairs: 382,000-node sparse
+  projection 0.75 s → 0.28 s; 120,000-node dense projected synthetic
+  population 0.53 s → 0.17 s (500 pairs: 0.12 s → 0.06 s).
 - **Faster `components()`, `diameter()` and the storing of analysis
   results, especially on dense 1-mode layers.**
   - `components()` (and the largest-component search inside `diameter()`)

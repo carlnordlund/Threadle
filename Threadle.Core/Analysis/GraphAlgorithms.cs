@@ -272,6 +272,34 @@ namespace Threadle.Core.Analysis
             }
 
             /// <summary>
+            /// The same context for another traversal direction: shares the node numbering, direct index, packed
+            /// 1-mode layer positions and re-indexed 2-mode layers, and only sets new direction flags per packed
+            /// 1-mode layer (same rules as <see cref="Create"/>).
+            /// </summary>
+            internal BFSContext WithTraversal(EdgeTraversal traversal)
+            {
+                var statics = new StaticOneModeIndex?[OneModesStatic.Length];
+                for (int li = 0; li < statics.Length; li++)
+                {
+                    var src = OneModesStatic[li];
+                    if (src == null) continue;
+                    bool directional = OneModes[li].IsDirectional;
+                    statics[li] = new StaticOneModeIndex
+                    {
+                        LayerPos = src.LayerPos,
+                        Offsets = src.Offsets,
+                        Neighbors = src.Neighbors,
+                        InOffsets = src.InOffsets,
+                        InNeighbors = src.InNeighbors,
+                        UseOut = !directional || traversal == EdgeTraversal.Out || traversal == EdgeTraversal.Both,
+                        UseIn = directional && (traversal == EdgeTraversal.In || traversal == EdgeTraversal.Both)
+                            && src.InOffsets != null && src.InNeighbors != null
+                    };
+                }
+                return new BFSContext(NodeIndex, NodeIds, OneModes, statics, DirectIndex, TwoModesDynamic, TwoModesStatic, traversal);
+            }
+
+            /// <summary>
             /// Builds the context for one operation. <paramref name="nodeIndex"/> must map every id in
             /// <paramref name="nodeIds"/> to its position there (the same pair the plain BFS takes).
             /// </summary>
