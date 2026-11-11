@@ -1,4 +1,4 @@
-﻿using Threadle.CLIconsole.Parsing;
+using Threadle.CLIconsole.Parsing;
 using Threadle.CLIconsole.Results;
 using Threadle.CLIconsole.Runtime;
 using Threadle.Core.Analysis;
@@ -60,7 +60,7 @@ namespace Threadle.CLIconsole.Commands
                     ["distance"] = sp.Distance
                 };
                 if (returnPaths && sp.Path != null)
-                    entry["path"] = string.Join(";", sp.Path);
+                    entry["path"] = sp.Path;
                 payload.Add(entry);
             }
 

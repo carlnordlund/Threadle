@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Processing;
@@ -322,7 +322,7 @@ namespace Threadle.Core.Analysis
         /// wanted - a genuine opt-in, not a transparent speed-up of the default (unchanged) mode.
         /// When the layer/traversal combination is effectively symmetric (a 2-mode layer, a
         /// symmetric 1-mode layer, or traversal=Both), uses the iFUB algorithm (Crescenzi, Grossi,
-        /// Lanzi &amp; Marino 2012) - exact, but often examining only a small fraction of a
+        /// Habib, Lanzi &amp; Marino 2013, Theoretical Computer Science 514) - exact, but often examining only a small fraction of a
         /// component's nodes on real-world graphs (no improved worst-case bound - e.g. a path
         /// graph still needs most nodes examined, so this is an empirical/typical-case win, not an
         /// asymptotic one). Otherwise falls back to the same exhaustive pass as the default mode,

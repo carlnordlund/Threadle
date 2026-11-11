@@ -165,8 +165,8 @@
   shortcut exists for a sum the way one exists for a max), so this is a genuine opt-in,
   not a transparent speed-up of the default. When the layer/traversal combination is
   effectively symmetric (a 2-mode layer, a symmetric 1-mode layer, or an explicit
-  `traversal=both`), this uses the iFUB algorithm (Crescenzi, Grossi, Lanzi & Marino
-  2012) — exact, but often examining only a small fraction of a component's nodes on
+  `traversal=both`), this uses the iFUB algorithm (Crescenzi, Grossi, Habib, Lanzi &
+  Marino 2013, the undirected-graph paper) — exact, but often examining only a small fraction of a component's nodes on
   real-world graphs (no improved worst-case bound — e.g. a path graph still needs most
   nodes examined — so this is an empirical/typical-case win, not an asymptotic one).
   Otherwise (a directed layer queried with `out`/`in` traversal, where distances aren't
@@ -190,6 +190,12 @@
 
 ### Behavior changes
 
+- **Shortest paths are returned as lists of node ids.** `shortestpath(...,
+  returnpath=true)` and `shortestpaths(..., returnpaths=true)` used to
+  return each path as a semicolon-separated string (`"34957;4176;..."`);
+  the `Path`/`path` fields are now arrays of node ids, so JSON clients
+  (threadleR, threadlepy) get vectors directly. Text output shows them as
+  `[34957, 4176, ...]`; the message line still shows the path.
 - **The `nodecache` setting was removed; the node-id array is always
   cached.** A nodeset's array of all node ids is built the first time it
   is needed and kept until a node is added or removed (about 4 bytes per
@@ -551,7 +557,9 @@
 ### New features
 
 - **Centrality measures**: betweenness, closeness, harmonic, eigenvector, and edge
-  betweenness centrality, all multithreaded.
+  betweenness centrality. All but eigenvector centrality are multithreaded
+  (eigenvector centrality is sequential; an earlier version of this entry
+  wrongly called it multithreaded).
 - **Clustering coefficient**: multiple methods (Watts-Strogatz, Fagiolo, Barrat,
   Onnela) plus overall transitivity, auto-selected by layer type unless overridden.
 - **Coreness** (k-core decomposition, Batagelj & Zaversnik 2003).
