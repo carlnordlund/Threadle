@@ -246,6 +246,17 @@
 
 ### Performance
 
+- **Categorical `assortativity()` on a 2-mode layer in count mode is now
+  linear in the total hyperedge size.** It used to enumerate every pair of
+  co-members, O(Σ hyperedge size²); it now builds one category histogram
+  per hyperedge and sums the pair counts in closed form, as numeric
+  attributes already did. The result is the same (all intermediate sums are
+  integers, so exact). On an OpenAlex-like network (989 hyperedges,
+  ~250,000 memberships): 11.2 s → 0.13 s. Binary mode must count a pair
+  once however many hyperedges it shares, so it still enumerates each
+  node's distinct co-members (O(Σ hyperedge size²)), but it now runs in
+  parallel across up to `maxthreads` threads, for both categorical and
+  numeric attributes: 10.8 s → 4.2 s with 4 threads on the same network.
 - **Much faster `shortestpath()`/`shortestpaths()`, identical results.** The
   bidirectional BFS now stops at the first node reached from both sides,
   instead of finishing that BFS level. This is exact: every meeting found in

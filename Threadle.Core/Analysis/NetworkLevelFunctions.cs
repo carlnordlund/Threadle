@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -351,22 +351,12 @@ namespace Threadle.Core.Analysis
         {
             double sumJK = 0, sumJ = 0, sumK = 0, sumJ2 = 0, sumK2 = 0, M = 0;
 
-            void AddSample(double j, double k, double weight)
-            {
-                sumJK += weight * j * k;
-                sumJ += weight * j;
-                sumK += weight * k;
-                sumJ2 += weight * j * j;
-                sumK2 += weight * k * k;
-                M += weight;
-            }
-
             if (projection == ProjectionMethod.Count && ReferenceEquals(jVals, kVals))
             {
                 // Closed-form per-hyperedge reduction. For a hyperedge's members with values
                 // x_1..x_k (only members present in jVals count; a value-less member is excluded
                 // exactly as the per-pair check below would exclude it), let S = Σx_i, Q = Σx_i².
-                // Summed once per unordered pair, each counted from both AddSample calls the
+                // Summed once per unordered pair, each counted from both directional samples the
                 // per-pair path below would have made (one per direction, since jVals==kVals):
                 // sumJK += S² - Q; sumJ/sumK += (k-1)*S; sumJ2/sumK2 += (k-1)*Q; M += k*(k-1).
                 foreach (var (_, memberIds) in ((ILayerTwoMode)layer).GetAllHyperedgeData())
@@ -391,22 +381,44 @@ namespace Threadle.Core.Analysis
             }
             else
             {
-                foreach (uint u in nodeIds)
-                {
-                    bool haveUJ = jVals.TryGetValue(u, out double uJ);
-                    bool haveUK = kVals.TryGetValue(u, out double uK);
-                    if (!haveUJ && !haveUK) continue;
-                    var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
-                    for (int i = 0; i < alters.Length; i++)
+                // Pair enumeration from each node's de-duplicated co-members, in parallel over nodes (up to
+                // 'maxthreads'); per-thread sums merged under a lock. Floating-point sums are then added in
+                // a thread-dependent order, so the last digits can differ between thread counts.
+                var mergeLock = new object();
+                System.Threading.Tasks.Parallel.For(0, nodeIds.Length, UserSettings.GetParallelOptions(),
+                    () => new double[6],
+                    (ui, loopState, acc) =>
                     {
-                        uint v = alters.Span[i];
-                        if (v <= u) continue; // each unordered pair processed once, from the lower-id member
-                        double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
-                        if (haveUJ && kVals.TryGetValue(v, out double vK))
-                            AddSample(uJ, vK, w);
-                        if (haveUK && jVals.TryGetValue(v, out double vJ))
-                            AddSample(vJ, uK, w);
-                    }
+                        uint u = nodeIds[ui];
+                        bool haveUJ = jVals.TryGetValue(u, out double uJ);
+                        bool haveUK = kVals.TryGetValue(u, out double uK);
+                        if (!haveUJ && !haveUK) return acc;
+                        var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                        for (int i = 0; i < alters.Length; i++)
+                        {
+                            uint v = alters.Span[i];
+                            if (v <= u) continue; // each unordered pair processed once, from the lower-id member
+                            double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
+                            if (haveUJ && kVals.TryGetValue(v, out double vK))
+                                Add(acc, uJ, vK, w);
+                            if (haveUK && jVals.TryGetValue(v, out double vJ))
+                                Add(acc, vJ, uK, w);
+                        }
+                        return acc;
+                    },
+                    acc =>
+                    {
+                        lock (mergeLock)
+                        {
+                            sumJK += acc[0]; sumJ += acc[1]; sumK += acc[2];
+                            sumJ2 += acc[3]; sumK2 += acc[4]; M += acc[5];
+                        }
+                    });
+
+                static void Add(double[] a, double j, double k, double weight)
+                {
+                    a[0] += weight * j * k; a[1] += weight * j; a[2] += weight * k;
+                    a[3] += weight * j * j; a[4] += weight * k * k; a[5] += weight;
                 }
             }
 
@@ -423,7 +435,10 @@ namespace Threadle.Core.Analysis
         /// counted once (not mirrored into two directional samples): an affiliation has no
         /// direction, and the nominal mixing formula's own a_c/b_c normalization (over 2M, the
         /// total category-weighted degree) already accounts for both endpoints, exactly as it does
-        /// for an undirected 1-mode layer (see <see cref="CategoricalAssortativity"/>).
+        /// for an undirected 1-mode layer (see <see cref="CategoricalAssortativity"/>). Count mode
+        /// uses a per-hyperedge closed form, O(sum of hyperedge sizes); Binary mode must count a pair
+        /// once however many hyperedges it shares, so it enumerates each node's de-duplicated
+        /// co-members, O(sum of hyperedge sizes squared).
         /// </summary>
         internal static double CategoricalAssortativityTwoMode(ILayer layer, Dictionary<uint, string> cats, uint[] nodeIds, ProjectionMethod projection)
         {
@@ -432,22 +447,73 @@ namespace Threadle.Core.Analysis
             var matchCounts = new Dictionary<string, double>();
             double M = 0;
 
-            foreach (uint u in nodeIds)
+            if (projection == ProjectionMethod.Count)
             {
-                if (!cats.TryGetValue(u, out string? cU)) continue;
-                var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
-                for (int i = 0; i < alters.Length; i++)
+                // Closed form per hyperedge, O(sum of hyperedge sizes) instead of enumerating member
+                // pairs: with c(a) members of category a among the hyperedge's k categorized members,
+                // its unordered co-member pairs number k(k-1)/2, of which c(a)(c(a)-1)/2 lie within
+                // category a, and each member of category a is an endpoint of k-1 of them. Summed over
+                // hyperedges this is exactly the per-pair tally below with weight = shared-hyperedge
+                // count (only the sum of the source and target tallies is used further down, so the
+                // id-order split between them does not matter). All quantities are integer-valued, so
+                // the sums are exact in double precision and the result equals the pairwise one.
+                var histogram = new Dictionary<string, int>();
+                foreach (var (_, memberIds) in ((ILayerTwoMode)layer).GetAllHyperedgeData())
                 {
-                    uint v = alters.Span[i];
-                    if (v <= u) continue; // each unordered pair processed once, from the lower-id member
-                    if (!cats.TryGetValue(v, out string? cV)) continue;
-                    double w = (projection == ProjectionMethod.Count && weights.Length > 0) ? weights.Span[i] : 1.0;
-                    M += w;
-                    sourceCounts[cU] = sourceCounts.GetValueOrDefault(cU) + w;
-                    targetCounts[cV] = targetCounts.GetValueOrDefault(cV) + w;
-                    if (cU == cV)
-                        matchCounts[cU] = matchCounts.GetValueOrDefault(cU) + w;
+                    histogram.Clear();
+                    int k = 0;
+                    foreach (uint m in memberIds)
+                    {
+                        if (!cats.TryGetValue(m, out string? c)) continue;
+                        histogram[c] = histogram.GetValueOrDefault(c) + 1;
+                        k++;
+                    }
+                    if (k < 2) continue;
+                    M += (double)k * (k - 1) / 2;
+                    foreach (var (c, cnt) in histogram)
+                    {
+                        sourceCounts[c] = sourceCounts.GetValueOrDefault(c) + (double)cnt * (k - 1);
+                        if (cnt > 1)
+                            matchCounts[c] = matchCounts.GetValueOrDefault(c) + (double)cnt * (cnt - 1) / 2;
+                    }
                 }
+            }
+            else
+            {
+                // Binary: each node's de-duplicated co-members, in parallel over nodes (up to
+                // 'maxthreads'); per-thread tallies merged under a lock. All tallies are integer-valued,
+                // so the result does not depend on the thread count.
+                var mergeLock = new object();
+                System.Threading.Tasks.Parallel.For(0, nodeIds.Length, UserSettings.GetParallelOptions(),
+                    () => (Src: new Dictionary<string, double>(), Tgt: new Dictionary<string, double>(), Match: new Dictionary<string, double>(), M: 0.0),
+                    (ui, loopState, local) =>
+                    {
+                        uint u = nodeIds[ui];
+                        if (!cats.TryGetValue(u, out string? cU)) return local;
+                        var (alters, weights) = layer.GetNodeAltersWithWeights(u, EdgeTraversal.Both);
+                        for (int i = 0; i < alters.Length; i++)
+                        {
+                            uint v = alters.Span[i];
+                            if (v <= u) continue; // each unordered pair processed once, from the lower-id member
+                            if (!cats.TryGetValue(v, out string? cV)) continue;
+                            local.M += 1.0;
+                            local.Src[cU] = local.Src.GetValueOrDefault(cU) + 1.0;
+                            local.Tgt[cV] = local.Tgt.GetValueOrDefault(cV) + 1.0;
+                            if (cU == cV)
+                                local.Match[cU] = local.Match.GetValueOrDefault(cU) + 1.0;
+                        }
+                        return local;
+                    },
+                    local =>
+                    {
+                        lock (mergeLock)
+                        {
+                            M += local.M;
+                            foreach (var (c, x) in local.Src) sourceCounts[c] = sourceCounts.GetValueOrDefault(c) + x;
+                            foreach (var (c, x) in local.Tgt) targetCounts[c] = targetCounts.GetValueOrDefault(c) + x;
+                            foreach (var (c, x) in local.Match) matchCounts[c] = matchCounts.GetValueOrDefault(c) + x;
+                        }
+                    });
             }
 
             if (M == 0) return 0.0;
