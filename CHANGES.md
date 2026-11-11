@@ -457,6 +457,25 @@
 
 ### Fixes
 
+- **Attribute values that do not fit their type are no longer silently
+  dropped.** An 11-digit census tract code in an `Int` column (32-bit,
+  −2,147,483,648 to 2,147,483,647), or text in a numeric column, used to
+  leave that node without a value, without any message.
+  - `importnodeattributes()` now checks every value first and fails as a
+    whole, changing nothing, with the number of offending values in the
+    column and the first one. Empty cells still mean "no value".
+  - Loading a nodeset TSV file with such a value (only possible in an
+    edited file) fails with the line and node.
+  - `setattr()`/`setattrs()` already refused such values; their message
+    now explains why (e.g. the `Int` range).
+  - A whole number too large to be exact as a 32-bit `Float` (more than
+    about 7 significant digits) is accepted by `importnodeattributes()`,
+    with a warning and an example of the rounded value.
+  - A GraphML integer key (`int`/`long`) with values outside the `Int`
+    range is imported as a String attribute, so no value is lost.
+  - The `defineattr()` help now states the type ranges and that every
+    value takes 4 bytes, and recommends `string` for long codes and
+    identifiers.
 - **`subnet()` no longer keeps empty hyperedges in packed 2-mode layers.**
   A packed 2-mode layer kept every hyperedge of the source network, even
   those with no members among the subset's nodes (e.g. all 447,433

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -638,7 +638,7 @@ namespace Threadle.Core.Model
             else
             {
                 if (!(Misc.CreateNodeAttributeValueFromTypeAndString(attrType, attrValueStr) is NodeAttributeValue parsed))
-                    return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{attrValueStr}' to type '{attrType}'.");
+                    return OperationResult.Fail("ParseAttributeValueError", $"Could not set attribute '{attrName}' to type '{attrType}': {Misc.DescribeAttributeParseFailure(attrType, attrValueStr)}.");
                 attrValue = parsed;
 
             }
@@ -687,7 +687,7 @@ namespace Threadle.Core.Model
                 for (int i = 0; i < valueStrs.Length; i++)
                 {
                     if (Misc.CreateNodeAttributeValueFromTypeAndString(attrType, valueStrs[i]) is not NodeAttributeValue parsed)
-                        return OperationResult.Fail("ParseAttributeValueError", $"Could not convert string '{valueStrs[i]}' to type '{attrType}'.");
+                        return OperationResult.Fail("ParseAttributeValueError", $"Could not set attribute '{attrName}' of type '{attrType}': {Misc.DescribeAttributeParseFailure(attrType, valueStrs[i])}. Nothing was changed.");
                     values[i] = parsed;
                 }
             else

@@ -556,6 +556,16 @@ namespace Threadle.Core.Utilities
                 if (key.Skip || (key.Domain != "node" && key.Domain != "all"))
                     continue;
                 NodeAttributeType attrType = ThreadleType(key.Type);
+                // An integer key (GraphML 'int' or 'long') with values outside the 32-bit Int range (e.g. long
+                // identifiers or codes) is imported as String instead, so no value is lost
+                if (attrType == NodeAttributeType.Int)
+                    for (int i = 0; i < nodeIds.Length; i++)
+                        if (GetValue(graph, graph.NodeData[i], key.Id) is string s && s.Trim().Length > 0
+                            && ParseValue(nodeset, NodeAttributeType.Int, s) is null)
+                        {
+                            attrType = NodeAttributeType.String;
+                            break;
+                        }
                 var defineResult = nodeset.DefineNodeAttribute(key.Name, attrType);
                 if (!defineResult.Success)
                     continue;

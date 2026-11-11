@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
@@ -163,6 +163,38 @@ namespace Threadle.Core.Utilities
                 ConditionType.le => cmp <= 0,
                 _ => false
             };
+        }
+
+        /// <summary>
+        /// Explains why <paramref name="valueStr"/> cannot be stored as <paramref name="type"/> (for error
+        /// messages): e.g. an integer outside the 32-bit Int range, or text that is not a number.
+        /// </summary>
+        internal static string DescribeAttributeParseFailure(NodeAttributeType type, string valueStr)
+        {
+            return type switch
+            {
+                NodeAttributeType.Int => long.TryParse(valueStr, out _) || System.Numerics.BigInteger.TryParse(valueStr, out _)
+                    ? $"'{valueStr}' is outside the range of Int (32-bit, {int.MinValue} to {int.MaxValue}); use String for codes and identifiers, or Float for large quantities"
+                    : $"'{valueStr}' is not an integer",
+                NodeAttributeType.Float => $"'{valueStr}' is not a number (use '.' as decimal separator)",
+                NodeAttributeType.Bool => $"'{valueStr}' is not 'true' or 'false'",
+                NodeAttributeType.Char => $"'{valueStr}' is not a single character",
+                _ => $"'{valueStr}' cannot be stored as {type}"
+            };
+        }
+
+        /// <summary>
+        /// True if <paramref name="valueStr"/> is a whole number that a 32-bit Float cannot hold exactly
+        /// (more than about 7 significant digits), e.g. an 11-digit code: it would be stored rounded.
+        /// Fractional values are not flagged (decimal fractions are generally inexact in binary anyway).
+        /// </summary>
+        internal static bool LosesPrecisionAsFloat(string valueStr, out float stored)
+        {
+            stored = 0;
+            if (!long.TryParse(valueStr, out long exact))
+                return false;
+            stored = (float)exact;
+            return Math.Abs((double)stored - exact) > 0.5;
         }
 
         internal static NodeAttributeValue? CreateNodeAttributeValueFromTypeAndString(NodeAttributeType type, string valueStr)
