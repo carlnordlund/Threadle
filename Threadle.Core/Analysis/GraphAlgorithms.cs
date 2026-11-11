@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -29,6 +29,9 @@ namespace Threadle.Core.Analysis
         internal readonly struct BFSDistances(int[] dist, Dictionary<uint, int> nodeIndex, uint[] nodeIds)
         {
             public int this[uint nodeId] => nodeIndex.TryGetValue(nodeId, out int i) && dist[i] >= 0 ? dist[i] : -1;
+
+            /// <summary>The distance per compact node index (-1 = not reached); valid until the scratch's next BFS.</summary>
+            internal int[] RawDist => dist;
 
             public bool TryGetValue(uint nodeId, out int d)
             {
@@ -573,6 +576,117 @@ namespace Threadle.Core.Analysis
                 scratch.QueueTail = tail;
             }
             return new BFSDistances(dist, nodeIndex, nodeIds);
+        }
+
+        /// <summary>
+        /// Labels the connected components of all of the context's nodes in one pass (weak components when
+        /// the context was built with <see cref="EdgeTraversal.Both"/>), reading packed 1-mode layers through
+        /// their CSR arrays and re-indexed packed 2-mode layers directly, with each hyperedge expanded once in
+        /// the whole pass (a hyperedge lies within one component). Seeds are taken in node order and nodes are
+        /// discovered in exactly the order the per-seed <see cref="BFSReachedNodes"/> walk discovers them, so
+        /// component numbers and the node order within each component are unchanged. Returns: Order (all
+        /// node indices, grouped by component, in discovery order), Starts (component c occupies
+        /// Order[Starts[c] .. Starts[c+1])) and Label (component of each node index).
+        /// </summary>
+        internal static (int[] Order, int[] Starts, int[] Label) ComponentsInOrder(BFSContext context)
+        {
+            uint[] nodeIds = context.NodeIds;
+            int n = nodeIds.Length;
+            var label = new int[n];
+            Array.Fill(label, -1);
+            var order = new int[n];
+            var starts = new List<int>();
+            int tail = 0;
+            int comp = 0;
+            var nodeIndex = context.NodeIndex;
+            int[]? direct = context.DirectIndex;
+            var oneModes = context.OneModes;
+            var oneModesStatic = context.OneModesStatic;
+            var twoModesDynamic = context.TwoModesDynamic;
+            var statics = context.TwoModesStatic;
+            var staticVisited = new bool[statics.Length][];
+            for (int li = 0; li < statics.Length; li++)
+                staticVisited[li] = new bool[statics[li].HyperedgeCount];
+            var dynVisited = new HashSet<Hyperedge>[twoModesDynamic.Count];
+            for (int li = 0; li < dynVisited.Length; li++)
+                dynVisited[li] = new HashSet<Hyperedge>(ReferenceEqualityComparer.Instance);
+
+            int IndexOf(uint v)
+            {
+                if (direct != null)
+                    return v < (uint)direct.Length ? direct[v] : -1;
+                return nodeIndex.TryGetValue(v, out int i) ? i : -1;
+            }
+            void Reach(int vIdx)
+            {
+                if (vIdx >= 0 && label[vIdx] < 0)
+                {
+                    label[vIdx] = comp;
+                    order[tail++] = vIdx;
+                }
+            }
+            Action<uint> visitUnpacked = v => Reach(IndexOf(v));
+
+            for (int s = 0; s < n; s++)
+            {
+                if (label[s] >= 0) continue;
+                starts.Add(tail);
+                int head = tail;
+                Reach(s);
+                while (head < tail)
+                {
+                    int uIdx = order[head++];
+                    for (int li = 0; li < oneModes.Count; li++)
+                    {
+                        var fast = oneModesStatic[li];
+                        if (fast == null)
+                        {
+                            oneModes[li].VisitAlters(nodeIds[uIdx], context.Traversal, visitUnpacked);
+                            continue;
+                        }
+                        int p = fast.LayerPos[uIdx];
+                        if (p < 0) continue;
+                        if (fast.UseOut)
+                        {
+                            uint[] nb = fast.Neighbors;
+                            for (int j = fast.Offsets[p], jEnd = fast.Offsets[p + 1]; j < jEnd; j++)
+                                Reach(IndexOf(nb[j]));
+                        }
+                        if (fast.UseIn)
+                        {
+                            uint[] nb = fast.InNeighbors!;
+                            int[] off = fast.InOffsets!;
+                            for (int j = off[p], jEnd = off[p + 1]; j < jEnd; j++)
+                                Reach(IndexOf(nb[j]));
+                        }
+                    }
+                    for (int li = 0; li < twoModesDynamic.Count; li++)
+                    {
+                        var hec = twoModesDynamic[li].GetNonEmptyHyperedgeCollection(nodeIds[uIdx]);
+                        if (hec == null) continue;
+                        foreach (var he in hec.HyperEdges)
+                            if (dynVisited[li].Add(he))
+                                foreach (uint m in he.NodeIds)
+                                    Reach(IndexOf(m));
+                    }
+                    for (int li = 0; li < statics.Length; li++)
+                    {
+                        var st = statics[li];
+                        bool[] visited = staticVisited[li];
+                        for (int k = st.NodeOffsets[uIdx], kEnd = st.NodeOffsets[uIdx + 1]; k < kEnd; k++)
+                        {
+                            int h = st.NodeHyperedges[k];
+                            if (visited[h]) continue;
+                            visited[h] = true;
+                            for (int j = st.HyperedgeOffsets[h], jEnd = st.HyperedgeOffsets[h + 1]; j < jEnd; j++)
+                                Reach(st.HyperedgeMembers[j]);
+                        }
+                    }
+                }
+                comp++;
+            }
+            starts.Add(n);
+            return (order, starts.ToArray(), label);
         }
 
         /// <summary>

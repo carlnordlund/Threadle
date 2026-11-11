@@ -252,6 +252,32 @@
 
 ### Performance
 
+- **Faster `components()`, `diameter()` and the storing of analysis
+  results, especially on dense 1-mode layers.**
+  - `components()` (and the largest-component search inside `diameter()`)
+    now label all components in one pass over the packed neighbour arrays,
+    with a direct node-id index and each hyperedge expanded once, instead
+    of a per-edge callback and dictionary lookup in a separate BFS per
+    component. Component numbers and node order are unchanged. On a
+    120,000-node projected synthetic population (34 million edges):
+    0.65 s → 0.26 s (NetworKit: 0.15 s).
+  - `diameter(diameteronly=true)` on symmetric distances now combines iFUB
+    (Crescenzi, Grossi, Habib, Lanzi & Marino 2013) with BoundingDiameters
+    (Takes & Kosters 2011). The two share one set of per-node eccentricity
+    bounds; each round runs one BFS per thread, half chosen by each method,
+    and it stops as soon as either can prove the diameter. Still exact.
+    iFUB alone must run a BFS from every node in its outermost BFS levels,
+    which on some dense graphs means tens of thousands of BFS; bounds alone
+    stall when nearly all nodes have the same eccentricity; the
+    combination costs at most about twice the better of the two. Same
+    network: 2.7 s → 0.93 s (NetworKit's exact diameter: 14 s). The
+    reported `Algorithm` is now `iFUB+BoundingDiameters`.
+  - Analyses that store a node attribute (degree, components, centralities,
+    eccentricity, coreness, clustering, constraint, effective size,
+    community detection) now store the numbers directly instead of
+    converting each one to text and parsing it back. Float values are
+    rounded from double to float directly, which in rare cases differs from
+    the text route in the last bit (and is the more accurate of the two).
 - **Categorical `assortativity()` on a 2-mode layer in count mode is now
   linear in the total hyperedge size.** It used to enumerate every pair of
   co-members, O(Σ hyperedge size²); it now builds one category histogram

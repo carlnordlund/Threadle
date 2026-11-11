@@ -952,6 +952,59 @@ namespace Threadle.Core.Model
         }
 
         /// <summary>
+        /// Typed counterpart of the string overload, for analysis results: defines the attribute (dense by
+        /// default) if needed, with the given type, and stores each value directly, without the round trip
+        /// through text. Int values are stored as is; Float values are rounded from double to 32-bit float.
+        /// </summary>
+        internal OperationResult DefineAndSetNodeAttributeValues(string attrName, IEnumerable<KeyValuePair<uint, double>> values, NodeAttributeType attrType, NodeAttributeStorage storage = NodeAttributeStorage.Dense)
+        {
+            if (attrType != NodeAttributeType.Float && attrType != NodeAttributeType.Int)
+                return OperationResult.Fail("ConstraintAttributeTypeMismatch", $"Typed values can only be stored as Int or Float, not '{attrType}'.");
+            var defineResult = DefineForTypedValues(attrName, attrType, storage);
+            if (!defineResult.Success)
+                return OperationResult.Fail(defineResult.Code, defineResult.Message);
+            byte attrIndex = defineResult.Value;
+            int count = 0;
+            foreach (var (nodeId, value) in values)
+            {
+                if (!Contains(nodeId)) continue;
+                SetNodeAttribute(nodeId, attrIndex, attrType == NodeAttributeType.Int ? new NodeAttributeValue((int)value) : new NodeAttributeValue((float)value));
+                count++;
+            }
+            _modified();
+            return OperationResult.Ok($"Node attribute '{attrName}' set for {count} nodes in nodeset '{Name}'.");
+        }
+
+        /// <summary>Typed counterpart of the string overload for integer results (stored as Int).</summary>
+        internal OperationResult DefineAndSetNodeAttributeValues(string attrName, IEnumerable<KeyValuePair<uint, int>> values, NodeAttributeStorage storage = NodeAttributeStorage.Dense)
+        {
+            var defineResult = DefineForTypedValues(attrName, NodeAttributeType.Int, storage);
+            if (!defineResult.Success)
+                return OperationResult.Fail(defineResult.Code, defineResult.Message);
+            byte attrIndex = defineResult.Value;
+            int count = 0;
+            foreach (var (nodeId, value) in values)
+            {
+                if (!Contains(nodeId)) continue;
+                SetNodeAttribute(nodeId, attrIndex, new NodeAttributeValue(value));
+                count++;
+            }
+            _modified();
+            return OperationResult.Ok($"Node attribute '{attrName}' set for {count} nodes in nodeset '{Name}'.");
+        }
+
+        private OperationResult<byte> DefineForTypedValues(string attrName, NodeAttributeType attrType, NodeAttributeStorage storage)
+        {
+            if (NodeAttributeDefinitionManager.TryGetAttributeIndex(attrName, out byte attrIndex))
+            {
+                if (NodeAttributeDefinitionManager.IndexToType[attrIndex] != attrType)
+                    return OperationResult<byte>.Fail("ConstraintAttributeTypeMismatch", $"Attribute '{attrName}' already defined with type '{NodeAttributeDefinitionManager.IndexToType[attrIndex]}', cannot set values of type '{attrType}'.");
+                return OperationResult<byte>.Ok(attrIndex);
+            }
+            return DefineNodeAttribute(attrName, attrType, storage);
+        }
+
+        /// <summary>
         /// Adds a node (initially without attributes) to this Nodeset, assigning it a slot.
         /// No verification is done apart from ignoring an already existing node id: to be used with loaders.
         /// </summary>

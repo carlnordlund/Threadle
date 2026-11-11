@@ -290,8 +290,7 @@ namespace Threadle.Core.Analysis
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var ecc = NetworkLevelFunctions.Eccentricity(nodeIds, lr.Value!, traversal);
             attrName = string.IsNullOrEmpty(attrName) ? "eccentricity" : attrName;
-            var attrDict = ecc.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, ecc);
         }
 
         /// <summary>
@@ -321,13 +320,13 @@ namespace Threadle.Core.Analysis
         /// inherently needs a full BFS from every node regardless of whether only the diameter is
         /// wanted - a genuine opt-in, not a transparent speed-up of the default (unchanged) mode.
         /// When the layer/traversal combination is effectively symmetric (a 2-mode layer, a
-        /// symmetric 1-mode layer, or traversal=Both), uses the iFUB algorithm (Crescenzi, Grossi,
-        /// Habib, Lanzi &amp; Marino 2013, Theoretical Computer Science 514) - exact, but often examining only a small fraction of a
-        /// component's nodes on real-world graphs (no improved worst-case bound - e.g. a path
+        /// symmetric 1-mode layer, or traversal=Both), combines iFUB (Crescenzi, Grossi, Habib, Lanzi &amp;
+        /// Marino 2013) and BoundingDiameters (Takes &amp; Kosters 2011), sharing eccentricity bounds - exact,
+        /// usually needing far fewer BFS runs than nodes on real-world graphs (no improved worst-case bound - e.g. a path
         /// graph still needs most nodes examined, so this is an empirical/typical-case win, not an
         /// asymptotic one). Otherwise falls back to the same exhaustive pass as the default mode,
         /// same cost, just without AvgDistance/PairsConsidered in the result. Either way, the
-        /// result also carries Algorithm ("iFUB" or "AllPairs") so a caller can see which path ran.
+        /// result also carries Algorithm ("iFUB+BoundingDiameters" or "AllPairs") so a caller can see which path ran.
         /// </summary>
         public static OperationResult<Dictionary<string, object>> Diameter(Network network, string layerName, int sampleSize = 0, int numSweeps = 4, EdgeTraversal traversal = EdgeTraversal.Out, bool diameterOnly = false)
         {
@@ -443,8 +442,7 @@ namespace Threadle.Core.Analysis
             {
                 (c, _) = LocalStructureFunctions.StructuralHoles(network.Nodeset.NodeIdArray, oneModes);
             }
-            var attrDict = c.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, c, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -485,8 +483,7 @@ namespace Threadle.Core.Analysis
             {
                 (_, es) = LocalStructureFunctions.StructuralHoles(network.Nodeset.NodeIdArray, oneModes);
             }
-            var attrDict = es.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, es, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -615,8 +612,7 @@ namespace Threadle.Core.Analysis
 
             uint[] nodeIds = network.Nodeset.NodeIdArray;
             var values = LocalStructureFunctions.Coreness(nodeIds, oneModes);
-            var attrDict = values.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, values);
         }
 
         /// <summary>
@@ -643,8 +639,7 @@ namespace Threadle.Core.Analysis
 
             var final = CentralityFunctions.FinalizeBetweenness(bw, nodeIds, sources.Length);
             attrName = string.IsNullOrEmpty(attrName) ? "betweenness" : attrName;
-            var attrDict = final.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, final, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -713,8 +708,7 @@ namespace Threadle.Core.Analysis
 
             var final = CentralityFunctions.FinalizeCloseness(cdSum, cdReach, nodeIds);
             attrName = string.IsNullOrEmpty(attrName) ? "closeness" : attrName;
-            var attrDict = final.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, final, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -740,8 +734,7 @@ namespace Threadle.Core.Analysis
 
             var final = CentralityFunctions.FinalizeHarmonic(hm, nodeIds, normalize);
             attrName = string.IsNullOrEmpty(attrName) ? "harmonic" : attrName;
-            var attrDict = final.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, final, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -760,8 +753,7 @@ namespace Threadle.Core.Analysis
             var scores = CentralityFunctions.EigenvectorCentrality(nodeIds, one, dynTwo, statTwo, traversal, maxIterations, tolerance);
 
             attrName = string.IsNullOrEmpty(attrName) ? "eigenvector" : attrName;
-            var attrDict = scores.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, scores, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -777,8 +769,7 @@ namespace Threadle.Core.Analysis
             var scores = CentralityFunctions.PageRank(nodeIds, one, dynTwo, statTwo, dampingFactor, maxIterations, tolerance);
 
             attrName = string.IsNullOrEmpty(attrName) ? "pagerank" : attrName;
-            var attrDict = scores.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, scores, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -826,8 +817,7 @@ namespace Threadle.Core.Analysis
             attrName = !string.IsNullOrEmpty(attrName) ? attrName : layerTag + "clustering" + methodSuffix;
 
             var values = LocalStructureFunctions.ClusteringCoefficient(sourceIds, oneModes, resolvedMethod);
-            var attrDict = values.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(CultureInfo.InvariantCulture));
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Float);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, values, NodeAttributeType.Float);
         }
 
         /// <summary>
@@ -1076,9 +1066,8 @@ namespace Threadle.Core.Analysis
                 return OperationResult<Dictionary<string, object>>.Fail(layerResult);
             ILayer layer = layerResult.Value!;
             Dictionary<uint, int> componentIndexMapping = Functions.ConnectedComponents(network, layer);
-            var attrDict = componentIndexMapping.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
             attrName = (attrName != null && attrName.Length > 0) ? attrName : layerName + "_componentIndex";
-            var setAttrResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            var setAttrResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, componentIndexMapping);
             if (!setAttrResult.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(setAttrResult);
 
@@ -1129,8 +1118,7 @@ namespace Threadle.Core.Analysis
             else
                 return OperationResult.Fail("InvalidLayerType", $"Layer '{layerName}' is neither a one-mode nor a two-mode layer.");
             // Convert the degree mapping into the <uint,string> format and store this as a node attribute
-            var attrDict = degreeMapping.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
-            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            return network.Nodeset.DefineAndSetNodeAttributeValues(attrName, degreeMapping.Select(kvp => new KeyValuePair<uint, int>(kvp.Key, (int)kvp.Value)));
         }
 
         /// <summary>
@@ -1580,8 +1568,7 @@ namespace Threadle.Core.Analysis
         /// </summary>
         private static OperationResult<Dictionary<string, object>> StoreCommunityResult(Network network, string attrName, Dictionary<uint, int> communities, double modularity, int numRestarts = 1)
         {
-            var attrDict = communities.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
-            var setResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, attrDict, NodeAttributeType.Int);
+            var setResult = network.Nodeset.DefineAndSetNodeAttributeValues(attrName, communities);
             if (!setResult.Success)
                 return OperationResult<Dictionary<string, object>>.Fail(setResult);
 

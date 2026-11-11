@@ -676,14 +676,14 @@ namespace Threadle.Core.Analysis
         /// max), so this is a genuine opt-in, not a transparent speed-up of the default mode,
         /// which is completely unchanged. When true and the distances involved are symmetric (a
         /// 2-mode layer, a symmetric 1-mode layer, or an explicit EdgeTraversal.Both query), uses
-        /// <see cref="DiameterIFUB"/> - exact, but often examining only a small fraction of nodes
-        /// on real-world graphs (no improved worst-case bound, e.g. a path graph still needs most
+        /// <see cref="DiameterExactSymmetric"/> (iFUB combined with BoundingDiameters) - exact, usually
+        /// needing far fewer BFS runs than nodes on real-world graphs (no improved worst-case bound, e.g. a path graph still needs most
         /// nodes examined - the win is empirical/typical-case, not asymptotic). Otherwise (a
-        /// directed layer queried with Out/In traversal, where iFUB's exactness proof doesn't
+        /// directed layer queried with Out/In traversal, where the bounds' exactness proof doesn't
         /// apply) falls back to the same exhaustive all-pairs pass as the default mode, just
         /// without keeping the sum/count needed for AvgDistance - same cost as today in that case,
         /// only the narrower output. Either way, diameterOnly's result always omits
-        /// AvgDistance/PairsConsidered and adds Algorithm ("iFUB" or "AllPairs"), so the output
+        /// AvgDistance/PairsConsidered and adds Algorithm ("iFUB+BoundingDiameters" or "AllPairs"), so the output
         /// shape is predictable regardless of which internal path actually ran.
         /// </summary>
         internal static Dictionary<string, object> Diameter(uint[] nodeIds, ILayer layer, EdgeTraversal traversal, bool diameterOnly = false)
@@ -706,8 +706,8 @@ namespace Threadle.Core.Analysis
 
                     if (effectivelySymmetric)
                     {
-                        diameterOnlyValue = DiameterIFUB(component, componentIndex, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
-                        algorithm = "iFUB";
+                        diameterOnlyValue = DiameterExactSymmetric(component, componentIndex, oneModesFast, twoModesDynamicFast, twoModesStaticFast, traversal);
+                        algorithm = "iFUB+BoundingDiameters";
                     }
                     else
                     {
@@ -899,19 +899,19 @@ namespace Threadle.Core.Analysis
             GraphAlgorithms.SplitLayers([layer], out var oneModes, out var twoModesDynamic, out var twoModesStatic);
             var nodeIndex = new Dictionary<uint, int>(nodeIds.Length);
             for (int i = 0; i < nodeIds.Length; i++) nodeIndex[nodeIds[i]] = i;
-            var scratch = new GraphAlgorithms.BFSReachScratch();
-            var visited = new HashSet<uint>();
-            uint[] bestComponent = [];
-            foreach (uint start in nodeIds)
-            {
-                if (!visited.Add(start)) continue;
-                var component = GraphAlgorithms.BFSReachedNodes(start, scratch, nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
-                foreach (uint v in component)
-                    if (v != start) visited.Add(v);
-                if (component.Count > bestComponent.Length)
-                    bestComponent = component.ToArray();
-            }
-            return bestComponent;
+            var context = GraphAlgorithms.BFSContext.Create(nodeIndex, nodeIds, oneModes, twoModesDynamic, twoModesStatic, EdgeTraversal.Both);
+            var (order, starts, _) = GraphAlgorithms.ComponentsInOrder(context);
+            // The first largest component, nodes in discovery order (as the previous per-seed BFS returned them)
+            int best = 0;
+            for (int c = 1; c < starts.Length - 1; c++)
+                if (starts[c + 1] - starts[c] > starts[best + 1] - starts[best])
+                    best = c;
+            if (starts.Length < 2)
+                return [];
+            var component = new uint[starts[best + 1] - starts[best]];
+            for (int i = 0; i < component.Length; i++)
+                component[i] = nodeIds[order[starts[best] + i]];
+            return component;
         }
 
         /// <summary>
@@ -919,8 +919,7 @@ namespace Threadle.Core.Analysis
         /// peripheral node, then BFS from that node. Returns that peripheral node, its full
         /// distance map, and its eccentricity (the max value in that map) - a cheap, often-exact
         /// lower bound on the true diameter on its own (used this way by
-        /// <see cref="DiameterSampled"/>), and a good starting root for <see cref="DiameterIFUB"/>'s
-        /// level-by-level refinement when distances are symmetric.
+        /// <see cref="DiameterSampled"/>).
         /// </summary>
         private static (uint root, GraphAlgorithms.BFSDistances distFromRoot, int ecc) DoubleSweepRoot(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
@@ -939,113 +938,186 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
-        /// Finds a central root for <see cref="DiameterIFUB"/>, together with a lower bound on the
-        /// diameter. A double sweep (BFS from a random node x to its farthest node r, then BFS from r
-        /// to its farthest node y, at distance ecc) gives two far-apart nodes; one more BFS, from y,
-        /// then identifies a midpoint m of a shortest r-y path: any node with d(r,m) = floor(ecc/2)
-        /// and d(y,m) = ecc - floor(ecc/2) lies on such a path, and the r-farthest-first BFS
-        /// guarantees one exists. m is returned as the root, with its own BFS distances and
-        /// eccentricity. The lower bound is the largest eccentricity seen along the way (those of r,
-        /// y and m) - every one of them is a real shortest-path length, so a valid lower bound.
-        /// This is the start-point heuristic iFUB is designed around (Crescenzi, Grossi, Habib,
-        /// Lanzi &amp; Marino 2013 use the midpoint of a sweep path): a central root has eccentricity
-        /// about half the diameter, so iFUB's stopping test can succeed after only the outermost
-        /// levels around it. Four BFS calls in total (from x, r, y and m).
+        /// Exact diameter of a component with symmetric distances, combining two exact methods that share one
+        /// set of eccentricity bounds, so that it is fast where either of them is:
+        /// - iFUB (Crescenzi, Grossi, Habib, Lanzi &amp; Marino 2013): BFS from a central root (double-sweep
+        ///   midpoint), then BFS from the nodes of the root's BFS levels, outermost first; once every node at
+        ///   level i or beyond is done, no pair can be further apart than 2(i - 1).
+        /// - BoundingDiameters (Takes &amp; Kosters 2011): every node keeps a lower and an upper bound on its
+        ///   eccentricity (after a BFS from v with eccentricity e, a node at distance d has eccentricity at least
+        ///   max(d, e - d) and at most e + d); the diameter lies between the largest lower bound and the largest
+        ///   upper bound (and at most 2e); BFS sources alternate between the remaining node with the largest
+        ///   upper bound and the one with the smallest lower bound (ties: highest degree), and nodes that can no
+        ///   longer move either diameter bound are dropped.
+        /// Every BFS, whichever method chose it, tightens all bounds; iFUB skips nodes whose upper bound cannot
+        /// raise the current diameter (a skipped node is as good as done for its stopping rule). Each round runs
+        /// one BFS per available thread ('maxthreads'), half chosen by iFUB and half by BoundingDiameters, and
+        /// the computation stops as soon as either stopping rule holds. iFUB alone needs a BFS from every node of
+        /// its outermost levels, which on some dense graphs means tens of thousands of BFS; bounds alone stall on
+        /// graphs where nearly all nodes have the same eccentricity. The combination costs at most about twice
+        /// the better of the two.
         /// </summary>
-        private static (long LowerBound, GraphAlgorithms.BFSDistances DistFromRoot, int EccRoot) CentralRootForIFUB(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
+        private static long DiameterExactSymmetric(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
         {
-            GraphAlgorithms.BFSDistances Bfs(uint source) => GraphAlgorithms.BFS(source, componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
-            static (uint Farthest, int Ecc) FarthestOf(GraphAlgorithms.BFSDistances dist, uint fallback)
+            int n = component.Length;
+            if (n <= 1)
+                return 0;
+            var context = GraphAlgorithms.BFSContext.Create(componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
+
+            // Degree proxy for tie-breaking: number of neighbour entries
+            var degree = new long[n];
+            for (int i = 0; i < n; i++)
             {
-                uint farthest = fallback;
-                int ecc = 0;
-                foreach (var (node, d) in dist)
-                    if (d > ecc) { ecc = d; farthest = node; }
-                return (farthest, ecc);
+                uint id = component[i];
+                foreach (var layer in oneModes)
+                    degree[i] += layer.GetNodeAlters(id, traversal).Length;
+                for (int li = 0; li < context.TwoModesStatic.Length; li++)
+                {
+                    var st = context.TwoModesStatic[li];
+                    for (int k = st.NodeOffsets[i]; k < st.NodeOffsets[i + 1]; k++)
+                    {
+                        int h = st.NodeHyperedges[k];
+                        degree[i] += st.HyperedgeOffsets[h + 1] - st.HyperedgeOffsets[h] - 1;
+                    }
+                }
+                foreach (var layer in twoModesDynamic)
+                    degree[i] += layer.GetNodeAlters(id, EdgeTraversal.Both).Length;
             }
 
-            uint x = component[Misc.Random.Next(component.Length)];
-            var (r, _) = FarthestOf(Bfs(x), x);
-            var distFromR = Bfs(r);
-            var (y, ecc) = FarthestOf(distFromR, r);
-            var distFromY = Bfs(y);
-            int eccY = FarthestOf(distFromY, y).Ecc;
+            var lower = new int[n];
+            var upper = new int[n];
+            Array.Fill(upper, int.MaxValue);
+            var active = new bool[n];
+            Array.Fill(active, true);
+            var done = new bool[n];
+            int activeCount = n;
+            long dl = 0, du = long.MaxValue;
+            int threads = UserSettings.MaxDegreeOfParallelism > 0 ? UserSettings.MaxDegreeOfParallelism : Environment.ProcessorCount;
+            threads = Math.Max(1, threads);
+            var scratches = new GraphAlgorithms.BFSScratch[threads];
+            for (int t = 0; t < threads; t++) scratches[t] = new GraphAlgorithms.BFSScratch();
 
-            int half = ecc / 2;
-            uint m = r;
-            foreach (var (node, d) in distFromR)
-                if (d == half && distFromY[node] == ecc - half)
+            // Applies one BFS (source, distances) to all bounds; returns the source's eccentricity
+            int Apply(int source, int[] dist)
+            {
+                int e = 0;
+                for (int w = 0; w < n; w++)
+                    if (dist[w] > e) e = dist[w];
+                done[source] = true;
+                dl = Math.Max(dl, e);
+                du = Math.Min(du, 2L * e);
+                for (int w = 0; w < n; w++)
                 {
-                    m = node;
+                    if (!active[w]) continue;
+                    int d = dist[w];
+                    int lo = Math.Max(d, e - d);
+                    if (lo > lower[w]) lower[w] = lo;
+                    int up = e + d;
+                    if (up < upper[w]) upper[w] = up;
+                    if (lower[w] > dl) dl = lower[w];
+                }
+                return e;
+            }
+            void Prune()
+            {
+                long maxUpper = dl;
+                for (int w = 0; w < n; w++)
+                {
+                    if (!active[w]) continue;
+                    if (lower[w] == upper[w] || (upper[w] <= dl && 2L * lower[w] >= du))
+                    {
+                        active[w] = false;
+                        activeCount--;
+                        continue;
+                    }
+                    if (upper[w] > maxUpper) maxUpper = upper[w];
+                }
+                du = Math.Min(du, maxUpper);
+            }
+            int[] Bfs(int source, int scratch = 0) => GraphAlgorithms.BFS(component[source], context, scratches[scratch]).RawDist;
+            static int Farthest(int[] dist, int fallback)
+            {
+                int best = fallback, e = 0;
+                for (int w = 0; w < dist.Length; w++)
+                    if (dist[w] > e) { e = dist[w]; best = w; }
+                return best;
+            }
+
+            // iFUB's central root: double sweep from a random node, root = midpoint of the r-y path
+            int x = Misc.Random.Next(n);
+            int[] dx = Bfs(x);
+            Apply(x, dx);
+            int r = Farthest(dx, x);
+            int[] distR = (int[])Bfs(r).Clone();
+            int eccR = Apply(r, distR);
+            int y = Farthest(distR, r);
+            int[] distY = Bfs(y);
+            Apply(y, distY);
+            int half = eccR / 2, m = r;
+            for (int w = 0; w < n; w++)
+                if (distR[w] == half && distY[w] == eccR - half) { m = w; break; }
+            int[] distM = (int[])Bfs(m).Clone();
+            int eccM = Apply(m, distM);
+            Prune();
+
+            var levels = new List<int>[eccM + 1];
+            for (int i = 0; i <= eccM; i++) levels[i] = [];
+            for (int w = 0; w < n; w++)
+                levels[distM[w]].Add(w);
+            int level = eccM, pos = 0;
+            bool pickHigh = true;
+            var chosen = new List<int>(threads);
+            int ifubQuota = Math.Max(1, (threads + 1) / 2);
+
+            while (dl < du)
+            {
+                chosen.Clear();
+                // iFUB: next nodes of the outermost unfinished level that could still raise the diameter
+                bool ifubFinished = false;
+                while (chosen.Count < ifubQuota)
+                {
+                    if (pos >= levels[level].Count)
+                    {
+                        if (chosen.Count > 0) break;            // decide the level once this round's BFS are applied
+                        if (dl >= 2L * (level - 1)) { ifubFinished = true; break; }
+                        level--;
+                        pos = 0;
+                        continue;
+                    }
+                    int w = levels[level][pos++];
+                    if (done[w] || upper[w] <= dl) continue;
+                    chosen.Add(w);
+                }
+                if (ifubFinished)
+                    return dl;
+                // BoundingDiameters: fill the round, alternating largest upper / smallest lower bound
+                while (chosen.Count < threads)
+                {
+                    int best = -1;
+                    for (int w = 0; w < n; w++)
+                    {
+                        if (!active[w] || done[w] || chosen.Contains(w)) continue;
+                        if (best < 0) { best = w; continue; }
+                        bool better = pickHigh
+                            ? upper[w] > upper[best] || (upper[w] == upper[best] && degree[w] > degree[best])
+                            : lower[w] < lower[best] || (lower[w] == lower[best] && degree[w] > degree[best]);
+                        if (better) best = w;
+                    }
+                    if (best < 0) break;
+                    chosen.Add(best);
+                    pickHigh = !pickHigh;
+                }
+                if (chosen.Count == 0)
                     break;
-                }
-            var distFromM = Bfs(m);
-            int eccM = FarthestOf(distFromM, m).Ecc;
 
-            long lowerBound = Math.Max(ecc, Math.Max(eccY, eccM));
-            return (lowerBound, distFromM, eccM);
-        }
-
-        /// <summary>
-        /// Exact diameter via the iFUB algorithm (Crescenzi, Grossi, Habib, Lanzi &amp; Marino 2013):
-        /// picks a central root m and an initial lower bound via <see cref="CentralRootForIFUB"/>,
-        /// then processes BFS-tree levels (by distance from m) from farthest to nearest, computing
-        /// each node's exact eccentricity (one more BFS per node, parallelized within the level) and
-        /// raising the lower bound lb accordingly. After level i is done, every node at distance
-        /// i or more from m has a known eccentricity, and any two nodes both within distance i-1 of m
-        /// are at most 2(i-1) apart (through m) - so once lb &gt;= 2(i-1), lb IS the exact diameter and
-        /// the loop stops. The same argument with i-1 = ecc(m) gives the bound 2*ecc(m) before any
-        /// level is processed. This only holds when distances are symmetric; callers must check
-        /// that before calling this, it is not re-checked here. The result is exact for any choice
-        /// of root; a central root just lets the stopping test succeed early - typically after the
-        /// outermost level or two, which on real-world graphs hold a small fraction of the nodes.
-        /// No improved worst-case bound (e.g. a path graph still needs about half its nodes examined).
-        /// </summary>
-        private static long DiameterIFUB(uint[] component, Dictionary<uint, int> componentIndex, List<ILayerOneMode> oneModes, List<LayerTwoMode> twoModesDynamic, List<LayerTwoModeStatic> twoModesStatic, EdgeTraversal traversal)
-        {
-            var (lb, distFromRoot, eccRoot) = CentralRootForIFUB(component, componentIndex, oneModes, twoModesDynamic, twoModesStatic, traversal);
-            if (lb >= 2L * eccRoot)
-                return lb;
-
-            var levels = new Dictionary<int, List<uint>>();
-            foreach (var (node, d) in distFromRoot)
-            {
-                if (!levels.TryGetValue(d, out var list))
-                    levels[d] = list = [];
-                list.Add(node);
+                var dists = new int[chosen.Count][];
+                System.Threading.Tasks.Parallel.For(0, chosen.Count, UserSettings.GetParallelOptions(), t =>
+                    dists[t] = Bfs(chosen[t], t));
+                for (int t = 0; t < chosen.Count; t++)
+                    Apply(chosen[t], dists[t]);
+                Prune();
             }
-
-            var mergeLock = new object();
-            var bfsContext = GraphAlgorithms.BFSContext.Create(componentIndex, component, oneModes, twoModesDynamic, twoModesStatic, traversal);
-            for (int i = eccRoot; i >= 0; i--)
-            {
-                if (levels.TryGetValue(i, out var levelNodes) && levelNodes.Count > 0)
-                {
-                    System.Threading.Tasks.Parallel.For(0, levelNodes.Count, UserSettings.GetParallelOptions(),
-                        () => (Best: 0L, Scratch: new GraphAlgorithms.BFSScratch()),
-                        (j, loopState, local) =>
-                        {
-                            var dist = GraphAlgorithms.BFS(levelNodes[j], bfsContext, local.Scratch);
-                            int ecc = 0;
-                            foreach (int d in dist.Values)
-                                if (d > ecc) ecc = d;
-                            if (ecc > local.Best) local.Best = ecc;
-                            return local;
-                        },
-                        local =>
-                        {
-                            lock (mergeLock)
-                            {
-                                if (local.Best > lb) lb = local.Best;
-                            }
-                        });
-                }
-
-                if (i == 0) break;
-                long ub = 2L * (i - 1);
-                if (lb >= ub) break;
-            }
-            return lb;
+            return dl;
         }
 
         /// <summary>Number of elements common to both sets, iterating the smaller one.</summary>
