@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -1043,11 +1043,22 @@ namespace Threadle.Core.Analysis
         /// Also returns each node's total weighted degree and 2m (the sum of all degrees).
         /// </summary>
         private static (int[][] neighbors, double[][] weights, double[] degree, double twoM) BuildAdjacency(
-            uint[] nodeIds, List<ILayerOneMode> layers)
+            uint[] nodeIds, List<ILayerOneMode> layers, bool forceWeights = false)
         {
             int n = nodeIds.Length;
             var idx = new Dictionary<uint, int>(n);
             for (int i = 0; i < n; i++) idx[nodeIds[i]] = i;
+
+            // A single binary layer without self-ties normally gives every neighbour exactly once with weight
+            // 1.0. Then no weight arrays are allocated (a third of the memory: 4 instead of 12 bytes per entry):
+            // every row shares one array of ones at least as long as the longest row, which the algorithms
+            // only read up to the row's length, and which nothing modifies. Adding 1.0 is exact, so results are
+            // identical. If such a layer still yields a repeated neighbour (e.g. a directed layer with ties in
+            // both directions, which add up to weight 2), it is rebuilt with real weights.
+            bool unitWeights = !forceWeights && layers.Count == 1 && layers[0].IsBinary && !layers[0].Selfties;
+
+            if (unitWeights && TryBuildUnitRowsFromSortedPackedLayer(nodeIds, layers[0], idx) is int[][] direct)
+                return UnitWeightResult(direct);
 
             // Two passes over the same edge stream: the first counts each node's contributions, the second
             // writes them, in order, into rows of exactly that size. Each row is then merged in place
@@ -1058,11 +1069,14 @@ namespace Threadle.Core.Analysis
             int[] count = new int[n];
             ScanAdjacencyContributions(nodeIds, layers, idx, count, null, null);
             var neighbors = new int[n][];
-            var weights = new double[n][];
+            double[][]? weights = unitWeights ? null : new double[n][];
+            int maxRow = 0;
             for (int i = 0; i < n; i++)
             {
                 neighbors[i] = count[i] == 0 ? [] : new int[count[i]];
-                weights[i] = count[i] == 0 ? [] : new double[count[i]];
+                if (weights != null)
+                    weights[i] = count[i] == 0 ? [] : new double[count[i]];
+                if (count[i] > maxRow) maxRow = count[i];
             }
             Array.Clear(count);
             ScanAdjacencyContributions(nodeIds, layers, idx, count, neighbors, weights);
@@ -1072,7 +1086,7 @@ namespace Threadle.Core.Analysis
             for (int u = 0; u < n; u++)
             {
                 int[] nb = neighbors[u];
-                double[] wt = weights[u];
+                double[]? wt = weights?[u];
                 int gen = u + 1, len = 0;
                 for (int k = 0; k < nb.Length; k++)
                 {
@@ -1082,23 +1096,106 @@ namespace Threadle.Core.Analysis
                         stamp[v] = gen;
                         slot[v] = len;
                         nb[len] = v;
-                        wt[len] = 0.0 + wt[k]; // as GetValueOrDefault(v) + w did on first sight
+                        if (wt != null)
+                            wt[len] = 0.0 + wt[k]; // as GetValueOrDefault(v) + w did on first sight
                         len++;
                     }
-                    else
+                    else if (wt != null)
                         wt[slot[v]] += wt[k];
+                    else
+                        return BuildAdjacency(nodeIds, layers, forceWeights: true); // a repeated neighbour: needs real weights
                 }
                 if (len < nb.Length)
                 {
                     Array.Resize(ref neighbors[u], len);
-                    Array.Resize(ref weights[u], len);
+                    Array.Resize(ref weights![u], len);
                 }
             }
 
+            if (weights == null)
+                return UnitWeightResult(neighbors);
             double[] degree = new double[n];
             for (int i = 0; i < n; i++) degree[i] = SumArray(weights[i]);
             double twoM = SumArray(degree);
             return (neighbors, weights, degree, twoM);
+        }
+
+        /// <summary>
+        /// Completes a unit-weight adjacency: every row shares one array of ones as long as the longest row,
+        /// and each degree is its row length (exactly the sum of its 1.0 weights).
+        /// </summary>
+        private static (int[][] neighbors, double[][] weights, double[] degree, double twoM) UnitWeightResult(int[][] neighbors)
+        {
+            int n = neighbors.Length, maxRow = 0;
+            foreach (var row in neighbors) if (row.Length > maxRow) maxRow = row.Length;
+            var ones = new double[maxRow];
+            Array.Fill(ones, 1.0);
+            var weights = new double[n][];
+            double[] degree = new double[n];
+            for (int i = 0; i < n; i++)
+            {
+                weights[i] = ones;
+                degree[i] = neighbors[i].Length;
+            }
+            return (neighbors, weights, degree, SumArray(degree));
+        }
+
+        /// <summary>
+        /// Fast path for the most common input, a single packed undirected binary layer without self-ties: when
+        /// the layer's node map enumerates egos in ascending id order and every neighbour list is strictly
+        /// ascending (checked here), the rows the general two-pass build produces are exactly each node's
+        /// neighbour list in that order (node u first receives the egos e &lt; u it is tied to, in ascending
+        /// order, then its own neighbours v &gt; u in ascending order), so they can be built directly and in
+        /// parallel. Returns null if the conditions do not hold, and the caller falls back to the general build.
+        /// </summary>
+        private static int[][]? TryBuildUnitRowsFromSortedPackedLayer(uint[] nodeIds, ILayerOneMode layer, Dictionary<uint, int> idx)
+        {
+            if (layer is not LayerOneModeStatic packed || !packed.IsSymmetric)
+                return null;
+            int[] offsets = packed.CsrOffsets;
+            uint[] nbrIds = packed.CsrNeighborNodeIds;
+            var mapper = packed.NodeIdToIndexMapper;
+            bool first = true;
+            uint previous = 0;
+            foreach (var (egoId, li) in mapper)
+            {
+                if (!first && egoId <= previous) return null;
+                first = false;
+                previous = egoId;
+            }
+            int n = nodeIds.Length;
+            int[]? direct = null;
+            uint maxId = 0;
+            foreach (uint id in nodeIds) if (id > maxId) maxId = id;
+            if ((long)maxId + 1 <= 4L * n + (1 << 20))
+            {
+                direct = new int[maxId + 1];
+                Array.Fill(direct, -1);
+                for (int i = 0; i < n; i++) direct[nodeIds[i]] = i;
+            }
+            int IndexOf(uint v) => direct != null ? (v < (uint)direct.Length ? direct[v] : -1) : (idx.TryGetValue(v, out int i) ? i : -1);
+
+            var rows = new int[n][];
+            bool unsorted = false;
+            System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(), (ui, state) =>
+            {
+                if (!mapper.TryGetValue(nodeIds[ui], out int li)) { rows[ui] = []; return; }
+                int count = 0;
+                for (int j = offsets[li]; j < offsets[li + 1]; j++)
+                {
+                    if (j > offsets[li] && nbrIds[j] <= nbrIds[j - 1]) { Volatile.Write(ref unsorted, true); state.Stop(); return; }
+                    if (IndexOf(nbrIds[j]) >= 0) count++;
+                }
+                var row = count == 0 ? [] : new int[count];
+                int k = 0;
+                for (int j = offsets[li]; j < offsets[li + 1]; j++)
+                {
+                    int vi = IndexOf(nbrIds[j]);
+                    if (vi >= 0) row[k++] = vi;
+                }
+                rows[ui] = row;
+            });
+            return unsorted ? null : rows;
         }
 
         /// <summary>
@@ -1117,7 +1214,8 @@ namespace Threadle.Core.Analysis
                 if (neighbors != null)
                 {
                     neighbors[u][p] = v;
-                    weights![u][p] = w;
+                    if (weights != null)
+                        weights[u][p] = w;
                 }
             }
 
@@ -1132,14 +1230,29 @@ namespace Threadle.Core.Analysis
                     uint[] nbrIds = packed.CsrNeighborNodeIds;
                     float[]? vals = packed.CsrValues;
                     bool symmetric = packed.IsSymmetric;
+                    // Direct id -> index array when ids are dense enough (one array read per edge instead of a
+                    // dictionary lookup); same results, as it maps exactly like idx
+                    int[]? direct = null;
+                    uint maxId = 0;
+                    foreach (uint id in nodeIds) if (id > maxId) maxId = id;
+                    if ((long)maxId + 1 <= 4L * nodeIds.Length + (1 << 20))
+                    {
+                        direct = new int[maxId + 1];
+                        Array.Fill(direct, -1);
+                        for (int i = 0; i < nodeIds.Length; i++) direct[nodeIds[i]] = i;
+                    }
                     foreach (var (egoId, li) in packed.NodeIdToIndexMapper)
                     {
-                        if (!idx.TryGetValue(egoId, out int ui)) continue;
+                        int ui;
+                        if (direct != null) { ui = egoId < (uint)direct.Length ? direct[egoId] : -1; if (ui < 0) continue; }
+                        else if (!idx.TryGetValue(egoId, out ui)) continue;
                         for (int j = offsets[li]; j < offsets[li + 1]; j++)
                         {
                             uint alter = nbrIds[j];
                             if (symmetric && alter <= egoId) continue;
-                            if (!idx.TryGetValue(alter, out int vi)) continue;
+                            int vi;
+                            if (direct != null) { vi = alter < (uint)direct.Length ? direct[alter] : -1; if (vi < 0) continue; }
+                            else if (!idx.TryGetValue(alter, out vi)) continue;
                             double w = vals != null ? vals[j] : 1.0;
                             Add(ui, vi, w);
                             Add(vi, ui, w);

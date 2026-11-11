@@ -252,6 +252,24 @@
 
 ### Performance
 
+- **1-mode community detection: a third of the working memory on binary
+  layers, and faster setup.** For a single binary layer without self-ties
+  (the usual input), the working graph no longer stores a weight per
+  neighbour entry: every weight is 1, so all rows share one array of ones,
+  cutting it from 12 to 4 bytes per entry. When the layer is packed and
+  sorted (checked), the rows are taken directly from its neighbour arrays
+  in parallel, instead of being scattered row by row; otherwise the general
+  build is used, and a layer that still gives a repeated pair (a directed
+  layer with ties in both directions, weight 2) falls back to real weights.
+  Communities and modularity are unchanged (verified byte-for-byte across
+  all five methods, and by new tests comparing every route with the
+  weighted build). 120,000-node projected synthetic population (34 million
+  edges): peak heap above the graph 0.96 GB → 0.30 GB (total about 2.1×
+  the graph, was 4.4×); `louvain` 7.0 s → 3.0 s, `leiden` 8.5 s → 4.2 s,
+  `lpam` 6.6 s → 2.5 s, `plm` 7.1 s / 5.0 s → 3.3 s / 1.4 s (1 / 4
+  threads; local moving itself already scaled, the sequential setup did
+  not). `louvain` on the 382,000-node actor–movie-like projection:
+  55 s → 20 s.
 - **`pagerank()` scales with threads and uses less memory.** Each node's
   distinct out-neighbours used to be collected in a new `HashSet` and
   copied into an array of their own, and each iteration scattered into a
