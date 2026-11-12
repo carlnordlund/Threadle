@@ -252,6 +252,22 @@
 
 ### Performance
 
+- **Fast node-id lookup also for large node ids.** The traversal kernels
+  (components, BFS-based distances, diameter, betweenness, shortest paths,
+  PageRank's neighbour table, community detection's working graph)
+  translate each neighbour's node id to a compact index once per edge. A
+  direct-address array did this only when the largest id was small (at
+  most about 4 × the node count); otherwise every per-edge lookup went
+  through a dictionary, several times slower, especially on CPUs with
+  small caches. The array is now offset by the smallest id and allowed up
+  to 32 slots per node, so ids that are large but lie in a compact range
+  (e.g. synthetic-population person ids starting at 1,640,000,000) get the
+  fast path too; scattered ids still use the dictionary. Results are
+  unchanged (new test `NodeIdLookupTests.cs` compares small, large and
+  scattered ids). 120,000-node projected test network (34 million edges)
+  with ids from 1,640,000,000: `components()` 0.48 s → 0.26 s, sampled
+  betweenness (100 sources) 34 s → 16 s, exact diameter 1.9 s → 1.1 s —
+  the same as with small ids.
 - **1-mode community detection: a third of the working memory on binary
   layers, and faster setup.** For a single binary layer without self-ties
   (the usual input), the working graph no longer stores a weight per

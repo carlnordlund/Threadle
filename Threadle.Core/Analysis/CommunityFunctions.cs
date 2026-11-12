@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -1164,16 +1164,8 @@ namespace Threadle.Core.Analysis
                 previous = egoId;
             }
             int n = nodeIds.Length;
-            int[]? direct = null;
-            uint maxId = 0;
-            foreach (uint id in nodeIds) if (id > maxId) maxId = id;
-            if ((long)maxId + 1 <= 4L * n + (1 << 20))
-            {
-                direct = new int[maxId + 1];
-                Array.Fill(direct, -1);
-                for (int i = 0; i < n; i++) direct[nodeIds[i]] = i;
-            }
-            int IndexOf(uint v) => direct != null ? (v < (uint)direct.Length ? direct[v] : -1) : (idx.TryGetValue(v, out int i) ? i : -1);
+            int[]? direct = GraphAlgorithms.BuildDirectIndex(nodeIds, out uint directBase);
+            int IndexOf(uint v) => direct != null ? (v - directBase < (uint)direct.Length ? direct[v - directBase] : -1) : (idx.TryGetValue(v, out int i) ? i : -1);
 
             var rows = new int[n][];
             bool unsorted = false;
@@ -1232,26 +1224,18 @@ namespace Threadle.Core.Analysis
                     bool symmetric = packed.IsSymmetric;
                     // Direct id -> index array when ids are dense enough (one array read per edge instead of a
                     // dictionary lookup); same results, as it maps exactly like idx
-                    int[]? direct = null;
-                    uint maxId = 0;
-                    foreach (uint id in nodeIds) if (id > maxId) maxId = id;
-                    if ((long)maxId + 1 <= 4L * nodeIds.Length + (1 << 20))
-                    {
-                        direct = new int[maxId + 1];
-                        Array.Fill(direct, -1);
-                        for (int i = 0; i < nodeIds.Length; i++) direct[nodeIds[i]] = i;
-                    }
+                    int[]? direct = GraphAlgorithms.BuildDirectIndex(nodeIds, out uint directBase);
                     foreach (var (egoId, li) in packed.NodeIdToIndexMapper)
                     {
                         int ui;
-                        if (direct != null) { ui = egoId < (uint)direct.Length ? direct[egoId] : -1; if (ui < 0) continue; }
+                        if (direct != null) { ui = egoId - directBase < (uint)direct.Length ? direct[egoId - directBase] : -1; if (ui < 0) continue; }
                         else if (!idx.TryGetValue(egoId, out ui)) continue;
                         for (int j = offsets[li]; j < offsets[li + 1]; j++)
                         {
                             uint alter = nbrIds[j];
                             if (symmetric && alter <= egoId) continue;
                             int vi;
-                            if (direct != null) { vi = alter < (uint)direct.Length ? direct[alter] : -1; if (vi < 0) continue; }
+                            if (direct != null) { vi = alter - directBase < (uint)direct.Length ? direct[alter - directBase] : -1; if (vi < 0) continue; }
                             else if (!idx.TryGetValue(alter, out vi)) continue;
                             double w = vals != null ? vals[j] : 1.0;
                             Add(ui, vi, w);

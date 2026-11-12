@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -192,6 +192,40 @@ namespace Threadle.Core.Analysis
         }
 
         /// <summary>
+        /// Builds a direct-address lookup from node id to position in <paramref name="nodeIds"/> (-1 for ids not
+        /// in it), offset by the smallest id (returned in <paramref name="baseId"/>): one array read per lookup
+        /// instead of a dictionary lookup, the per-edge cost in every traversal. Built when the ids span at most
+        /// <see cref="DirectIndexMaxSlotsPerNode"/> slots per node plus a constant (at most about 128 bytes per
+        /// node), which covers ids that are small, or large but within a compact range (e.g. a contiguous block
+        /// of person ids starting at 1,640,000,000). Null otherwise (callers then use the dictionary).
+        /// </summary>
+        internal static int[]? BuildDirectIndex(uint[] nodeIds, out uint baseId)
+        {
+            baseId = 0;
+            int n = nodeIds.Length;
+            if (n == 0) return null;
+            uint minId = uint.MaxValue, maxId = 0;
+            foreach (uint id in nodeIds)
+            {
+                if (id < minId) minId = id;
+                if (id > maxId) maxId = id;
+            }
+            long range = (long)maxId - minId + 1;
+            if (range > (long)DirectIndexMaxSlotsPerNode * n + DirectIndexMinSlots)
+                return null;
+            var direct = new int[range];
+            Array.Fill(direct, -1);
+            for (int i = 0; i < n; i++)
+                direct[nodeIds[i] - minId] = i;
+            baseId = minId;
+            return direct;
+        }
+
+        /// <summary>See <see cref="BuildDirectIndex"/>.</summary>
+        internal const int DirectIndexMaxSlotsPerNode = 32;
+        private const int DirectIndexMinSlots = 1 << 20;
+
+        /// <summary>
         /// Read-only, per-operation precomputation for the scratch-based <see cref="BFS(uint, BFSContext, BFSScratch)"/>:
         /// built once by a caller that runs many BFS calls over the same node universe and layers (one per
         /// source node, across worker threads), and shared by all of them. For every packed (static) 2-mode
@@ -221,16 +255,14 @@ namespace Threadle.Core.Analysis
             internal readonly StaticOneModeIndex?[] OneModesStatic;
 
             /// <summary>
-            /// Direct-address lookup from node id to compact index (-1 if the id is not in the node universe),
-            /// used instead of <see cref="NodeIndex"/> when node ids are dense enough: built only if the largest
-            /// node id is at most <see cref="DirectIndexMaxSlotsPerNode"/> times the node count (plus a small
-            /// constant), so it never costs more than a few int per node. Null otherwise.
+            /// Direct-address lookup from node id to compact index: entry id - <see cref="DirectBase"/> (-1 if the id
+            /// is not in the node universe), used instead of <see cref="NodeIndex"/> when the node ids span a small
+            /// enough range (see <see cref="BuildDirectIndex"/>). Null otherwise.
             /// </summary>
             internal readonly int[]? DirectIndex;
 
-            /// <summary>See <see cref="DirectIndex"/>.</summary>
-            internal const int DirectIndexMaxSlotsPerNode = 4;
-            private const int DirectIndexMinSlots = 1 << 20;
+            /// <summary>The smallest node id: <see cref="DirectIndex"/> is offset by it.</summary>
+            internal readonly uint DirectBase;
 
             /// <summary>
             /// One packed 1-mode layer: its own CSR arrays (not copied), plus the position in that layer of each
@@ -259,8 +291,9 @@ namespace Threadle.Core.Analysis
                 internal int HyperedgeCount;
             }
 
-            private BFSContext(Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, StaticOneModeIndex?[] oneModesStatic, int[]? directIndex, List<LayerTwoMode> twoModesDynamic, StaticTwoModeIndex[] twoModesStatic, EdgeTraversal traversal)
+            private BFSContext(Dictionary<uint, int> nodeIndex, uint[] nodeIds, List<ILayerOneMode> oneModes, StaticOneModeIndex?[] oneModesStatic, int[]? directIndex, uint directBase, List<LayerTwoMode> twoModesDynamic, StaticTwoModeIndex[] twoModesStatic, EdgeTraversal traversal)
             {
+                DirectBase = directBase;
                 NodeIndex = nodeIndex;
                 NodeIds = nodeIds;
                 OneModes = oneModes;
@@ -296,7 +329,7 @@ namespace Threadle.Core.Analysis
                             && src.InOffsets != null && src.InNeighbors != null
                     };
                 }
-                return new BFSContext(NodeIndex, NodeIds, OneModes, statics, DirectIndex, TwoModesDynamic, TwoModesStatic, traversal);
+                return new BFSContext(NodeIndex, NodeIds, OneModes, statics, DirectIndex, DirectBase, TwoModesDynamic, TwoModesStatic, traversal);
             }
 
             /// <summary>
@@ -351,18 +384,8 @@ namespace Threadle.Core.Analysis
                     statics[li] = idx;
                 }
 
-                // Direct-address id -> compact index, if node ids are dense enough
-                int[]? directIndex = null;
-                uint maxId = 0;
-                foreach (uint id in nodeIds)
-                    if (id > maxId) maxId = id;
-                if (n > 0 && (long)maxId + 1 <= (long)DirectIndexMaxSlotsPerNode * n + DirectIndexMinSlots)
-                {
-                    directIndex = new int[maxId + 1];
-                    Array.Fill(directIndex, -1);
-                    for (int i = 0; i < n; i++)
-                        directIndex[nodeIds[i]] = i;
-                }
+                // Direct-address id -> compact index, if node ids span a small enough range
+                int[]? directIndex = BuildDirectIndex(nodeIds, out uint directBase);
 
                 // Packed 1-mode layers: reference their CSR arrays, map compact index -> layer position
                 var oneModesStatic = new StaticOneModeIndex?[oneModes.Count];
@@ -390,7 +413,7 @@ namespace Threadle.Core.Analysis
                     };
                 }
 
-                return new BFSContext(nodeIndex, nodeIds, oneModes, oneModesStatic, directIndex, twoModesDynamic, statics, traversal);
+                return new BFSContext(nodeIndex, nodeIds, oneModes, oneModesStatic, directIndex, directBase, twoModesDynamic, statics, traversal);
             }
         }
 
@@ -417,6 +440,7 @@ namespace Threadle.Core.Analysis
             private int _nextDist;
             private Dictionary<uint, int> _nodeIndex = [];
             private int[]? _directIndex;
+            private uint _directBase;
             internal readonly Action<uint> VisitOneModeAlter;
 
             internal BFSScratch()
@@ -425,7 +449,7 @@ namespace Threadle.Core.Analysis
                 {
                     int vIdx;
                     if (_directIndex != null)
-                        vIdx = v < (uint)_directIndex.Length ? _directIndex[v] : -1;
+                        vIdx = v - _directBase < (uint)_directIndex.Length ? _directIndex[v - _directBase] : -1;
                     else if (!_nodeIndex.TryGetValue(v, out vIdx))
                         vIdx = -1;
                     if (vIdx >= 0 && Dist[vIdx] < 0)
@@ -447,6 +471,7 @@ namespace Threadle.Core.Analysis
                     _context = context;
                     _nodeIndex = context.NodeIndex;
                     _directIndex = context.DirectIndex;
+                    _directBase = context.DirectBase;
                     int n = context.NodeIds.Length;
                     Dist = new int[n];
                     Queue = new int[n];
@@ -503,6 +528,7 @@ namespace Threadle.Core.Analysis
             var statics = context.TwoModesStatic;
             var nodeIndex = context.NodeIndex;
             int[]? direct = context.DirectIndex;
+            uint directBase = context.DirectBase;
 
             while (head < scratch.QueueTail)
             {
@@ -532,7 +558,7 @@ namespace Threadle.Core.Analysis
                             uint v = nb[j];
                             int vIdx;
                             if (direct != null)
-                                vIdx = v < (uint)direct.Length ? direct[v] : -1;
+                                vIdx = v - directBase < (uint)direct.Length ? direct[v - directBase] : -1;
                             else if (!nodeIndex.TryGetValue(v, out vIdx))
                                 vIdx = -1;
                             if (vIdx >= 0 && dist[vIdx] < 0)
@@ -551,7 +577,7 @@ namespace Threadle.Core.Analysis
                             uint v = nb[j];
                             int vIdx;
                             if (direct != null)
-                                vIdx = v < (uint)direct.Length ? direct[v] : -1;
+                                vIdx = v - directBase < (uint)direct.Length ? direct[v - directBase] : -1;
                             else if (!nodeIndex.TryGetValue(v, out vIdx))
                                 vIdx = -1;
                             if (vIdx >= 0 && dist[vIdx] < 0)
@@ -628,6 +654,7 @@ namespace Threadle.Core.Analysis
             int comp = 0;
             var nodeIndex = context.NodeIndex;
             int[]? direct = context.DirectIndex;
+            uint directBase = context.DirectBase;
             var oneModes = context.OneModes;
             var oneModesStatic = context.OneModesStatic;
             var twoModesDynamic = context.TwoModesDynamic;
@@ -642,7 +669,7 @@ namespace Threadle.Core.Analysis
             int IndexOf(uint v)
             {
                 if (direct != null)
-                    return v < (uint)direct.Length ? direct[v] : -1;
+                    return v - context.DirectBase < (uint)direct.Length ? direct[v - context.DirectBase] : -1;
                 return nodeIndex.TryGetValue(v, out int i) ? i : -1;
             }
             void Reach(int vIdx)

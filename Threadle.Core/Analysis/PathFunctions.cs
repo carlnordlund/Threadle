@@ -1,4 +1,4 @@
-﻿using Threadle.Core.Model;
+using Threadle.Core.Model;
 using Threadle.Core.Model.Enums;
 using Threadle.Core.Utilities;
 
@@ -179,8 +179,9 @@ namespace Threadle.Core.Analysis
             otherDistance = 0;
             uint[] nodeIds = ctx.NodeIds;
             int[]? direct = ctx.DirectIndex;
+            uint directBase = ctx.DirectBase;
             var nodeIndex = ctx.NodeIndex;
-            int IndexOf(uint v) => direct != null ? (v < (uint)direct.Length ? direct[v] : -1) : (nodeIndex.TryGetValue(v, out int i) ? i : -1);
+            int IndexOf(uint v) => direct != null ? (v - directBase < (uint)direct.Length ? direct[v - directBase] : -1) : (nodeIndex.TryGetValue(v, out int i) ? i : -1);
 
             foreach (int u in frontier)
             {
