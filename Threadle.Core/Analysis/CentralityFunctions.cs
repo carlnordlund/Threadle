@@ -327,8 +327,9 @@ namespace Threadle.Core.Analysis
             // array, built in two passes over the same neighbour stream - count, then fill - with a reusable
             // per-thread marker array for de-duplication, instead of a HashSet and an array per node.
             var offsets = new int[n + 1];
+            int[]? direct = GraphAlgorithms.BuildDirectIndex(nodeIds, out uint directBase);
             System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
-                () => new PageRankNeighbourScratch(n, idx),
+                () => new PageRankNeighbourScratch(n, idx, direct, directBase),
                 (ui, loopState, sc) =>
                 {
                     offsets[ui + 1] = sc.Collect(nodeIds[ui], ui, oneModes, twoModesDynamic, twoModesStatic, null, 0);
@@ -338,7 +339,7 @@ namespace Threadle.Core.Analysis
             for (int i = 0; i < n; i++) offsets[i + 1] += offsets[i];
             var neighbours = new int[offsets[n]];
             System.Threading.Tasks.Parallel.For(0, n, UserSettings.GetParallelOptions(),
-                () => new PageRankNeighbourScratch(n, idx),
+                () => new PageRankNeighbourScratch(n, idx, direct, directBase),
                 (ui, loopState, sc) =>
                 {
                     sc.Collect(nodeIds[ui], ui, oneModes, twoModesDynamic, twoModesStatic, neighbours, offsets[ui]);
@@ -415,11 +416,23 @@ namespace Threadle.Core.Analysis
             private int[]? _target;
             private int _pos;
 
-            internal PageRankNeighbourScratch(int n, Dictionary<uint, int> idx)
+            private readonly int[]? _direct;
+            private readonly uint _directBase;
+
+            internal PageRankNeighbourScratch(int n, Dictionary<uint, int> idx, int[]? direct, uint directBase)
             {
                 _stamp = new int[n];
                 _idx = idx;
-                _visit = v => { if (_idx.TryGetValue(v, out int vi)) Add(vi); };
+                _direct = direct;
+                _directBase = directBase;
+                _visit = v => { int vi = IndexOf(v); if (vi >= 0) Add(vi); };
+            }
+
+            private int IndexOf(uint v)
+            {
+                if (_direct != null)
+                    return v - _directBase < (uint)_direct.Length ? _direct[v - _directBase] : -1;
+                return _idx.TryGetValue(v, out int i) ? i : -1;
             }
 
             private void Add(int vi)
@@ -442,7 +455,7 @@ namespace Threadle.Core.Analysis
                     if (hec == null) continue;
                     foreach (var he in hec.HyperEdges)
                         foreach (uint m in he.NodeIds)
-                            if (m != u && _idx.TryGetValue(m, out int mi)) Add(mi);
+                            if (m != u && IndexOf(m) is int mi && mi >= 0) Add(mi);
                 }
                 foreach (var layer in twoModesStatic)
                 {
@@ -453,7 +466,7 @@ namespace Threadle.Core.Analysis
                         for (int j = hStart; j < hEnd; j++)
                         {
                             uint m = layer.GetHyperedgeNodeAt(j);
-                            if (m != u && _idx.TryGetValue(m, out int mi)) Add(mi);
+                            if (m != u && IndexOf(m) is int mi && mi >= 0) Add(mi);
                         }
                     }
                 }

@@ -52,6 +52,7 @@ namespace Threadle.Core.Analysis
             internal readonly Dictionary<uint, int> NodeIndex;
             internal readonly uint[] NodeIds;
             internal readonly int[]? DirectIndex;
+            internal readonly uint DirectBase;
             internal readonly EdgeTraversal Traversal;
             internal readonly EdgeTraversal ReverseTraversal;
             internal readonly OneMode[] OneModes;
@@ -97,16 +98,7 @@ namespace Threadle.Core.Analysis
                 };
                 int n = nodeIds.Length;
 
-                uint maxId = 0;
-                foreach (uint id in nodeIds)
-                    if (id > maxId) maxId = id;
-                if (n > 0 && (long)maxId + 1 <= 4L * n + (1 << 20))
-                {
-                    DirectIndex = new int[maxId + 1];
-                    Array.Fill(DirectIndex, -1);
-                    for (int i = 0; i < n; i++)
-                        DirectIndex[nodeIds[i]] = i;
-                }
+                DirectIndex = GraphAlgorithms.BuildDirectIndex(nodeIds, out DirectBase);
 
                 OneModes = new OneMode[oneModes.Count];
                 for (int li = 0; li < oneModes.Count; li++)
@@ -258,7 +250,7 @@ namespace Threadle.Core.Analysis
             internal int IndexOf(uint v)
             {
                 if (DirectIndex != null)
-                    return v < (uint)DirectIndex.Length ? DirectIndex[v] : -1;
+                    return v - DirectBase < (uint)DirectIndex.Length ? DirectIndex[v - DirectBase] : -1;
                 return NodeIndex.TryGetValue(v, out int i) ? i : -1;
             }
         }
